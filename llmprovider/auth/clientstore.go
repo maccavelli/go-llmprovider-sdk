@@ -30,7 +30,16 @@ type ClientRecord struct {
 // must not delete the record when the session is deleted.
 type ClientStore interface {
 	// LoadClient returns the provider's record, the zero record when there is
-	// none.
+	// none. A record that exists but cannot be decoded is told from every
+	// other failure by the error: wrap encoding/json's *json.SyntaxError or
+	// *json.UnmarshalTypeError, as FileTokenStore does (errors.As finds it
+	// through any wrapping; no text is compared). A sign-in replaces such a
+	// record with the client it registers, saying so once in the wizard and
+	// not at all through x/signin. Any other error, a permission refused, an
+	// input or output error, a file too large, is a read error: the sign-in
+	// fails with it, before a client is registered, and the record is not
+	// replaced (0082-MADR, fourth amendment of 2026-11-18, R-12). Naming the
+	// file in a read error helps the person; showing its content does not.
 	LoadClient(ctx context.Context, provider llmprovider.ProviderID) (ClientRecord, error)
 	// SaveClient keeps the provider's record; saving the zero record removes
 	// it.
@@ -51,9 +60,11 @@ func (fs *FileTokenStore) clientPath(provider llmprovider.ProviderID) string {
 
 // LoadClient returns the provider's client record from <provider>.client, the
 // zero record when the file does not exist. A provider id that is not a plain
-// file name gives an error matching llmprovider.ErrInvalidProvider, and a
-// file that cannot be read, is larger than 64 KiB or is not a record, a plain
-// error. It is safe for concurrent use.
+// file name gives an error matching llmprovider.ErrInvalidProvider. A file that
+// is not a record gives an error that wraps encoding/json's, which a sign-in
+// replaces; one that cannot be read, or is larger than 64 KiB, a plain error
+// that names the file, which fails the sign-in and leaves the file as it is
+// (0082-MADR, fourth amendment, R-12). It is safe for concurrent use.
 func (fs *FileTokenStore) LoadClient(_ context.Context, provider llmprovider.ProviderID) (ClientRecord, error) {
 	if err := validateProviderID(provider); err != nil {
 		return ClientRecord{}, err

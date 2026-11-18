@@ -168,9 +168,17 @@ func TestGobbleLikeLockerAtItsLimitOffersTheRetry_0082(t *testing.T) {
 // ownErrLock0082 answers a try with a done context with an error of its own,
 // unwrapped, as a locker may that does not return ctx.Err(); a wait with a
 // live context blocks until the lock is free.
-type ownErrLock0082 struct{ scriptedLock0082 }
+type ownErrLock0082 struct {
+	scriptedLock0082
+	live int // calls made with a live context, which wait
+}
 
 func (s *ownErrLock0082) LockRefresh(ctx context.Context, _ llmprovider.ProviderID) (func(), error) {
+	if ctx.Err() == nil {
+		s.mu.Lock()
+		s.live++
+		s.mu.Unlock()
+	}
 	for {
 		s.mu.Lock()
 		held := s.held
@@ -186,30 +194,35 @@ func (s *ownErrLock0082) LockRefresh(ctx context.Context, _ llmprovider.Provider
 	}
 }
 
-// R-10 (the review's N-a, W10): a try that fails for any reason while the
-// sign-in's own context is alive is the lock being held, so the wizard waits,
-// as it did for any locker before the try was added. A locker whose answer to a
-// done context is its own error is waited for and saves; the same locker with
-// the sign-in's own context ended returns that context's error, with no
-// notice and no question. Red when only an error that wraps the cancelled
-// context counts as held.
+// R-10 (the review's N-a, W10), narrowed by R-13 (the fourth amendment of
+// 2026-11-18): a try that fails with an error that does not wrap the cancelled
+// context is not the lock being held. It is not waited for and no notice says
+// another process holds it: the person is asked, in neutral words, whether to
+// try again, and yes repeats the try, which saves once the lock is free. The
+// same locker with the sign-in's own context ended returns that context's
+// error, with no notice and no question. Red while any failed try with a live
+// context is waited for.
 func TestAnyFailedTryWithALiveContextIsHeld_0082(t *testing.T) {
-	t.Run("waits and saves", func(t *testing.T) {
-		store := &ownErrLock0082{scriptedLock0082{held: true}}
-		p := &answers0082{}
-		go func() {
-			time.Sleep(60 * time.Millisecond)
-			store.free()
-		}()
-		if err := (resolvedCredential{session: newSession0082(), saveTo: store}).save(context.Background(), p, descriptor0082(t)); err != nil {
-			t.Fatalf("save = %v; want the wait to end with the save", err)
+	t.Run("asks, does not wait, and saves on yes", func(t *testing.T) {
+		store := &ownErrLock0082{scriptedLock0082: scriptedLock0082{held: true}}
+		p := &answers0082{confirms: []bool{true}, onConfirm: store.free}
+		// A bound, so that a wait that is not wanted ends the test instead of
+		// outlasting it.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := (resolvedCredential{session: newSession0082(), saveTo: store}).save(ctx, p, descriptor0082(t)); err != nil {
+			t.Fatalf("save = %v; want the second try to save", err)
 		}
-		if asked, notices := p.seen(); waitingNotice0082(notices) != 1 || len(asked) != 0 {
-			t.Errorf("notices %q, questions %q; want one waiting notice, no question", notices, asked)
+		asked, notices := p.seen()
+		if len(asked) != 1 || len(notices) != 0 || store.live != 0 {
+			t.Errorf("questions %q, notices %q, %d waits; want one question, no notice, no wait", asked, notices, store.live)
+		}
+		if n := saves0082(&store.scriptedLock0082); n != 1 {
+			t.Errorf("%d saves, want one", n)
 		}
 	})
 	t.Run("the sign-in's own context ended", func(t *testing.T) {
-		store := &ownErrLock0082{scriptedLock0082{held: true}}
+		store := &ownErrLock0082{scriptedLock0082: scriptedLock0082{held: true}}
 		p := &answers0082{confirms: []bool{true}}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -231,9 +244,9 @@ func (s *alwaysFails0082) LockRefresh(context.Context, llmprovider.ProviderID) (
 	return nil, errors.New("lock file unreadable")
 }
 
-// R-10: a lock that fails for good is reported as the wait's failure: the
-// waiting notice, then the question, then the error if the person declines. It
-// is the stated cost of treating any failed try as held; nothing is saved.
+// R-10, narrowed by R-13: a lock that fails for good is reported as the try's
+// failure: one neutral question, no waiting notice, then the error if the
+// person declines. Nothing is saved.
 func TestLockThatFailsForGoodEndsWithTheQuestionThenTheError_0082(t *testing.T) {
 	store := &alwaysFails0082{}
 	p := &answers0082{confirms: []bool{false}}
@@ -241,8 +254,8 @@ func TestLockThatFailsForGoodEndsWithTheQuestionThenTheError_0082(t *testing.T) 
 	if err == nil || !strings.Contains(err.Error(), "lock file unreadable") {
 		t.Errorf("err = %v; want the locker's error", err)
 	}
-	if asked, notices := p.seen(); len(asked) != 1 || waitingNotice0082(notices) != 1 {
-		t.Errorf("questions %q, notices %q; want one of each", asked, notices)
+	if asked, notices := p.seen(); len(asked) != 1 || len(notices) != 0 {
+		t.Errorf("questions %q, notices %q; want one question and no notice", asked, notices)
 	}
 	if n := saves0082(&store.scriptedLock0082); n != 0 {
 		t.Errorf("%d saves, want none", n)

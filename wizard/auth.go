@@ -285,19 +285,27 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 	// has it reused after a sign-out or a switch (0075-MADR D7).
 	var clients auth.ClientStore
 	var issued auth.ClientRecord
+	var read *signinflow.ClientRead
 	var unreadable bool
 	if store, ok := o.TokenStore.(auth.ClientStore); ok {
 		clients = store
-		// An unreadable record is no record, and the person is told, once: the
-		// sign-in goes on, and the client it registers replaces the record. With
-		// no record to say whose a stored plan session is, none is handed over as
-		// Previous: the person registers a new client, which is the ruled
-		// behaviour, not the reuse of 0075-MADR D7. The record's content, and the
-		// read error's text, which quotes some of it, are never shown. The engine
-		// reads the record again and treats it as none too, without a notice of
-		// its own (0082-MADR, third amendment of 2026-11-17, R-9; the second's R-6).
+		// The record is read once, here, and the read is given to the engine.
+		// Only a record that exists but cannot be decoded is no record, and the
+		// person is told, once: the sign-in goes on, and the client it registers
+		// replaces the record. With no record to say whose a stored plan session
+		// is, none is handed over as Previous: the person registers a new client,
+		// which is the ruled behaviour, not the reuse of 0075-MADR D7. The
+		// record's content, and the read error's text, which quotes some of it,
+		// are never shown. Any other read error, a permission refused, an input
+		// or output error, fails the sign-in at once, naming the store's error
+		// and not the file's content, with no notice and no registration: the
+		// record is as it was (0082-MADR, third amendment of 2026-11-17, R-9; the
+		// second's R-6; the fourth of 2026-11-18, R-12).
 		var readErr error
 		if issued, readErr = store.LoadClient(ctx, llmprovider.ProviderOpenAI); readErr != nil {
+			if !signinflow.Undecodable(readErr) {
+				return resolvedCredential{}, fmt.Errorf("wizard: read the saved %s client record: %w", d.Label, readErr)
+			}
 			issued, unreadable = auth.ClientRecord{}, true
 			if previous != nil && previous.PlanUsage() {
 				p.Notify(LevelWarn, "the saved %s client record could not be read; the saved plan session is not signed in to again, and a new client is registered", d.Label)
@@ -305,6 +313,7 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 				p.Notify(LevelWarn, "the saved %s client record could not be read; this sign-in replaces it", d.Label)
 			}
 		}
+		read = &signinflow.ClientRead{Record: issued, Err: readErr}
 	}
 	if previous != nil && (unreadable || !signsInAgainTo(previous, issued)) {
 		previous = nil
@@ -323,6 +332,7 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 		First:       previous == nil,
 		ConsentText: o.ConsentText,
 		ClientStore: clients,
+		Client:      read,
 	}, instruction, prompt)
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
@@ -1060,17 +1070,22 @@ func pendingOAuthCredential(
 // holds the lock across its request and its own save, so this save waits for
 // it and lands after it, and a refresh that starts after it meets the new
 // sign-in (0082-MADR, second amendment of 2026-11-17, R-1, R-7). The wizard
-// tries the lock once; if it is held, it says it is waiting, on its own
-// goroutine, and waits. A try that fails while the sign-in's own context is
-// alive is the lock being held, whatever the error: a locker that answers a
-// done context with an error of its own is waited for as one that wraps the
-// context's. The wait ends with ctx, saving nothing, and at the store's own
-// bound (a minute for FileTokenStore) with the store's error, whatever it
-// is, matching llmprovider.ErrProviderUnavailable for FileTokenStore and not
-// for gobble's: the completed sign-in is then kept in memory and p is asked
-// whether to try the save again, which waits again. Any failed wait but the
-// sign-in's own context's ending leads to the question, and nothing else does:
-// a save that fails under a lock the wizard holds is returned as it is. A
+// tries the lock once, with a context already cancelled. The lock is held
+// only when that try's error wraps context.Canceled, as RefreshLocker
+// documents: then it says it is waiting, on its own goroutine, and waits. The
+// wait ends with ctx, saving nothing, and at the store's own bound (a minute
+// for FileTokenStore) with the store's error, whatever it is, matching
+// llmprovider.ErrProviderUnavailable for FileTokenStore and not for gobble's:
+// the completed sign-in is then kept in memory and p is asked, in words that
+// say another process is still refreshing, whether to try the save again,
+// which tries and waits again. Any failed wait but the sign-in's own
+// context's ending leads to that question. A try that fails for another
+// reason while the sign-in's own context is alive, a lock file that cannot be
+// opened, is not the lock being held: there is no notice, no wait and no
+// claim of another process; p is asked in neutral words, showing the error
+// with its control characters removed, whether to try again, and yes repeats
+// the try (0082-MADR, fourth amendment of 2026-11-18, R-13). A save that
+// fails under a lock the wizard holds is returned as it is. A
 // refusal, an answer that cannot be given, or no Prompter returns the error and
 // saves nothing; the loop is the person's, with no bound of its own
 // (0082-MADR, third amendment, R-10). A store that is not a RefreshLocker is
@@ -1092,7 +1107,7 @@ func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.
 		return c.write(ctx, d)
 	}
 	for {
-		held, err := c.writeUnderLock(ctx, p, locker, d)
+		held, contended, err := c.writeUnderLock(ctx, p, locker, d)
 		if held {
 			return err
 		}
@@ -1103,7 +1118,12 @@ func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.
 		if p == nil {
 			return failed
 		}
-		again, askErr := p.Confirm(fmt.Sprintf("Another process is still refreshing the saved %s session. Try saving the new sign-in again?", d.Label), true)
+		question := fmt.Sprintf("The lock on the saved %s session could not be taken (%s). Try saving the new sign-in again?",
+			d.Label, redact.StripControl(redact.String(err.Error())))
+		if contended {
+			question = fmt.Sprintf("Another process is still refreshing the saved %s session. Try saving the new sign-in again?", d.Label)
+		}
+		again, askErr := p.Confirm(question, true)
 		if askErr != nil || !again {
 			return failed
 		}
@@ -1112,37 +1132,42 @@ func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.
 
 // writeUnderLock takes the store's refresh lock, writes with it held and
 // releases it. held reports that the lock was taken, and err is then the
-// write's; with held false, err is why it was not taken.
-func (c resolvedCredential) writeUnderLock(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (held bool, err error) {
-	unlock, err := lockToSave(ctx, p, locker, d)
+// write's; with held false, err is why it was not taken, and contended
+// reports that the lock was seen held by another process.
+func (c resolvedCredential) writeUnderLock(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (held, contended bool, err error) {
+	unlock, contended, err := lockToSave(ctx, p, locker, d)
 	if err != nil {
-		return false, err
+		return false, contended, err
 	}
 	defer unlock()
-	return true, c.write(ctx, d)
+	return true, contended, c.write(ctx, d)
 }
 
 // lockToSave takes the store's refresh lock for a save: one try, with a
-// context already done, as persistRotation tries; if the lock is held, a
-// notice, then a wait that ends with ctx or at the store's bound. A try that
-// fails with the sign-in's own context ended is that context's error; one that
-// fails with it alive is taken as the lock being held, whatever its error,
-// since a locker may answer a done context with an error of its own, and
-// waiting loses nothing for a locker that does not.
-func lockToSave(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (func(), error) {
+// context already done, as persistRotation tries. The lock is held by another
+// process only when that try's error wraps context.Canceled, which is what
+// auth.RefreshLocker documents for a held lock and what FileTokenStore and
+// gobble's locker return; then a notice, and a wait that ends with ctx or at the
+// store's bound, and contended is true. A try that fails with the sign-in's own
+// context ended is that context's error. Any other failure of the try, with
+// that context alive, is not the lock being held: it is returned at once,
+// with contended false, for the caller to ask about in neutral words (0082-MADR,
+// fourth amendment, R-13).
+func lockToSave(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (unlock func(), contended bool, err error) {
 	once, cancel := context.WithCancel(ctx)
 	cancel()
-	unlock, err := locker.LockRefresh(once, d.ID)
+	unlock, err = locker.LockRefresh(once, d.ID)
 	if err == nil {
-		return unlock, nil
+		return unlock, false, nil
 	}
-	if ctx.Err() != nil {
-		return nil, err
+	if ctx.Err() != nil || !errors.Is(err, context.Canceled) {
+		return nil, false, err
 	}
 	if p != nil {
 		p.Notify(LevelInfo, "waiting for another process to finish refreshing the saved %s session; the new sign-in is saved after it", d.Label)
 	}
-	return locker.LockRefresh(ctx, d.ID)
+	unlock, err = locker.LockRefresh(ctx, d.ID)
+	return unlock, true, err
 }
 
 // write gives the new session its store and saves it. The caller holds the

@@ -99,16 +99,25 @@ tag and its commit without notes; its notes are its section here.
     `llmprovider.ErrProviderUnavailable`), it keeps the completed sign-in
     and asks whether to try the save again, and a refusal, or a caller with
     no prompter or no answer to give, gets the store's error, with nothing
-    saved; a lock that is held is any failed first try while the sign-in's
-    own context is alive, whatever its error; the sign-in's context ends
-    the wait at any point, saving nothing. It signs in to a stored plan
+    saved; the lock is held only when the first try's error wraps
+    `context.Canceled`, as `auth.RefreshLocker` documents, and any other
+    failed try is not called another process: there is no wait, and the
+    person is asked in neutral words, with the error shown, whether to try
+    again; the sign-in's context ends the wait at any point, saving
+    nothing. It signs in to a stored plan
     session again only when it is OpenAI's own and, with a client record,
     that client's, so another application's issued client is not reused. A
-    client record it cannot read is treated as none, with one notice that
-    shows nothing of the file: no plan session is then signed in to again,
-    the person registers a new client, and the new client replaces the
-    record. The sign-in engine under `x/signin` treats such a record as
-    none too, with no notice, where it failed the sign-in;
+    client record that exists but cannot be decoded is treated as none, with
+    one notice that shows nothing of the file: no plan session is then
+    signed in to again, the person registers a new client, and the new
+    client replaces the record. Any other error reading the record, a
+    permission refused or an input or output error, fails the sign-in
+    naming the file, with no notice, no registration and the record as it
+    was, and the record is read once per sign-in. The sign-in engine under
+    `x/signin` replaces an undecodable record silently, where it failed the
+    sign-in, and fails `Wait` on any other read error; a decode failure is
+    told from the rest by wrapping `encoding/json`'s error, which
+    `FileTokenStore` does (`auth.ClientStore` documents it);
   - `OAuthSession.StoredConsent` counts a stored record that is another
     sign-in as unanswered, so a held plan session no longer reads another
     application's `background_use` answer.
@@ -123,9 +132,12 @@ tag and its commit without notes; its notes are its section here.
   access token, the current one or the one the store is known to hold, so a
   store that keeps neither the refresh token nor the client still serves its
   one process, a failed save included; a record with a refresh token of its
-  own is judged by its labels whatever access token it carries
+  own, a blank one included, is judged by its labels whatever access token it
+  carries. A writer of the store can plant an access-only record with the
+  session's stale access token, which is taken as its own until the next save
+  overwrites it; that needs write access to the session's own record
   ([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)
-  D1 to D5 and its amendments of 2026-11-17).
+  D1 to D5 and its amendments of 2026-11-17 and 2026-11-18).
 
 ## [v1.31.0] - 2026-11-14
 

@@ -1344,3 +1344,168 @@ before the code that makes it pass, with its red lines; the reviewer's table
 of plants, re-formed, the earlier series, and the pass's own, each seen to
 fail a test on a scratch clone under a sandbox that denies every outbound
 connection but loopback.
+
+## Fourth amendment of 2026-11-18: the fourth independent review (R-12, R-13)
+
+Added after the commit of the third amendment's work (`04433ae`); everything
+above is committed and is annotated here, not rewritten. The fourth independent
+review found no blocker: it sampled twenty of the earlier plants and each was
+caught. It found two places where the code reads a ruling wider than its words
+(F-1, F-2), and the owner ruled on each, relayed by the coordinator on
+2026-11-18. The labels are quoted exactly; what was asked is in the words of
+this record.
+
+* **R-12, which read errors count as "unreadable" (F-1: R-9 was read too
+  wide).** Answered: "Only a record that exists but cannot be decoded; other
+  read errors fail the sign-in (Recommended)". As asked: any `LoadClient` error
+  counted, so a permission error on a good `openai.client` replaced the record
+  with a new client and abandoned the old one at the issuer; a transient failure
+  of the wizard's own read made it announce a new client and drop `Previous`
+  while the engine's second read succeeded and reused the old client, a false
+  notice and a needless first sign-in; and the reverse, the wizard's read
+  succeeding and the engine's failing, registered a new client with no notice at
+  all. A corrupt file is still replaced, as ruled in R-9. A permission or an
+  input or output error now stops the sign-in with an error that names the file,
+  which the person can fix, and a good record is never replaced by accident. The
+  wizard passes its read to the engine, so the two cannot disagree.
+* **R-13, the wording when the lock was not shown to be held (F-2).** Answered:
+  "Say \"another process\" only when the lock really was held; otherwise ask in
+  neutral words (Recommended)". As asked: any failed first try counted as the
+  lock being held (R-10), so a lock that can never be taken, such as a lock
+  file path that is a directory, got "waiting for another process to finish
+  refreshing..." and "Another process is still refreshing... Try saving the new
+  sign-in again?", both false, with each yes repeating at once. When the first
+  try shows contention, as the SDK's store and gobble's report it, the notice
+  and the question are as they were. For any other failure the person is asked
+  whether to try again, with the real error shown and no claim about another
+  process; the retry stays available for every store, as ruled before.
+
+### What each changes
+
+* **R-12, how a decode failure is told from any other read error.** By the type
+  of the error, never its text: `errors.As` finds encoding/json's
+  `*json.SyntaxError` or `*json.UnmarshalTypeError` through any wrapping. That
+  is what `FileTokenStore.LoadClient` returns for a file that is not a record
+  (`FileTokenStore client decode: %w`, which wraps the decode error). An empty
+  file, a truncated one, junk, and a field of the wrong type are all decode
+  failures; a permission refused, an input or output error, a read that fails
+  for another reason, and a file over 64 KiB are not. **No name is exported and
+  no marker is added:** the helper is `signinflow.Undecodable`, in an internal
+  package, over the standard library's existing typed errors, which the wizard
+  and the engine both see. `auth.ClientStore`'s doc says it: a store that
+  reports its own decode failure must wrap encoding/json's, and one that does
+  not has its decode failure treated as a read error, which fails the sign-in.
+  The check is by type, so a custom store's error that merely says "decode" is
+  a read error.
+* **R-12, the wizard (D5).** It reads the record once, before it chooses
+  `Previous`. A decode failure is none, with the one notice of R-9 unchanged
+  ("the saved OpenAI client record could not be read; ..."), no plan session
+  handed over, and the new client replacing the file. Any other read error
+  ends the sign-in at once, before the consent question, the login or any
+  registration: the error is the store's own, which for `FileTokenStore` names
+  the file (the file's base name for a file that is too large, the full path in
+  the operating system's own error for the rest) and shows none of its content;
+  there is no notice, since the error is the message; and the record, the saved
+  session and the issuer are as they were. The person's path is theirs in their
+  terminal; nothing of it is written into a committed record or fixture.
+* **R-12, one read per sign-in.** `signinflow.Spec` carries the wizard's read
+  (`Spec.Client`, a record and its error), and the engine, given it, reads
+  nothing and applies the same rule to its error (undecodable is none, with
+  `Result.ClientLoadErr`; any other error fails the sign-in before the login,
+  naming the store's error). A caller without the wizard, `x/signin` among them,
+  gets the engine's own single read. `Result.ClientLoadErr` is as it was for an
+  undecodable record.
+* **R-12, the `x/signin` caller (N-4).** A caller of `x/signin` with a
+  `ClientStore` is still not told when its record was replaced: an undecodable
+  record is replaced silently, as R-9 ruled, and `Options.ClientStore` says so.
+  A read error now fails `Wait` with the store's error, before any
+  registration, and says so too. A later record may add a way to tell such a
+  caller; none is added here.
+* **R-13, contention.** The wizard tries the lock once with a context already
+  cancelled. The lock was held only when that try's error wraps
+  `context.Canceled` while the sign-in's own context is alive. That is what
+  `FileTokenStore` returns on a held lock (`ErrProviderUnavailable` and the
+  context's error, in code that does not depend on the operating system) and
+  what gobble's `filelock.Lock` returns (the context's error, wrapped), so the
+  notice, the wait and the question are as they were for both. `RefreshLocker`'s
+  doc says that wrapping the context's error on a done context is how a locker
+  signals "held".
+* **R-13, any other failed try.** With the sign-in's context alive, no
+  "waiting" notice, no wait, and no claim about another process. One question,
+  in neutral words, shows the store's error with its control characters
+  removed: "The lock on the saved OpenAI session could not be taken (<error>).
+  Try saving the new sign-in again?" Yes repeats the try; no returns the error,
+  whole, with nothing saved; a caller with no prompter or no answer to give gets
+  the error. A custom locker that reports a held lock in its own words, without
+  wrapping the context's error, therefore gets the neutral wording and the
+  retry, not the wait. The loop is the person's, as in R-10.
+* **N-1, `storedAccess` and `FileTokenStore.Load`.** Annotating the third
+  amendment's F-4 ("`storedAccess` ... set wherever `storedRefresh` is set"):
+  `FileTokenStore.Load` sets `storedRefresh` only, so a session loaded from it
+  knows no stored access token until its first save or adoption. That is
+  harmless: the access token tells a record from the session's own only for a
+  record with no refresh token, which is a store that keeps none, and
+  `FileTokenStore` keeps it. The doc of the field says so.
+* **N-2, the list of own access tokens.** Annotating the same paragraph's "the
+  list holds only tokens this session itself held or saved": after a failed
+  save, `spentAccess`, the access token of the record the refresh started from,
+  can be a sibling's rotation that the refresh's first read took up (the same
+  sign-in's token, so the guard does not refuse it). The list holds tokens of
+  this sign-in that the session held, saved, or took up from the store; never
+  one of another sign-in's.
+
+### What this supersedes in the third amendment
+
+* "What each changes", **The engine (R-9)**: "treats a record that cannot be
+  read as none": superseded by R-12 for every error but a decode failure, which
+  fails the sign-in. "The wizard does not render `ClientLoadErr`: it has told
+  the person from its own read of the same record": the wizard's read is now the
+  engine's, not a second one of the same record. "A caller of `x/signin` with a
+  `ClientStore` gets a sign-in that goes on, a session, no error and **no
+  notice**": true of an undecodable record only.
+* **D5, the wizard (R-9)**: "An unreadable record is none": an undecodable
+  record is none; any other read error fails the sign-in.
+* **D5, the wizard's wait (R-10)**: "a try that fails while the sign-in's own
+  context is alive is the lock being held, whatever its error, and the wizard
+  waits", and "The rule that loses nothing for an existing custom store is the
+  wider one: a locker that does report a held lock in its own words is waited
+  for; a lock that fails for good costs the person one notice and one question,
+  then the locker's error": superseded by R-13. A lock that fails for good costs
+  one neutral question per try, then the error. The rest of R-10 stands: the
+  wait's failure, whatever the error, leads to the question unless the sign-in's
+  own context ended; a save that fails under a lock the wizard holds is returned
+  as it is; no prompter, no answer or a refusal returns the locker's error.
+
+### Limits, added
+
+* **N-3, the trust boundary.** A writer of the store can plant an access-only
+  record, no refresh token, that carries the session's own stale access token.
+  The session takes it as its own: its stored consent is read as the session's,
+  and its next save overwrites it. Doing so needs write access to the session's
+  own record, which is the store's own trust boundary; before 0082 the consent
+  read trusted any record, so this is narrower than it was. Stated, not closed.
+* **A corrupt record the person cannot fix.** A client record whose read fails
+  for a reason that is not its content (permissions, a file too large, a
+  device error) now ends every sign-in until it is fixed or deleted; the error
+  names the file. That is the cost of R-12, and the owner's choice over replacing
+  a good record by accident.
+* **A custom locker that signals held in its own words** gets the neutral
+  question and the retry, with no wait. It must wrap the context's error on a
+  done context to be waited for; `RefreshLocker` says so.
+* **A flaky test, found and not fixed (N-5).** `TestVerifyIDToken_UnknownKidRefetchesOnce`
+  failed twice in one twenty-round race run of `llmprovider/auth`, "0 key
+  fetches to populate the cache, want 1", and passed on a re-run. The reviewer
+  reads the cause as the process-wide key cache keyed by URL, which a later test
+  server reusing a port finds already filled. It is not touched under 0082. The
+  owner ruled on 2026-11-18, relayed by the coordinator: "fix this: fold it into
+  the 0083 plan that already carries another flaky-test fix". It is to be fixed
+  under record 0083's plan, by amendment; the PLAN records it.
+
+### Confirmation, fourth amendment
+
+The PLAN's execution record, fifth pass: every new test seen red on `04433ae`
+before the code that makes it pass, with its red lines; the reviewer's round-four
+series, every earlier plant, and the pass's own, each seen to fail a test on a
+scratch copy of the final tree under a sandbox that denies every outbound
+connection but loopback, but two equivalent mutants the PLAN names (the
+reviewer's Q10, which R-12 makes the code, and Q17).

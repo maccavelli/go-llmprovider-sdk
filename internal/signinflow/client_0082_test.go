@@ -7,13 +7,15 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
-// R-9 (0082-MADR, third amendment): a client record that cannot be read is no
-// record. The sign-in runs, the login is given no client and no host id of
+// R-9 (0082-MADR, third amendment): a client record that cannot be decoded is
+// no record. The sign-in runs, the login is given no client and no host id of
 // the record's, the error is in Result.ClientLoadErr, and the client the
-// sign-in registered replaces the unreadable record, saved once. Red while the
-// engine fails the sign-in on the record.
+// sign-in registered replaces the unreadable record, saved once. Since the
+// fourth amendment (R-12) only a decode failure is none, so the planted error
+// is a decode failure; a plain error here is a read error and fails the
+// sign-in (TestPlanReadErrorFailsTheSignIn_0082).
 func TestPlanUnreadableClientRecordIsNone_0082(t *testing.T) {
-	loadErr := errors.New("planted decode failure: invalid character")
+	loadErr := decodeFailure0082()
 	// A store may return a partial record with its error: none of it is used.
 	store := &recordStore{loadErr: loadErr, record: auth.ClientRecord{ClientID: "stale-client", HostID: "urn:uuid:stale"}}
 	given, result, err := signInPlan(t, store, auth.ChatGPTPlanOptions{})

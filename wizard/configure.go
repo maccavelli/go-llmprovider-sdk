@@ -130,22 +130,27 @@ type Options struct {
 	// is nil, only those that save no session are offered: the API key, the
 	// vendor CLI read-through, and a pasted Grok key. A new session is saved
 	// under the store's refresh lock when the store is an auth.RefreshLocker.
-	// The save tries the lock once; if another process's refresh holds it, the
-	// Prompter is told the save is waiting, and the save waits, for up to the
-	// store's own bound (60 s for auth.FileTokenStore). At the bound the new
-	// sign-in is kept and the Prompter is asked whether to try the save again;
-	// a refusal, an answer it cannot give, or no answer returns an error
-	// matching llmprovider.ErrProviderUnavailable and saves nothing. The
-	// sign-in's context ends a wait at any point, saving nothing; whatever else
-	// ends a wait, an error matching ErrProviderUnavailable or the store's own,
-	// leads to that question. A plan
+	// The save tries the lock once; if another process's refresh holds it (the
+	// try's error wraps context.Canceled, see auth.RefreshLocker), the Prompter
+	// is told the save is waiting, and the save waits, for up to the store's own
+	// bound (60 s for auth.FileTokenStore). At the bound the new sign-in is kept
+	// and the Prompter is asked whether to try the save again; a refusal, an
+	// answer it cannot give, or no answer returns the store's error and saves
+	// nothing. The sign-in's context ends a wait at any point, saving nothing;
+	// whatever else ends a wait leads to that question. A try that fails for
+	// another reason is not called another process: there is no wait, and the
+	// Prompter is asked in neutral words, showing the error, whether to try
+	// again. A plan
 	// session already in the store is signed in to again only when it is
 	// OpenAI's own plan session and, when the store is an auth.ClientStore
 	// with an issued client, that client's: another application's plan session
-	// is not reused; a client record that cannot be read is no record, the
-	// Prompter is told once, no plan session is signed in to again, and the new
-	// sign-in's client replaces the record. Keep every field a session names its sign-in by (see
-	// auth.TokenStore).
+	// is not reused. A client record that exists but cannot be decoded is no
+	// record: the Prompter is told once, no plan session is signed in to again,
+	// and the new sign-in's client replaces the record. Any other error reading
+	// the record, a permission refused or an input or output error, fails the
+	// sign-in naming the file, with no notice, no registration and the record
+	// as it was; the record is read once per sign-in. Keep every field a
+	// session names its sign-in by (see auth.TokenStore).
 	TokenStore auth.TokenStore
 	// HTTPClient is used for live model listing, the Ollama endpoint check,
 	// the sign-in flows and the Kilo profile; a session a sign-in creates

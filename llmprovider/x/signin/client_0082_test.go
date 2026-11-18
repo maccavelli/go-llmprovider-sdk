@@ -2,7 +2,8 @@ package signin
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/signinflow"
@@ -17,7 +18,8 @@ type unreadableClients struct {
 }
 
 func (u *unreadableClients) LoadClient(context.Context, llmprovider.ProviderID) (auth.ClientRecord, error) {
-	return auth.ClientRecord{}, errors.New("planted decode failure")
+	var v struct{}
+	return auth.ClientRecord{}, fmt.Errorf("planted store: %w", json.Unmarshal([]byte("{{ junk"), &v))
 }
 
 func (u *unreadableClients) SaveClient(_ context.Context, _ llmprovider.ProviderID, c auth.ClientRecord) error {

@@ -376,6 +376,15 @@ var errStoreOtherSignIn = errors.New("oauth: the store holds another sign-in; th
 // sign-in's. An empty token is nobody's. Refresh and access tokens are the
 // issuer's, each belongs to one login (0082-MADR, second and third amendments
 // of 2026-11-17, R-5, R-11).
+//
+// Limits, stated (0082-MADR, fourth amendment of 2026-11-18, N-2, N-3): the
+// access tokens are not only ones the session itself held or saved, since after
+// a failed save the access token the store still holds, spentAccess, may be a
+// sibling's rotation that the refresh's first read took up. And a writer of the
+// store can plant an access-only record that carries a stale access token of the
+// session: it is taken as the session's own, its consent is read as the
+// session's, and the session's next save overwrites it. That needs write access
+// to the session's own record; before 0082 the consent read trusted any record.
 type ownTokens struct{ refresh, access []string }
 
 // holds reports whether rec carries one of the session's own tokens.
@@ -1064,7 +1073,10 @@ type refreshed struct {
 	// from the store.
 	spent string
 	// spentAccess is the access token of the record the refresh started from:
-	// what a store whose save failed still holds.
+	// what a store whose save failed still holds. That record may be a
+	// sibling's rotation the first read took up, so the session's access
+	// tokens are not only ones it itself held or saved (0082-MADR, fourth
+	// amendment, N-2).
 	spentAccess string
 }
 

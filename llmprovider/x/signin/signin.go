@@ -50,10 +50,15 @@ type Options struct {
 	// (0075-MADR D7). Before a sign-in with no Previous it loads the record,
 	// and once the sign-in returns it saves the client and host id, whatever
 	// the caller then does with the session; a record that cannot be saved
-	// does not fail the sign-in, and neither does one that cannot be read: it
-	// is taken as none, with no notice from this package, and the client the
-	// sign-in registers replaces it (0082-MADR, third amendment, R-9). Nil
-	// keeps none.
+	// does not fail the sign-in. A record that exists but cannot be decoded
+	// does not either: it is replaced silently, taken as none with no notice
+	// from this package, and the client the sign-in registers replaces it
+	// (0082-MADR, third amendment, R-9), so a caller that wants the person told
+	// says so itself. A store's decode failure is told from its other errors by
+	// wrapping encoding/json's (see auth.ClientStore). Any other read error, a
+	// permission refused or an input or output error, fails Wait with that error
+	// before a client is registered, and the record is left as it is (fourth
+	// amendment of 2026-11-18, R-12, N-4). Nil keeps none.
 	ClientStore auth.ClientStore
 	// ConsentText maps a consent id to the app's own wording for it, which
 	// the sign-in's confirm step shows in place of the method's default

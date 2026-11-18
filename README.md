@@ -316,11 +316,17 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   its own sign-in again, or nothing, and the user signs in anew; its own
   refresh does not write over such a login either, and the wizard saves a
   new sign-in under the store's refresh lock: it says it is waiting when
-  another process's refresh holds it, and at the store's limit, whatever
-  error the store reports, keeps the sign-in and offers to try the save
-  again. A client record it cannot read is treated as none, with a notice:
-  the wizard then registers a new client instead of signing in to a stored
-  plan session again. A
+  another process's refresh holds it (the try's error wraps
+  `context.Canceled`), and at the store's limit, whatever error the store
+  reports, keeps the sign-in and offers to try the save again; a try that
+  fails for another reason is not called another process, and the wizard
+  asks in neutral words, showing the error, whether to try again. A client
+  record that exists but cannot be decoded is treated as none, with a
+  notice: the wizard then registers a new client instead of signing in to a
+  stored plan session again. Any other error reading the record fails the
+  sign-in, naming the file, and leaves the record as it was; through
+  `x/signin` an undecodable record is replaced silently and another read
+  error fails `Wait`. A
   rotation of its own sign-in by another process is still taken up. A custom
   store must keep the fields a session names its sign-in by (`Provider`,
   `Kind`, `Issuer`, `ClientID`, `AccountID`).

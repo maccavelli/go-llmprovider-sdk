@@ -791,11 +791,20 @@ for a session, from the store.
   of OpenAI's issuer with an issued client and, when the store is a
   `ClientStore` with a record, that client (`signsInAgainTo`; 0082-MADR
   amendment of 2026-11-17, R-3); otherwise the record's client is reused as
-  after a sign-out. A client record that cannot be read is no record, in the
-  wizard, with one notice, and in the engine, which reports it in
-  `Result.ClientLoadErr`: no stored plan session is handed over as
+  after a sign-out. A client record that exists but cannot be decoded is no
+  record, in the wizard, with one notice, and in the engine, which reports it
+  in `Result.ClientLoadErr`: no stored plan session is handed over as
   `Previous`, the sign-in registers a new client, and the save replaces the
-  unreadable record (0082-MADR third amendment, R-9). OpenAI accepts the client
+  undecodable record (0082-MADR third amendment, R-9). A decode failure is told
+  from any other read error by `encoding/json`'s typed error, found with
+  `errors.As` through the store's wrapping (`signinflow.Undecodable`; no text is
+  compared, and `ClientStore` documents it), and any other read error, a
+  permission refused or an input or output error, fails the sign-in before the
+  login, naming the store's error, with no notice, no registration and the
+  record untouched. The wizard reads the record once and gives the read to the
+  engine (`Spec.Client`); the engine reads it itself for a caller without the
+  wizard, `x/signin` among them, which is told nothing of a replaced record
+  (0082-MADR fourth amendment, R-12). OpenAI accepts the client
   with no hint after the last session was revoked: the owner-run probe of
   0075-PLAN's Phase 6 showed it on 2026-11-14, with the client and host id
   unchanged.
@@ -865,9 +874,19 @@ for a session, from the store.
     its access tokens (the one it held, or the one the store is known to hold
     after a failed save): a store that keeps neither the refresh token nor the
     client still serves its one process. A record with a refresh token of its
-    own is judged by its labels whatever access token it carries.
-    `StoredConsent` counts another sign-in's record as unanswered (0082-MADR
-    D1 to D3 and its amendments of 2026-11-17, R-5, R-11).
+    own, a blank one included, is judged by its labels whatever access token
+    it carries. `StoredConsent` counts another sign-in's record as unanswered
+    (0082-MADR D1 to D3 and its amendments of 2026-11-17, R-5, R-11). Two
+    limits are stated (fourth amendment, N-2, N-3): after a failed save the
+    access token the store still holds may be a sibling's rotation that the
+    refresh's first read took up, so the session's access tokens are not only
+    ones it itself held or saved; and a writer of the store can plant an
+    access-only record that carries a stale access token of the session, which
+    is taken as its own, whose consent is read as the session's, and which its
+    next save overwrites. That needs write access to the session's own record,
+    and before 0082 the consent read trusted any record. A session loaded from
+    `FileTokenStore` knows the stored refresh token only: it learns the stored
+    access token at its first save or adoption (N-1).
   - `RevokeOAuthSession` ends it.
 - **`TokenStore`** persists sessions. `FileTokenStore` keeps one `0600` JSON
   file per provider:
@@ -888,9 +907,13 @@ for a session, from the store.
     the prompter when another process holds it, waits, and ends, saving
     nothing, with its context; at the store's limit, whatever error it
     reports, it keeps the completed sign-in and asks whether to try again (an
-    answer it cannot get, or a refusal, returns the store's error). A failed
-    first try with the sign-in's context alive is the lock being held. It
-    gives the new
+    answer it cannot get, or a refusal, returns the store's error). The lock is
+    held only when the first try's error wraps `context.Canceled`, as
+    `RefreshLocker` documents and `FileTokenStore` and gobble's locker do; any
+    other failed try, with the sign-in's context alive, gets no wait and no
+    claim of another process, but one neutral question that shows the error
+    with its control characters removed, and yes repeats the try (0082-MADR
+    fourth amendment, R-13). It gives the new
     session its store only under the lock, just before the save. No `Save`
     takes the lock itself, since a refresh saves while it holds it, and no
     session lock is held while a store's lock is taken (0082-MADR amendments

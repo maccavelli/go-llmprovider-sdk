@@ -1186,3 +1186,260 @@ Phase 1 re-reads each at the base.
   ported test; that no prompter ever sees two notices from a path I did not
   test; the 20-round `-race` run on a Windows host (the module run there was one
   pass).
+
+### Phase 1, fourth pass, committed (2026-11-18)
+
+* **Committed and pushed** by the coordinator on 2026-11-18 as `04433ae`
+  ("fix(auth): apply third-review rulings on sign-in adoption and retry"),
+  `main`, after the fourth independent review and the coordinator's own gate
+  (the whole module under race; twenty race rounds of auth, openai, wizard,
+  signinflow and `x/signin`; `make api-check`; `make pre-add-check` at the
+  repository's pinned golangci-lint v2.14.0 over 1016 files). The "fourth pass"
+  entry above is the record of the staging that preceded it. The fifth pass
+  below is staged on top of it.
+
+### Phase 1, fifth pass (2026-11-18)
+
+* **Provenance.** A mainstream-tier model at high effort, on the coordinator's
+  brief, over `04433ae`. Staged, not committed, pushed or tagged.
+* **The fourth review.** No blocker; it sampled 20 of the 110 plants of the
+  fourth pass and caught 20 of 20, and it passed the coordinator's own gate.
+  It found two places where the code reads a ruling wider than its words:
+  F-1 (any `LoadClient` error counted as "unreadable", so a permission error on
+  a good `openai.client` replaced the record with a new client and abandoned
+  the old one at the issuer; a transient failure of the wizard's read made it
+  announce a new client and drop `Previous` while the engine's second read
+  succeeded and reused the old client, and the reverse registered a new client
+  with no notice) and F-2 (any failed first try counted as the lock being held,
+  so a lock that can never be taken, its path a directory, got "waiting for
+  another process ..." and "Another process is still refreshing ...", both
+  false, each yes repeating at once). Its survivors among its own plants,
+  verbatim from its log: `Q10 a non-decode load error fatal in the wizard:
+  build=False staged=0 mine=0 left=[]`, `Q16 a whitespace refresh token counted
+  as none: build=False staged=0 mine=1 left=[]` and `Q17 the retried save's own
+  access list drops the rotation's: build=False staged=0 mine=0 left=[]`. Q10 is
+  now the ruled behaviour, so its plant inverts (a non-decode error treated as
+  none) and is caught below; Q16 is caught by the reviewer's own test, ported as
+  `TestWhitespaceRefreshTokenIsARefreshToken_0082`; Q17 is the reviewer's
+  equivalent mutant (no test, his or this series', tells it from the code); its
+  result in this pass's run of the whole table is in the plants paragraph below.
+* **The rulings,** 2026-11-18, relayed by the coordinator: R-12 "Only a record
+  that exists but cannot be decoded; other read errors fail the sign-in
+  (Recommended)"; R-13 "Say \"another process\" only when the lock really was
+  held; otherwise ask in neutral words (Recommended)". The MADR's fourth
+  amendment records them, with the third amendment's sentences they supersede,
+  and N-1 to N-4.
+* **Notes,** as asked: N-1 (the `storedAccess` doc and the third amendment said
+  it is set wherever `storedRefresh` is; `FileTokenStore.Load` sets
+  `storedRefresh` only: the field's doc now says so and why it is harmless; the
+  committed sentence is annotated in the amendment, not rewritten), N-2 (the
+  "list holds only tokens this session itself held or saved" is too strong:
+  after a failed save `spentAccess` can be a sibling's rotation the first read
+  took up; annotated, and in the `spentAccess` and `ownTokens` docs), N-3 (the
+  trust boundary: a store writer can plant an access-only record with the
+  session's stale access token; its forged consent is read and it is overwritten
+  at the next save; needs write access to the session's own record; before 0082
+  the consent read trusted any record: a stated limit), N-4 (an `x/signin` caller
+  is not told its record was replaced: documented on `Options.ClientStore`, with
+  the read error now failing `Wait`).
+* **N-5, a flaky test, found and not fixed.** `TestVerifyIDToken_UnknownKidRefetchesOnce`
+  failed twice in one 20-round race run of `llmprovider/auth` in the fourth
+  review (`oauth_idtoken_test.go:107: 0 key fetches to populate the cache, want
+  1`) and passed on a re-run. The reviewer's reading, not tested here: the
+  process-wide `jwksCache` is keyed by URL, so a later test server that reuses a
+  port finds keys already cached. I did not touch the test or the cache. It did not fail in this pass's gates: the 20-round `-race` run of `llmprovider/auth` passed (223.7 s), as did the whole module once.
+  The owner ruled on it on 2026-11-18, relayed by the coordinator: "fix this:
+  fold it into the 0083 plan that already carries another flaky-test fix". So:
+  found by the fourth review, not fixed under 0082, to be fixed under record
+  0083's plan by amendment, by the owner's ruling. The agent that runs 0083
+  writes that amendment; I did not edit the 0083 records.
+* **The mechanism for telling a decode error apart (R-12), and no stop on an
+  exported name.** `signinflow.Undecodable`, in an internal package, is
+  `errors.As` over encoding/json's `*json.SyntaxError` and
+  `*json.UnmarshalTypeError`, which `FileTokenStore.LoadClient` wraps
+  (`FileTokenStore client decode: %w`); nothing is matched on text, no sentinel
+  or marker is added, and no name is exported, so I did not stop. A custom
+  `ClientStore`'s own decode error is a read error that fails the sign-in unless
+  it wraps encoding/json's; `auth.ClientStore` documents it. The wizard and the
+  engine are both outside `auth` and both see the standard library's types.
+  One judgment, stated: a file over 64 KiB is `readBounded`'s plain error, not a
+  decode failure, so it fails the sign-in and names the file; the person deletes
+  it. A decode failure is "exists but cannot be decoded"; a file too large is
+  not decoded at all.
+* **Order, and what changed first.** Tests first, each run and seen failing on
+  `04433ae` before the code that makes it pass: `go test -v` under a macOS
+  sandbox that denies every outbound connection but loopback (`sandbox-exec`),
+  the tests written against the tree with one inert change so that they compile
+  and fail on assertions, not on the build: `signinflow.Spec.Client`, the type
+  `signinflow.ClientRead`, and `signinflow.Undecodable` returning false, none
+  read by anything. Two tests written after that run (the lock-file directory
+  case with `FileTokenStore`, and the permission error injected) were run in a
+  scratch clone of `04433ae` itself, with the new test files copied in. Red
+  lines on `04433ae`:
+  * `TestUndecodable_0082`: `a syntax error: Undecodable = false, want true`
+    (and likewise a type error, a syntax error wrapped twice, the store's decode
+    failure);
+  * `TestPlanReadErrorFailsTheSignIn_0082` (R-12, engine): `err <nil>, login ran
+    true, session OAuthSession{...}; want the read error and no login`, and `the
+    record = {ClientID:client-issued HostID:urn:uuid:minted} after 1 save(s);
+    want it untouched`;
+  * `TestPlanGivenTheCallersReadReadsNothing_0082` (R-12, one read), both cases:
+    `err <nil>, login given client "client-other" host "urn:uuid:other" after 1
+    load(s); want the caller's record and no read`; `err <nil>, client
+    "client-other", 1 load(s), ClientLoadErr <nil>; want none of the record, no
+    read, the failure reported`;
+  * `TestStart_PlanClientReadErrorFailsWait_0082` (`x/signin`): `Wait = <nil>
+    after 1 login(s); want the read error and no registration`, and `the record
+    = {ClientID:client-new HostID:urn:uuid:new} after 1 save(s), 1 load(s); want
+    it untouched and read once`;
+  * `TestClientRecordPermissionDeniedFailsTheSignIn_0082` (R-12, the reviewer's
+    probe, on a real file with mode 0, Unix only): `err = <nil>; want the
+    sign-in failed, naming openai.client`; `TestClientRecordPermissionErrorFailsTheSignIn_0082`
+    (the same with the error injected, every platform, in the clone): `err =
+    <nil>; want the sign-in failed with the permission error, naming
+    openai.client`;
+  * `TestTransientClientReadFailsOnlyThatSignIn_0082` (R-12, the reviewer's
+    second probe): `err = <nil>; want the read's error`;
+  * `TestOneClientRecordReadPerSignIn_0082` (R-12, c): `2 reads of the client
+    record in one sign-in, want one`, for nothing saved, a record and another
+    application's session, a record and no session, and an undecodable record
+    (green only for a record and its plan session, where the engine reads
+    nothing because `Previous` is handed over);
+  * `TestFailedTryThatIsNotContentionAsksInNeutralWords_0082` (R-13), `yes`:
+    `questions []; want the one neutral question "The lock on the saved OpenAI
+    session could not be taken (open /x/openai.lock: permission denied). Try
+    saving the new sign-in again?"`, `notices ["waiting for another process to
+    finish refreshing the saved OpenAI session; the new sign-in is saved after
+    it"]; want none`, `2 lock calls, 1 of them waits; want two tries and no
+    wait`; `yes twice, then no`: `6 lock calls, 3 waits; want three tries and
+    no wait`; `nothing says another process`: the waiting notice `says the lock
+    is held by another process`; `TestNeutralQuestionShowsTheErrorWithoutControlCharacters_0082`:
+    `questions []; want one`;
+  * `TestLockFileThatCanNeverBeOpenedAsksNeutrally_0082` (R-13, the reviewer's
+    third probe, `FileTokenStore` with the lock path a directory, in the clone):
+    `"Another process is still refreshing the saved OpenAI session. Try saving
+    the new sign-in again?" says another process holds the lock, which nothing
+    does` and `... does not show the store's error, which names the lock file`,
+    for each of the three questions and for the waiting notice;
+  * `TestAnyFailedTryWithALiveContextIsHeld_0082/asks, does not wait, and saves
+    on yes` (R-13, an existing test changed, below): `save = wizard: the new
+    OpenAI session was not saved: context deadline exceeded; want the second try
+    to save` (the old code waits on a lock that nothing frees; the test's own
+    3 s bound ends it); `TestLockThatFailsForGoodEndsWithTheQuestionThenTheError_0082`:
+    `questions ["Another process is still refreshing the saved OpenAI session.
+    Try saving the new sign-in again?"], notices ["waiting for another process
+    to finish refreshing the saved OpenAI session; ..."]; want one question and
+    no notice`;
+  * green on `04433ae`, as guards the plants then proved: `TestPlanUndecodableRecordFromTheStoreIsNone_0082`,
+    `TestUndecodableRecordsAreReplacedWithOneNotice_0082` (junk, a wrong type,
+    an empty file, a truncated one: each replaced, one notice),
+    `TestUnreadableClientRecordEndToEnd_0082` (the four R-9 situations with a
+    corrupt file, which the ruling keeps),
+    `TestStart_PlanClientDecodeFailureIsNone_0082`,
+    `TestFirstTryWrappingTheContextErrorIsContention_0082` (the contention path,
+    its three shapes), `TestQuestionAfterContentionKeepsItsWords_0082`,
+    `TestGobbleLikeLockerAtItsLimitOffersTheRetry_0082` (the gobble-modelled
+    locker, unchanged), and the ported `TestWhitespaceRefreshTokenIsARefreshToken_0082`
+    (Q16: a guard of code that was already right, seen failing under the Q16
+    plant below).
+* **Existing tests changed by the rulings, stated.** Each asserts, or plants an
+  error for, the behaviour a ruling reverses, which the ruling names, so I
+  changed them without stopping, as the coordinator's confirmation of the last
+  pass allows when the ruling names the behaviour; I say so here:
+  `TestPlanUnreadableClientRecordIsNone_0082` and `TestPlanClientRecordErrors_0075`
+  (`internal/signinflow`) planted a plain `errors.New` as the "unreadable" error
+  and now plant a decode failure (`decodeFailure0082`, encoding/json's error
+  wrapped as the store wraps it), since a plain error is now a read error that
+  fails the sign-in (R-12); `unreadableClients` in `x/signin`'s
+  `TestStart_PlanUnreadableClientRecord_0082` likewise; `TestAnyFailedTryWithALiveContextIsHeld_0082`'s
+  first subtest ("waits and saves", now "asks, does not wait, and saves on yes")
+  asserted that a failed try with a live context is waited for, with the
+  waiting notice and no question, which R-13 reverses, and
+  `TestLockThatFailsForGoodEndsWithTheQuestionThenTheError_0082` asserted the
+  waiting notice before the question, which R-13 drops; the fixture `ownErrLock0082`
+  gained a counter of the calls made with a live context (a wait) and is built
+  with keyed fields. Their other assertions are unchanged. No other existing
+  assertion changed.
+* **A defect in a test of this pass, found by the gate and fixed.** The first
+  permission test, `TestClientRecordPermissionDeniedFailsTheSignIn_0082`, made
+  the case with `chmod 0`, which a Windows file's owner reads past, so the first
+  whole-module run on a Windows host failed it (`client_read_0082_test.go:108:
+  err = <nil>; want the sign-in failed, naming openai.client`). That test is now
+  in `wizard/client_read_unix_0082_test.go` under `//go:build !windows`, and the
+  same case with the permission error injected, which every platform runs, is
+  `TestClientRecordPermissionErrorFailsTheSignIn_0082`. It is a fault in what I
+  wrote, not in the code and not in any earlier test.
+* **Built, with `path:line`.**
+  * R-12: `signinflow.Undecodable` (`internal/signinflow/signinflow.go:172`),
+    `ClientRead` (161), `Spec.Client` (139); the engine uses the caller's read or
+    its own single read, takes a decode failure as none (`Result.ClientLoadErr`)
+    and fails the sign-in on any other error before the login (476 onward); the
+    wizard reads once and passes the read (`wizard/auth.go:279-335`; the fatal
+    error at 306, the read given at 316 and 335, no notice for it); the docs on
+    `auth.ClientStore`'s `LoadClient` (`clientstore.go:32`),
+    `FileTokenStore.LoadClient` (61), `signin.Options.ClientStore`
+    (`x/signin/signin.go:47-62`), `wizard.Options.TokenStore`
+    (`wizard/configure.go:128-154`).
+  * R-13: `save` (`wizard/auth.go:1098`), `writeUnderLock` (1137), `lockToSave`
+    (1156). Contention is the first try's error wrapping `context.Canceled` with
+    the sign-in's context alive; then the waiting notice, the wait, and, after a
+    failed wait, the question as it was ("Another process is still refreshing the
+    saved OpenAI session. Try saving the new sign-in again?"). Any other failed
+    try returns at once with `contended` false and the question is: "The lock on
+    the saved OpenAI session could not be taken (<error>). Try saving the new
+    sign-in again?", the error through `redact.StripControl(redact.String(...))`;
+    yes repeats the try, no returns the error whole. `RefreshLocker`'s doc
+    (`tokenstore.go:299`) says that wrapping the context's error on a done
+    context is how a locker signals "held".
+  * Verified, read-only: `FileTokenStore.LockRefresh` returns `ErrProviderUnavailable`
+    and `ctx.Err()` wrapped when the lock is held and the context is done, in
+    code that does not depend on the operating system (`tokenstore_file.go`); its
+    failures to open or restrict the lock file return `ErrProviderUnavailable`
+    wrapping the operating system's error only, so a lock path that is a directory
+    is not contention; gobble's `filelock.Lock` returns the context's error,
+    wrapped by `Logins.LockRefresh` (`auth.json: <id> refresh lock: %w`), on a
+    done context with the lock held. The lock errors name a path and an
+    operating system's text, no secret.
+  * One read per sign-in, shown: `TestOneClientRecordReadPerSignIn_0082` counts
+    the store's `LoadClient` calls through the wizard for five situations, and
+    `TestPlanGivenTheCallersReadReadsNothing_0082` counts zero in the engine given
+    the wizard's read.
+  * N-1 to N-3 in the docs of `storedAccess` (`tokenstore.go:83`), `ownTokens`
+    (`oauth_session.go:388`) and `spentAccess` (1080).
+* **Plants.** `plants5.py`, kept with the scratch scripts, on a scratch copy of the final tree under `sandbox-exec` (outbound connections denied but loopback), the `localonly` guard on, run once through `run-heavy`: **160 plants**, the whole of the fourth pass's table (118, read from its driver) with the six whose anchors moved with the code re-formed (W01, W11, W14, N09, N10, R7b: the wizard's lock helpers now return whether the lock was seen held), the reviewer's round-four series (Q01 to Q19, read from its file, with Q06, Q11, Q15 and Q16 re-formed for the new code), and this pass's own 22 plus the inverse of Q10: S01 to S12 for R-12 (non-decode errors treated as none in the engine; a decode failure fatal, `Undecodable` saying no to everything; the engine reading a second time; the notice shown for a fatal error; a registration sent before the read error is returned; the wizard giving the engine no read; the engine ignoring the record it was given; a decode failure told by the error's text; a wrong-type failure not counted; the wizard's fatal error losing the store's error; non-decode errors treated as none in the wizard only; the wizard reading only when a plan session is stored) and T01 to T10 for R-13 ("another process" shown for a non-contention failure; the neutral question without the error's text; no question at all; contention given the neutral wording; the error's control characters shown; yes not repeating the try; contention recognised by `ErrProviderUnavailable`; the waiting notice shown for a non-contention failure; a non-contention failure waited for in silence; contention not reported to the caller). The first run of the whole table left four, verbatim: `Q10 a non-decode load error fatal in the wizard: NOT CAUGHT; failing=[] guard=no`, `Q15 a try that fails with an ended context still waits: NOT CAUGHT; failing=[] guard=no`, `Q17 the retried save's own access list drops the rotation's: NOT CAUGHT; failing=[] guard=no` and `S06 the wizard hands the engine no read: BUILD FAILURE; failing=[] guard=no`. **Q10** (the reviewer's) made a non-decode error fatal in the wizard, which R-12 makes the code's own, so the plant is the code, an equivalent mutant from now on; its inverse, `Q10 a non-decode load error treated as none in the wizard (R-12 inverted)`, is in the table and caught, as the brief asked, by the permission, transient and one-read tests. **Q15** was a real gap that the narrowing created: its guard was a locker whose try error wraps nothing, which R-13 now returns on at once whatever the sign-in's context does, so no test had a try that wraps the cancelled context while the sign-in's own context has ended; `TestSignInContextEndedAtTheTryIsNotAHeldLock_0082` was added and the plant re-run on the final tree: `Q15 ...: CAUGHT; failing=['TestSignInContextEndedAtTheTryIsNotAHeldLock_0082']`. **S06** failed to build (the variable it dropped became unused); re-formed so that it compiles and re-run: `S06 the wizard hands the engine no read: CAUGHT; failing=['TestOneClientRecordReadPerSignIn_0082', ...]`. **Q17** is the reviewer's equivalent mutant and survives here too: no test of this series tells the code from the plant, and I did not find one that could. The four plants that name `guard=yes` (P11 twice, B1 and N17, which would send a foreign token to a real endpoint) were stopped by the guard, as before. Final count: **158 of 160 caught; Q10 (equivalent, replaced by its inverse, which is caught) and Q17 (the reviewer's equivalent mutant) survive.** Plants that hang a test end at the run's own 6 minute timeout and count as caught.
+* **Gates.** each status taken before any filter, after the last change to a Go
+  file.
+
+  | Gate | Where | Result |
+  | :--- | :--- | :--- |
+  | `make pre-add-check` | `run-heavy`, session host, golangci-lint at the repository's pin, v2.14.0 (`GOLANGCI_LINT` set) | exit 0: 1016 files clean (gofmt, golangci-lint, vet, test, govulncheck); nested module `authcontract` clean |
+  | `go vet ./...`; `GOOS=windows go vet ./...`; `go vet -tags live_gateways ./...` | session host | exit 0 each |
+  | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | session host | exit 0; "0 incompatible change(s) outside llmprovider/x/"; only `llmprovider/x/signin.VerifyKilo: added`: no name from this change |
+  | `go test -race -count=20 -timeout 45m ./llmprovider/auth/ ./llmprovider/providers/openai/ ./llmprovider/providers/grok/ ./wizard/ ./internal/signinflow/ ./llmprovider/x/signin/` | `run-heavy`, session host | exit 0 (auth 223.7 s, wizard 194.6 s); `TestVerifyIDToken_UnknownKidRefetchesOnce` did not fail |
+  | `go test -race -count=1 -timeout 45m ./...` | `run-on-host --race` (`pick-host` chose a Linux host) | exit 0, 42 packages ok |
+  | the first whole-module run, on a Windows host | `run-on-host --race` | exit 1: `TestClientRecordPermissionDeniedFailsTheSignIn_0082` (my own test, `chmod 0` does not refuse a Windows owner); fixed as stated above, and `go test` of `./wizard/ ./internal/signinflow/ ./llmprovider/auth/ ./llmprovider/x/signin/` then run on a Windows host: exit 0, four ok |
+  | gobble's `internal/auth`, `llm/provider`, `internal/cli` by a scratch `replace`, on a scratch copy of gobble | `run-heavy`, session host | exit 0, three ok |
+  | the plants | scratch copy, sandboxed | 158 of 160 caught; the two survivors are equivalent mutants (Q10, Q17), stated above |
+
+  The golangci-lint gate ran with `GOLANGCI_LINT` set to the v2.14.0 binary in
+  the scratch folder, as the pin requires. The host's v2.15.0 finds three
+  `//nolint:errcheck` directives unused in `llmprovider/internal/transport/`
+  files this pass does not touch; I did not change them or the host's binary. The
+  owner has since ruled to standardize on v2.15.0 across the repositories, under
+  its own record in each; until this repository's pin moves the gate keeps the
+  pin, and those three directives stay.
+
+  The record gates ran after this entry's last edit; their results are in the
+  hand-off.
+* **Not done.** Phase 2's own set beyond the gates here (`make lint`, `make
+  vuln`, the CI set, `tools/gate.py`).
+* **Not verified.** A wait on another real process, and the 60 s bound itself
+  (the tests use scripted lockers and `FileTokenStore` with a directory in the
+  lock's place); a custom `ClientStore` of another package returning a decode
+  error of its own that does not wrap encoding/json's (treated as a read error,
+  by design); what the issuer does with an unused, still-registered client; that
+  the neutral question's error text is free of anything a person should not see
+  for a custom locker (the SDK's own and gobble's name a path and an operating
+  system's text); Windows under `-race` for the 20-round run (the module run was
+  one pass, on Linux); whether Q17 is truly equivalent beyond the reviewer's
+  reading and my not finding a test.

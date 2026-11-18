@@ -72,9 +72,14 @@ type OAuthSession struct {
 	// storedAccess is the access token Store is known to hold, as storedRefresh
 	// is its refresh token: set with it by every save that succeeds, by a
 	// session adopted from Store, and, after a save that failed, to the one the
-	// store still holds. A store that keeps no refresh token is told from the
-	// session's own by it (0082-MADR, third amendment, R-11, F-4). "" when
-	// unknown.
+	// store still holds. It is set wherever storedRefresh is, except by
+	// FileTokenStore.Load, which notes the refresh token only: a loaded session
+	// knows no stored access token until its first save or adoption. That is
+	// harmless: the access token tells a record from the session's own only for
+	// a record with no refresh token, which is a store that keeps none, and
+	// FileTokenStore keeps it (0082-MADR, fourth amendment of 2026-11-18, N-1).
+	// A store that keeps no refresh token is told from the session's own by it
+	// (third amendment, R-11, F-4). "" when unknown.
 	storedAccess string
 	// clientDefault reports that HTTPClient is a provider's default, given by
 	// UseDefaultHTTPClient, which a caller's client replaces (0026-MADR F37).
@@ -274,15 +279,21 @@ type TokenStore interface {
 // it (0082-MADR, amendment of 2026-11-17, R-1). LockRefresh must honour ctx
 // and return an error once it ends, as FileTokenStore does, so that a save
 // waiting for another process's refresh can be cancelled. The wizard first
-// tries once, with a context already done: a lock that is held may answer at
-// once, as FileTokenStore does, with an error matching ErrProviderUnavailable
-// and the context's, or with any other error, which the wizard takes as the
-// lock being held so long as its own context is alive; a locker that blocks
-// instead is waited for. If the lock is held it says so and waits with the
-// sign-in's context; whatever error the wait ends with, the limit of the
-// store's own wait included, matching ErrProviderUnavailable or not, leads
-// to the question whether to try the save again, and only the sign-in's own
-// context ending does not (0082-MADR, third amendment of 2026-11-17, R-10).
+// tries once, with a context already done: a lock that is held answers at
+// once with an error that wraps the context's, context.Canceled, as
+// FileTokenStore does (with ErrProviderUnavailable too) and gobble's locker
+// does; a locker that blocks instead is waited for. That wrapping is how a
+// locker signals "held": wrap the context's error on a done context when, and
+// only when, another holder has the lock. The wizard then says it is waiting
+// and waits with the sign-in's context; whatever error the wait ends with, the
+// limit of the store's own wait included, matching ErrProviderUnavailable or
+// not, leads to the question, in words that say another process is still
+// refreshing, whether to try the save again, and only the sign-in's own context
+// ending does not (0082-MADR, third amendment of 2026-11-17, R-10). A try that
+// fails with an error that does not wrap the context's is not taken as the
+// lock being held: the wizard does not wait or say another process holds it,
+// and asks, in neutral words that show the error, whether to try again; yes
+// repeats the try (fourth amendment of 2026-11-18, R-13).
 // A store's Save must not take the lock itself: a refresh saves while it
 // holds it.
 type RefreshLocker interface {

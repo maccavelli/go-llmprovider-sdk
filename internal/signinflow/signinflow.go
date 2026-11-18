@@ -12,6 +12,7 @@ package signinflow
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -123,12 +124,19 @@ type Spec struct {
 	// ClientStore, when set, keeps a plan sign-in's issued client and host id
 	// apart from the session (0075-MADR D7). Before a plan sign-in with no
 	// Plan.Previous, the engine loads the record and signs in to its client
-	// with its host id, unless Plan.HostID names another; a record that cannot
-	// be read is none, and Result.ClientLoadErr says so. Once the login returns
-	// a session, it saves the client and host id the session holds, at once,
-	// since the registration happened at OpenAI whatever the caller then does
-	// with the session; the save replaces an unreadable record.
+	// with its host id, unless Plan.HostID names another; a record that exists
+	// but cannot be decoded is none, and Result.ClientLoadErr says so, while any
+	// other read error fails the sign-in before the login (0082-MADR, fourth
+	// amendment, R-12; see Undecodable). Once the login returns a session, it
+	// saves the client and host id the session holds, at once, since the
+	// registration happened at OpenAI whatever the caller then does with the
+	// session; the save replaces an undecodable record.
 	ClientStore auth.ClientStore
+	// Client, when set, is the caller's own read of the ClientStore's record,
+	// which the engine uses in place of a read of its own, with the same rule
+	// for its error. The wizard sets it, so that one sign-in reads the record
+	// once.
+	Client *ClientRead
 	// NoPaste leaves out the paste step: the loopback alone completes a
 	// browser sign-in.
 	NoPaste bool
@@ -143,6 +151,28 @@ type Spec struct {
 	// Logger, when set, receives each accepted answer at debug level, with
 	// the answer's secrets masked by its own LogValue. Nil logs nothing.
 	Logger *slog.Logger
+}
+
+// ClientRead is one read of a ClientStore's record: the record, and the
+// error of the read, which the engine takes as none only when Undecodable
+// says it is a decode failure. The wizard reads the record once, to decide
+// what to sign in to, and gives the read here, so that one sign-in reads it
+// once (0082-MADR, fourth amendment of 2026-11-18, R-12).
+type ClientRead struct {
+	Record auth.ClientRecord
+	Err    error
+}
+
+// Undecodable reports whether err says a record exists but cannot be decoded:
+// it wraps encoding/json's *json.SyntaxError or *json.UnmarshalTypeError, as
+// FileTokenStore's does, found through any wrapping and never by the error's
+// text. Every other error of a read, a permission refused, an input or output
+// error, a file too large, a context's, is a read error: it does not say what
+// the record holds, so the sign-in fails and the record is not replaced.
+func Undecodable(err error) bool {
+	var syntax *json.SyntaxError
+	var typed *json.UnmarshalTypeError
+	return errors.As(err, &syntax) || errors.As(err, &typed)
 }
 
 // Result is what a finished sign-in produced: Session for a browser, plan
@@ -436,12 +466,24 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 		opts := spec.Plan
 		opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback
 		if spec.ClientStore != nil && opts.Previous == nil {
-			// A record that cannot be read is none: the sign-in goes on and
+			// A record that cannot be decoded is none: the sign-in goes on and
 			// registers a client, which replaces the record when it is saved
-			// below (0082-MADR, third amendment of 2026-11-17, R-9).
-			record, loadErr := spec.ClientStore.LoadClient(ctx, spec.Provider)
-			if loadErr != nil {
-				record, clientLoadErr = auth.ClientRecord{}, loadErr
+			// below (0082-MADR, third amendment of 2026-11-17, R-9). Any other
+			// read error fails the sign-in here, before the login registers a
+			// client, and the record stays as it is (fourth amendment of
+			// 2026-11-18, R-12). The caller's own read is used when it gave
+			// one: the record is read once.
+			read := spec.Client
+			if read == nil {
+				loaded, loadErr := spec.ClientStore.LoadClient(ctx, spec.Provider)
+				read = &ClientRead{Record: loaded, Err: loadErr}
+			}
+			record := read.Record
+			if read.Err != nil {
+				if !Undecodable(read.Err) {
+					return Result{}, fmt.Errorf("signinflow: load the issued client: %w", read.Err)
+				}
+				record, clientLoadErr = auth.ClientRecord{}, read.Err
 			}
 			opts.ClientID = cmp.Or(opts.ClientID, record.ClientID)
 			opts.HostID = cmp.Or(opts.HostID, record.HostID)
