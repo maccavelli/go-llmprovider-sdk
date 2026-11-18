@@ -143,6 +143,33 @@ type oauthRefreshResponse struct {
 // waiting for the refresh lock, so a rotated refresh token is never discarded
 // (0016-MADR D4; 0021-MADR T10).
 //
+// Before it refreshes, the session re-reads its store and adopts what a
+// sibling process rotated, but only a rotation of the same sign-in: the same
+// provider, kind, issuer and client, and the same account when both name one;
+// an empty issuer is the kind's built-in issuer. A stored record that is
+// another sign-in, another application's login, or another kind, client,
+// issuer, account or provider, with a refresh token or without one, is never
+// adopted, used or refreshed: the token request fails with an error matching
+// llmprovider.ErrAuthFailure, which names the field that differs and no value
+// the store holds, and nothing is sent or saved. The session keeps its own
+// fields, and each later token request reads the store again, so it resumes
+// once the store holds this sign-in again, or nothing. A record that holds the
+// session's own refresh token or its own access token is its own whatever its
+// other fields say: nothing is adopted from it, and the session refreshes its
+// own token and saves over it (0082-MADR, second amendment, R-5).
+//
+// The refresh's save is guarded the same way: under the store's refresh lock,
+// the store is read again before the save, and the rotation is written only if
+// the store still holds this sign-in's token or nothing. If another sign-in
+// was written during the refresh's request, the rotation is kept in memory,
+// unsaved: the token it holds is returned, the unsaved save is retried as
+// above and fails the same way while the store holds the other sign-in, and
+// the next due refresh is refused. A store that is not a RefreshLocker gets the
+// same check, which is then not atomic with the save. Of the tokens the
+// session spent, only the last is known: a store that returns to it takes the
+// rotation, and it is never adopted back (0082-MADR D1 to D3 and its
+// amendment of 2026-11-17).
+//
 // An early refresh that fails with anything but ErrAuthFailure, while the
 // token has more than 30 s left, returns the token: the failure goes to
 // Logger, and the next refresh waits 10 to 30 s (0021-MADR T2).
@@ -262,6 +289,9 @@ func (s *OAuthSession) complete(ctx context.Context, future *tokenFuture, state 
 		case errors.Is(saveErr, errStoreMovedOn):
 			s.storedRefresh = "" // another process saved a newer session
 		}
+		// errStoreOtherSignIn leaves storedRefresh as it is: the token the
+		// session last knew the store to hold stays known as spent, so it is
+		// never adopted back if the store returns to it (0020-MADR F1).
 		if saveErr != nil {
 			logUnsavedRotation(logger, state.provider, saveErr)
 		}
@@ -321,15 +351,84 @@ func (s *OAuthSession) snapshot() *OAuthSession {
 }
 
 // errStoreMovedOn reports that the store no longer holds the refresh token an
-// unsaved rotation spent: another process saved a newer session, which must
-// not be overwritten.
+// unsaved rotation spent: another process saved a newer session of this
+// sign-in, which must not be overwritten.
 var errStoreMovedOn = errors.New("oauth: the store holds a newer session; the unsaved rotation is not written")
 
+// errStoreOtherSignIn reports that the store holds another sign-in: nothing is
+// written over it, and the rotation stays in memory (0082-MADR D1, and its
+// amendment of 2026-11-17, R-1 and R-2).
+var errStoreOtherSignIn = errors.New("oauth: the store holds another sign-in; the unsaved rotation is not written over it")
+
+// ownTokens are the tokens a session knows to be its own: the refresh tokens
+// it holds, spent or noted as the store's, and its access tokens. A stored
+// record that carries one of them is the session's own record, whatever its
+// other fields say, and is not judged by sameSignIn: a store that drops the
+// refresh token, the client or another field still serves its one process, as
+// it did before 0082. An empty token is nobody's. Another sign-in's record
+// carries another sign-in's tokens: refresh and access tokens are the
+// issuer's, each belongs to one login (0082-MADR amendment of 2026-11-17, R-5).
+type ownTokens struct{ refresh, access []string }
+
+// holds reports whether rec carries one of the session's own tokens.
+func (o ownTokens) holds(rec *OAuthSession) bool {
+	return isKnownToken(rec.Refresh, o.refresh...) || isKnownToken(rec.Access, o.access...)
+}
+
+// isKnownToken reports whether token is a non-empty token among known.
+func isKnownToken(token string, known ...string) bool {
+	return token != "" && slices.Contains(known, token)
+}
+
+// storeMovedOn is the one test of whether the store, which holds loaded, may
+// be written over by a rotation of held's sign-in; nil means it may (E27). It
+// may when the record carries a token the session knows (own), or is of this
+// sign-in with no refresh token of its own, such as a pasted access token. A
+// record of another sign-in is errStoreOtherSignIn; one of this sign-in with a
+// refresh token the session does not know is errStoreMovedOn. The comparison
+// is sameSignIn's, so the save and the read agree (0082-MADR amendment of
+// 2026-11-17, R-1, R-5). loaded is a record the store holds: the caller has
+// none to judge when it holds nothing.
+func storeMovedOn(held oauthSessionState, loaded *OAuthSession, own ownTokens) error {
+	switch {
+	case own.holds(loaded):
+		return nil
+	case !sameSignIn(held, loaded):
+		return errStoreOtherSignIn
+	case loaded.Refresh == "":
+		return nil
+	}
+	return errStoreMovedOn
+}
+
+// saveRotation saves next, a rotation of held's sign-in, unless the store has
+// moved on (storeMovedOn); it then writes nothing and returns that error, so
+// the caller keeps the rotation in memory. The caller holds the store's
+// refresh lock when the store offers one: the load and the save are then not
+// interleaved with another process's refresh or sign-in save that takes it.
+// A store that is not a RefreshLocker gets the same check, not atomic with the
+// save. A failed load saves, as persistRotation always did (a known limit: a
+// persistent read error would otherwise lose every rotation).
+func saveRotation(ctx context.Context, held oauthSessionState, next *OAuthSession, own ownTokens) error {
+	loaded, err := held.store.Load(ctx, held.provider)
+	if err == nil && loaded != nil {
+		if moved := storeMovedOn(held, loaded, own); moved != nil {
+			return moved
+		}
+		// The record holds this session's token, or the one its unsaved
+		// rotation spent, or its access token, or this sign-in's pasted one:
+		// its answers are the user's latest (0075-MADR D3).
+		next.Consents = loaded.Consents
+	}
+	return held.store.Save(ctx, held.provider, next)
+}
+
 // persistRotation retries saving a rotated session, under the store's
-// refresh lock, and only while the store still holds stored, the refresh
-// token it is known to hold (or nothing). It tries the lock once, with a
-// context already done, so a call that holds a valid token never waits for
-// another process's refresh (0021-MADR T10; 0026-MADR F1).
+// refresh lock, and only while the store still holds the refresh token it is
+// known to hold (stored), the rotation itself, or this sign-in's access-only
+// record: storeMovedOn is the test. It tries the lock once, with a context
+// already done, so a call that holds a valid token never waits for another
+// process's refresh (0021-MADR T10; 0026-MADR F1).
 func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSession, stored string) error {
 	if locker, ok := state.store.(RefreshLocker); ok {
 		once, cancel := context.WithCancel(ctx)
@@ -340,16 +439,8 @@ func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSe
 		}
 		defer unlock()
 	}
-	loaded, err := state.store.Load(ctx, state.provider)
-	if err == nil && loaded != nil && loaded.Refresh != stored && loaded.Refresh != next.Refresh {
-		return errStoreMovedOn
-	}
-	if err == nil && loaded != nil {
-		// The record holds this session's token, or the one its unsaved
-		// rotation spent: its answers are the user's latest (0075-MADR D3).
-		next.Consents = loaded.Consents
-	}
-	return state.store.Save(ctx, state.provider, next)
+	return saveRotation(ctx, state, next, ownTokens{
+		refresh: []string{stored, next.Refresh}, access: []string{state.access, next.Access}})
 }
 
 // logUnsavedRotation reports a rotated session that could not be saved.
@@ -550,6 +641,10 @@ func (s *OAuthSession) refreshMargin() time.Duration {
 type oauthSessionState struct {
 	provider llmprovider.ProviderID
 	refresh  string
+	// access is the session's access token when the state was taken: with
+	// its refresh tokens, what a stored record must not carry for it to be
+	// another sign-in's (ownTokens; 0082-MADR amendment of 2026-11-17, R-5).
+	access string
 	// stored is the refresh token the store is known to hold. While an
 	// unsaved rotation is pending it is a token this session spent: a store
 	// that still holds it has not moved on, and it must never be adopted and
@@ -592,6 +687,7 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 	return oauthSessionState{
 		provider:   s.Provider,
 		refresh:    s.Refresh,
+		access:     s.Access,
 		issuer:     s.Issuer,
 		clientID:   s.ClientID,
 		accountID:  s.AccountID,
@@ -940,8 +1036,9 @@ func tokenExpiry(access string, expiresIn oauthSeconds, now time.Time) time.Time
 // reloadOrRefresh re-reads the session from its store before refreshing:
 // another process sharing the store may already have rotated the refresh
 // token, and sending the old one again trips the issuer's reuse detection.
-// A stored session with a different refresh token is adopted, and refreshed
-// only if its own access token is due (MADR 0012 §5.2).
+// A stored session with a different refresh token is adopted when it is the
+// same sign-in, and refreshed only if its own access token is due (MADR 0012
+// §5.2; 0082-MADR D2).
 // refreshed is what reloadOrRefresh produced.
 type refreshed struct {
 	next  *OAuthSession
@@ -958,6 +1055,22 @@ type refreshed struct {
 // and saves. It holds the store's refresh lock throughout (0016-MADR
 // amendment A2). After a permanent refresh failure it re-reads the store
 // once, and adopts a rotation a sibling saved meanwhile (amendment A1).
+//
+// A stored session is adopted, at either read, only when it is the same
+// sign-in as the held session's: sameSignIn says what that is. A record of
+// another sign-in, another application's login, another kind, client, issuer,
+// account or provider, with a refresh token or without, is refused with an
+// error matching llmprovider.ErrAuthFailure before its token is used, its
+// refresh token sent or anything saved, so the caller adopts nothing and the
+// session keeps its own fields (0082-MADR D1, D3, and its amendment of
+// 2026-11-17). Both reads compare with held, the state this call was given,
+// the held session's, even after the first read took up a due rotation. The
+// refresh's own save is guarded too: under the lock, saveRotation re-reads the
+// store and writes only if it still holds this sign-in's token or nothing, and
+// otherwise keeps the rotation in memory unsaved (R-1). The guards read only
+// the states, copies the caller took under the session's lock, and the
+// sessions the store returned, which this call alone holds; they take no lock
+// of the session's.
 func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, error) {
 	// Lock first, so the reload below sees any rotation another process
 	// saved while this one waited.
@@ -968,7 +1081,11 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 		}
 		defer unlock()
 	}
-	stored, kept, keep := loadRotated(ctx, state)
+	held := state
+	stored, kept, keep, err := loadRotated(ctx, held, state)
+	if err != nil {
+		return refreshed{}, err
+	}
 	if stored != nil {
 		if token, ok := stored.currentToken(); ok {
 			return refreshed{next: stored, token: token}, nil
@@ -979,7 +1096,11 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 	}
 	next, token, err := refreshOAuthSession(ctx, state)
 	if errors.Is(err, llmprovider.ErrAuthFailure) {
-		if stored, _, _ := loadRotated(ctx, state); stored != nil {
+		stored, _, _, reErr := loadRotated(ctx, held, state)
+		if reErr != nil {
+			return refreshed{}, reErr
+		}
+		if stored != nil {
 			if token, ok := stored.currentToken(); ok {
 				return refreshed{next: stored, token: token}, nil
 			}
@@ -992,31 +1113,129 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 	}
 	out := refreshed{next: next, token: token, spent: state.refresh}
 	if state.store != nil {
-		out.saveErr = state.store.Save(ctx, state.provider, next)
+		out.saveErr = saveRotation(ctx, held, next, ownTokens{
+			refresh: []string{state.refresh, state.stored, next.Refresh}, access: []string{held.access}})
 	}
 	return out, nil
 }
 
-// loadRotated returns the stored session when the store holds a refresh token
-// other than state's, else nil. The token the store is known to hold is not
-// another: while a rotation is unsaved it is one this session spent, however
-// many saves failed (0020-MADR F1; 0026-MADR F1). A record it passes over
-// because it holds the session's own token, or the one an unsaved rotation
-// spent, still holds the user's latest answers: keep reports it, with its
-// consents, which the session about to be saved takes (0075-MADR D3).
-func loadRotated(ctx context.Context, state oauthSessionState) (rotated *OAuthSession, consents string, keep bool) {
+// loadRotated reads the store for state and returns the stored session to
+// adopt: the store holds a refresh token other than state's, else nil. The
+// token the store is known to hold is not another: while a rotation is unsaved
+// it is one this session spent, however many saves failed (0020-MADR F1;
+// 0026-MADR F1). A record it passes over because it holds the session's own
+// token, or the one an unsaved rotation spent, still holds the user's latest
+// answers: keep reports it, with its consents, which the session about to be
+// saved takes (0075-MADR D3).
+//
+// A record is not adopted for lack of a refresh token, but it is still judged:
+// a record that holds neither of the session's tokens and is not held's
+// sign-in (sameSignIn, held being the held session's state) is another
+// sign-in, whatever it holds, and the error is errOtherSignIn, matching
+// llmprovider.ErrAuthFailure (0082-MADR D1 and its amendment of 2026-11-17,
+// R-2). A record that holds the session's own refresh token, or its own access
+// token as the session held it before this refresh (held.access), is the
+// session's whatever its other fields say, so a store that drops a field,
+// even the refresh token, still refreshes as before (R-5). A same-sign-in
+// record with no refresh token is passed over: the held session refreshes its
+// own and saves over it.
+func loadRotated(ctx context.Context, held, state oauthSessionState) (rotated *OAuthSession, consents string, keep bool, err error) {
 	if state.store == nil {
-		return nil, "", false
+		return nil, "", false, nil
 	}
-	stored, err := state.store.Load(ctx, state.provider)
-	if err != nil || stored == nil || stored.Refresh == "" {
-		return nil, "", false
+	stored, loadErr := state.store.Load(ctx, state.provider)
+	if loadErr != nil {
+		stored = nil // a failed read adopts nothing (0016-MADR D4)
 	}
-	if stored.Refresh == state.refresh || (state.stored != "" && stored.Refresh == state.stored) {
-		return nil, stored.Consents, true
+	if stored == nil {
+		return nil, "", false, nil
+	}
+	if (ownTokens{refresh: []string{state.refresh, state.stored}, access: []string{held.access}}).holds(stored) {
+		return nil, stored.Consents, true, nil
+	}
+	if !sameSignIn(held, stored) {
+		return nil, "", false, errOtherSignIn(held, stored)
+	}
+	if stored.Refresh == "" {
+		return nil, "", false, nil
 	}
 	stored.Store, stored.HTTPClient, stored.now = state.store, state.httpClient, state.now
-	return stored, "", false
+	return stored, "", false, nil
+}
+
+// sameSignIn reports whether stored, a session the store holds, is the sign-in
+// held describes: signInDiff names no field that differs.
+func sameSignIn(held oauthSessionState, stored *OAuthSession) bool {
+	return signInDiff(held, stored) == ""
+}
+
+// signInDiff names the first field by which stored, a session the store holds,
+// is not the sign-in held describes, else "". The fields are the provider (a
+// stored session that names none is taken to name held's), the kind (a stored
+// session with no Kind has the one SessionKind infers, from the provider
+// above), the issuer (a trailing slash is ignored; an empty one is the kind's
+// built-in issuer, as refreshTokenURL, ChatGPT and inferKind read it; the case
+// of the host is not folded, as nowhere else in the module), the client (an
+// empty one is never the same as a named one) and, only when both name one,
+// the account. Tokens, expiry, scope, ID token and consents change in a
+// legitimate rotation and are not compared, nor are the token URL, resource
+// and host id, which follow from the kind and the client (0082-MADR D2). A
+// refresh keeps every field compared, and FileTokenStore keeps them, so a
+// sibling's rotation of this sign-in always passes. The fields are the store's
+// labels, which whatever writes the store sets: the check stops another
+// application's login written honestly, not a record forged to look like this
+// one. The names it returns are the words a refusal uses, never a value.
+func signInDiff(held oauthSessionState, stored *OAuthSession) string {
+	if held.provider != "" && stored.Provider != "" && stored.Provider != held.provider {
+		return "provider"
+	}
+	kind := held.kindOf()
+	if sessionKindOf(stored.Kind, cmp.Or(stored.Provider, held.provider), stored.Issuer, stored.Resource) != kind {
+		return "kind"
+	}
+	if signInIssuer(kind, stored.Issuer) != signInIssuer(kind, held.issuer) {
+		return "issuer"
+	}
+	if stored.ClientID != held.clientID {
+		return "client"
+	}
+	if stored.AccountID != "" && held.accountID != "" && stored.AccountID != held.accountID {
+		return "account"
+	}
+	return ""
+}
+
+// signInIssuer is issuer without a trailing slash, or, when it is empty, the
+// built-in issuer of kind (builtinIssuer).
+func signInIssuer(kind SessionKind, issuer string) string {
+	if issuer = strings.TrimRight(issuer, "/"); issuer != "" {
+		return issuer
+	}
+	return builtinIssuer(kind)
+}
+
+// builtinIssuer is the issuer a session of kind has when it names none: an
+// older session, or one a caller built, of OpenAI's or xAI's own kinds, as
+// refreshTokenURL reads it. Any other kind has none.
+func builtinIssuer(kind SessionKind) string {
+	switch {
+	case openAIKind(kind):
+		return DefaultOpenAIIssuer
+	case kind == SessionGrok:
+		return DefaultGrokOAuthIssuer
+	}
+	return ""
+}
+
+// errOtherSignIn is the refusal to use a stored session that is not held's
+// sign-in: it matches llmprovider.ErrAuthFailure and names the held session's
+// provider and the one field by which the stored session differs, by its name,
+// never a value, so that nothing the store holds reaches the text: no token,
+// account, client, issuer or kind (0082-MADR D3 and its amendment of
+// 2026-11-17, N1).
+func errOtherSignIn(held oauthSessionState, stored *OAuthSession) error {
+	return fmt.Errorf("oauth: the store holds another sign-in than this %s session's (its %s differs); sign in again: %w",
+		cmp.Or(string(held.provider), "OAuth"), signInDiff(held, stored), llmprovider.ErrAuthFailure)
 }
 
 func refreshTokenURL(state oauthSessionState) (string, error) {
@@ -1031,10 +1250,10 @@ func refreshTokenURL(state oauthSessionState) (string, error) {
 	// sends a refresh token to a built-in endpoint from another issuer
 	// (0074-MADR D5).
 	kind := state.kindOf()
-	switch issuer := strings.TrimRight(state.issuer, "/"); {
-	case openAIKind(kind) && (issuer == DefaultOpenAIIssuer || issuer == ""):
+	switch issuer := signInIssuer(kind, state.issuer); {
+	case openAIKind(kind) && issuer == DefaultOpenAIIssuer:
 		return DefaultOpenAIIssuer + "/oauth/token", nil
-	case kind == SessionGrok && (issuer == DefaultGrokOAuthIssuer || issuer == ""):
+	case kind == SessionGrok && issuer == DefaultGrokOAuthIssuer:
 		return defaultGrokOAuthRefreshURL, nil
 	default:
 		return "", fmt.Errorf("oauth: the %s session from %q has no token URL; sign in again: %w",

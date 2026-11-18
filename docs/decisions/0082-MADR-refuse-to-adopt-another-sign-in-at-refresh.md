@@ -896,3 +896,296 @@ gobble's follow-up named as gobble's own phase.
 * Whether any third-party `TokenStore` in use drops `ClientID`, `Issuer` or
   `Provider`: none is known; gobble's keeps them.
 * S1 to S8 ran without `-race`.
+
+## Amendment of 2026-11-17: the independent review's findings (R-1 to R-4)
+
+Added after the record was accepted and before its Phase 1 commit; nothing
+above is rewritten. An independent review of the staged Phase 1 (the PLAN's
+Phase 3, a reviewer who did not write it) found no blocker: in every path it
+could reach, another sign-in is no longer adopted, spent or used, and no
+legitimate rotation of the same sign-in is refused. It left should-fix items
+(S1 to S5, N1 to N4), and the owner ruled on four points, relayed by the
+coordinator on 2026-11-17, each answered as the option marked "(Recommended)".
+The labels are quoted; what was asked is in the words of this record.
+
+* **R-1, the save window.** Answered: "Amend 0082: guard the save too, before
+  this is committed (Recommended)". As asked: a sign-in written to the store
+  while this session's own refresh request is in flight was then overwritten by
+  the refresh's save (the reviewer's S3); under the lock, the session re-reads
+  the store and saves only if it still holds this sign-in's token or nothing;
+  otherwise it keeps the rotation unsaved and the next refresh meets the guard;
+  the wizard's save of a new sign-in also takes the store's lock; the costs are
+  one more store read per refresh and a sign-in save that may wait for a refresh
+  in flight.
+* **R-2, access-only records.** Answered: "Amend 0082: refuse on any stored
+  record that is another sign-in (Recommended)". As asked: the same-sign-in
+  check runs on every stored record, with or without a refresh token; adoption
+  still needs a refresh token (S2).
+* **R-3, the consent read.** Answered: "Amend 0082: a record that is not this
+  sign-in counts as unanswered (Recommended)". As asked: the consent read, and
+  the wizard's previous-session lookup, apply the same check, and the record's
+  claim about the consent gate is corrected (S4).
+* **R-4, the empty-field rule.** Answered: "Treat an empty issuer as the
+  built-in issuer; keep the client strict (Recommended)". As asked: consistent
+  with how the rest of the module reads an empty issuer (`refreshTokenURL`,
+  `ChatGPT()`, `inferKind`), so a hand-built session with no issuer keeps
+  working; an empty client on one side is still another sign-in.
+
+### What each adds to D1 to D5
+
+* **D1, the guard.** (R-1) The refresh's own save is guarded. Under the refresh
+  lock `reloadOrRefresh` holds, `saveRotation` reads the store again and writes
+  only if `storeMovedOn` finds nothing, a record with a refresh token the
+  session knows (the one the refresh spent, the one the store is known to hold,
+  the rotation's own), or a record of this sign-in with no refresh token of its
+  own. `persistRotation`, the retried save, now calls the same function: one
+  predicate for both saves (E27). A store that is not a `RefreshLocker` gets the
+  same check, which is not atomic with the save; the guarantee is then that of
+  the store. (R-2) Whether a record is there and whether it is adoptable are
+  separate: `loadRotated` judges every record the store returns, by the same
+  comparison, and adoption still needs a refresh token and one other than the
+  session's. (N3) Both reads, the first and the re-read after a permanent
+  failure, compare with the held session's state, the one `reloadOrRefresh` was
+  given, as D1 says, even after the first read took up a due rotation of this
+  sign-in: so a held session that names no account is not made stricter by the
+  account the first read's record named.
+* **Own token.** A record that holds the session's own refresh token, or the
+  one the store is known to hold, is the session's whatever its other fields
+  say, and is not judged by the comparison. R-2's wording, every record, would
+  otherwise make a `TokenStore` that drops a field refuse its own session's
+  record at every refresh, where before this record it refreshed; the record
+  that matters, the one that is another sign-in, holds another token. This
+  narrows R-2 only for records the session itself wrote.
+* **What a skipped save leaves.** The rotation is used in memory and returned;
+  `storedRefresh` keeps the token the refresh spent, or the earlier one an
+  unsaved save left, so that token stays known as spent and is never adopted
+  back. The retried save repeats the check every 30 s while the token is
+  current and leaves `storedRefresh` alone when the store holds another sign-in
+  (it clears it only when a newer rotation of this sign-in has moved on). Then,
+  at the next `Token`: the store still holds another sign-in, the next due
+  refresh is refused and nothing is sent; the store is back at the spent token,
+  the retry writes the rotation and nothing is sent; the store is empty, the
+  retry writes it. A failure to save is logged each time, as any unsaved
+  rotation's is.
+* **D2, what the same sign-in is.** An empty issuer is the built-in issuer of
+  the kind (`builtinIssuer`), on both sides, before the issuer is compared; the
+  client is not normalised: an empty client on one side is another sign-in. A
+  host's case is not folded, as nowhere else in the module (every other check
+  compares the issuer exactly after trimming a slash), so `https://AUTH.openai.com`
+  is another issuer. A record that names no provider takes the held session's
+  for the kind it infers (N3); a held session that names none takes the
+  record's.
+* **D3, the refusal's text.** It names the held session's provider and the one
+  field that differs, in the order provider, kind, issuer, client, account, by
+  that name, and no value the store holds, so nothing of the store reaches the
+  text, control characters included (N1). It replaces the first pass's
+  "(kind X) ... (kind Y)", which named equal kinds when only the client differed.
+* **D5, the sessions it reaches.** (R-3) `OAuthSession.StoredConsent` counts a
+  record that is not this session's sign-in as unanswered; the wizard hands a
+  stored plan session to a new plan sign-in as `Previous` only when it is
+  OpenAI's own plan session of OpenAI's issuer with an issued client and, when
+  the store is an `auth.ClientStore` with a record, that client. Before the new
+  sign-in exists its provider, kind and issuer are the plan method's and its
+  client is the one the app was issued; a store with no client record gives no
+  other evidence, and its plan session is taken as the app's own, as before.
+  The host id is not compared (it follows from the client). 0075-MADR D3 and D7
+  are kept: a client reused after a sign-out or a switch comes from the record,
+  and a plan session of the app's own client is still signed in to again.
+
+### The security weight, corrected
+
+"The security weight" above says the background-use consent gate is not bypassed
+for a provider built as a plan session, because "another application's entry
+does not carry the answer". That held for an entry of another kind. Another
+application's plan entry does carry `chatgpt_plan.background_use`, and
+`StoredConsent` read it with no check of whose it was, so a held plan session
+reported another application's "granted" for its own user. Now: a record that
+is not this session's sign-in counts as unanswered, so the gate refuses
+background use until this sign-in's own answer is stored; and a new plan
+sign-in no longer reuses another application's issued client and host id,
+which the wizard's lookup handed over before.
+
+### Stated limits
+
+* **N2.** Another account of the same application, or another application
+  using the same client, is told apart only by the account id, and not every
+  sign-in has one. A Grok sign-in carries none (the account id is read from a
+  ChatGPT claim only) and shares the default issuer and client, so another xAI
+  account, or another application using the default client, in the same store
+  is indistinguishable from this one and is adopted. The same holds for plan
+  sessions whose ID token carries no account id (the caveat Q2 was answered
+  with), when two accounts share a reused client. Not fixed here; a future
+  record.
+* The check trusts the record's labels, as "The security weight" above says; a
+  deliberate writer is not stopped.
+* A wizard save that waits for a lock another process holds waits up to the
+  store's own bound (60 s for `FileTokenStore`) and shows nothing meanwhile.
+  It ends with the sign-in's context, saving nothing (0081-MADR is about
+  cancelled sign-ins saving nothing), or with an error matching
+  `ErrProviderUnavailable` at the bound.
+* A custom `TokenStore` that drops `ClientID`, an issuer that is not OpenAI's
+  or xAI's own, or a kind the other fields do not infer makes sibling
+  rotations look like another sign-in; the doc of `TokenStore` and the
+  changelog say so. gobble's adapter keeps all five fields and implements
+  `RefreshLocker` over its own lock, which its `LoginStore` documents is not
+  the lock its `Save` takes.
+
+### Confirmation, added
+
+Tests in `llmprovider/auth`, `providers/openai` and `wizard`, each seen red on
+the staged Phase 1 and green on this tree, and each new assertion seen to fail
+on a planted break on a scratch clone: the PLAN's execution record names them,
+the red lines and the plants.
+
+## Second amendment of 2026-11-17: the second independent review (R-5 to R-8)
+
+Added after the first amendment and before the Phase 1 commit; nothing above
+is rewritten. The second independent review of the staged Phase 1 found no
+blocker and no deadlock, and left should-fix items (B-1 to B-3, N-1 to N-6).
+The owner ruled on four points, relayed by the coordinator on 2026-11-17. The
+labels are quoted exactly; what was asked is in the words of this record.
+
+* **R-5, the own-token exemption (the first amendment's narrowing of R-2) and
+  N-1.** Answered: "Keep it, and also treat a record holding the session's own
+  access token as its own". As asked: a custom store that keeps neither the
+  refresh token nor the client was refused at its second refresh in one
+  process, where it worked before 0082 (the reviewer's N-1); a record that
+  carries the session's own refresh token, the one the store is known to hold,
+  or its own access token is the session's own and is not judged by the
+  comparison, so no single-process store regresses.
+* **R-6, a corrupt client record.** Answered: "Treat an unreadable record as no
+  record, with a notice (Recommended)". As asked: when the wizard chooses the
+  plan session to sign in to again, an unreadable `<provider>.client` record is
+  no record, and the person is told through the prompter that it could not be
+  read, with none of its content; the cost is that, with no readable record,
+  the check that a stored plan session belongs to this application cannot run
+  for that sign-in.
+* **R-7, the wait for the lock.** Answered: "Say it is waiting; at the limit
+  keep the session and offer to retry the save (Recommended)". As asked: the
+  wizard tries the lock once; if it is held it says it is waiting for another
+  process's refresh; at the store's limit the completed sign-in is kept in
+  memory and the person may try the save again instead of signing in again.
+* **R-8, issuer case.** Answered: "Keep exact comparison (Recommended)". As
+  built: the first amendment's rule stands, an issuer is compared exactly
+  after a trailing slash is trimmed and an empty one is the kind's built-in
+  issuer.
+
+### What each adds
+
+* **D2 and the guard, R-5.** A record is the session's own when it carries a
+  non-empty token the session knows, whichever of two kinds: a refresh token
+  (the held one, the one the store is known to hold, the rotation's own) or an
+  access token. Such a record is not judged by `sameSignIn`: nothing is adopted
+  from it, the session refreshes its own refresh token and saves over it. Which
+  access token is the session's own at each point:
+  * at the first read and the re-read after a rejected refresh: the access
+    token the held session had when the refresh began (`held.access`), not the
+    access token of a record the first read took up;
+  * at the refresh's own save: the same, the one before the refresh;
+  * at the retried save of an unsaved rotation: the rotated one, which is then
+    the session's current token, and the rotation's own.
+
+  The safety argument: an access token is the issuer's, minted for one login,
+  as a refresh token is; another sign-in's record carries another sign-in's
+  access token. An empty access token is nobody's: an empty one on both sides
+  never counts as known, so an access-only record of another sign-in with no
+  token, or a pasted record, is judged as before. A pasted ChatGPT session
+  holds the token the user pasted, which is not this session's, so it is still
+  refused (0082-PLAN's `TestAccessOnlyRecordOfAnotherSignInIsRefused_0082`).
+  The case the exemption does not rule out, and takes as the session's own: a
+  record that carries the session's access token under other labels or another
+  refresh token. It can only have been made from this session's own record, so
+  it holds this login's credential, and the session's refresh overwrites it.
+  The first amendment's fixtures built foreign records as copies of the held
+  session and so carried its access token; they were corrected to carry their
+  own, which the exemption would otherwise have taken for the session's. A
+  limit: a store that keeps neither the refresh token nor the client, and
+  whose first save of a rotation fails, holds the previous access token, which
+  the retried save no longer knows (the session knows only its current one):
+  that retry is refused until the process ends. Before 0082 that retry was
+  refused as moved on too, since the record had no refresh token.
+* **D1, the save, N-2 and N-4.** A re-read before the save that fails still
+  saves, as the retried save always did, so that a persistent read error does
+  not lose every rotation; the cost, a known limit, is that another sign-in
+  written during the request is then overwritten. `storeMovedOn` no longer has
+  an arm for an empty store: its one caller has no record to judge when the
+  store holds nothing.
+* **D5, the wizard, R-6, R-7 and N-3.** The wizard's save is, in order:
+  1. wait for a refresh the listing left running, as before;
+  2. try the store's lock once with a context already done, as
+     `persistRotation` does; with `FileTokenStore` a held lock answers at once
+     with an error matching `ErrProviderUnavailable` and the context's;
+  3. if the lock is held, a notice through the prompter on the wizard's own
+     goroutine (no timer), then a wait that ends with the sign-in's context or
+     at the store's bound (60 s for `FileTokenStore`);
+  4. at the bound, the prompter is asked, with `Confirm`, whether to try the
+     save again; yes repeats from step 2 and its wait; no, an answer that
+     cannot be given (a prompter with no terminal), or no prompter at all, ends
+     the save with the bound's error, matching `ErrProviderUnavailable`, and
+     saves nothing;
+  5. once the lock is held, the context is checked, the new session is given its
+     store, and it is saved.
+
+  A caller with no prompter, or one whose `Confirm` fails, gets the error as
+  before this ruling. The sign-in's context ends any wait and any pass,
+  returning the context's error and saving nothing. A custom `RefreshLocker`
+  that ignores its context blocks the try and is waited for; the context is
+  checked once the lock is held. The store is given to the session only under
+  the lock, just before the save (N-3): a refresh of the new session in the
+  window before could adopt the store's old record of the same labels and have
+  the save write its tokens, which a test forced (0082-PLAN, third pass). A
+  store that is not a `RefreshLocker` is saved to as before, with the store
+  given just before the save. No new exported name is needed.
+
+  The unreadable client record (R-6) is read where the wizard chooses
+  `Previous`, only when a plan session is stored; the person is told "the saved
+  OpenAI client record could not be read; it is ignored for this sign-in", and
+  the stored plan session, with no record to say whose it is, is taken as the
+  app's own, as before 0082's first amendment.
+* **N-6, 0081.** `0081-MADR-a-cancelled-sign-in-saves-nothing.md` adds one
+  context check immediately before the save, in the function both entry points
+  save through (its D2, K6). Its builder must keep that check after the lock is
+  obtained, in `resolvedCredential.write`, which every pass of R-7's loop runs
+  after taking the lock, and not before the wait: a check before the wait would
+  not stop a sign-in cancelled during a minute-long wait from saving when the
+  lock comes free. R-7's loop composes with it: each pass takes the lock, then
+  `write` checks the context, then saves. 0081 is not edited here.
+
+### What this changes in the first amendment's claims
+
+* "A record that holds the session's own refresh token, or the one the store is
+  known to hold, is the session's" now also holds for the session's own access
+  token (R-5), which makes the changelog's and `TokenStore`'s sentence, that a
+  session no other process shares is not affected by a store that drops
+  fields, true for a store that keeps no refresh token either.
+* "A wizard save that waits for a lock another process holds waits up to the
+  store's own bound and shows nothing meanwhile" is replaced by R-7: it says it
+  is waiting, and at the bound offers to try again.
+
+### Stated limits, added
+
+* **N-2.** A failed re-read before the save still saves (above).
+* **N-5.** Both reads compare with the held session's state. A held session that
+  names no account can therefore take up the record of account A at the first
+  read and, if its refresh is then rejected, the record of account B at the
+  re-read, since neither differs from it by account. A session that names an
+  account is not affected. Not fixed here.
+* **A corrupt client record, found and not fixed.** After the wizard's choice
+  of `Previous`, the sign-in itself, with a `ClientStore` and no `Previous`,
+  still stops with `signinflow: load the issued client: ...` on an unreadable
+  record (`internal/signinflow`), as it did at the base, and a sign-out does not
+  clear the file. Options for a follow-up record: (a) treat an unreadable
+  record as none in the engine too, with a warning in its `Result`, as
+  `ClientSaveErr` reports a record that cannot be saved; (b) have sign-out
+  remove an unreadable record; (c) leave it, and have the caller delete the
+  file, named in the error. Recommended: (a).
+* **The lossy store with a failed first save**, above under R-5.
+
+### Confirmation, second amendment
+
+The PLAN's execution record, third pass: every new test seen red on the staged
+second pass before the code that makes it pass, with its red lines; the
+reviewer's table of plants, re-formed, and the pass's own, each seen to fail
+a test on a scratch clone; and the breach of the standing rule that this pass
+found and closed (two planted breaks of the first pass's fixtures aimed refresh
+requests at OpenAI's real token endpoint), with the guard that now stops it.

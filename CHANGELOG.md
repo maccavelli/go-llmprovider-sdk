@@ -67,6 +67,57 @@ tag and its commit without notes; its notes are its section here.
   ([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)
   D1 to D9).
 
+### Security
+
+- A refreshable `OAuthSession` no longer adopts a session its token store
+  holds that is another sign-in (another provider, kind, issuer or client, or
+  another account when both name one), which it did at its next refresh,
+  sending that login's token on the route it was built for and spending its
+  refresh token. Its token requests now fail with an error matching
+  `llmprovider.ErrAuthFailure`, which names the field that differs and no
+  value the store holds, until the store holds its sign-in again, or nothing;
+  nothing is sent or saved for the other sign-in, and the session keeps its
+  own. This holds for a stored record with no refresh token too, such as a
+  pasted access token. A rotation of the same sign-in by another process is
+  adopted as before. An empty issuer is the kind's built-in issuer on both
+  sides, as everywhere else in the module; an empty client is never the same
+  as a named one. In a running process, a sign-in by the other OpenAI method,
+  to another account, or to a plan session without a `ClientStore` in another
+  process of the same application now ends in an auth failure that asks for a
+  new sign-in, where it was adopted. Three more places follow:
+  - the refresh's own save no longer overwrites a sign-in written to the store
+    while the refresh request was in flight: under the store's refresh lock,
+    the store is read again and written only if it still holds this sign-in's
+    token or nothing; otherwise the rotation stays in memory and the next due
+    refresh is refused. A store that is not an `auth.RefreshLocker` gets the
+    same check, not atomic with the save;
+  - the wizard saves a new sign-in under that lock when the store has one:
+    it tries the lock once, tells the person it is waiting when another
+    process's refresh holds it, and waits up to the store's own bound (60 s
+    for `auth.FileTokenStore`); at the bound it keeps the completed sign-in
+    and asks whether to try the save again, and a refusal, or a caller with
+    no prompter or no answer to give, gets an error matching
+    `llmprovider.ErrProviderUnavailable`, with nothing saved; the sign-in's
+    context ends the wait at any point, saving nothing. It signs in to a
+    stored plan session again only when it is OpenAI's own and, with a
+    client record, that client's, so another application's issued client is
+    not reused; a client record it cannot read is treated as none, with a
+    notice;
+  - `OAuthSession.StoredConsent` counts a stored record that is another
+    sign-in as unanswered, so a held plan session no longer reads another
+    application's `background_use` answer.
+
+  A custom `auth.TokenStore` must keep every field that names a sign-in
+  (`Provider`, `Kind`, `Issuer`, `ClientID`, `AccountID`) as saved; one that
+  drops the client, an issuer that is not OpenAI's or xAI's own, or a kind the
+  other fields do not infer makes its sessions refuse each other's rotations
+  with this auth failure, and its user signs in again. A session that no
+  other process shares is not affected: a record holding its own refresh
+  token or its own access token is its own, so a store that keeps neither
+  the refresh token nor the client still serves its one process
+  ([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)
+  D1 to D5 and its amendments of 2026-11-17).
+
 ## [v1.31.0] - 2026-11-14
 
 ### Added

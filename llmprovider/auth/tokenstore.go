@@ -219,6 +219,22 @@ func (s *OAuthSession) LogValue() slog.Value {
 // TokenStore shared by several OAuthSessions must be safe for concurrent use:
 // each session loads and saves from its own refresh, while the others do.
 //
+// A store keeps every field that names a sign-in, Provider, Kind, Issuer,
+// ClientID and AccountID, as it was saved: a session adopts what Load returns
+// only when it is the same sign-in as its own (OAuthSession.Token; 0082-MADR
+// D2). A store that drops a field makes a sibling's rotation, a record with a
+// refresh token other than the session's, look like another sign-in when what
+// is left cannot be matched: the ClientID always, the Issuer when it is not
+// OpenAI's or xAI's own, the Kind when the other fields do not infer it. The
+// session then refuses the rotation with an error matching
+// llmprovider.ErrAuthFailure, and its user signs in again. A dropped Provider
+// or AccountID is not compared, since an empty one is not another. A record
+// that holds the session's own refresh token or its own access token is its
+// own whatever it lost, so a session that no other process shares refreshes
+// as before, on a store that keeps neither the refresh token nor the client
+// too (0082-MADR, second amendment of 2026-11-17, R-5). A field empty when
+// saved stays empty. FileTokenStore keeps all five.
+//
 // The session a Save is given may be one that a refresh is adopting into on
 // another goroutine, as the wizard's save of a new sign-in passes it, while
 // the session's own saves pass a copy that nothing else holds. A Save must
@@ -240,6 +256,19 @@ type TokenStore interface {
 // LockRefresh must be safe for concurrent use, since sessions sharing the
 // store call it at once, and must exclude the process's other callers as it
 // does other processes'.
+//
+// The lock also orders a refresh and a sign-in's save. A refresh holds it
+// across its request and its own save; a caller that saves a new sign-in to
+// the store, as the wizard does, takes it first, so that the sign-in is not
+// written under a refresh in flight and a refresh that starts after it meets
+// it (0082-MADR, amendment of 2026-11-17, R-1). LockRefresh must honour ctx
+// and return an error once it ends, as FileTokenStore does, so that a save
+// waiting for another process's refresh can be cancelled. The wizard first
+// tries once, with a context already done, as FileTokenStore reports a held
+// lock to it, by an error matching ErrProviderUnavailable and the context's;
+// a locker that blocks instead is waited for, and its holder is not told
+// anything. A store's Save must not take the lock itself: a refresh saves
+// while it holds it.
 type RefreshLocker interface {
 	LockRefresh(ctx context.Context, provider llmprovider.ProviderID) (unlock func(), err error)
 }

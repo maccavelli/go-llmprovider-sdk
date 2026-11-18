@@ -281,14 +281,26 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("wizard: load the saved OpenAI session: %w", err)
 	}
-	if previous != nil && (!previous.PlanUsage() || previous.ClientID == "") {
-		previous = nil
-	}
 	// A TokenStore that also keeps the issued client apart from the session
 	// has it reused after a sign-out or a switch (0075-MADR D7).
 	var clients auth.ClientStore
+	var issued auth.ClientRecord
 	if store, ok := o.TokenStore.(auth.ClientStore); ok {
 		clients = store
+		if previous != nil {
+			// An unreadable record is no record: the sign-in carries on, as it did
+			// before the record was read here, and the person is told. The
+			// record's content is never shown (0082-MADR, second amendment of
+			// 2026-11-17, R-6). Without it, nothing says whose the stored plan
+			// session is, and it is taken as the app's own.
+			if issued, err = store.LoadClient(ctx, llmprovider.ProviderOpenAI); err != nil {
+				issued = auth.ClientRecord{}
+				p.Notify(LevelWarn, "the saved %s client record could not be read; it is ignored for this sign-in", d.Label)
+			}
+		}
+	}
+	if previous != nil && !signsInAgainTo(previous, issued) {
+		previous = nil
 	}
 	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
 	if previous == nil {
@@ -309,6 +321,22 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 		return resolvedCredential{}, loginErr
 	}
 	return pendingOAuthCredential(o.TokenStore, llmprovider.ProviderOpenAI, session)
+}
+
+// signsInAgainTo reports whether the stored session previous is the plan
+// sign-in the wizard is about to repeat, so that its issued client, host id and
+// ID token are reused (0075-MADR D3, D7) and nothing of another application's
+// is: an OpenAI plan session of OpenAI's own issuer with an issued client, and,
+// when the store keeps the issued client apart (issued, the zero record when it
+// has none), that very client. Before the new sign-in exists its provider,
+// kind and issuer are the plan method's, and its client is the one the app was
+// issued; a store with no client record gives no other evidence, and its plan
+// session is taken as the app's own, as before. The host id is not compared: it
+// follows from the client (0082-MADR D2).
+func signsInAgainTo(previous *auth.OAuthSession, issued auth.ClientRecord) bool {
+	return previous.Owner() == llmprovider.ProviderOpenAI && previous.PlanUsage() &&
+		strings.TrimRight(previous.Issuer, "/") == auth.DefaultOpenAIIssuer && previous.ClientID != "" &&
+		(issued.ClientID == "" || previous.ClientID == issued.ClientID)
 }
 
 // planMethod is the plan method's facts for the engine: the descriptor's
@@ -1019,11 +1047,92 @@ func pendingOAuthCredential(
 // for a refresh the listing left running, past its limit, so that the store
 // gets the rotated tokens, not the spent ones. A session the issuer refuses
 // is not saved.
-func (c resolvedCredential) save(ctx context.Context, d llmprovider.Descriptor) error {
+//
+// A store that offers the refresh lock is saved to under it, as SetConsent
+// does: a refresh of the session the store holds, in this process or another,
+// holds the lock across its request and its own save, so this save waits for
+// it and lands after it, and a refresh that starts after it meets the new
+// sign-in (0082-MADR, second amendment of 2026-11-17, R-1, R-7). The wizard
+// tries the lock once; if it is held, it says it is waiting, on its own
+// goroutine, and waits. The wait ends with ctx, saving nothing, and at the
+// store's own bound (a minute for FileTokenStore) with an error matching
+// llmprovider.ErrProviderUnavailable: the completed sign-in is then kept in
+// memory and p is asked whether to try the save again, which waits again; a
+// refusal, an answer that cannot be given, or no Prompter returns that error
+// and saves nothing. A store that is not a RefreshLocker is saved to as
+// before. The store is given to the session only under the lock, just before
+// the save: a refresh of the new session in the window before would adopt the
+// store's old record of the same labels, and the save would write its tokens
+// (N-3). The context is checked after the lock is held, before anything is
+// written: a lock that outlasts the sign-in saves nothing (0081-MADR's single
+// check before the save belongs here, after the lock, and not before the wait).
+func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.Descriptor) error {
 	if c.saveTo == nil || c.session == nil {
 		return nil
 	}
 	if _, err := c.session.Token(ctx); err != nil && (errors.Is(err, llmprovider.ErrAuthFailure) || ctx.Err() != nil) {
+		return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
+	}
+	locker, locked := c.saveTo.(auth.RefreshLocker)
+	if !locked {
+		return c.write(ctx, d)
+	}
+	for {
+		held, err := c.writeUnderLock(ctx, p, locker, d)
+		if held {
+			return err
+		}
+		if ctx.Err() != nil {
+			return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, ctx.Err())
+		}
+		failed := fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
+		if !errors.Is(err, llmprovider.ErrProviderUnavailable) || p == nil {
+			return failed
+		}
+		again, askErr := p.Confirm(fmt.Sprintf("Another process is still refreshing the saved %s session. Try saving the new sign-in again?", d.Label), true)
+		if askErr != nil || !again {
+			return failed
+		}
+	}
+}
+
+// writeUnderLock takes the store's refresh lock, writes with it held and
+// releases it. held reports that the lock was taken, and err is then the
+// write's; with held false, err is why it was not taken.
+func (c resolvedCredential) writeUnderLock(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (held bool, err error) {
+	unlock, err := lockToSave(ctx, p, locker, d)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	return true, c.write(ctx, d)
+}
+
+// lockToSave takes the store's refresh lock for a save: one try, with a
+// context already done, as persistRotation tries; if the lock is held, a
+// notice, then a wait that ends with ctx or at the store's bound. A try that
+// fails for another reason than the lock being held is the wait's own first
+// failure, returned as it is.
+func lockToSave(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (func(), error) {
+	once, cancel := context.WithCancel(ctx)
+	cancel()
+	unlock, err := locker.LockRefresh(once, d.ID)
+	if err == nil {
+		return unlock, nil
+	}
+	if ctx.Err() != nil || !errors.Is(err, context.Canceled) {
+		return nil, err // not held: the try failed for its own reason
+	}
+	if p != nil {
+		p.Notify(LevelInfo, "waiting for another process to finish refreshing the saved %s session; the new sign-in is saved after it", d.Label)
+	}
+	return locker.LockRefresh(ctx, d.ID)
+}
+
+// write gives the new session its store and saves it. The caller holds the
+// store's refresh lock when the store has one.
+func (c resolvedCredential) write(ctx context.Context, d llmprovider.Descriptor) error {
+	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
 	}
 	c.session.UseStore(c.saveTo)

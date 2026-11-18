@@ -786,7 +786,13 @@ for a session, from the store.
   (`ChatGPTPlanOptions.ClientID`: the request names it, with no agent name
   and no ID token hint) and its host id, and saves both as the login returns,
   before anything else the caller does. The host id is `Options.HostID`, else
-  `Previous`'s, else the record's, else a new one. OpenAI accepts the client
+  `Previous`'s, else the record's, else a new one. The wizard hands a stored
+  plan session over as `Previous` only when it is OpenAI's own plan session
+  of OpenAI's issuer with an issued client and, when the store is a
+  `ClientStore` with a record, that client (`signsInAgainTo`; 0082-MADR
+  amendment of 2026-11-17, R-3); otherwise the record's client is reused as
+  after a sign-out. A client record that cannot be read is no record, with
+  a notice (R-6). OpenAI accepts the client
   with no hint after the last session was revoked: the owner-run probe of
   0075-PLAN's Phase 6 showed it on 2026-11-14, with the client and host id
   unchanged.
@@ -839,8 +845,20 @@ for a session, from the store.
 
     A rotation is kept even when saving it fails: the failure goes to the
     session's `Logger`, and the save is retried at most every 30 s, trying
-    the lock once without waiting. After a rejected refresh the session
-    re-reads the store, and adopts a rotation another process saved.
+    the lock once without waiting. Before a refresh, and again after a
+    rejected one, the session re-reads the store, and adopts a rotation
+    another process saved of the same sign-in (provider, kind, issuer,
+    client, and account when both name one; an empty issuer is the kind's
+    built-in issuer); a record of another sign-in, with a refresh token or
+    without one, is refused with an error matching `ErrAuthFailure` that
+    names the field that differs and no value, before anything is sent or
+    saved, and the session keeps its own and resumes once the store holds
+    its sign-in again, or nothing. The refresh's own save re-reads the store
+    under the lock and writes only if it still holds this sign-in's token or
+    nothing, by the test the retried save uses (`storeMovedOn`); otherwise
+    the rotation stays in memory and the next due refresh is refused.
+    `StoredConsent` counts another sign-in's record as unanswered (0082-MADR
+    D1 to D3 and its amendment of 2026-11-17).
   - `RevokeOAuthSession` ends it.
 - **`TokenStore`** persists sessions. `FileTokenStore` keeps one `0600` JSON
   file per provider:
@@ -856,7 +874,16 @@ for a session, from the store.
     token is never spent twice. The operating system releases the lock when
     its holder closes it or dies, so nothing stale is left behind. A waiter
     gives up after 60 s, past the longest a refresh may hold the lock,
-    45.6 s (0068-MADR D3).
+    45.6 s (0068-MADR D3). The wizard's save of a new sign-in takes the same
+    lock, when the store has one: it tries once, says it is waiting through
+    the prompter when another process holds it, waits, and ends, saving
+    nothing, with its context; at the store's bound it keeps the completed
+    sign-in and asks whether to try again (an answer it cannot get, or a
+    refusal, returns the `ErrProviderUnavailable` error). It gives the new
+    session its store only under the lock, just before the save. No `Save`
+    takes the lock itself, since a refresh saves while it holds it, and no
+    session lock is held while a store's lock is taken (0082-MADR amendments
+    of 2026-11-17, R-1, R-7).
 - **Formatting never shows a secret.** `Token`, `StaticToken` and
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's

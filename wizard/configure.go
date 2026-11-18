@@ -128,7 +128,21 @@ type Options struct {
 	// TokenStore persists sessions created by the browser, device-code and
 	// token-paste flows. Supplying it opts in to every sign-in method; when it
 	// is nil, only those that save no session are offered: the API key, the
-	// vendor CLI read-through, and a pasted Grok key.
+	// vendor CLI read-through, and a pasted Grok key. A new session is saved
+	// under the store's refresh lock when the store is an auth.RefreshLocker.
+	// The save tries the lock once; if another process's refresh holds it, the
+	// Prompter is told the save is waiting, and the save waits, for up to the
+	// store's own bound (60 s for auth.FileTokenStore). At the bound the new
+	// sign-in is kept and the Prompter is asked whether to try the save again;
+	// a refusal, an answer it cannot give, or no answer returns an error
+	// matching llmprovider.ErrProviderUnavailable and saves nothing. The
+	// sign-in's context ends a wait at any point, saving nothing. A plan
+	// session already in the store is signed in to again only when it is
+	// OpenAI's own plan session and, when the store is an auth.ClientStore
+	// with an issued client, that client's: another application's plan session
+	// is not reused; a client record that cannot be read is no record, and the
+	// Prompter is told. Keep every field a session names its sign-in by (see
+	// auth.TokenStore).
 	TokenStore auth.TokenStore
 	// HTTPClient is used for live model listing, the Ollama endpoint check,
 	// the sign-in flows and the Kilo profile; a session a sign-in creates
@@ -552,7 +566,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	if err := endedCheck(listErr); err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
-	if err := credential.save(ctx, d); err != nil {
+	if err := credential.save(ctx, p, d); err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
 	return res, cat, nil

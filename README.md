@@ -310,7 +310,17 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
 - **Store.** A `TokenStore` keeps one OpenAI login, of either kind: a plan
   sign-in replaces a Codex-id one, and the reverse. A record saved by this
   version and read by one before `v1.15.0` fails to refresh; signing in
-  again mends it.
+  again mends it. A running session does not take up a login of the other
+  kind, or another application's or account's, that its store comes to
+  hold: its token requests fail with `ErrAuthFailure` until the store holds
+  its own sign-in again, or nothing, and the user signs in anew; its own
+  refresh does not write over such a login either, and the wizard saves a
+  new sign-in under the store's refresh lock: it says it is waiting when
+  another process's refresh holds it, and at the store's limit keeps the
+  sign-in and offers to try the save again. A
+  rotation of its own sign-in by another process is still taken up. A custom
+  store must keep the fields a session names its sign-in by (`Provider`,
+  `Kind`, `Issuer`, `ClientID`, `AccountID`).
 - **What stays yours.** OpenAI's terms ask things of your app that this
   module cannot do for you, and no option claims to:
   - send requests only from the user's own runtime, or one only that user
@@ -431,7 +441,9 @@ key.
   session that already holds an answer is not asked. A saved plan session is
   signed in to again, keeping the client OpenAI issued your app, and with a
   `TokenStore` that keeps the client apart (`auth.ClientStore`) so does a
-  sign-in after a sign-out. `Options.HostID` is your host-lifetime id.
+  sign-in after a sign-out; a stored plan session of another client, or
+  issuer, or provider is not taken for yours. `Options.HostID` is your
+  host-lifetime id.
 - `Options.Identity` names your app to the identity providers on every
   sign-in the wizard runs, as `auth.OAuthFlowOptions.Identity` does on your
   own: OpenAI's `originator`, Grok's `referrer`, and the User-Agent of each

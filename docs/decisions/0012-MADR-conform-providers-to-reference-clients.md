@@ -503,6 +503,11 @@ behaviour.
 * Before refreshing, `OAuthSession.Token` re-loads the session from its
   `TokenStore`. If the stored refresh token differs from the in-memory one,
   it adopts the stored session and skips the refresh.
+* *Amended 2026-11-17
+  ([0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md](0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)):*
+  it adopts the stored session when it is the same sign-in (provider, kind,
+  issuer, client, and account when both name one). Another sign-in is
+  refused with an error matching `ErrAuthFailure`; the session keeps its own.
 * Refresh bodies:
   * OpenAI: JSON (`TokenEncoding::Json`, `codex:…/manager.rs:1637`);
   * Grok: form-encoded, adding `principal_type` and `principal_id` when the

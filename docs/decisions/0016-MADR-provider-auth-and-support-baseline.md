@@ -305,6 +305,11 @@ processes.*
   `Save` is retried on the next `Token` call until it succeeds.
 * A test asserts that, after a failed `Save`, the next refresh sends the
   rotated refresh token and not the spent one.
+* *Amended 2026-11-17
+  ([0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md](0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)):*
+  the session adopts a stored session, before a refresh and after a rejected
+  one, only when it is the same sign-in as its own. Another sign-in is
+  refused with an error matching `ErrAuthFailure`.
 
 ### D5. Secret-bearing values redact themselves
 
@@ -573,6 +578,10 @@ written, and A2 as option (b) with A1. Evidence:
   * otherwise return the permanent error.
 * **Test:** two sessions share one store, and the second's refresh is
   rejected after the first has saved. It must adopt, not fail.
+* *Amended 2026-11-17
+  ([0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md](0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)):*
+  the re-read adopts a session that is the same sign-in only; another
+  sign-in is refused with an error matching `ErrAuthFailure`.
 
 ### A2. Reopen D3: a cross-process refresh lock
 

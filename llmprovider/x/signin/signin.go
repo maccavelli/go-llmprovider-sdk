@@ -31,7 +31,13 @@ type Options struct {
 	// the person; the other methods ignore it.
 	AgentName string
 	// Previous is a plan session to sign in to again; chatgpt_plan only. A
-	// first sign-in, with none, takes the method's FirstPaste.
+	// first sign-in, with none, takes the method's FirstPaste. Its client and
+	// host id are reused, so pass only the app's own plan session: the
+	// wizard passes one only when it is OpenAI's own and, with a ClientStore
+	// record, that client's (0082-MADR, amendment of 2026-11-17, R-3). A
+	// caller that saves the new session to its own auth.TokenStore takes the
+	// store's auth.RefreshLocker lock around the save, when it has one, so
+	// the save waits for a refresh in flight (R-1).
 	Previous *auth.OAuthSession
 	// HostID is the app's host-lifetime id for the chatgpt_plan sign-in, as
 	// OpenAI's guide asks one kept for the host's life; the app persists it.

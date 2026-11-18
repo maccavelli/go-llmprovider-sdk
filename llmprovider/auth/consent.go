@@ -121,7 +121,14 @@ func SetConsent(ctx context.Context, store TokenStore, provider llmprovider.Prov
 // does, and a Store with no session for the owner gives an unanswered one.
 // An error from the Store's Load is returned as it is, and the answer is then
 // unanswered: a caller that needs express consent treats it as not granted
-// (0075-MADR D5). StoredConsent is safe for concurrent use.
+// (0075-MADR D5). A record the Store holds that is another sign-in than the
+// session's, by the comparison a refresh makes (provider, kind, issuer and
+// client, and the account when both name one), holds answers the session's
+// sign-in never gave: it counts as unanswered, as a record with no entry does
+// (0082-MADR, amendment of 2026-11-17, R-3). A record that holds the session's
+// own refresh token or access token is the session's, whatever its other
+// fields say.
+// StoredConsent is safe for concurrent use.
 func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, answered bool, err error) {
 	if s == nil {
 		return false, false, nil
@@ -130,6 +137,8 @@ func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, a
 	s.mu.Lock()
 	store := s.Store
 	own := s.Consents
+	held := s.refreshState()
+	mine := ownTokens{refresh: []string{s.Refresh, s.storedRefresh}, access: []string{s.Access}}
 	s.mu.Unlock()
 	if store == nil {
 		granted, answered = consentOf(own, id)
@@ -140,6 +149,9 @@ func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, a
 		return false, false, err
 	}
 	if stored == nil {
+		return false, false, nil
+	}
+	if !mine.holds(stored) && !sameSignIn(held, stored) {
 		return false, false, nil
 	}
 	granted, answered = consentOf(stored.Consents, id)
