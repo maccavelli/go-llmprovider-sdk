@@ -166,13 +166,18 @@ type ClientRead struct {
 // Undecodable reports whether err says a record exists but cannot be decoded:
 // it wraps encoding/json's *json.SyntaxError or *json.UnmarshalTypeError, as
 // FileTokenStore's does, found through any wrapping and never by the error's
-// text. Every other error of a read, a permission refused, an input or output
-// error, a file too large, a context's, is a read error: it does not say what
-// the record holds, so the sign-in fails and the record is not replaced.
+// text. So does an error that says it by a method, `Undecodable() bool`,
+// found the same way: FileTokenStore's error for a client record file over
+// 64 KiB, which is corruption (0082-MADR, fifth amendment of 2026-11-18, R-14);
+// the method is on an unexported type, so no name is exported. Every other
+// error of a read, a permission refused, an input or output error, a context's,
+// is a read error: it does not say what the record holds, so the sign-in fails
+// and the record is not replaced.
 func Undecodable(err error) bool {
 	var syntax *json.SyntaxError
 	var typed *json.UnmarshalTypeError
-	return errors.As(err, &syntax) || errors.As(err, &typed)
+	var marked interface{ Undecodable() bool }
+	return errors.As(err, &syntax) || errors.As(err, &typed) || errors.As(err, &marked) && marked.Undecodable()
 }
 
 // Result is what a finished sign-in produced: Session for a browser, plan

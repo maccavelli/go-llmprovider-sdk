@@ -1084,7 +1084,12 @@ func pendingOAuthCredential(
 // opened, is not the lock being held: there is no notice, no wait and no
 // claim of another process; p is asked in neutral words, showing the error
 // with its control characters removed, whether to try again, and yes repeats
-// the try (0082-MADR, fourth amendment of 2026-11-18, R-13). A save that
+// the try (0082-MADR, fourth amendment of 2026-11-18, R-13). The error shown
+// passes through redact.String, so a token-shaped string is masked; its
+// newlines become spaces and its control characters go, but what remains of an
+// escape sequence ("[31m") stays as harmless text, and a long path is shown
+// whole; the error returned on a refusal is the store's own, whole (fifth
+// amendment of 2026-11-18, N-b). A save that
 // fails under a lock the wizard holds is returned as it is. A
 // refusal, an answer that cannot be given, or no Prompter returns the error and
 // saves nothing; the loop is the person's, with no bound of its own

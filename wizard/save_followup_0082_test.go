@@ -202,7 +202,7 @@ func (s *ownErrLock0082) LockRefresh(ctx context.Context, _ llmprovider.Provider
 // same locker with the sign-in's own context ended returns that context's
 // error, with no notice and no question. Red while any failed try with a live
 // context is waited for.
-func TestAnyFailedTryWithALiveContextIsHeld_0082(t *testing.T) {
+func TestFailedTryThatIsNotContentionAsksAndDoesNotWait_0082(t *testing.T) {
 	t.Run("asks, does not wait, and saves on yes", func(t *testing.T) {
 		store := &ownErrLock0082{scriptedLock0082: scriptedLock0082{held: true}}
 		p := &answers0082{confirms: []bool{true}, onConfirm: store.free}

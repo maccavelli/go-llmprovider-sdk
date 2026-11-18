@@ -1509,3 +1509,111 @@ series, every earlier plant, and the pass's own, each seen to fail a test on a
 scratch copy of the final tree under a sandbox that denies every outbound
 connection but loopback, but two equivalent mutants the PLAN names (the
 reviewer's Q10, which R-12 makes the code, and Q17).
+
+## Fifth amendment of 2026-11-18: the fifth independent review (R-14)
+
+Added after the commit of the fourth amendment's work (`5f2c2ab`); everything
+above is committed and is annotated here, not rewritten. The fifth independent
+review found no blocker. It found one place where R-12's rule left a person
+stuck (F-1), and the owner ruled on it, relayed by the coordinator on
+2026-11-18. The label is quoted exactly; what was asked is in the words of this
+record.
+
+* **R-14, a client record over the size bound (F-1).** Answered: "Treat an
+  oversized record as undecodable and replace it (Recommended)". As asked: a
+  client record file larger than 64 KiB, where a real one is about a hundred
+  bytes, is refused by a size check before it is decoded
+  (`readBounded`, `llmprovider/auth/tokenstore_file.go`), so under R-12 it was a
+  read error, and the sign-in failed on every attempt with only the file's base
+  name shown. A file a thousand times too large is corruption, not a permissions
+  problem. It is now replaced with the same single notice as any other corrupt
+  record, and nobody is stuck. Nothing is exported.
+
+### What this changes
+
+* **R-14, the mechanism.** `readBounded` returns a `*tooLargeError`, an
+  unexported type whose text is what it has always said (`<file> is larger than
+  65536 bytes`). `FileTokenStore.LoadClient` is the only caller that turns it
+  into something else: it wraps it, as `FileTokenStore client decode: ...`, in an
+  unexported type with a method `Undecodable() bool` that returns true.
+  `signinflow.Undecodable` now also asks any error, through `errors.As` and an
+  interface target, for that method, besides encoding/json's typed errors. No
+  name is exported: the types are unexported, the method is reached through an
+  interface literal in an internal package, and `make api-check` and
+  `tools/apidiff.py` report the same single added name as before this change
+  (`x/signin.VerifyKilo`, from another record). No text is matched.
+* **R-14, the session file is unchanged.** `readBounded` is shared with
+  `FileTokenStore.Load`. A session file over 64 KiB is still refused with a read
+  error and no session: `FileTokenStore read: openai.json is larger than 65536
+  bytes`, byte for byte as before, an error that is not marked undecodable, and
+  the file left as it is. A guard test pins it, and two plants (the session path
+  given the client path's marked error, and the session path reading an
+  over-size file as no session) fail it. A client record file of exactly 64 KiB is
+  still read, and a path that cannot be read as a file (a directory in its place)
+  is still a plain read error that fails the sign-in.
+* **R-14, who sees it.** In the wizard an over-size client record is replaced with
+  the one notice ("the saved OpenAI client record could not be read; ..."), with
+  a plan session stored and with none; no plan session is handed over as
+  `Previous`; nothing of the file's content, or of the size error's text, reaches
+  a prompt or notice. In the engine it is `Result.ClientLoadErr`, and the login
+  runs with none of the file's client. A caller of `x/signin` with a
+  `FileTokenStore` gets a sign-in that goes on, with no notice, as for any
+  undecodable record; `Options.ClientStore` says so. A custom `ClientStore` keeps
+  the one route the fourth amendment gave it, wrapping encoding/json's error.
+* **The row `null`.** A client record file that holds the JSON `null` decodes to
+  the zero record. That is "no record", as an absent file is, with no notice: with
+  a plan session of the app's own stored, that session is signed in to again;
+  with nothing stored, a new client is registered. This is the intended reading
+  of "no record" in R-9 and R-12, and stands; `TestNullClientRecordIsNoRecord_0082`
+  pins it.
+
+### What this supersedes in the fourth amendment
+
+* "What each changes", **R-12, how a decode failure is told from any other read
+  error**: "an empty file, a truncated one, junk, and a field of the wrong type
+  are all decode failures; a permission refused, an input or output error, a read
+  that fails for another reason, and a file over 64 KiB are not": a file over
+  64 KiB is a decode failure, marked as above; the rest stands.
+* **R-12, the wizard (D5)**: "(the file's base name for a file that is too
+  large, the full path in the operating system's own error for the rest)": a file
+  that is too large no longer fails the sign-in, so no error shows its name; the
+  full path in the operating system's own error stands for the rest.
+* **Limits, added**, "**A corrupt record the person cannot fix**": "(permissions,
+  a file too large, a device error)" loses "a file too large". A record whose read
+  fails for a permission or a device error still ends every sign-in until it is
+  fixed or deleted.
+
+### Limits, added
+
+* **N-a, a record that decodes but names a garbage client id, found and not
+  fixed here.** A client record file whose JSON is valid and whose `client_id`
+  is, for example, invalid UTF-8 inside the string (encoding/json turns the bytes
+  into U+FFFD) decodes without error. The sign-in uses that client, with no
+  notice, and saves it again. Against the real issuer it would then fail at
+  authorization on every attempt until the file is deleted. It predates 0082, and
+  is outside R-12's words, which are about a record that cannot be decoded. A
+  candidate for a later record, which would decide what a plausible client id is;
+  none is decided here.
+* **N-b, the neutral question's limits, stated, no change.** The error shown in
+  R-13's question passes through `redact.String` (a token-shaped string is
+  masked) and loses its control characters, with newlines becoming spaces; what
+  remains of an escape sequence, such as `[31m`, is harmless text and stays; a
+  long path is shown whole; and the error returned when the person answers no is
+  the store's own, whole, control characters included. The doc comment of the
+  wizard's `save` says so, and a test pins each.
+* **N-c, a rename.** `TestAnyFailedTryWithALiveContextIsHeld_0082` asserts, since
+  R-13, the opposite of its name; it is now
+  `TestFailedTryThatIsNotContentionAsksAndDoesNotWait_0082`. A rename only: no
+  assertion changed.
+* **Equivalent mutants, by the review's showing.** `S16` (the wizard's read
+  handed to the engine without its error: only `Result.ClientLoadErr` differs,
+  which the wizard never renders) and `Q17` (the retried save's own access list
+  without the rotated token). Neither is a gap a test can close.
+
+### Confirmation, fifth amendment
+
+The PLAN's execution record, sixth pass: every new test seen red on `5f2c2ab`
+before the code that makes it pass, with its red lines; the earlier plants, the
+reviewer's series and the pass's own, each seen to fail a test on a scratch copy
+of the final tree under a sandbox that denies every outbound connection but
+loopback, but the equivalent mutants the PLAN names.

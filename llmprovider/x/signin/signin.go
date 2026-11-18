@@ -55,7 +55,9 @@ type Options struct {
 	// from this package, and the client the sign-in registers replaces it
 	// (0082-MADR, third amendment, R-9), so a caller that wants the person told
 	// says so itself. A store's decode failure is told from its other errors by
-	// wrapping encoding/json's (see auth.ClientStore). Any other read error, a
+	// wrapping encoding/json's (see auth.ClientStore); FileTokenStore's record
+	// file over 64 KiB counts as one too and is replaced the same way (fifth
+	// amendment, R-14). Any other read error, a
 	// permission refused or an input or output error, fails Wait with that error
 	// before a client is registered, and the record is left as it is (fourth
 	// amendment of 2026-11-18, R-12, N-4). Nil keeps none.

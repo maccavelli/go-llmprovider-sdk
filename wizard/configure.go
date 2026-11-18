@@ -146,7 +146,8 @@ type Options struct {
 	// with an issued client, that client's: another application's plan session
 	// is not reused. A client record that exists but cannot be decoded is no
 	// record: the Prompter is told once, no plan session is signed in to again,
-	// and the new sign-in's client replaces the record. Any other error reading
+	// and the new sign-in's client replaces the record; so does a record file
+	// over 64 KiB, which is corruption. Any other error reading
 	// the record, a permission refused or an input or output error, fails the
 	// sign-in naming the file, with no notice, no registration and the record
 	// as it was; the record is read once per sign-in. Keep every field a

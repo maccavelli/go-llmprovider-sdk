@@ -99,7 +99,22 @@ func (fs *FileTokenStore) Load(ctx context.Context, provider llmprovider.Provide
 	return s, nil
 }
 
-// readBounded reads path, failing when it holds more than limit bytes. It
+// tooLargeError is readBounded's refusal of a file over its bound. Its text is
+// what readBounded has always said; the type lets a caller tell it from any
+// other read error. A session file's Load returns it as a read error, as it
+// always has; a client record's LoadClient, which R-14 treats as corruption,
+// marks it undecodable (0082-MADR, fifth amendment).
+type tooLargeError struct {
+	name  string
+	limit int64
+}
+
+func (e *tooLargeError) Error() string {
+	return fmt.Sprintf("%s is larger than %d bytes", e.name, e.limit)
+}
+
+// readBounded reads path, failing when it holds more than limit bytes, with a
+// *tooLargeError. It
 // opens the file shared, so a save's rename is never refused while it reads
 // (0026-MADR F42).
 func readBounded(path string, limit int64) (data []byte, err error) {
@@ -117,7 +132,7 @@ func readBounded(path string, limit int64) (data []byte, err error) {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s is larger than %d bytes", filepath.Base(path), limit)
+		return nil, &tooLargeError{name: filepath.Base(path), limit: limit}
 	}
 	return data, nil
 }

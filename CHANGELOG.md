@@ -117,7 +117,10 @@ tag and its commit without notes; its notes are its section here.
     `x/signin` replaces an undecodable record silently, where it failed the
     sign-in, and fails `Wait` on any other read error; a decode failure is
     told from the rest by wrapping `encoding/json`'s error, which
-    `FileTokenStore` does (`auth.ClientStore` documents it);
+    `FileTokenStore` does (`auth.ClientStore` documents it). A client record
+    file over 64 KiB, which a real one never is, is corrupt too and replaced
+    the same way, where it failed every sign-in; a session file over 64 KiB is
+    still refused;
   - `OAuthSession.StoredConsent` counts a stored record that is another
     sign-in as unanswered, so a held plan session no longer reads another
     application's `background_use` answer.

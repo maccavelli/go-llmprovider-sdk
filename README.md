@@ -323,7 +323,8 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   asks in neutral words, showing the error, whether to try again. A client
   record that exists but cannot be decoded is treated as none, with a
   notice: the wizard then registers a new client instead of signing in to a
-  stored plan session again. Any other error reading the record fails the
+  stored plan session again; a record file over 64 KiB counts as corrupt too.
+  Any other error reading the record fails the
   sign-in, naming the file, and leaves the record as it was; through
   `x/signin` an undecodable record is replaced silently and another read
   error fails `Wait`. A

@@ -804,7 +804,16 @@ for a session, from the store.
   record untouched. The wizard reads the record once and gives the read to the
   engine (`Spec.Client`); the engine reads it itself for a caller without the
   wizard, `x/signin` among them, which is told nothing of a replaced record
-  (0082-MADR fourth amendment, R-12). OpenAI accepts the client
+  (0082-MADR fourth amendment, R-12). A record file over 64 KiB, which a real
+  one, about a hundred bytes, never is, is corruption too: `FileTokenStore`
+  reports it with an error that carries an `Undecodable() bool` method on an
+  unexported type, which `signinflow.Undecodable` also asks for, so it is
+  replaced with the same one notice; a session file over the bound is still
+  refused as a read error (0082-MADR fifth amendment, R-14). A record that
+  decodes to the zero record, such as the JSON `null`, is no record, as an absent
+  file is, with no notice. A record that decodes but names a garbage client id
+  is used and saved as it is, which the fifth amendment states as a limit.
+  OpenAI accepts the client
   with no hint after the last session was revoked: the owner-run probe of
   0075-PLAN's Phase 6 showed it on 2026-11-14, with the client and host id
   unchanged.
@@ -892,7 +901,8 @@ for a session, from the store.
   file per provider:
   - it writes through a temp file, with `fsync`, rename and a directory
     `fsync`;
-  - it refuses a file over 64 KiB;
+  - it refuses a session file over 64 KiB, and replaces a client record file
+    over it as corrupt (0082-MADR fifth amendment, R-14);
   - its `Save` reads the session under the session's lock, so it can save a
     session that a refresh on another goroutine is adopting into. A store
     outside `auth` cannot take that lock, so `TokenStore`'s doc says it must

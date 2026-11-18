@@ -1443,3 +1443,155 @@ Phase 1 re-reads each at the base.
   system's text); Windows under `-race` for the 20-round run (the module run was
   one pass, on Linux); whether Q17 is truly equivalent beyond the reviewer's
   reading and my not finding a test.
+
+### Phase 1, fifth pass, committed (2026-11-18)
+
+* **Committed and pushed** by the coordinator on 2026-11-18 as `5f2c2ab`
+  ("fix(auth): apply fourth-review rulings on record reads and lock retry"),
+  `main`, after the fifth independent review and the coordinator's own gate; CI on
+  it is green. The "fifth pass" entry above is the record of the staging that
+  preceded it. The sixth pass below is staged on top of it.
+
+### Phase 1, sixth pass (2026-11-18)
+
+* **Provenance.** A mainstream-tier model at high effort, on the coordinator's
+  brief, over `5f2c2ab`. Staged, not committed, pushed or tagged.
+* **The fifth review.** No blocker, and the coordinator's own gate passed. One
+  finding, F-1: a client record file over 64 KiB, which a real one (about a
+  hundred bytes) never is, fails every sign-in under R-12, with only the file's
+  base name shown (its table row "valid JSON over 64 KiB": `FAILED: wizard: read
+  the saved OpenAI client record: FileTokenStore client read: openai.client is
+  larger than 65536 bytes | logins=0 | record after "" (err true)`, with a plan
+  session stored and with none). Its table also showed the row `null` (decodes to
+  the zero record: signed in, no notice, a stored plan session signed in to
+  again) and a record that decodes but names a garbage client id (invalid UTF-8
+  inside the string: used and saved, no notice). Its survivors, verbatim from its
+  log: `S14 a secret in the lock error not redacted: build=False staged=0 [] mine=1
+  left=[]` (caught only by the reviewer's own test), `S16 the wizard's read handed
+  over without its error: build=False staged=0 [] mine=0 left=[]` and `Q17 the
+  retried save's own access list drops the rotation's: build=False staged=0 []
+  mine=0 left=[]`. S16 and Q17 are equivalent mutants by the review's showing: S16
+  changes only `Result.ClientLoadErr`, which the wizard never renders; Q17 as the
+  fifth pass recorded.
+* **The ruling,** 2026-11-18, relayed by the coordinator: R-14 "Treat an oversized
+  record as undecodable and replace it (Recommended)". The MADR's fifth amendment
+  records it, the sentences of the fourth it supersedes, the `null` row and the
+  limits below.
+* **Notes,** as asked: N-a (a record that decodes but names a garbage client id is
+  used and saved with no notice; against the real issuer the sign-in would fail at
+  authorize on every attempt until the file is deleted; it predates 0082 and is
+  outside R-12's words: recorded in the amendment as a limit and as a candidate
+  for a later record, not fixed here); N-b (the neutral question removes control
+  characters but not what remains of an escape sequence, newlines become spaces, a
+  long path is shown whole, and the error returned on "no" is the store's own,
+  whole: stated in the doc comment of `save` and in the amendment, pinned by
+  `TestNeutralQuestionStatedLimits_0082`, no change); N-c (a rename, below); N-d
+  (S14's test, below; S16 and Q17 recorded as equivalent).
+* **R-14's mechanism, and the proof the session file is unchanged.**
+  `readBounded` (`llmprovider/auth/tokenstore_file.go`) now returns an unexported
+  `*tooLargeError`, whose text is the text it has always had. `readBounded` is
+  shared: its other caller is `FileTokenStore.Load` for the session file, which
+  keeps its behaviour: a session file over 64 KiB gives no session and the error
+  `FileTokenStore read: openai.json is larger than 65536 bytes`, byte for byte as
+  before, not marked, the file left as it is. `FileTokenStore.LoadClient` alone
+  wraps the size error in an unexported type with the method `Undecodable() bool`
+  returning true (`clientstore.go`), and `signinflow.Undecodable` also asks any
+  error for that method through `errors.As` and an interface target. I chose the
+  marker over making LoadClient's error a fabricated `*json.SyntaxError`, which
+  would misdescribe it; the choice did not need any change to the session path,
+  so I did not stop. Nothing is exported: `make api-check` and apidiff report only
+  `x/signin.VerifyKilo`, as before. The proof the session file is unchanged is
+  `TestSessionFileOverTheSizeBoundKeepsBeingRefused_0082` (exact text, no session,
+  not marked, bytes unchanged), with the old `TestFileTokenStore_LoadRefusesOversized`
+  unchanged and green, and the plants U02 to U04 that change the session path.
+* **Order, and what changed first.** Tests first, each run and seen failing in a
+  scratch clone of `5f2c2ab` itself, with the new test files copied in, under a
+  macOS sandbox that denies every outbound connection but loopback
+  (`sandbox-exec`); no inert change was needed (the tests compile on `5f2c2ab`).
+  Red lines on `5f2c2ab`:
+  * `TestClientRecordOverTheSizeBoundIsUndecodable_0082` (`llmprovider/auth`):
+    `LoadClient = FileTokenStore client read: openai.client is larger than 65536
+    bytes; want an error marked undecodable`;
+  * `TestUndecodableKnowsTheStoresOwnMarker_0082` (`internal/signinflow`): `a
+    marked error: Undecodable = false, want true` and `a marked error, wrapped
+    twice: Undecodable = false, want true`;
+  * `TestPlanOverSizeRecordFromFileTokenStoreIsNone_0082` (the engine): `LoadClient
+    = FileTokenStore client read: openai.client is larger than 65536 bytes; want an
+    error Undecodable recognises`;
+  * `TestOverSizeClientRecordIsReplacedWithOneNotice_0082` (the wizard, the
+    review's row), both subtests: `the sign-in: err wizard: read the saved OpenAI
+    client record: FileTokenStore client read: openai.client is larger than 65536
+    bytes after 0 login(s); want it to go on`;
+  * `TestStart_PlanOverSizeClientRecordIsReplaced_0082` (`x/signin`): `Wait =
+    signinflow: load the issued client: FileTokenStore client read: openai.client
+    is larger than 65536 bytes after 0 login(s); want the sign-in to go on`;
+  * green on `5f2c2ab`, as guards the plants then proved:
+    `TestClientRecordThatCannotBeReadIsNotMarkedUndecodable_0082`,
+    `TestSessionFileOverTheSizeBoundKeepsBeingRefused_0082`,
+    `TestNullClientRecordIsNoRecord_0082` (both rows),
+    `TestNeutralQuestionRedactsASecretInTheLockError_0082` (S14: red under the
+    plant, below) and `TestNeutralQuestionStatedLimits_0082`.
+* **Existing test changed: a rename only (N-c).** `TestAnyFailedTryWithALiveContextIsHeld_0082`
+  (`wizard/save_followup_0082_test.go`), whose first subtest has asserted since
+  R-13 that such a try is not waited for, is now
+  `TestFailedTryThatIsNotContentionAsksAndDoesNotWait_0082`; its body, subtests
+  and assertions are unchanged. The earlier entries of this PLAN keep the old name
+  as it was then. No other existing test changed.
+* **Built, with `path:line`.** R-14: `tooLargeError` (`llmprovider/auth/tokenstore_file.go:107`) and `readBounded` (120), whose text is unchanged; `undecodableRecordError` with its `Undecodable() bool` (`llmprovider/auth/clientstore.go:69`) and `FileTokenStore.LoadClient` (85, the one place that wraps it, at 95); `signinflow.Undecodable` asking for the method (`internal/signinflow/signinflow.go:176`). The docs: `auth.ClientStore`'s `LoadClient` and `FileTokenStore.LoadClient` (`clientstore.go`), `signin.Options.ClientStore` (`x/signin/signin.go`), `wizard.Options.TokenStore` (`wizard/configure.go`), the wizard's `save` (N-b; `wizard/auth.go`), `signinflow.Undecodable`; CHANGELOG `[Unreleased]` Security, README's Store bullet, `docs/architecture.md` (the issued-client paragraph, the `FileTokenStore` list).
+* **Plants.** `plants6.py`, kept with the scratch scripts, on a scratch copy of the final tree under `sandbox-exec` (outbound connections denied but loopback), the `localonly` guard on, run through `run-heavy`: **173 plants**, the fifth pass's table in full (its 160 less Q10, the reviewer's equivalent since R-12, so 159; the three whose anchor moved with the marker, S02, S08 and S09, re-formed), plus this pass's own 14: U01 to U12 (the oversize record fatal again; the oversize exemption applied to the session file, as a marked error and as no session; the oversize error's text changed; the notice dropped; the notice carrying the size error's text; the marker saying no; `Undecodable` ignoring the marker; `Undecodable` taking a marker that says no; every read error marked undecodable; the size bound read as exclusive; a record that decodes to the zero record counted as a decode failure), the reviewer's S14 and S16. A first run of the whole table was cut short by the owner's quota pause, at plant 107 of 173, with the pre-add check, the race rounds, gobble's packages and the CI set queued behind it: those runs were cancelled, none of them counts, and each was run again in full on the same tree after the working tree and the scratch copy were checked (the scratch copy held one plant's edit left by the cut-short run, which was discarded by copying the tree again). The complete run left three, verbatim: `Q17 the retried save's own access list drops the rotation's: NOT CAUGHT; failing=[] guard=no`, `U10 every read error marked undecodable: BUILD FAILURE; failing=[] guard=no` and `S16 the wizard's read handed over without its error (equivalent: only ClientLoadErr differs): NOT CAUGHT; failing=[] guard=no`. **U10** failed to build (the variable it left unused); re-formed so that it compiles and re-run on the final tree: `U10 every read error marked undecodable: CAUGHT; failing=['TestClientRecordPermissionDeniedFailsTheSignIn_0082', 'TestClientRecordThatCannotBeReadIsNotMarkedUndecodable_0082']`. **S14**: `CAUGHT; failing=['TestNeutralQuestionRedactsASecretInTheLockError_0082']`, the test this pass added, where the reviewer's own test alone had caught it. **Q17** and **S16** survive and are equivalent mutants by the review's showing, as recorded above. Final count: **171 of 173 caught; Q17 and S16 survive.** The four plants that name `guard=yes` (P11 twice, B1, N17) were stopped by the guard, as before. Plants that hang a test end at the run's own 6 minute timeout and count as caught.
+* **Gates.** each status taken before any filter, after the last change to a Go
+  file.
+
+  | Gate | Where | Result |
+  | :--- | :--- | :--- |
+  | `make pre-add-check` | `run-heavy`, session host, golangci-lint at the repository's pin, v2.14.0 (`GOLANGCI_LINT` set) | exit 0: 1021 files clean (gofmt, golangci-lint, vet, test, govulncheck); nested module `authcontract` clean |
+  | `go vet ./...`; `GOOS=windows go vet ./...`; `go vet -tags live_gateways ./...` | session host | exit 0 each |
+  | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | session host | exit 0; "0 incompatible change(s) outside llmprovider/x/"; only `llmprovider/x/signin.VerifyKilo: added`: no name from this change |
+  | `go test -race -count=20 -timeout 45m ./llmprovider/auth/ ./llmprovider/providers/openai/ ./wizard/ ./internal/signinflow/ ./llmprovider/x/signin/` | `run-heavy`, session host | exit 0 (auth 235.7 s, wizard 202.4 s, openai 32.8 s); `TestVerifyIDToken_UnknownKidRefetchesOnce` did not fail |
+  | `go test -race -count=1 -timeout 45m ./...` | `run-on-host --race` (`pick-host` chose a Windows host) | exit 0, 42 packages ok; run on the final Go tree before the pause, and not cancelled |
+  | gobble's `internal/auth`, `llm/provider`, `internal/cli` by a scratch `replace`, on a scratch copy of gobble | `run-heavy`, session host | exit 0, three ok |
+  | the CI set: `make parity-check dep-check coverage-check contract-check generate-check fixtures-check gate-selftest tools-test lint vuln` (lint at the pin) | `run-heavy`, session host | exit 0: coverage 43 packages, 0 problems; `authcontract` against its tag, 0 problems; lint 0 issues; govulncheck, both modules, no vulnerabilities |
+  | the plants | scratch copy, sandboxed | 171 of 173 caught; the two survivors are equivalent mutants (Q17, S16), stated above |
+
+  The golangci-lint gate ran with `GOLANGCI_LINT` set to the v2.14.0 binary in
+  the scratch folder, as the pin requires. The owner has ruled to standardize on
+  v2.15.0 under its own record in each repository; until this repository's pin
+  moves the gate keeps the pin, and the three `nolintlint`-flagged directives in
+  `llmprovider/internal/transport/` stay.
+
+  The record gates ran after this entry's last edit; their results are in the
+  hand-off.
+* **Not done.** `tools/gate.py --timeout 5400`, `tools/plant.py PLANTS.json`
+  and `tools/redgreen.py RED.json`: this series ran its own drivers
+  (`plants6.py`, and `go test` red runs on scratch clones) in their place, which
+  is not what Phase 2 names.
+* **Not verified.** A wait on another real process; the 20-round `-race` run on
+  Windows (the module run was one pass); that a client record file of exactly
+  64 KiB plus one byte is the only boundary a real corrupt file would cross (a
+  file of any size under the bound that does not decode is the earlier rule's);
+  that Q17 and S16 are equivalent beyond the review's showing and my not
+  finding a test.
+* **Acceptance criteria of this PLAN, as they stand once this pass is committed.**
+  Phase 0 (the records placed): met, by the Drafting and Approval entries.
+  Phase 1 (tests, guard and docs, one commit): met in substance. Every test is
+  in, seen red first on its base in every pass, and the docs say what the code
+  does. Two of its sentences did not hold as written: "no existing test
+  changed" (existing tests were changed by the owner's rulings, each named in
+  the entry of the pass that did it, with its reason) and one commit (the work
+  is four commits, `8051b00`, `04433ae`, `5f2c2ab` and this pass's, by the
+  rulings). "No API change" holds: apidiff reports only a name from another
+  record. Phase 2 (planted breaks and the gates): the plants are met by this
+  series' own driver, 171 of 173 caught with two named equivalent mutants, and
+  the commands of its steps 3 to 8 ran at their pinned versions with exit 0
+  except the ones listed under "Not done": `tools/gate.py --timeout 5400`,
+  `tools/plant.py PLANTS.json` and `tools/redgreen.py RED.json`. Phase 3
+  (independent review): met, five reviews, each verdict and finding resolved in
+  an amendment and an entry. Phase 4 (the release): not met, and not mine to
+  meet: it waits for the owner's word on 0080's release, `tools/consumer.py`
+  and `tools/offline.py` quoted, the tag's CI, the changelog section naming the
+  change under Security, and `tools/records.py status` setting this PLAN
+  `complete`. Phase 5 (gobble): not executed under this PLAN, by its own text.
+  So what remains for the coordinator's close-out is: the three tools Phase 2
+  names that this series did not run, or the owner's word that its own drivers
+  stand in for them; the commit of this pass; Phase 4; and the status. I have
+  not set the status.
