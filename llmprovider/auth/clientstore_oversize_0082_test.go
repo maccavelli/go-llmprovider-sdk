@@ -13,16 +13,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/recorderr"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// undecodableMarker is what signinflow.Undecodable asks of an error besides
-// encoding/json's types; the test cannot import signinflow, which imports auth.
-type undecodableMarker interface{ Undecodable() bool }
-
+// marked0082 reports what signinflow.Undecodable asks of an error besides
+// encoding/json's types: the module's own marker type. The test cannot import
+// signinflow, which imports auth, so it asks for the type itself (0082-MADR,
+// sixth amendment: a type in an internal package, no longer a method).
 func marked0082(err error) bool {
-	var m undecodableMarker
-	return errors.As(err, &m) && m.Undecodable()
+	var m *recorderr.Oversize
+	return errors.As(err, &m)
 }
 
 // validRecord0082 is a client record file of exactly size bytes, valid JSON:

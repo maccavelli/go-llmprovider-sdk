@@ -11,33 +11,39 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/recorderr"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
-// markedErr0082 is an error that says by a method that the record it came from
-// exists and cannot be decoded, as FileTokenStore's over-size error does.
-type markedErr0082 struct {
+// methodErr0082 is what a custom ClientStore outside the module could return: an
+// error type of its own with a method named Undecodable.
+type methodErr0082 struct {
 	msg string
 	yes bool
 }
 
-func (e *markedErr0082) Error() string     { return e.msg }
-func (e *markedErr0082) Undecodable() bool { return e.yes }
+func (e *methodErr0082) Error() string     { return e.msg }
+func (e *methodErr0082) Undecodable() bool { return e.yes }
 
-// R-14: besides encoding/json's typed errors, an error found through any
-// wrapping whose Undecodable method says yes is a decode failure; one whose
-// method says no, and one with no such method, is not. Red while the helper
-// knows only encoding/json's.
-func TestUndecodableKnowsTheStoresOwnMarker_0082(t *testing.T) {
+// R-14, as the sixth amendment narrows it (the sixth review's F-1, the
+// coordinator's decision): besides encoding/json's typed errors, the one thing
+// Undecodable takes is the module's own marker type, found through any wrapping.
+// An error with a method named Undecodable, whatever it says, is not a second
+// route for a store of another module; neither is text. This replaces the fifth
+// amendment's test of the method route, whose assertion the decision reverses.
+// Red while the helper matches a method and not the type.
+func TestUndecodableTakesTheModulesMarkerTypeAndNoMethod_0082(t *testing.T) {
 	cases := []struct {
 		name string
 		err  error
 		want bool
 	}{
-		{"a marked error", &markedErr0082{"too large", true}, true},
-		{"a marked error, wrapped twice", fmt.Errorf("a: %w", fmt.Errorf("b: %w", &markedErr0082{"too large", true})), true},
-		{"a marker that says no", &markedErr0082{"read", false}, false},
+		{"the marker type", &recorderr.Oversize{Err: errors.New("too large")}, true},
+		{"the marker type, wrapped twice", fmt.Errorf("a: %w", fmt.Errorf("b: %w", &recorderr.Oversize{Err: errors.New("too large")})), true},
+		{"a custom store's error with the method saying yes", &methodErr0082{"my store: busy", true}, false},
+		{"the same, wrapped", fmt.Errorf("load: %w", &methodErr0082{"my store: busy", true}), false},
+		{"a custom store's error with the method saying no", &methodErr0082{"read", false}, false},
 		{"an error that merely says larger than", errors.New("openai.client is larger than 65536 bytes"), false},
 	}
 	for _, c := range cases {

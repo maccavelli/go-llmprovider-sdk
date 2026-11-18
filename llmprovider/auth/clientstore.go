@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/recorderr"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -35,14 +36,15 @@ type ClientStore interface {
 	// *json.UnmarshalTypeError, as FileTokenStore does (errors.As finds it
 	// through any wrapping; no text is compared). A sign-in replaces such a
 	// record with the client it registers, saying so once in the wizard and
-	// not at all through x/signin. FileTokenStore also reports a record file
-	// over 64 KiB, which is corruption, this way, by an error marked
-	// undecodable that no name outside this package names; a store of your own
-	// wraps encoding/json's. Any other error, a permission refused or an
-	// input or output error, is a read error: the sign-in fails with it,
+	// not at all through x/signin. That is the one route: FileTokenStore also
+	// reports a record file over 64 KiB, which is corruption, as undecodable,
+	// by a marker only this module can name, which no store of your own can
+	// return and no method of your own error type can stand in for; a store of
+	// your own wraps encoding/json's. Any other error, a permission refused or
+	// an input or output error, is a read error: the sign-in fails with it,
 	// before a client is registered, and the record is not replaced (0082-MADR,
-	// fourth amendment of 2026-11-18, R-12; fifth, R-14). Naming the file in a
-	// read error helps the person; showing its content does not.
+	// fourth amendment of 2026-11-18, R-12; fifth, R-14; sixth, F-1). Naming
+	// the file in a read error helps the person; showing its content does not.
 	LoadClient(ctx context.Context, provider llmprovider.ProviderID) (ClientRecord, error)
 	// SaveClient keeps the provider's record; saving the zero record removes
 	// it.
@@ -60,18 +62,6 @@ type clientRecordFile struct {
 func (fs *FileTokenStore) clientPath(provider llmprovider.ProviderID) string {
 	return filepath.Join(fs.Dir, string(provider)+".client")
 }
-
-// undecodableRecordError marks an error of a record that exists and cannot be
-// decoded for a reason that is not encoding/json's: here a file over the size
-// bound. internal/signinflow's Undecodable asks any error for this method, so
-// that the marker is a method and no name is exported. Only LoadClient returns
-// it; readBounded's other caller, the session file, does not.
-type undecodableRecordError struct{ error }
-
-func (e *undecodableRecordError) Unwrap() error { return e.error }
-
-// Undecodable says that the record exists and cannot be decoded.
-func (*undecodableRecordError) Undecodable() bool { return true }
 
 // LoadClient returns the provider's client record from <provider>.client, the
 // zero record when the file does not exist. A provider id that is not a plain
@@ -93,7 +83,10 @@ func (fs *FileTokenStore) LoadClient(_ context.Context, provider llmprovider.Pro
 		}
 		var large *tooLargeError
 		if errors.As(err, &large) {
-			return ClientRecord{}, &undecodableRecordError{fmt.Errorf("FileTokenStore client decode: %w", err)}
+			// The marker is a type of an internal package, which only this module
+			// can name: no store of another module has a second route to
+			// "undecodable" (0082-MADR, sixth amendment).
+			return ClientRecord{}, &recorderr.Oversize{Err: fmt.Errorf("FileTokenStore client decode: %w", err)}
 		}
 		return ClientRecord{}, fmt.Errorf("FileTokenStore client read: %w", err)
 	}

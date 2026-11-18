@@ -1617,3 +1617,73 @@ before the code that makes it pass, with its red lines; the earlier plants, the
 reviewer's series and the pass's own, each seen to fail a test on a scratch copy
 of the final tree under a sandbox that denies every outbound connection but
 loopback, but the equivalent mutants the PLAN names.
+
+## Sixth amendment of 2026-11-18: the sixth independent review (F-1)
+
+Added after the commit of the fifth amendment's work (`1545172`); everything above
+is committed and is annotated here, not rewritten. The sixth independent review
+found no blocker. It found one place where the code did more than the fifth
+amendment says (F-1), and the coordinator decided it, as the coordinator's
+decision and not the owner's; the owner is told. The owner's rulings ask for
+nothing exported and for one route, and this keeps both.
+
+* **F-1, a second route to "undecodable" (the coordinator's decision).** The fifth
+  amendment says a custom `ClientStore` keeps exactly one route to "undecodable":
+  wrapping encoding/json's error. But `signinflow.Undecodable` honoured any error
+  in the chain with a method `Undecodable() bool` that returned true: an
+  undocumented second route, reachable from outside the module, a method contract
+  that no exported name declares. The review's probe showed a custom store's own
+  error type with that method got its record replaced. No other type in this
+  module, in gobble or in the standard library has a method of that name, so
+  nothing depended on the second route. The decision, the reviewer's recommended
+  option: make the marker unreachable from outside the module.
+
+### What this changes
+
+* **The marker is a type in an internal package.** `internal/recorderr` holds
+  `Oversize`, a struct with the marked error, `Error` and `Unwrap`.
+  `FileTokenStore.LoadClient` returns it for a client record file over the size
+  bound, and `signinflow.Undecodable` matches that concrete type with `errors.As`,
+  besides encoding/json's two types. There is no method-based matching. No code
+  outside the module can import an `internal` package of it, so no store of
+  another module can return the marker, and an error type of its own with a
+  method of any name is a read error, which fails the sign-in. The package
+  imports nothing of the module, so `llmprovider/auth` and `internal/signinflow`
+  both import it with no cycle, and nothing exported moves: `make api-check` and
+  apidiff report the same single added name as before (`x/signin.VerifyKilo`).
+* **What does not change.** A client record file over 64 KiB is still replaced
+  with the one notice, in the wizard, the engine and `x/signin`; a session file
+  over the bound is still refused as before, with the same text; the error text of
+  the over-size record is the same. Their tests are unchanged, but for the two
+  the PLAN names.
+
+### What this supersedes in the fifth amendment
+
+* "What this changes", **R-14, the mechanism**: "an unexported type with a method
+  `Undecodable() bool` ... and `signinflow.Undecodable` now also asks any error
+  ... for that method": the marker is a type of an internal package, and the
+  method is gone. The sentence "no name is exported" stands.
+* "**R-14, who sees it**": "A custom `ClientStore` keeps the one route the fourth
+  amendment gave it, wrapping encoding/json's error" is true from this commit on,
+  and was not true of the code before it.
+
+### Limits, added
+
+* **N-1 (the review's note), an unrelated file at the record's path.** Any file
+  over 64 KiB sitting at `<provider>.client`, whatever it is, is taken as a
+  corrupt record and replaced by the next sign-in. That is within the ruling's
+  words ("Treat an oversized record as undecodable and replace it"), and a real
+  record is about a hundred bytes. Stated, not changed.
+* **The review's V12** (the marker hiding its cause: `Unwrap` removed) is an
+  equivalent mutant in the review's own suite. This pass's `internal/recorderr`
+  test asserts that the cause is reachable through `errors.Is`, so its plant is
+  caught here.
+
+### Confirmation, sixth amendment
+
+The PLAN's execution record, seventh pass: the new tests seen red on `1545172`
+before the code that makes them pass, with their red lines; the plants of the
+method route restored and of the concrete type not matched, and every earlier
+plant, each seen to fail a test on a scratch copy of the final tree under a
+sandbox that denies every outbound connection but loopback, but the equivalent
+mutants the PLAN names.

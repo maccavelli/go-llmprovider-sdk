@@ -1595,3 +1595,154 @@ Phase 1 re-reads each at the base.
   names that this series did not run, or the owner's word that its own drivers
   stand in for them; the commit of this pass; Phase 4; and the status. I have
   not set the status.
+
+### Phase 1, sixth pass, committed (2026-11-18)
+
+* **Committed and pushed** by the coordinator on 2026-11-18 as `1545172`
+  ("feat(auth): treat over-size client record as undecodable and replace it"),
+  `main`, after the sixth independent review and the coordinator's own gate. The
+  "sixth pass" entry above is the record of the staging that preceded it. The
+  seventh pass below is staged on top of it.
+
+### Phase 2, the three tools the PLAN names, run by the sixth review (2026-11-18)
+
+The sixth independent review ran, on the final code of `1545172`, the three tools
+that Phase 2 names and that this series had not run (it had used its own drivers,
+`plants*.py` and red runs on scratch clones, in their place; the "Not done" lines
+of the fifth and sixth passes say so). Its results, as the coordinator relayed
+them:
+
+* `tools/redgreen.py` (step 2): 11 of 11 red at `8f133db`, and green on the tree.
+* `tools/plant.py PLANTS.json` (step 1): 12 of 12 caught.
+* `tools/gate.py --timeout 5400` (step 5): all 30 checks pass; four of them after
+  a re-run against a local module proxy, because they need `go run tool@version`.
+
+These close the Phase 2 item the sixth pass listed as remaining. The reviewer
+found the spec files of the earlier passes stale, and re-formed them before the
+run: `RED.json`'s `files` no longer listed the helpers' file
+(`held_save_0082_test.go`), so the `auth` package did not build at the base until
+`files` was held_session, held_save, localonly and the `openai` held_session;
+`RED_EDGES.json`'s `TestRefusalTextIsPlain_0082` was replaced by a ruling; and
+anchors had moved in `PLANTS_P1` (5 of 8), `PLANTS_P2` (5 of 41) and
+`PLANTS_SITES` (3 of 3). **The spec files live only in scratch, not in the
+repository**: this series' copies are in its first pass's scratch folder
+(`RED.json`, `RED_EDGES.json`, `PLANTS_P1.json`, `PLANTS_P2.json`,
+`PLANTS_SITES.json`), and the reviewer's re-formed copies are in its round-six
+folder. Nothing committed names them, so nothing in the repository needed to
+change, and I did not edit them.
+
+### Phase 1, seventh pass (2026-11-18)
+
+* **Provenance.** A mainstream-tier model at high effort, on the coordinator's
+  brief, over `1545172`. Staged, not committed, pushed or tagged. Every check of
+  the pass that could reach a module proxy ran inside the sandbox, as below.
+* **The sixth review.** No blocker. One finding, F-1: the fifth amendment says a
+  custom `ClientStore` keeps exactly one route to "undecodable" (wrapping
+  encoding/json's error), but `signinflow.Undecodable` honoured any error in the
+  chain with an `Undecodable() bool` method returning true, an undocumented second
+  route reachable from outside the module (its probe `TestReview0082_CustomMarkerIsHonoured`:
+  a custom store's own type with that method got its record replaced). Its note
+  N-1: an unrelated file over 64 KiB sitting at the record's path is replaced too.
+  Its V12 (`the marker hides its cause`) is an equivalent mutant in its own suite.
+* **The decision, the coordinator's** (recorded as the coordinator's; the owner is
+  told), on F-1, the reviewer's recommended option: make the marker unreachable
+  from outside the module. The marker type lives in a module `internal` package
+  that both `llmprovider/auth` and `internal/signinflow` import, and `Undecodable`
+  matches that concrete type with `errors.As`, besides the two encoding/json
+  types; no method-based matching. The MADR's sixth amendment records it, N-1 as a
+  stated limit, and annotates the fifth amendment's "one route" sentence as true
+  from this commit on.
+* **The internal package, and why there is no cycle.** `internal/recorderr`
+  (`internal/recorderr/recorderr.go`) holds `Oversize`, a struct with the marked
+  error, `Error` and `Unwrap`. It imports nothing of the module (`go list -deps`
+  shows only itself), so `llmprovider/auth` (`clientstore.go`) and
+  `internal/signinflow` (`signinflow.go:179`) both import it: a root `internal`
+  package is importable by any package of the module, as `internal/redact`
+  already is by both. Nothing exported moves, so I did not stop: `make api-check`
+  and apidiff, run in the sandbox, report only `x/signin.VerifyKilo`.
+* **Order, and what changed first.** The tests were written, and an inert
+  `internal/recorderr` (the type alone, used by nothing) added so that they
+  compile and fail on assertions, then run on that tree, which is `1545172` plus
+  the inert package, under a macOS sandbox that denies every outbound connection
+  but loopback (`sandbox-exec`). Red lines:
+  * `TestUndecodableTakesTheModulesMarkerTypeAndNoMethod_0082`
+    (`internal/signinflow`): `the marker type: Undecodable = false, want true`,
+    `the marker type, wrapped twice: Undecodable = false, want true`, `a custom
+    store's error with the method saying yes: Undecodable = true, want false`
+    (the reviewer's probe, as an assertion) and `the same, wrapped:
+    Undecodable = true, want false`;
+  * `TestClientRecordOverTheSizeBoundIsUndecodable_0082` (`llmprovider/auth`, its
+    helper now asking for the type): `LoadClient = FileTokenStore client decode:
+    openai.client is larger than 65536 bytes; want an error marked undecodable`;
+  * `TestCustomStoreErrorWithAMarkerMethodIsAReadError_0082` (the wizard, end to
+    end, a custom store's error type with the method): `err = <nil>; want the
+    sign-in failed with the store's own error`;
+  * green on `1545172` and after, as guards: `TestOversizeShowsAndUnwrapsItsCause`
+    (`internal/recorderr`, green on the inert type, red under the V03 plant below),
+    `TestPlanOverSizeRecordFromFileTokenStoreIsNone_0082`,
+    `TestOverSizeClientRecordIsReplacedWithOneNotice_0082` (both rows),
+    `TestSessionFileOverTheSizeBoundKeepsBeingRefused_0082`,
+    `TestClientRecordThatCannotBeReadIsNotMarkedUndecodable_0082`: the over-size
+    record is still replaced, with the same notice, and the session file is
+    unchanged.
+* **Existing tests changed by the decision, stated.** Two, each asserting the
+  method route the decision removes: `TestUndecodableKnowsTheStoresOwnMarker_0082`
+  (`internal/signinflow`), whose cases took an error with the method as undecodable,
+  is replaced by `TestUndecodableTakesTheModulesMarkerTypeAndNoMethod_0082` above,
+  which asserts the opposite for the method and the type for the marker; and the
+  helper `marked0082` in `llmprovider/auth/clientstore_oversize_0082_test.go`,
+  which asked for the method, now asks for the type, so its three tests keep
+  asserting what they meant. The decision names the behaviour, so I changed them
+  without stopping. No other existing assertion changed.
+* **Built.** The marker and its package as above; `FileTokenStore.LoadClient`
+  (`llmprovider/auth/clientstore.go`) returns `&recorderr.Oversize{...}` where it
+  returned the unexported type, which is deleted; `signinflow.Undecodable`'s doc;
+  `auth.ClientStore`'s `LoadClient` doc (the one route, and no method of a custom
+  error type standing in for it); `docs/architecture.md` (the issued-client
+  paragraph, the package tree, the dependency table and a row for
+  `internal/recorderr`) and `docs/guides/api-standards.md` (its package
+  table, which `make tables-check` checks, and which found the new package's
+  row and the two importers' rows missing at the first record gates).
+* **Plants.** `plants7.py`, kept with the scratch scripts, on a scratch copy of the final tree under `sandbox-exec` (outbound connections denied but loopback), the `localonly` guard on, run through `run-heavy`: **174 plants**, the whole of the sixth pass's table (173) less U07, U08 and U09, which plant the method route that no longer exists, plus this pass's own V01 to V04: V01 the method-based match restored, V02 the concrete type not matched, V03 the marker hiding its cause (the review's V12), V04 the over-size error not marked in `LoadClient`. Where the code moved with the marker, S02, S08, S09, U02 and U12 were re-formed (U02 also adds the import its marked error needs). Complete run, survivors verbatim: `Q17 the retried save's own access list drops the rotation's: NOT CAUGHT; failing=[] guard=no`, `S16 the wizard's read handed over without its error (equivalent: only ClientLoadErr differs): NOT CAUGHT; failing=[] guard=no` and `V03 the marker hides its cause (the review's V12): NOT CAUGHT; failing=[] guard=no`. **Q17** and **S16** are the equivalent mutants recorded above. **V03** is the review's V12, an equivalent mutant in its own suite; here the driver does not catch it either, because its test selection (`_0082` tests of five packages) does not include `internal/recorderr`, whose test of the marker is not so named; run by hand on the scratch copy under the same sandbox with `Unwrap` removed, `go test ./internal/recorderr/` fails: `TestOversizeShowsAndUnwrapsItsCause: errors.Is(err, cause) = false; the marker hides its cause`. So it is caught by a test of this series, outside the driver's selection, and the survivor list stays as the driver gave it. V01: `CAUGHT; failing=['TestCustomStoreErrorWithAMarkerMethodIsAReadError_0082', 'TestUndecodableTakesTheModulesMarkerTypeAndNoMethod_0082', ...]`; V02 and V04: caught by the over-size tests (`TestOverSizeClientRecordIsReplacedWithOneNotice_0082`, `TestClientRecordOverTheSizeBoundIsUndecodable_0082`). Final count: **171 of 174 caught by the driver, 172 with V03's hand run; Q17 and S16 survive, and both are equivalent mutants by the review's showing.** The four plants that name `guard=yes` (P11 twice, B1, N17) were stopped by the guard, as before. Plants that hang a test end at the run's own 6 minute timeout and count as caught.
+* **Gates.** each status taken before any filter, after the last change to a Go
+  file.
+
+  | Gate | Where | Result |
+  | :--- | :--- | :--- |
+  | `make pre-add-check` | `run-heavy`, session host, golangci-lint at the repository's pin, v2.14.0 (`GOLANGCI_LINT` set); its tests and govulncheck run unsandboxed, as the brief had it | exit 0: 1025 files clean (gofmt, golangci-lint, vet, test, govulncheck); nested module `authcontract` clean |
+  | `go vet ./...`; `GOOS=windows go vet ./...`; `go vet -tags live_gateways ./...` | session host, inside the sandbox (`sbx-localproxy.sh`) | exit 0 each |
+  | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | session host, inside the sandbox with the local module cache as the proxy (`sbx-localproxy.sh`: `sandbox-exec` denying every outbound connection but loopback, `GOPROXY=file://<module cache>/cache/download`, `GOSUMDB=off`) | exit 0; "0 incompatible change(s) outside llmprovider/x/"; only `llmprovider/x/signin.VerifyKilo: added` |
+  | `go test -race -count=20 -timeout 45m ./llmprovider/auth/ ./wizard/ ./internal/signinflow/ ./llmprovider/x/signin/` | `run-heavy`, session host | exit 0 (auth 226.9 s, wizard 200.6 s); `TestVerifyIDToken_UnknownKidRefetchesOnce` did not fail |
+  | `go test -race -count=1 -timeout 45m ./...` | `run-on-host --race` (`pick-host` chose a Windows host) | exit 0, 43 packages ok (the new `internal/recorderr` among them) |
+  | gobble's `internal/auth`, `llm/provider`, `internal/cli` by a scratch `replace`, on a scratch copy of gobble | `run-heavy`, session host | exit 0, three ok |
+  | the plants | scratch copy, sandboxed | 171 of 174 by the driver (172 with V03's hand run); the survivors are Q17 and S16, equivalent mutants |
+
+  How I know the sandboxed runs were sandboxed: the plants driver runs every
+  `go test` under `sandbox-exec -p '(version 1)(allow default)(deny
+  network-outbound)(allow network-outbound (remote ip "localhost:*"))'`, and
+  `sbx-localproxy.sh` is that profile plus the module cache as the proxy; a
+  `curl https://proxy.golang.org/` run through `sbx-localproxy.sh` fails with
+  `Could not resolve host`, where the same command outside it does not. The
+  `localonly` guard in the auth tests was on. `make pre-add-check` and the race
+  runs were not sandboxed, as the brief had it; `make pre-add-check`'s
+  govulncheck needs its database.
+
+  The record gates ran after this entry's last edit; their results are in the
+  hand-off.
+* **Not verified.** A wait on another real process; the 20-round `-race` run on
+  Windows (the module run was one pass); that `go test ./internal/recorderr/` is
+  covered by the coverage floor the way every package is (the CI set was not rerun
+  this pass; the package has a test and the whole module run passed).
+* **What remains for the coordinator's close-out.** Nothing else, by my reading of the PLAN, once this pass is
+  committed. Phase 0, Phase 1, Phase 2 (its three tools now run by the sixth
+  review, and the plants by this series' own driver) and Phase 3 (six reviews,
+  each verdict and finding resolved in an amendment and an entry) are met, with
+  the two sentences of Phase 1 that the owner's rulings overrode ("no existing
+  test changed", "one commit") stated in the earlier entries. What remains is
+  Phase 4, the release, on the owner's word with 0080's release: `tools/consumer.py`
+  and `tools/offline.py` quoted, the tag's CI, the changelog section naming the
+  change under Security, and `tools/records.py status` setting this PLAN
+  `complete`; and Phase 5, gobble's own phase, which is not executed under this
+  PLAN by its own text. Before Phase 4, this pass's commit, and a rerun of the
+  Phase 2 CI set on it if the coordinator wants one (I ran only the gates the
+  brief named). I have not set the status.

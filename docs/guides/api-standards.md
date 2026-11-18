@@ -39,7 +39,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | Package | Holds | May import |
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource` |
-  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
+  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
   | `internal/kiloendpoint` | Kilo's endpoints, derived from a credential, and whether one has an organization; in the module's own `internal`, not `llmprovider`'s, so that `internal/signinflow` may import it (0080 D4) | the standard library |
   | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages` |
@@ -62,9 +62,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, for the wire formats and the providers | `llmprovider`, `internal/wire/messages` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
   | `llmprovider/x/signin` | experimental: one sign-in handle (`Start`), a descriptor's methods in the contract's words (`Methods`), `Credential`, `ErrorKindOf` (0074 D2, D3, D8) and `VerifyKilo`, a Kilo key's check against Kilo's profile (0080 D10) | `llmprovider`, `auth`, `authcontract`, `internal/signinflow`, `internal/redact` |
-  | `internal/signinflow` | the step engine under `llmprovider/x/signin` and `wizard` (0074 D3, D4, D6), and Kilo's profile check they share (0080 D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/kiloendpoint` |
+  | `internal/signinflow` | the step engine under `llmprovider/x/signin` and `wizard` (0074 D3, D4, D6), and Kilo's profile check they share (0080 D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint` |
   | `wizard` | the configuration flow, over a `Registry` | the above, `authcontract`, `internal/redact`, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |
+  | `internal/recorderr` | the marker of a client record file over its size bound, shared by `auth` and `internal/signinflow`, in an internal package so that no store of another module can return it (0082 sixth amendment) | the standard library |
   | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |
   | `internal/wiretest` | G-wire's request recorder, for tests only | the standard library |
   | `internal/nettest` | a refused connection and a free loopback port, for tests only (0045) | the standard library |

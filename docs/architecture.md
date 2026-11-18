@@ -86,6 +86,7 @@ llmprovider/internal/cmd/sdkaudit/ the API audit: go run, reports or checks R50â
 llmprovider/x/signin/       experimental (R4): one sign-in handle (`Start`, `SignIn`, `Credential`), `Methods`, `VerifyKilo` and `ErrorKindOf`, over the auth contract
 wizard/                     interactive provider configuration
 internal/signinflow/        the step engine under llmprovider/x/signin: steps, answers, pastes, and Kilo's profile check
+internal/recorderr/         the marker of a client record file over its size bound, shared by auth and signinflow
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
 internal/nettest/           a refused connection and a free loopback port, for tests only
@@ -147,10 +148,11 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8); a session's consent answers (`OAuthSession.Consents`, `Consent`, `StoredConsent`, `SetConsent`) and the issued-client record (`ClientRecord`, `ClientStore`, `ChatGPTPlanOptions.ClientID`) (0075-MADR D2, D3, D5, D7) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8); a session's consent answers (`OAuthSession.Consents`, `Consent`, `StoredConsent`, `SetConsent`) and the issued-client record (`ClientRecord`, `ClientStore`, `ChatGPTPlanOptions.ClientID`) (0075-MADR D2, D3, D5, D7) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/recorderr`, `internal/ownerperm`, `internal/filelock` |
 | `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; `VerifyKilo`, one read of Kilo's profile that checks a Kilo key, which a caller of its own sign-in uses where the wizard does (0080-MADR D10); its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
-| `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure`; `VerifyKilo`, `KiloVerdict`, `Refused`, `CheckKiloOptions` and `DefaultCheckLimit`, Kilo's profile check, the refusal rule and the limit the wizard's checks and `signin.VerifyKilo` share (0080-MADR D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/kiloendpoint` |
+| `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure`; `VerifyKilo`, `KiloVerdict`, `Refused`, `CheckKiloOptions` and `DefaultCheckLimit`, Kilo's profile check, the refusal rule and the limit the wizard's checks and `signin.VerifyKilo` share (0080-MADR D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term` |
+| `internal/recorderr` | `Oversize`, the error type that marks a client record file over its size bound as corrupt: `auth`'s `FileTokenStore.LoadClient` returns it and `internal/signinflow`'s `Undecodable` matches it with `errors.As`; it is in an internal package so that no store of another module can return it (0082-MADR sixth amendment, F-1) | the standard library |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `internal/nettest` | `Refusing`, a client whose every dial is refused, with `RefusedURL`; `Port`, a loopback port outside every ephemeral range; so that no test depends on a freed port (0045-MADR); imported only by tests | the standard library |
@@ -806,10 +808,13 @@ for a session, from the store.
   wizard, `x/signin` among them, which is told nothing of a replaced record
   (0082-MADR fourth amendment, R-12). A record file over 64 KiB, which a real
   one, about a hundred bytes, never is, is corruption too: `FileTokenStore`
-  reports it with an error that carries an `Undecodable() bool` method on an
-  unexported type, which `signinflow.Undecodable` also asks for, so it is
-  replaced with the same one notice; a session file over the bound is still
-  refused as a read error (0082-MADR fifth amendment, R-14). A record that
+  reports it with an error of the type `internal/recorderr.Oversize`, which
+  `signinflow.Undecodable` also matches with `errors.As`, so it is replaced with
+  the same one notice; a session file over the bound is still refused as a read
+  error (0082-MADR fifth amendment, R-14). The marker is a type of an internal
+  package, so no store of another module can return it, and an error type of its
+  own with a method of any name is not a second route: a custom `ClientStore`
+  has the one, encoding/json's error (sixth amendment, F-1). A record that
   decodes to the zero record, such as the JSON `null`, is no record, as an absent
   file is, with no notice. A record that decodes but names a garbage client id
   is used and saved as it is, which the fifth amendment states as a limit.
