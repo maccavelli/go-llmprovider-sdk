@@ -264,7 +264,24 @@ OpenAI device logins), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in
 `LLMPROVIDER_LIVE_GEMINI_429_MODEL` and `LLMPROVIDER_LIVE_GEMINI_429_BURST`; it
 exhausts a Gemini rate limit on purpose). A record's own measurement test is
 switched on by `LLMPROVIDER_LIVE_<NNNN>`, with suffixes for its options, as
-that record says. The login tests need a person to sign in. Each keeps its
+that record says; 0081's earlier-grant probe, `TestLive_EarlierGrant_0081`,
+is the owner's to run and never an agent's, signs in twice at one provider
+(`LLMPROVIDER_LIVE_0081_PROVIDER`: `chatgpt`, `plan`, `grok` or `kilo`), and
+prints step lines, a verdict and, after it, one revocation line per grant it
+obtained (a status, an error's kind, an allow-listed OAuth code and a request
+count per step; a status and a kind per revocation; never a token, a code, a
+URL or an id). Only `plan`'s grants are revoked automatically, after the
+verdict; `chatgpt`'s and `grok`'s are left on purpose (the owner's rulings: the
+run makes no revocation request for them, and their lines read `by_hand`), Kilo
+has no revocation, and the plan lists what is left and where to remove it by
+hand.
+Its four commands, which
+carry `-timeout 15m` and write that output to a file under `tmp/` (git-ignored)
+while Kilo's user code goes to the terminal alone, and what each verdict
+decides, are in
+`docs/decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md`, Phase 1b,
+as amended on 2026-11-18 and 2026-11-19 (the amendment's "The commands" replaces
+the numbered steps' commands, which are not to be run). The login tests need a person to sign in. Each keeps its
 checks after the sign-in in a function in `llmprovider/live_checks_test.go`,
 which an offline twin in `llmprovider/live_twins_test.go` runs against a fake.
 A planted break of one of those checks runs on its twin (0046-MADR D3). CI only

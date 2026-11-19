@@ -8,6 +8,7 @@ package llmprovider_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
@@ -1262,4 +1264,572 @@ func planAgainAuthorizeWant(previous *auth.OAuthSession) authorizeWant {
 		want.absent = append(want.absent, "id_token_hint")
 	}
 	return want
+}
+
+// The earlier-grant probe's checks (0081-PLAN Phase 1a, MADR D12): after a
+// person signs in to a provider a second time, does the first session still
+// work? TestLive_EarlierGrant_0081 runs them with a real sign-in, a real
+// browser and the terminal device; TestEarlierGrantReport_0081 runs the same
+// code against in-process stand-ins, and proves the output holds no token,
+// code, URL, id or error text. Every sign-in lives in memory: no store is
+// opened and nothing is written to disk.
+
+// The four sign-ins the probe measures, named by LLMPROVIDER_LIVE_0081_PROVIDER.
+const (
+	grantChatGPT = "chatgpt"
+	grantPlan    = "plan"
+	grantGrok    = "grok"
+	grantKilo    = "kilo"
+)
+
+var grantProviders = []string{grantChatGPT, grantPlan, grantGrok, grantKilo}
+
+// The verdicts one run reports.
+const (
+	grantKept          = "kept"
+	grantEnded         = "ended"
+	grantIndeterminate = "indeterminate"
+)
+
+// grantSignInWait bounds one sign-in's wait for the person, grantUseLimit one
+// use of a session, and grantRunLimit the run's sign-ins and uses: two
+// sign-ins at their four minutes leave the run's last minute for four uses,
+// which take seconds. grantRevokeLimit bounds each revocation, which runs
+// after the verdict on a context of its own, so that the run's bound having
+// passed does not stop it: the whole test is at most nine minutes and forty
+// seconds, which the commands' -timeout of fifteen minutes holds.
+const (
+	grantSignInWait  = 4 * time.Minute
+	grantUseLimit    = time.Minute
+	grantRunLimit    = 9 * time.Minute
+	grantRevokeLimit = 20 * time.Second
+)
+
+// grantByHand is the kind of a revocation line for a grant the probe does not
+// revoke because it was ruled not to: it is neither a success nor a failure,
+// and not Kilo's "unsupported", which says the SDK has no revocation.
+const grantByHand = "by_hand"
+
+// grantRevokes reports whether the probe revokes provider's grants at its end.
+// It does not for chatgpt or grok: the owner ruled that their grants stay,
+// listed for removal by hand, because nothing read says what the issuer's
+// revocation ends besides the token it names, and each sign-in uses the client
+// id the owner's own CLI uses, Codex's and the Grok CLI's (0081-PLAN, Phase 1b).
+// No request is made for them on any path, discovery for revocation included.
+// Kilo's goes through the SDK's call, which sends nothing and says unsupported.
+func grantRevokes(provider string) bool { return provider != grantChatGPT && provider != grantGrok }
+
+// grantTerminalCodes are the only OAuth error codes the probe keeps, auth's
+// own terminal refresh codes (oauthTerminalRefreshCodes in auth); any other
+// code is kept as "other".
+var grantTerminalCodes = []string{
+	"invalid_grant", "invalid_client", "refresh_token_expired", "refresh_token_reused", "refresh_token_invalidated",
+}
+
+// grantReusedCode is the code that marks a defect of the probe, never an ended
+// grant: no refresh token is sent twice by the probe.
+const grantReusedCode = "refresh_token_reused"
+
+// grantRecorder is the transport every request of the probe goes through. It
+// keeps, for the step under way, the status of the last response, the number
+// of round trips that completed, and, for a response of 400 or more, the OAuth
+// error code when it is one of grantTerminalCodes. It never reads a request,
+// nor the body of a response under 400, and puts back every body it reads.
+//
+// The count is of completed round trips, a response or a transport error. The
+// SDK sends a refresh again on a transport error, a 429 or a 5xx, up to three
+// times with the same refresh token (refreshOAuthSession in auth), so a count
+// above one in a use of a refreshing session says that the token was sent
+// more than once. A round trip that completes in a later step than the one
+// that sent it, a refresh still running after its use timed out, is counted in
+// the later step.
+type grantRecorder struct {
+	next http.RoundTripper
+
+	mu       sync.Mutex
+	status   int
+	code     string
+	requests int
+}
+
+// begin starts a step: nothing has been answered yet.
+func (g *grantRecorder) begin() {
+	g.mu.Lock()
+	g.status, g.code, g.requests = 0, "", 0
+	g.mu.Unlock()
+}
+
+// last is the status of the step's last response, 0 when it has none or its
+// last round trip failed, the code of a response of 400 or more, "" when
+// there is none, and the number of round trips that completed.
+func (g *grantRecorder) last() (status int, code string, requests int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.status, g.code, g.requests
+}
+
+func (g *grantRecorder) client() *http.Client { return &http.Client{Transport: g} }
+
+// RoundTrip sends req on, and records the answer.
+func (g *grantRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := g.next.RoundTrip(req)
+	if err != nil {
+		g.mu.Lock()
+		g.status, g.code = 0, ""
+		g.requests++
+		g.mu.Unlock()
+		return resp, err
+	}
+	code := ""
+	if resp.StatusCode >= http.StatusBadRequest {
+		code = grantErrorCode(resp)
+	}
+	g.mu.Lock()
+	g.status, g.code = resp.StatusCode, code
+	g.requests++
+	g.mu.Unlock()
+	return resp, nil
+}
+
+// grantCodeLimit is how much of a refusal's body the SDK reads for its code
+// (oauthErrorBodyLimit in auth): a longer body gets the SDK no code, because the
+// part it reads is no longer JSON, so the recorder reads no more.
+const grantCodeLimit = 2048
+
+// grantErrorCode reads the first grantCodeLimit bytes of a refused response's
+// body for its OAuth error code (grantCodeOf), and puts them back, with the
+// rest, for the caller.
+func grantErrorCode(resp *http.Response) string {
+	head, err := io.ReadAll(io.LimitReader(resp.Body, grantCodeLimit))
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(head), resp.Body), resp.Body}
+	if err != nil {
+		return ""
+	}
+	return grantCodeOf(head)
+}
+
+// grantCodeOf reads an OAuth error code from a body as the SDK's
+// refreshErrorCode does (auth/oauth_session.go, unexported, so this is a copy;
+// TestGrantCodeAgreesWithTheSDK_0081 fails if the two disagree on a table of
+// bodies): {"error": "code"}, {"error": {"code": "code"}} or {"code": "code"},
+// lower-cased. It keeps the code only when it is one of grantTerminalCodes, and
+// otherwise says "other"; a body with no code, or none that parses, is "".
+func grantCodeOf(body []byte) string {
+	var top struct {
+		Error json.RawMessage `json:"error"`
+		Code  string          `json:"code"`
+	}
+	if json.Unmarshal(body, &top) != nil {
+		return ""
+	}
+	var code string
+	var inner struct {
+		Code string `json:"code"`
+	}
+	switch {
+	case json.Unmarshal(top.Error, &code) == nil && code != "":
+	case json.Unmarshal(top.Error, &inner) == nil && inner.Code != "":
+		code = inner.Code
+	default:
+		code = top.Code
+	}
+	code = strings.ToLower(code)
+	switch {
+	case code == "":
+		return ""
+	case slices.Contains(grantTerminalCodes, code):
+		return code
+	}
+	return "other"
+}
+
+// grantStep is what one use of a session answered: the status of its last
+// response, the error's kind, the allow-listed code, and the number of round
+// trips the step made.
+type grantStep struct {
+	status   int
+	kind     string
+	code     string
+	requests int
+}
+
+// grantKind names an error's kind, by errors.Is, and never its text.
+func grantKind(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "canceled"
+	case errors.Is(err, llmprovider.ErrUnsupported):
+		return "unsupported"
+	case errors.Is(err, llmprovider.ErrAuthFailure):
+		return "auth"
+	case errors.Is(err, llmprovider.ErrRateLimited):
+		return "rate_limited"
+	case errors.Is(err, llmprovider.ErrProviderUnavailable):
+		return "unavailable"
+	case errors.Is(err, llmprovider.ErrInvalidRequest):
+		return "invalid_request"
+	}
+	return "other"
+}
+
+// grantVerdict is the run's one word (0081-PLAN Phase 1a, step 6, as ruled on
+// 2026-11-18). baseline is the first session's use before the second
+// sign-in, first its first use after it, last its second use after it (the
+// zero step when it was not made, because first failed: a refresh token the
+// provider refused is not sent again), and control the second session's use.
+// A step's request count above one makes the whole run indeterminate
+// (the owner's ruling "The run is `indeterminate`: run it once more"); a
+// baseline that failed or made more than one request ends the run with that
+// verdict before the second sign-in (earlierGrant.run). Then:
+//
+//	baseline  control  first   last    verdict
+//	not ok    any      any     any     indeterminate
+//	any       not ok   any     any     indeterminate
+//	ok        ok       ok      ok      kept
+//	ok        ok       ok      dead    ended      (the lazy case)
+//	ok        ok       ok      reused  indeterminate
+//	ok        ok       ok      other   indeterminate
+//	ok        ok       dead    not run ended
+//	ok        ok       reused  not run indeterminate
+//	ok        ok       other   not run indeterminate
+//
+// "dead" is a refusal as the grant gone (grantDead): kind auth with a 400 or
+// 401 and a terminal code other than refresh_token_reused, or, for Kilo,
+// which has no refresh, a 401. "other" is any failure that is neither.
+// "kept" says nothing of an ending that comes minutes later than the run.
+func grantVerdict(provider string, baseline, first, last, control grantStep) string {
+	for _, s := range []grantStep{baseline, first, last, control} {
+		if s.requests > 1 {
+			return grantIndeterminate
+		}
+	}
+	if baseline.kind != "ok" || control.kind != "ok" {
+		return grantIndeterminate
+	}
+	switch {
+	case first.kind == "ok" && last.kind == "ok":
+		return grantKept
+	case first.kind == "ok" && grantDead(provider, last):
+		return grantEnded
+	case first.kind != "ok" && grantDead(provider, first):
+		return grantEnded
+	}
+	return grantIndeterminate
+}
+
+// grantDead reports whether a failed use is the provider saying the grant is
+// gone.
+func grantDead(provider string, s grantStep) bool {
+	if s.kind != "auth" {
+		return false
+	}
+	if provider == grantKilo {
+		return s.status == http.StatusUnauthorized
+	}
+	if s.status != http.StatusBadRequest && s.status != http.StatusUnauthorized {
+		return false
+	}
+	return slices.Contains(grantTerminalCodes, s.code) && s.code != grantReusedCode
+}
+
+// grantPasses reports whether a verdict passes the test: only kept does, so
+// that go test itself says when a provider ended the earlier grant or the
+// probe could not tell. Whether ended or indeterminate should pass is the
+// owner's to rule; a ruling is this function.
+func grantPasses(verdict string) bool { return verdict == grantKept }
+
+// grantWebURL reports whether raw is an http or https URL with a host, the only
+// kind the browser opener is given.
+func grantWebURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Host != "" && (u.Scheme == "https" || u.Scheme == "http")
+}
+
+// grantIO is how a sign-in shows the person what it needs: the system's
+// browser opener, and the terminal device opened for writing only. Neither
+// writes to the test's output.
+type grantIO struct {
+	canOpen func() bool
+	open    func(raw string) error
+	tty     func() (io.WriteCloser, error)
+}
+
+// earlierGrant is one provider's run.
+type earlierGrant struct {
+	provider  string
+	logf      func(format string, args ...any)
+	rec       *grantRecorder
+	io        grantIO
+	needsCode bool // Kilo's user code is written to the terminal device
+	wait      time.Duration
+	signIn    func(ctx context.Context, show *grantShow, previous *auth.OAuthSession) (*auth.OAuthSession, error)
+	use       func(ctx context.Context, session *auth.OAuthSession) error
+	// revoke ends a session's grant at the provider (auth.RevokeOAuthSession in
+	// the live test), each within revokeLimit.
+	revoke      func(ctx context.Context, session *auth.OAuthSession) error
+	revokeLimit time.Duration
+
+	mu      sync.Mutex
+	stopped string
+}
+
+// say writes one line of the test's output, through the repository's
+// redaction.
+func (g *earlierGrant) say(format string, args ...any) {
+	g.logf("%s", redact.String(fmt.Sprintf(format, args...)))
+}
+
+// stop records why the run cannot go on; the first reason stands.
+func (g *earlierGrant) stop(reason string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.stopped == "" {
+		g.stopped = fmt.Sprintf("%s: stopped: %s", g.provider, reason)
+	}
+}
+
+func (g *earlierGrant) stoppedLine() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.stopped
+}
+
+// grantShow is what a sign-in has of the person while it runs: URL hands a
+// page to the browser, Code writes Kilo's user code to the terminal device.
+// A failure of either stops the run with one plain line holding neither the
+// URL, the code nor the error, and cancels the sign-in's context, because the
+// browser sign-ins call URL from a goroutine and ignore what it returns
+// (runBrowserLogin in auth): the stop and the cancel are URL's own, not its
+// caller's.
+type grantShow struct {
+	g      *earlierGrant
+	tty    io.Writer
+	cancel context.CancelFunc
+}
+
+// URL opens raw in the browser, and shows it nowhere else.
+func (s *grantShow) URL(raw string) error {
+	if err := s.g.io.open(raw); err != nil {
+		s.g.stop("the browser could not be opened")
+		s.cancel()
+		return errors.New("the browser could not be opened")
+	}
+	return nil
+}
+
+// Code writes Kilo's user code to the terminal device, and nowhere else.
+func (s *grantShow) Code(code string) {
+	if s.tty != nil {
+		if _, err := fmt.Fprintf(s.tty, "Kilo code: %s\n", code); err == nil {
+			return
+		}
+	}
+	s.g.stop("the terminal device could not be opened")
+	s.cancel()
+}
+
+// run is the sequence: sign-in-1, baseline, sign-in-2, first-after, control,
+// one session at a time (0081-PLAN Phase 1a, step 4). It returns the verdict,
+// or, when the browser or the terminal device could not be used, the plain
+// line that stops the run and no verdict.
+func (g *earlierGrant) run(ctx context.Context) (verdict, stopped string) {
+	if !g.io.canOpen() {
+		g.stop("the browser could not be opened")
+		return "", g.stoppedLine()
+	}
+	var tty io.Writer
+	if g.needsCode {
+		w, err := g.io.tty()
+		if err != nil {
+			g.stop("the terminal device could not be opened")
+			return "", g.stoppedLine()
+		}
+		defer func() { _ = w.Close() }()
+		tty = w
+	}
+	// obtained is every session a sign-in returned, in order: each holds a
+	// grant at the provider, to be revoked at the end whatever else happened.
+	var obtained []*auth.OAuthSession
+	signIn := func(step string, previous *auth.OAuthSession) *auth.OAuthSession {
+		g.rec.begin()
+		sctx, cancel := context.WithTimeout(ctx, g.wait)
+		defer cancel()
+		session, err := g.signIn(sctx, &grantShow{g: g, tty: tty, cancel: cancel}, previous)
+		if err == nil && session != nil {
+			session.UseHTTPClient(g.rec.client())
+			obtained = append(obtained, session)
+		}
+		if g.stoppedLine() != "" {
+			return nil
+		}
+		if err == nil && session == nil {
+			err = errors.New("no session")
+		}
+		g.say("%s %s: %s", g.provider, step, grantKind(err))
+		if err != nil {
+			return nil
+		}
+		return session
+	}
+	use := func(step string, session *auth.OAuthSession) grantStep {
+		g.rec.begin()
+		uctx, cancel := context.WithTimeout(ctx, grantUseLimit)
+		defer cancel()
+		err := g.use(uctx, session)
+		status, code, requests := g.rec.last()
+		s := grantStep{status: status, kind: grantKind(err), code: code, requests: requests}
+		shown := "-"
+		if code != "" {
+			shown = code
+		}
+		g.say("%s %s: status %d, kind %s, code %s, requests %d", g.provider, step, s.status, s.kind, shown, s.requests)
+		return s
+	}
+	first := signIn("sign-in-1", nil)
+	if first == nil {
+		return g.finish(ctx, grantIndeterminate, obtained)
+	}
+	baseline := use("baseline", first)
+	if baseline.kind != "ok" || baseline.requests > 1 {
+		// The first session's refresh token was spent or refused, or sent more
+		// than once: it is not sent again, and the verdict cannot change, so
+		// the second sign-in is not asked of the person.
+		return g.finish(ctx, grantIndeterminate, obtained)
+	}
+	var previous *auth.OAuthSession
+	if g.provider == grantPlan {
+		previous = first
+	}
+	second := signIn("sign-in-2", previous)
+	if second == nil {
+		return g.finish(ctx, grantIndeterminate, obtained)
+	}
+	after := use("first-after", first)
+	control := use("control", second)
+	var last grantStep
+	if after.kind == "ok" {
+		last = use("last-after", first)
+	}
+	return g.finish(ctx, grantVerdict(g.provider, baseline, after, last, control), obtained)
+}
+
+// finish ends a run: the verdict line, or none when the run was stopped, then
+// the revocation of every grant obtained, and the stop line or the verdict.
+// What revocation does never reaches what finish returns.
+func (g *earlierGrant) finish(ctx context.Context, verdict string, obtained []*auth.OAuthSession) (string, string) {
+	line := g.stoppedLine()
+	if line == "" {
+		g.say("%s: %s", g.provider, verdict)
+	}
+	g.revokeAll(ctx, obtained)
+	if line != "" {
+		return "", line
+	}
+	return verdict, ""
+}
+
+// revokeAll revokes each session's grant, in the order they were obtained,
+// each on a context of its own, detached from the run's so that the run's
+// bound having passed does not stop it, and bound by revokeLimit. Its line
+// is the provider, which grant, the status of the revocation's last response
+// (0 when it made none: Kilo's has no revocation, so it sends nothing, and
+// chatgpt's is not made) and the error's kind, or the word by_hand for a grant
+// the probe does not revoke, and nothing else: no code, body or error text, and no
+// request count. begin starts each from nothing, so that no revocation
+// request is counted in a use step or reports one's status. It returns how
+// many failed, which only the twin reads: a failure never changes the
+// verdict or fails the test.
+func (g *earlierGrant) revokeAll(ctx context.Context, obtained []*auth.OAuthSession) (failed int) {
+	for i, session := range obtained {
+		if !grantRevokes(g.provider) {
+			g.say("%s revoke-%d: status 0, kind %s", g.provider, i+1, grantByHand)
+			continue
+		}
+		g.rec.begin()
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), g.revokeLimit)
+		err := g.revoke(rctx, session)
+		cancel()
+		status, _, _ := g.rec.last()
+		g.say("%s revoke-%d: status %d, kind %s", g.provider, i+1, status, grantKind(err))
+		if err != nil {
+			failed++
+		}
+	}
+	return failed
+}
+
+// grantOutcome is what TestLive_EarlierGrant_0081 does with a run: skip with
+// a reason, fail at once with a fixed message, or fail at its end.
+type grantOutcome struct {
+	skip  string
+	fatal string
+	fail  bool
+}
+
+// grantReporter is the part of *testing.T that carries out an outcome.
+type grantReporter interface {
+	Skip(args ...any)
+	Fatal(args ...any)
+	Fail()
+}
+
+// grantApply carries out an outcome on t: the live test's last three
+// statements, here so that its twin can run them on a stand-in.
+func grantApply(t grantReporter, out grantOutcome) {
+	switch {
+	case out.skip != "":
+		t.Skip(out.skip)
+	case out.fatal != "":
+		t.Fatal(out.fatal)
+	case out.fail:
+		t.Fail()
+	}
+}
+
+// grantRunTest is the body of TestLive_EarlierGrant_0081, with its inputs
+// given, so that its twin can run it: the switch and the provider are read
+// through getenv (os.Getenv in the live test), and nothing is built, so no
+// request is made and no credential is read, until both are right.
+func grantRunTest(ctx context.Context, getenv func(string) string, build func(provider string) (*earlierGrant, error)) grantOutcome {
+	if getenv("LLMPROVIDER_LIVE_0081") != "1" {
+		return grantOutcome{skip: "LLMPROVIDER_LIVE_0081 unset: this signs in twice at one provider and needs a person"}
+	}
+	provider := getenv("LLMPROVIDER_LIVE_0081_PROVIDER")
+	if !slices.Contains(grantProviders, provider) {
+		return grantOutcome{fatal: "LLMPROVIDER_LIVE_0081_PROVIDER must be chatgpt, plan, grok or kilo"}
+	}
+	g, err := build(provider)
+	if err != nil {
+		return grantOutcome{fatal: "the probe could not be set up"}
+	}
+	verdict, stopped := g.run(ctx)
+	if stopped != "" {
+		return grantOutcome{fatal: stopped}
+	}
+	return grantOutcome{fail: !grantPasses(verdict)}
+}
+
+// grantUseRefresh is the use of a session that refreshes: one forced refresh,
+// the request a revoked grant cannot pass. The session has no store, so
+// nothing is saved, and each refresh token it holds is sent once, unless the
+// SDK sends a request again (grantRecorder).
+func grantUseRefresh(ctx context.Context, session *auth.OAuthSession) error {
+	session.Invalidate()
+	_, err := session.Token(ctx)
+	return err
+}
+
+// grantUseKiloProfile is the use of a Kilo session, which does not refresh: a
+// read of the account's profile with its token, which spends and rotates
+// nothing.
+func grantUseKiloProfile(opts ...llmprovider.Option) func(context.Context, *auth.OAuthSession) error {
+	return func(ctx context.Context, session *auth.OAuthSession) error {
+		_, err := auth.KiloProfile(ctx, session.Access, opts...)
+		return err
+	}
 }
