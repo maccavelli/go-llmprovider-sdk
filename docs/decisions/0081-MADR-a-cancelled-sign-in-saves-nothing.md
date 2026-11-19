@@ -787,3 +787,330 @@ None.
   carries 0080's code.
 * The exact words the brief attributed to gobble's B3 note were not found
   (R4); the reconciliation answers the statements that were.
+
+## Amendment of 2026-11-18: record 0082 changed the save path before this record's code was built
+
+Added after the record was accepted and before any of its code; nothing above
+is rewritten or removed, and no ruling in "Decided" changes. The facts are
+those of `a7e924f` (the tip of `main` on 2026-11-18, CI green), re-read for
+this amendment; the record above was written against `b109cea` (D11's notes
+and the evidence index were taken there). Two rulings of the owner, relayed by
+the coordinator on 2026-11-18, are recorded below; their labels are quoted.
+
+### What record 0082 landed in the save path
+
+[0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md](0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)
+was built in the five commits `8051b00` ("refuse to adopt another sign-in at
+refresh"), `04433ae` (third-review rulings), `5f2c2ab` (fourth-review
+rulings), `1545172` and `fd986c4` (the over-size client record). It changed
+the very function this record's S1 puts its check in. At `a7e924f`, in
+`wizard/auth.go`:
+
+* `save` (`:1103`) takes a `Prompter`. It keeps the first check (`:1107`, the
+  session's `Token`, C2), then, for a store that is an `auth.RefreshLocker`,
+  loops: `writeUnderLock` (`:1142`) takes the store's refresh lock through
+  `lockToSave` (`:1161`), writes with it held, and releases it. A held lock is
+  announced to the person, waited for until the store's own bound or the
+  context's end, and the person is offered a retry at the bound. A store that
+  is not a `RefreshLocker` is written by `write` directly (`:1112`).
+* `write` (`:1180`) is the one place the new session is given its store and
+  saved. **Its first statement is a context check** (`:1181`): an ended
+  context returns "wizard: the new <label> session was not saved: <ctx>" and
+  writes nothing. The session gets its store (`UseStore`, `:1184`) only after
+  that check, under the lock (0082's N-3), then `Save` (`:1185`, C3).
+* A context that ends during the lock's wait is already handled: `lockToSave`
+  returns the context's error, and `save` returns it as "the new session was
+  not saved" (`:1119` to `:1121`) without writing.
+* The doc comment on `save` (`:1100` to `:1102`) names this record: "the
+  context is checked after the lock is held, before anything is written: a
+  lock that outlasts the sign-in saves nothing (0081-MADR's single check
+  before the save belongs here, after the lock, and not before the wait)".
+
+0082's note addressed to this record is N-6 of its second amendment, "N-6,
+0081" (`0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md`, line 1145):
+the check this record adds immediately before the save must stay after the
+lock is obtained, in `write`, which every pass of the retry loop runs after
+taking the lock, and not before the wait, since a check before the wait would
+not stop a sign-in cancelled during a wait of up to a minute from saving when
+the lock comes free. At `a7e924f` that check **exists** in `write`, built by
+0082 for its own reason, and the cancel windows below that lead to a
+session's save are closed by it.
+
+### What is no longer true at `a7e924f`
+
+Each statement is of this record as written; the annotation says what holds
+now. Every decision, D1 to D12, stands; what changed is the facts. The facts
+not listed hold: K1, K5, K7, K8, K9, K10, "A key", and the list of what a
+person and a caller observe after the change.
+
+| Where | As written | At `a7e924f` |
+| :--- | :--- | :--- |
+| Context and Problem Statement | when the context ends during the listing that checks a fresh sign-in, the wizard saves the new session and then returns the context's error | for a session, no: `write`'s check refuses, nothing is saved, the context's error is returned. For a key it is as written |
+| "Every window" intro | a run whose own deadline passes during the listing saves today as a cancelled one does | no longer, for a session (`TestDeadlineDuringListingSavesNothing_0081` is green) |
+| R1 | all twelve cases (six kinds, two entry points) save once; the three OpenAI `ConfigureLLM` cases also return no error | none of the twelve saves; each returns the context's error. Green at `a7e924f` (measured below) |
+| R2 | the check refuses only when `Token` also fails; "the save is then made (C3)"; "so the defect is every session kind's" | the first sentence holds of `save`'s first check (C2, now `:1107`), but `write` checks the context again before it writes (C3, now `:1185`), so a session's save is refused on an ended context whatever `Token` said. The defect is not a session kind's any more; a key's is as written (a key reaches no `save`) |
+| R3 | 0080 does not change it; R1's twelve cases fail the same way on 0080's tree | true of 0080, which changed no save; 0082 did (above) |
+| R4 | the path without the check is a current token, every fresh sign-in and every Kilo session; "which is why gobble's ACP path saves nothing after a cancel and this module's wizard does"; "a current one is [saved] (R1)" | that path has the check, in `write`; the wizard no longer saves a session on an ended context. G1 to G3 (gobble's statements that the wizard saves nothing once its context is done) are true of the wizard for a session; for a key the wizard saves nothing at all and returns it, as written |
+| R5 | the prototype's fifteen tests: twelve fail and three guards pass | at `a7e924f` eight fail and seven pass (below). The prototype was written against `b109cea`; its `commitCredential` is rebuilt at the base, and its check, for a session, is the second one (below) |
+| K2 | the issued session comes back and is saved, with or without `Discover` | not saved (`TestCancelAfterIssueSavesNothing_0081`, both cases green) |
+| K3 | Kilo's profile read ends with the context, the personal account is used, then saved | not saved without `Discover` (`TestCancelDuringKiloProfileSavesNothing_0081` green); with `Discover` it was already the context's error (0080's `checkEnded`) |
+| K4 | the listing's end: warning, static catalog, loop ends, **saved**; `ConfigureLLM` returns the Result with no error for the three OpenAI cases | not saved, for a session, in all twelve cases; each returns the context's error. For a key with no static catalog, `ConfigureLLM` still returns the key with no error (`TestCancelledConfigureReturnsNoKey_0081` red) |
+| K6 | between the check and the write nothing reads the context; **saved** | the context is read in `write` immediately before `UseStore` and `Save`; what remains is the instant after that read, which is K7's |
+| D2 | "One check, the last thing before the save: K2, K3, K4, K6 and K10 save nothing" | K2, K3, K4 and K6 hold for a session through `write`'s check. K10 and a key do not yet (below) |
+| D9, third row | "`wizard: <ctx>` from the check before the save" for a session | a session's error is `write`'s or `save`'s ("the new <label> session was not saved: <ctx>") until the commit check is built; D9's closing sentence stands, since `errors.Is` matches the context's error in every row. The commit check's own error keeps D9's `wizard: <ctx>` |
+| Confirmation, Tests | each red at `b109cea` and at the commit carrying 0080's code | four are green at `a7e924f`: they are guards (below) |
+
+### The measurement at `a7e924f`
+
+The drafted fifteen tests, from the drafting material, renamed with this
+record's number, were placed in `wizard/` on a scratch copy of `a7e924f` (a
+`git archive`, never the tree) and run with `go test -count=1 -run '_0081$'
+./wizard/`. They compiled unchanged. In-process stand-ins only; no outside
+host; the tree was not touched.
+
+| Test | At `a7e924f` | Red line, or why green |
+| :--- | :--- | :--- |
+| `TestCancelDuringListingSavesNothing_0081` (twelve cases) | green | `write`'s check |
+| `TestCancelAfterIssueSavesNothing_0081` (two cases) | green | `write`'s check |
+| `TestCancelDuringKiloProfileSavesNothing_0081` | green | `write`'s check |
+| `TestDeadlineDuringListingSavesNothing_0081` | green | `write`'s check |
+| `TestCancelDuringListingReturnsNoKey_0081` | green (guard at `b109cea` too) | a key reaches no `save`; `ConfigureLLM` returns the context's error at the model question |
+| `TestCancelDuringRefreshSavesNothing_0081` | green (guard at `b109cea` too) | `save`'s first check, `Token` |
+| `TestResolveSavesInTheStep_0081` | green (guard at `b109cea` too) | none needed |
+| `TestCancelledConfigureReturnsNoKey_0081` | **red** | `cancel_save_0081_test.go:346: err <nil>, key returned true, model ids asked 1; want context.Canceled, no key, none asked` |
+| `TestCancelAfterSaveReturnsTheResult_0081` | **red** | `cancel_save_0081_test.go:382: err wizard: context canceled, kind "", saves 1; want the Result of the saved session` |
+| `TestCancelAtModelStageSavesNothing_0081` (four cases) | **red** | `save_at_end_0081_test.go:119: err <nil>, kind "oauth"; want context.Canceled and no Result` and `:122: a run cancelled at the model search saved 1 time(s); want none`, and the same for the model menu, the model id and the fallbacks |
+| `TestCancelAtModelStageReturnsNoKey_0081` | **red** | `save_at_end_0081_test.go:143: err <nil>, key returned true; want context.Canceled and no key` |
+| `TestCancelAtManualModelSavesNothing_0081` | **red** | `save_at_end_0081_test.go:166: err <nil>, kind "oauth", saves 1; want context.Canceled, no Result, none saved` |
+| `TestConfigureSavesOnceAfterTheModel_0081` | **red** | `save_at_end_0081_test.go:185: saves 1, saves when the model was asked 1; want one, after the model` |
+| `TestModelStageErrorSavesNothing_0081` | **red** | `save_at_end_0081_test.go:204: a run that failed at the model question saved 1 time(s); want none` |
+| `TestRotationDuringQuestionsSavedAtEnd_0081` | **red** | `save_at_end_0081_test.go:250: saved refresh tokens ["rt-new"], saves when the model was asked 1; want one save, of rt-new, after the model` |
+
+**The four tests that are now guards, each held by a planted break.** On a
+second scratch copy of `a7e924f` with the same tests, `write`'s context check
+(`wizard/auth.go:1181` to `:1183`) was removed and nothing else changed. The
+tests then fail, each for its own reason:
+
+* `TestCancelDuringListingSavesNothing_0081`: all twelve cases fail with
+  "a sign-in cancelled during its listing saved 1 time(s); want none", and
+  three of them also with "err <nil>; want one matching context.Canceled"
+  (the OpenAI `ConfigureLLM` cases);
+* `TestCancelAfterIssueSavesNothing_0081`: "a sign-in cancelled after the
+  issue saved 1 time(s); want none", in both cases;
+* `TestCancelDuringKiloProfileSavesNothing_0081`: "a sign-in cancelled during
+  the profile read saved 1 time(s); want none";
+* `TestDeadlineDuringListingSavesNothing_0081`: "a sign-in whose deadline
+  passed during its listing saved 1 time(s); want none".
+
+The three guards of the drafting (`TestCancelDuringListingReturnsNoKey_0081`,
+`TestCancelDuringRefreshSavesNothing_0081`, `TestResolveSavesInTheStep_0081`)
+are not held by this break, as none of them depends on `write`'s check; the
+plants that hold them are the PLAN's Phase 3 list, built with the code.
+
+### The owner's rulings of 2026-11-18
+
+Relayed by the coordinator, each label quoted; what was asked is in this
+record's words.
+
+* **The order of work:** "As the plan says: build the probe now, I run it,
+  then the code is built (Recommended)". As asked: an agent builds only the
+  PLAN's Phase 1a, the probe and its offline twin; the owner is handed the
+  four commands; the code change (PLAN Phase 2) waits for the owner's
+  results, so nothing is built on the unmeasured assumption of N1; 0081
+  pauses on the owner while the other plans of the SDK carry on. This is the
+  PLAN's own order: its Phase 2 "does not land before Phase 1c is recorded".
+* **The record's facts after 0082:** "Amend the record by dated note; keep the
+  four tests as guards (Recommended)". As asked: this record says plainly that
+  0082 already covers the session windows; the four tests stay as regression
+  guards, each proven by a planted break on 0082's check; the code change
+  becomes the key path plus saving last; a records-only change now. This
+  amendment and the PLAN's matching entry are that change.
+
+### What remains to build, against "Decided"
+
+No ruling changes. D2 to D5 and N2, N3 and N5 (a) stand as written; what has
+changed is how much of them the code already meets.
+
+* **A key, and any credential with no session** (D3, Q2). `save` returns at
+  once when it has no session or no store (`wizard/auth.go:1104`), so a
+  typed, environment or saved key, and Kilo's device key, reach no check at
+  all in the step: `ConfigureLLM` returns such a key with no error after the
+  context ended (K4's key case, K10). This needs the check this record's
+  `commitCredential` makes before it calls `save` (D5's one save path), whatever
+  the credential. Evidence: `TestCancelledConfigureReturnsNoKey_0081` and
+  `TestCancelAtModelStageReturnsNoKey_0081`, red above.
+* **`ResolveCredential`'s own last check** (D5, Q4, first option;
+  `wizard/configure.go:435`) still follows the step, so a cancel after the save
+  returns the context's error with the session saved. It goes, as D5 says.
+  Evidence: `TestCancelAfterSaveReturnsTheResult_0081`, red above.
+* **`ConfigureLLM` saves in the step** (`credentialStep`'s `credential.save`,
+  `wizard/configure.go:578`), not at its very end (D5, Q4's answer, P2), and
+  checks nothing right after the step (N3). It must save as the last thing it
+  does, before each of its two successful returns (`:351`, `:362`), after the
+  check right after the step; any error saves nothing (N2). Evidence: the six
+  red tests of `save_at_end_0081_test.go` and `TestCancelledConfigureReturnsNoKey_0081`.
+* **How the check composes with the lock and the retry loop.** The session's
+  check stays where 0082's N-6 puts it: in `write`, after the lock, on every
+  pass of the loop; this record's builder does not move it, remove it, or add
+  a second wait. `commitCredential`'s check (D5) runs before `save`, hence
+  before the lock and its wait; it is the check for a key and the early
+  refusal for a session, and `write`'s is the one that covers a wait. A
+  session therefore passes two checks; neither duplicates the other's window,
+  and a cancelled wait already saves nothing and returns the context's error
+  (above). The PLAN's step 4 is unchanged by this.
+
+Because the PLAN's Phase 2 does not start before the owner's four runs
+(PLAN Phase 1b), none of this is built by this amendment.
+
+### The evidence index re-pointed at `a7e924f`
+
+The index above stays as it was, at `b109cea`. This table is beside it, one
+row per row, with the same claim; its ids end in "now" so that
+`tools/claims.py`, which reads one revision marker per record, does not read
+them against `b109cea`. Each self row was checked at `a7e924f` by
+`tools/claims.py` on a scratch copy of this table with plain ids and its own
+marker (`self=a7e924f`): 34 of 34 pass. The thirteen rows of other
+repositories (K11, K12, G1 to G9, M1, M2) are pinned to those repositories'
+own revisions in the marker above and pass there (47 of 47 at `b109cea`'s
+marker); they are repeated, unchanged, for completeness, and the tips of
+those repositories were not read.
+
+Tally of the 47 rows: **10 unchanged** (same line, same text), **20 moved**
+(same text, still true), **3 moved with changed text** (C1, C10, C11: still
+true in substance), **1 no longer true as stated** (C3: "and then writes" is
+now guarded by `write`'s own check), **13 pinned** to other repositories.
+The 25 rows of the PLAN's code claims, below in the PLAN: 14 unchanged, 9
+moved, 2 moved with changed text (P3, P7), none no longer true.
+
+| Id | Claim | Now | Location at `a7e924f` | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C1 now | The save | moved; the signature now takes a Prompter (0082: the wait for the lock is announced and retried) | `wizard/auth.go:1103` | `func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.Descriptor) error {` |
+| C2 now | refuses on an ended context only when `Token` fails | moved; still true of `save`'s first check, but no longer the only guard on the write: `write` checks the context too | `wizard/auth.go:1107` | `if _, err := c.session.Token(ctx); err != nil && (errors.Is(err, llmprovider.ErrAuthFailure)` |
+| C3 now | and then writes | moved into `write`, after its own context check (0082 N-6); a session is no longer written on an ended context | `wizard/auth.go:1185` | `if err := c.saveTo.Save(ctx, d.ID, c.session); err != nil {` |
+| C4 now | `Token` returns a current token without reading the context | moved from line 164; text and meaning the same | `llmprovider/auth/oauth_session.go:194` | `if current && !retrySave {` |
+| C5 now | it reads the context before it starts a refresh | moved from line 182; text and meaning the same | `llmprovider/auth/oauth_session.go:212` | `if err := ctx.Err(); err != nil {` |
+| C6 now | `FileTokenStore.Save` | moved from line 158; text and meaning the same | `llmprovider/auth/tokenstore_file.go:173` | `func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.ProviderID, s *OAuthSession) (err error) {` |
+| C7 now | writes by rename | moved from line 226; text and meaning the same | `llmprovider/auth/tokenstore_file.go:241` | `if err := tokenStoreRename(tmpName, final); err != nil {` |
+| C8 now | `ConfigureLLM`'s first context check | moved from line 276; text and meaning the same | `wizard/configure.go:319` | `if err := ctx.Err(); err != nil {` |
+| C9 now | `ResolveCredential`'s last context check, after the step | moved; still true: this is the check the change removes | `wizard/configure.go:435` | `if err := ctx.Err(); err != nil {` |
+| C10 now | The step's save, after the listing loop | moved; text now passes the Prompter; the step still saves after the loop | `wizard/configure.go:578` | `if err := credential.save(ctx, p, d); err != nil {` |
+| C11 now | The listing's own limit | moved; text now takes the limit from `o.discoverLimit()`; the listing's own limit, as before | `wizard/configure.go:919` | `dCtx, cancel := context.WithTimeout(ctx, o.discoverLimit())` |
+| C12 now | The wizard waits for its sign-in under a detached context | unchanged | `wizard/driver.go:86` | `result, err := run.Wait(context.WithoutCancel(ctx))` |
+| C13 now | Kilo's profile read for the menu; its failure a warning | moved from line 403; text and meaning the same | `wizard/auth.go:478` | `could not read the Kilo account's organizations (%s); using the personal account` |
+| C14 now | A listing's failure that is not a refusal is not returned as one | moved from line 870; text and meaning the same | `wizard/configure.go:939` | `if stepRefusal(err) {` |
+| C15 now | `ConfigureLLM` asks for a model id when the catalog is empty | moved from line 297; text and meaning the same | `wizard/configure.go:340` | `manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, d.ID))` |
+| C16 now | then the model question | moved from line 311; text and meaning the same | `wizard/configure.go:354` | `if res.Model, err = selectModel(ctx, p, d, cat, o); err != nil {` |
+| C17 now | 0080 changes no other provider's check | unchanged | `docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md:329` | `* No other provider's check changes.` |
+| C18 now | The engine saves the plan's issued client as the login returns | moved; still true | `internal/signinflow/signinflow.go:501` | `clientSaveErr = spec.ClientStore.SaveClient(ctx, spec.Provider,` |
+| C19 now | `FileTokenStore.SaveClient` ignores the context | moved from line 82; text and meaning the same | `llmprovider/auth/clientstore.go:107` | `func (fs *FileTokenStore) SaveClient(_ context.Context, provider llmprovider.ProviderID, c ClientRecord) error {` |
+| C20 now | `x/signin`'s `Wait` saves nothing | moved from line 253; text and meaning the same | `llmprovider/x/signin/signin.go:269` | `// saves nothing: the caller saves. It returns ctx's error when ctx ends first.` |
+| C21 now | A session can be revoked | unchanged | `llmprovider/auth/oauth_revoke.go:37` | `func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {` |
+| C22 now | Kilo's device method is not marked revocable | moved from line 142; text and meaning the same | `llmprovider/x/signin/signin.go:158` | `ClientIdentity: factNone, Slot: "kilo"}},` |
+| C23 now | `ConfigureLLM` calls the step | moved from line 289; text and meaning the same | `wizard/configure.go:332` | `res, cat, err := credentialStep(ctx, p, d, o)` |
+| C24 now | The model-id branch returns the Result | moved from line 307; text and meaning the same | `wizard/configure.go:350` | `res.Model = manual` |
+| C25 now | `selectModel` checks the context at its loop's top | unchanged | `wizard/model_select.go:52` | `if err := ctx.Err(); err != nil {` |
+| C26 now | then asks the search | unchanged | `wizard/model_select.go:55` | `q, err := p.Input(searchModelsPrompt, "")` |
+| C27 now | A blank search goes to the menu, which checks nothing | unchanged | `wizard/model_select.go:69` | `return selectRecommended(p, d, cat.Recommended, o)` |
+| C28 now | The model id checks nothing | unchanged | `wizard/model_select.go:208` | `manual, err := p.Input("Model id", existingModel(o, provider))` |
+| C29 now | `ConfigureLLM` asks the fallbacks | moved from line 315; text and meaning the same | `wizard/configure.go:358` | `if res.Fallbacks, err = selectFallbacks(ctx, p, d, cat, res.Model, existingFallbacks(o, d.ID)); err != nil {` |
+| C30 now | which checks the context at its loop's top | unchanged | `wizard/model_select.go:249` | `if err := ctx.Err(); err != nil {` |
+| C31 now | and a blank round's choice ends it at once | unchanged | `wizard/model_select.go:277` | `return chosen, nil // a blank round ends the loop` |
+| C32 now | `ConfigureLLM` returns | moved from line 319; text and meaning the same | `wizard/configure.go:362` | `return res, nil` |
+| C33 now | The search is over the catalog in hand | unchanged | `llmprovider/catalog/search.go:205` | `func (c Catalog) Search(query string) []Match {` |
+| C34 now | A refresh saves only when a store is bound | moved; still true | `llmprovider/auth/oauth_session.go:1144` | `if state.store != nil {` |
+| K11 now | The reference ChatGPT client revokes on logout | unchanged: pinned to codex's own revision, which no change here moves | `codex:codex-rs/login/src/auth/manager.rs:1094` | `pub async fn logout_with_revoke(` |
+| K12 now | Kilo's own client opens its verification page (and prints the code) | unchanged: pinned to kilocode's own revision, which no change here moves | `kilocode:packages/kilo-gateway/src/auth/device-auth.ts:52` | `await open(verificationUrl).catch((err) => {` |
+| G1 now | gobble's note: the wizard does not save after a done context | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signinrun.go:146` | `save fails the sign-in with it, as the wizard does not save then. Wait does` |
+| G2 now | gobble's note, on its key | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:internal/cli/agentauth.go:103` | `// nothing once its context is done (0051-MADR D4 step 3).` |
+| G3 now | gobble's decision record says the same | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:docs/decisions/0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md:368` | `is not saved; and it saves nothing once its context is done.` |
+| G4 now | gobble copied the wizard's conjunction | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signinrun.go:178` | `if _, err := sess.Token(ctx); err != nil && (errors.Is(err, llmprovider.ErrAuthFailure)` |
+| G5 now | and checks the context itself before it saves | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signinrun.go:182` | `if err := ctx.Err(); err != nil {` |
+| G6 now | and before it stores a key | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:internal/cli/agentauth.go:104` | `if err := ctx.Err(); err != nil {` |
+| G7 now | Its terminal path returns the context's error | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signin.go:369` | `return Credential{}, ctx.Err()` |
+| G8 now | Its sign-in is the wizard's `ResolveCredential` | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signin.go:95` | `var resolveCredential = wizard.ResolveCredential` |
+| G9 now | called by `SignIn` | unchanged: pinned to gobble-cli's own revision, which no change here moves | `gobble-cli:llm/provider/signin.go:345` | `res, _, err := resolveCredential(ctx, w, wizard.Options{` |
+| M1 now | prepare-commit-msg's setup calls `ConfigureLLM` | unchanged: pinned to prepare-commit-msg's own revision, which no change here moves | `prepare-commit-msg:internal/ui/setup.go:274` | `res, err := wizard.ConfigureLLM(ctx, prompter, wizard.Options{` |
+| M2 now | and checks the stored session afterwards | unchanged: pinned to prepare-commit-msg's own revision, which no change here moves | `prepare-commit-msg:internal/ui/setup.go:309` | `if err := config.ValidateOAuth(ctx, string(res.Provider), pc, store); err != nil {` |
+
+## Amendment of 2026-11-19: what the owner's nine rulings change in D12
+
+Added after the record was accepted and while Phase 1a's probe was being
+reviewed; nothing above is rewritten or removed, and no ruling in "Decided"
+changes. D12 describes the probe as the draft had it: two sign-ins, a baseline
+use, a control use, a verdict, no revocation, and "each refresh token used
+exactly once, so no reuse can be detected". Nine rulings of the owner,
+relayed by the coordinator (the first four on 2026-11-18, the last five on
+2026-11-19), changed it. Each label is quoted verbatim, and what each changes
+in D12 is in this record's words. The PLAN's Phase 1a annotations and Phase 1b
+amendment carry the build and the text the owner reads before a run.
+
+* **Which verdicts pass.** "Only `kept` passes (Recommended)". The probe's
+  test fails on `ended` and on `indeterminate`, so that `go test` itself says
+  so. D12's "a verdict `ended` for any provider stops the PLAN" is unchanged.
+* **The probe's own grants.** "Revoke the probe's own two grants at the end,
+  after the verdict is printed (Recommended)". D12 said the sessions end with
+  the process and the probe's sign-ins may end the owner's other sessions; the
+  probe now also revokes the grants it obtained, with the SDK's own
+  `auth.RevokeOAuthSession`, after the verdict line and on every path where a
+  grant exists, on a bound of its own, and prints one line per grant (a status
+  and a kind, nothing from a body or an error). A revocation never changes the
+  verdict or fails the test and is not counted in any step. What cannot be
+  revoked is listed in the PLAN's Phase 1b with where to remove it by hand:
+  Kilo's device tokens (the SDK has no revocation for them) and the client a
+  `plan` sign-in registers, and, by the two rulings on `chatgpt` and `grok`
+  below, those providers' grants. **Not verified:** whether revoking a grant can end
+  anything besides it, the owner's other sessions at that provider included.
+  D12's "output is status codes, counts and one verdict per provider" now
+  means the step lines (a status, an error's kind, an allow-listed OAuth code
+  and a request count), the verdict line and the revocation lines.
+* **The sequence.** "Add one step: refresh A once more after the control
+  (Recommended)". D12's baseline and control uses are joined by `first-after`
+  and `last-after`: sign-in 1, baseline, sign-in 2, first-after, control,
+  last-after. `kept` now needs both of the first session's later refreshes to
+  succeed; a first session whose refresh then fails with a terminal refusal
+  while the control succeeded is `ended` (the lazy case); a grant that ends
+  minutes after the run is still not caught. The verdict for every
+  combination is the table in the PLAN's Phase 1b. The baseline's rotated
+  token carries through all of the first session's refreshes.
+* **Retries.** "The run is `indeterminate`: run it once more (Recommended)".
+  D12's "each refresh token used exactly once, so no reuse can be detected" is
+  not guaranteed: the SDK sends a refresh again, with the same token, on a
+  transport error, a 429 or a 5xx, up to three times. The probe counts the
+  round trips of each use and prints the count in the step line; any use step
+  that made more than one request makes the whole run `indeterminate`,
+  whatever its status was. For `grok`, whose issuer answers a reused token as
+  plain `invalid_grant`, this count is the only guard against reading a
+  reuse as a dead grant.
+* **`chatgpt`'s grants.** "Run `chatgpt` with revocation switched off; its
+  two grants are listed for removal by hand (Recommended)". The `chatgpt`
+  sign-in uses the client id Codex itself uses, and nothing read says whether
+  OpenAI's revocation ends only the token it names. The run therefore makes no
+  revocation request for `chatgpt` on any path, and its lines read `kind
+  by_hand`; two grants stay on the owner's OpenAI account until removed or
+  expired, and a re-run leaves four. The measurement is unchanged.
+* **`grok`'s grants.** "Switch `grok`'s revocation off too; its two grants are
+  listed for removal by hand (Recommended)". The same treatment, for the same
+  reason: the revocation would send the Grok CLI's own client id with the token,
+  and it is not shown whether xAI ends only the one grant. The run makes no
+  revocation request for `grok`, and no discovery request for one, on any path;
+  its lines read `kind by_hand`; two grants stay on the owner's xAI account
+  until removed or expired. Only `plan`'s grants are revoked by the run (they
+  belong to the client the probe registered itself); Kilo has no revocation.
+* **No resend after a refusal.** "As built: never resend a refused token; the
+  last step runs only after a success (Recommended)". `last-after` is made only
+  after a successful `first-after`; after a refusal the session still holds the
+  same refresh token, and sending it again adds nothing.
+* **A failed baseline.** "As built now: a failed baseline ends the run as
+  `indeterminate` (Recommended)". The run ends before the second sign-in, so
+  the owner is not asked for a sign-in that could not be measured.
+* **A baseline of more than one request.** "Stop there: end the run as
+  `indeterminate` before the second sign-in (Recommended)". A baseline that
+  succeeded but needed more than one request makes the verdict `indeterminate`
+  by the count rule already; the run now ends there too, on the path a failed
+  baseline takes, so that the owner is not asked for a sign-in that cannot
+  change the verdict and one fewer grant is created.
+
+What D12 still says, and still holds: the sessions live in the test's memory
+only; no store is opened; the verdicts are `kept`, `ended` and
+`indeterminate`; two `indeterminate` runs of one provider in a row stop the
+PLAN; the OpenAI and Grok device sign-ins are not probed.

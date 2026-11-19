@@ -116,6 +116,16 @@ unexported.
 * gobble-cli's and prepare-commit-msg's changes (Phase 5 names them; their
   records make them).
 
+> **Annotation of 2026-11-18.** The first item above concerns the wizard's
+> own sessions (MADR D6: a session it did not save is not revoked) and stands.
+> The probe of Phase 1a signs in twice at one provider and keeps neither
+> session, which is a different thing, and the owner ruled on it: "Revoke the
+> probe's own two grants at the end, after the verdict is printed
+> (Recommended)" (the label, relayed by the coordinator). Phase 1a's
+> annotations of that date say what it builds, and Phase 1b's amendment lists,
+> per provider, what is revoked by the run, what is left and where the owner
+> removes it by hand.
+
 ## Rules for every phase
 
 * **Approval.** The owner approves this PLAN, whole or by phase. A phase
@@ -205,6 +215,13 @@ Files: `llmprovider/live_0081_grant_test.go` (`//go:build live_gateways`),
 the checks in `llmprovider/live_checks_test.go` and their twin in
 `llmprovider/live_twins_test.go` (untagged; AGENTS.md "Live tests", 0046-MADR
 D3).
+
+> **Dated note, 2026-11-19.** The steps below are amended by the annotations
+> that follow this phase's "Acceptance" paragraph, and those win where they
+> differ: step 3's output goes to a file, not the window; step 4's sequence has
+> a sixth step, `last-after`; step 5's "each refresh token is sent exactly once"
+> is not guaranteed; step 6's verdicts are the table in Phase 1b's amendment; and
+> there is a step 9, the revocation.
 
 1. **The switch.** `TestLive_EarlierGrant_0081` skips unless
    `LLMPROVIDER_LIVE_0081` is `1`, and runs only the provider
@@ -329,7 +346,383 @@ D3).
 Acceptance: the twin green, its plants caught; the live test compiles; no
 token or session in any file.
 
+> **Annotations of 2026-11-18 to Phase 1a** (the independent review's
+> findings F3, F4, F7, F9, F11 to F13). Additions only: the steps above stand
+> except where an annotation says otherwise.
+>
+> * **Step 2.** "reads no environment variable but its two" is read as: the
+>   test calls `os.Getenv` for no variable but its two. The HTTP transport
+>   reads the proxy variables, and the browser opener inherits the process's
+>   environment.
+> * **Step 3.** The browser's page is passed to the opener as a process
+>   argument and is kept in the browser's history, and the plan's second
+>   sign-in's URL carries the first session's ID token as `id_token_hint`
+>   (Phase 1b's amendment says so to the owner). The opener's failure is
+>   made a stop by the opener's own side effect, not by the error it returns:
+>   `runBrowserLogin` calls `OpenURL` from a goroutine and ignores its error
+>   (`llmprovider/auth/oauth_loopback.go:220-222`), so `grantShow.URL` records the
+>   stop and cancels the sign-in's context itself. The twin shows it with a
+>   stand-in that ignores the error and with the shipped `LoginBrowserOAuth`.
+>   The probe's output goes to a file, so that the terminal shows only
+>   Kilo's user code (Phase 1b's amendment).
+> * **Step 5.** "Grok's discovery document, which comes first" is wrong for a
+>   refresh: a refresh makes no discovery request. The session's token URL is
+>   set at sign-in (`llmprovider/auth/oauth_loopback.go:859`), or derived
+>   from the issuer when it is OpenAI's or xAI's own
+>   (`llmprovider/auth/oauth_session.go:1273-1275`). The refresh's own
+>   requests are all a use step makes.
+> * **Step 6.** The recorder reads the body of every response of 400 or
+>   more, not only a refused refresh's; it keeps only an allow-listed code,
+>   and puts every body back (a reading taken). It reads the code in the three
+>   shapes the SDK's own `refreshErrorCode` reads, lower-cased
+>   (`llmprovider/auth/oauth_session.go:1010-1027`): `{"error": "code"}`,
+>   `{"error": {"code": "code"}}` and `{"code": "code"}`, and reads the first 2048
+>   bytes of the body for it, as the SDK does (`oauthErrorBodyLimit`, `:32`),
+>   putting the whole body back. A use step's line now
+>   ends `, requests N`, the number of round trips the step completed:
+>   `"%s %s: status %d, kind %s, code %s, requests %d"`. The sign-in steps'
+>   lines and the verdict line are as written.
+> * **Step 4, an edge case.** A use whose one-minute bound ends while its
+>   refresh is still running leaves the refresh running, detached from the
+>   caller (`llmprovider/auth/oauth_session.go:229`, `complete`). The
+>   plan's second sign-in reads the first session's fields
+>   (`Previous`) without the session's lock, and a late reply writes them and
+>   the next step's status. The refresh's own bound is three attempts of
+>   fifteen seconds with a short backoff, under the use's minute, so the case
+>   is not expected; if it happened, the use's step line would read
+>   `canceled`, and the late round trip would be counted in the next step's
+>   `requests`, which is how the count shows it.
+>
+> **Annotations of 2026-11-18 to Phase 1a, the owner's rulings** (relayed by
+> the coordinator; each label is quoted as a label only). Additions only.
+>
+> * **Which verdicts pass.** "Only `kept` passes (Recommended)". As built:
+>   `grantPasses`, in one line; `ended` and `indeterminate` fail the test, so
+>   that `go test` says so.
+> * **Step 4, one step more.** "Add one step: refresh A once more after the
+>   control (Recommended)". The sequence is now sign-in-1, baseline, sign-in-2,
+>   first-after, control, last-after. The baseline's rotated refresh token
+>   carries through all of A's refreshes: the session adopts each rotation, and
+>   no store is bound, so each token is sent as the session holds it. `kept` now
+>   needs both of A's later refreshes to succeed; an ending that comes minutes
+>   after the run is still not caught, and the verdict says so. The verdict for
+>   every combination of the two later refreshes and the control is the table
+>   in Phase 1b's amendment, written before the code; `grantVerdict` is its
+>   definition. The readings it needed, each from this PLAN's own rule that no
+>   refresh token is sent twice (step 5): `last-after` is made only when
+>   `first-after` succeeded, because after a refusal A still holds the same
+>   token, and sending it again adds nothing; and a failed `baseline` ends the
+>   run at once, `indeterminate`, before the second sign-in (the earlier
+>   reading, to go on to the second sign-in and `first-after`, would have sent
+>   the baseline's token again). For Kilo, which does not refresh, each use of A
+>   is a read of its profile.
+> * **Step 6, the count.** "The run is `indeterminate`: run it once more
+>   (Recommended)". `grantVerdict` returns `indeterminate` when any of the four
+>   uses made more than one request, whatever the status, before it reads
+>   anything else; the count stays in the step line. Revocation requests are
+>   kept out of the count: revocation runs after the verdict is computed and
+>   printed, each revocation begins from a count of zero (`grantRecorder.begin`),
+>   and its line carries no count.
+> * **Step 5, "each refresh token is sent exactly once".** Not guaranteed: the
+>   SDK sends a refresh again, with the same token, on a transport error, a 429
+>   or a 5xx. The guard is the count rule (Step 6, the count), and for `grok`,
+>   whose issuer answers a reused token as plain `invalid_grant`, it is the only
+>   one (Phase 1b's amendment).
+> * **Step 6, the verdicts and the lines.** The vocabulary stands, but its
+>   definitions are the table in Phase 1b's amendment, which has the sixth step
+>   and the count rule; a use step's line ends `, requests N`; and each grant
+>   obtained has a revocation line after the verdict line.
+> * **Step 9, new: revocation.** "Revoke the probe's own two grants at the end,
+>   after the verdict is printed (Recommended)". After the verdict line (or,
+>   when the run was stopped, in its place), each session a sign-in returned is
+>   revoked, in the order obtained, by the SDK's `auth.RevokeOAuthSession`,
+>   through the session's own client, which is the recorder's
+>   (`llmprovider/auth/oauth_revoke.go:53`, `:79`), on a context detached from
+>   the run's (`context.WithoutCancel`) and bound at twenty seconds each
+>   (`grantRevokeLimit`), so that the run's own bound having passed does not
+>   stop it. It runs on every path where a grant exists: after a verdict, after
+>   an `indeterminate` that follows the first sign-in (a failed second sign-in
+>   or a failed baseline), and after a stop, and not when no sign-in gave a
+>   session. Its line is `"%s revoke-%d: status %d, kind %s"`: the provider,
+>   which grant (1, the first session; 2, the second), the status of the
+>   revocation's last response (0 when it made none) and the error's kind
+>   (`ok`, `unsupported`, `canceled`, `other`), through the same redaction, and
+>   nothing from a body, a code or an error's text. A failed revocation never
+>   changes the verdict and never fails the test by itself. What each provider
+>   revokes, what is left and where to remove it by hand, and what is not
+>   verified, is Phase 1b's amendment. No non-test code was added or changed.
+> * **Step 9, `chatgpt` and `grok` (rulings of 2026-11-19).** "Run `chatgpt`
+>   with revocation switched off; its two grants are listed for removal by hand
+>   (Recommended)", and "Switch `grok`'s revocation off too; its two grants are
+>   listed for removal by hand (Recommended)". For `chatgpt` and `grok` no
+>   revocation request, and no discovery request for one, is made on any path (the
+>   verdict, the stop, the `indeterminate` and the bound-passed paths), by
+>   `grantRevokes`, a function of the provider in the checks file that is false for
+>   those two only; only `plan` is revoked by the run. Their revocation lines
+>   read `<provider> revoke-N: status 0, kind by_hand`: a
+>   fixed word, which is not `ok`, not Kilo's `unsupported` and not a failure,
+>   and is not counted as one. The measurement is unchanged. The reason is
+>   Phase 1b's "Not verified": nothing read says what OpenAI's revocation ends
+>   besides the token it names, and the sign-in uses the client id Codex itself
+>   uses. `plan`, `grok` and `kilo` are as written above. The twin shows zero
+>   requests to a revocation endpoint on the three paths
+>   (`TestEarlierGrantRevocation_0081/chatgpt's_grants_are_not_revoked,_*`).
+> * **Step 4, a baseline of more than one request (ruling of 2026-11-19).**
+>   "Stop there: end the run as `indeterminate` before the second sign-in
+>   (Recommended)". After the baseline, if its request count is above one, the
+>   run ends `indeterminate` before the second sign-in, on the path a failed
+>   baseline takes (`earlierGrant.run`): the first grant is revoked where the
+>   provider's revocation is on, a `by_hand` line otherwise, and the baseline's
+>   step line is printed with its count. The row is in the verdict table of
+>   Phase 1b's amendment and in `grantVerdict`'s doc, and the twin runs it end to
+>   end (`TestEarlierGrantReport_0081/*/a_baseline_that_needed_two_requests_*`).
+> * **Step 4, the two readings ruled (2026-11-19).** "As built: never resend a
+>   refused token; the last step runs only after a success (Recommended)", and
+>   "As built now: a failed baseline ends the run as `indeterminate`
+>   (Recommended)". The two readings recorded above are the owner's rulings; no
+>   code changed for them.
+> * **The bounds, re-derived.** Two sign-ins at their four minutes use eight
+>   minutes of the run's nine; the four uses take seconds each and each is
+>   bound at one minute; the revocations add at most forty seconds on their own
+>   bound: nine minutes and forty seconds at the most, which `go test`'s
+>   default ten minutes leaves twenty seconds, so the four commands now carry
+>   `-timeout 15m`. Phase 1b says how long the owner has.
+> * **Readings the owner was told of and did not change:** the four-minute
+>   sign-in wait and the nine-minute run bound, and `xdg-open` on Linux beyond
+>   step 3's "open on macOS".
+
 #### Phase 1b: the owner's run
+
+> **Amendment of 2026-11-18, as amended on 2026-11-19** (the independent
+> review's findings, and the owner's rulings of both days, relayed by the
+> coordinator). Additions only: the text after this block stands, except where
+> this says otherwise, and the commands here replace steps 2 to 5's. **Read this
+> block in order.** The first section is what a run does to your real accounts
+> and what is not known about it; the commands come last on purpose, and none is
+> to be run before that section has been read.
+>
+> **Before any command: what a run does to your accounts, and what is not
+> known.** The probe signs in twice at one provider and, at its end, revokes
+> the grants it obtained, with the SDK's own `auth.RevokeOAuthSession`, for
+> `plan` only: the owner ruled that `chatgpt`'s and `grok`'s are left, and Kilo
+> has none. That call sends the session's own refresh
+> token (its access token if it has no refresh token) and its client id to its
+> own issuer's revocation endpoint, through the client the probe's recorder
+> wraps, and nothing to any other host. What it can do to a real account, and
+> what nobody has measured:
+>
+> | Provider | What the run does to the real account | What is not known |
+> | :--- | :--- | :--- |
+> | `chatgpt` | Signs in twice with the client id Codex itself uses. Makes **no revocation request, on any path**, by the owner's ruling "Run `chatgpt` with revocation switched off; its two grants are listed for removal by hand (Recommended)". Two grants stay live on the OpenAI account until they expire or are removed by hand. | Whether OpenAI's revocation, if it were sent, would end only the token it names or also the owner's own Codex login, which uses the same client id. That is why it is not sent. |
+> | `plan` | Signs in twice under the client the first sign-in registers for this app's name, `go-llmprovider-sdk`, and revokes the two refresh tokens of **that client only**, at the revocation endpoint of OpenAI's discovery document, with that client's id (`llmprovider/auth/oauth_revoke.go:144`). It touches no other client's token. The registered client itself stays (below). | Whether OpenAI's revocation of a token ends anything besides that token. |
+> | `grok` | Signs in twice with the Grok CLI's own public client id (`DefaultGrokOAuthClientID`, `llmprovider/auth/oauth_constants.go:13`, set on the shipped sign-in at `oauth_loopback.go:296-301`). Makes **no revocation request, on any path, and no discovery request for one**, by the owner's ruling "Switch `grok`'s revocation off too; its two grants are listed for removal by hand (Recommended)". The SDK's call would send that same client id with the token (`oauth_revoke.go:137`, the form at `:159`), which is the condition that led the owner to switch `chatgpt`'s off. Two grants stay live on the xAI account until they expire or are removed by hand. | Whether xAI's revocation, if it were sent, would end only the token it names or also the owner's other Grok sessions that use the same client id, the Grok CLI's included. That is why it is not sent. |
+> | `kilo` | Signs in twice by device code and revokes nothing: the SDK has no revocation for Kilo's device token (`oauth_revoke.go:72`; `llmprovider/x/signin/signin.go:158`), so the run sends no request. Two device tokens, which do not expire, stay on the Kilo account until removed by hand. | Nothing about revocation: none is sent. |
+>
+> The doubt in the last column cannot be settled from the SDK's code or the
+> upstream sources read: the Codex checkout shows that logout revokes its
+> refresh token, "best effort", and says nothing of what else the issuer then
+> ends, and the Grok CLI's source (`xai-grok-login/src/error.rs:77`) says only
+> that its issuer does not distinguish an expired, reused or revoked refresh
+> token. Nothing here measured whether a revocation ends other sessions. That
+> is why the run sends no revocation for `chatgpt` or `grok`, and why it sends
+> `plan`'s only for the client the probe registered itself, with that client's
+> tokens.
+>
+> One more fact about `grok`, so that it is no surprise in its file: xAI answers
+> a reused refresh token as plain `invalid_grant`, which the probe reads as a
+> dead grant, never as `refresh_token_reused`. For `grok`, a token sent twice
+> would therefore read as `ended`; the only guard against that is the count rule
+> (a use step that made more than one request makes the run `indeterminate`), so
+> a `grok` `ended` is to be read with the `requests` of its lines in view.
+>
+> **What a run leaves behind, and what it removes.** By the owner's ruling
+> "Revoke the probe's own two grants at the end, after the verdict is printed
+> (Recommended)", the run revokes what it obtained, except `chatgpt`'s, `grok`'s
+> and Kilo's (above): only `plan`'s are revoked. Per provider:
+>
+> | Provider | Revoked by the run | Left | Where the owner removes it by hand |
+> | :--- | :--- | :--- | :--- |
+> | `chatgpt` | nothing: no revocation request is made on any path (the SDK's call would send a JSON request to OpenAI's `/oauth/revoke` with the Codex client id, `llmprovider/auth/oauth_revoke.go:92`) | **two grants under Codex's client id**, live on the owner's OpenAI account until they expire or are removed | the owner's OpenAI account, where the apps and sessions signed in to it are managed (not verified: no page was looked up); the owner's own Codex login is not one of them, and is not to be removed |
+> | `plan` | both refresh tokens, by a form request to the revocation endpoint of OpenAI's discovery document with the issued client id (`oauth_revoke.go:144`) | the client the first sign-in registered under the owner's OpenAI account for this app's name (`go-llmprovider-sdk`): no call of the SDK removes a registered client | the owner's OpenAI account, where the apps and agents signed in to it are managed (not verified: no page was looked up) |
+> | `grok` | nothing: no revocation request, and no discovery request for one, is made on any path (the SDK's call would discover xAI's revocation endpoint and send a form request with the Grok CLI's client id, `oauth_revoke.go:123`) | **two grants under the Grok CLI's client id**, live on the owner's xAI account until they expire or are removed | the owner's xAI account, where the apps and sessions signed in to it are managed (not verified: no page was looked up); the owner's own Grok CLI login is not one of them, and is not to be removed |
+> | `kilo` | nothing: no request is sent | both device tokens, which do not expire | the owner's Kilo account, where its signed-in devices or tokens are managed (not verified: no page was looked up) |
+>
+> A revocation line reads `<provider> revoke-N: status S, kind K`: `S` is the
+> status of the revocation's last response (0 when it made none), and `K` is
+> `ok` (the provider answered 200), `unsupported` (Kilo: nothing was sent),
+> `by_hand` (`chatgpt` and `grok`: the run does not revoke them, by the owner's
+> rulings, nothing was sent), `canceled` (its twenty seconds ended), or `other` (any other answer; its status says which). Only
+> `status 200, kind ok` means the grant is revoked, and `unsupported` and
+> `by_hand` mean the owner removes it by hand. A line that says anything else
+> means the grant is still live: remove it by hand, in the place above. A
+> revocation never changes the verdict, never fails the test and adds nothing
+> to any count: it runs after the verdict is printed, each revocation starts
+> from a count of zero, and its line carries no count. Revocation runs on every
+> path where a sign-in gave a session: after a verdict, after an
+> `indeterminate` that follows the first sign-in, and after a stop (the line
+> that stops the run, "the browser could not be opened" or "the terminal
+> device could not be opened", follows the revocation lines), and on a bound of
+> its own, so that the run's bound having passed does not stop it; for
+> `chatgpt` and `grok` no request is made on any of those paths. A re-run after
+> an `indeterminate` obtains two more grants, each revoked in the same way (for
+> `chatgpt` and `grok`, left in the same way: four grants then stand), and, for
+> `plan`,
+> registers one more client under the owner's account (the run's two sign-ins
+> share the one it registers).
+>
+> **The owner's rulings of 2026-11-19** (relayed by the coordinator; each label
+> is quoted as a label only), recorded here and in Phase 1a's annotations: "Run
+> `chatgpt` with revocation switched off; its two grants are listed for removal
+> by hand (Recommended)"; "As built: never resend a refused token; the last step
+> runs only after a success (Recommended)" (`last-after` is made only after a
+> successful `first-after`); "As built now: a failed baseline ends the run as
+> `indeterminate` (Recommended)"; "Switch `grok`'s revocation off too; its two
+> grants are listed for removal by hand (Recommended)"; "Stop there: end the
+> run as `indeterminate` before the second sign-in (Recommended)" (a baseline
+> that succeeded but needed more than one request).
+>
+> **The time the owner has.** Each sign-in must be finished, the browser's
+> page approved or Kilo's code entered, within four minutes of its page
+> opening. The run's sign-ins and uses are bound at nine minutes in all: two
+> sign-ins of four minutes use eight, and the four uses take seconds (the
+> SDK's refresh gives up after three attempts of fifteen seconds, under the
+> minute each use is allowed), so a person who takes the whole four minutes
+> twice is not cut off. The revocations that follow have twenty seconds each, on
+> their own bound, so the whole test is at most nine minutes and forty
+> seconds, and `-timeout 15m` stands over it. A sign-in left longer than four
+> minutes is cancelled: its step line reads `sign-in-N: canceled`, the run
+> ends with the verdict `indeterminate`, and the re-run of step 6 is two new
+> sign-ins. Have the account signed in to the browser and the person ready
+> before each command.
+>
+> **What the browser is given.** Each authorize URL, and Kilo's verification
+> page, is passed to the system's opener (`open` on macOS; `xdg-open` on
+> Linux, which the PLAN's step 3 did not name) as a process argument: it is in
+> this machine's process list for the moment the opener runs, and the browser
+> keeps it in its history. The authorize URL carries its state, nonce, PKCE
+> challenge and client id; the plan's, host id; and the plan's second
+> sign-in, as the shipped wizard's (0075-MADR D7), carries the first
+> session's ID token as `id_token_hint`, which is identity data
+> (`llmprovider/auth/oauth_plan.go:251`). That is what the shipped sign-ins
+> already do with the same `OpenURL`; it is not new to the probe. None of it
+> reaches the output or the file.
+>
+> **What the window shows, and what the file holds.** The probe's output is
+> written to a file, never to the window, so that the one secret of a run,
+> Kilo's user code (the path of its poll URL,
+> `llmprovider/auth/kilo_device.go:80`), which the test writes to the terminal
+> device (`/dev/tty`, which `go test`'s redirection does not capture), is alone
+> in the window.
+>
+> * The window shows: for Kilo only, one line `Kilo code: <code>` per
+>   sign-in, to read and type at Kilo's page; and, when each command ends, the
+>   one line `go test exited N`. The browser opens by itself. `N` is not
+>   proof that the run measured anything: `0` means the verdict is `kept`, and
+>   also that the test skipped (a variable misspelt) or that `go test` found no
+>   test to run; `1` means any other verdict, or a run that stopped, and also
+>   that the redirect itself failed because `tmp/live-0081/` does not exist
+>   (the shell prints its own error, `go test` never ran, and **no file was
+>   written**). Only the file says which.
+> * The file holds all of `go test`'s output and nothing else: a `=== RUN`
+>   line, the step lines, the verdict line and the revocation lines, each
+>   prefixed by `go test` with the name of the checks file and a line number,
+>   then the `--- PASS:` or `--- FAIL:` line, `PASS` or `FAIL`, and the `ok`
+>   or `FAIL` line with the package and the time. Nothing in it is a token, a
+>   code, a URL or an id (`TestEarlierGrantReport_0081`); a build failure
+>   would be in it too. The owner sends the file, whole, and nothing from the
+>   window.
+> * **A run that measured something has a verdict line** in its file:
+>   `<provider>: kept`, `<provider>: ended` or `<provider>: indeterminate`. A
+>   file with none (a `--- SKIP:` line, a stop line `<provider>: stopped: ...`,
+>   a build error, or no file) is a run that did not measure; the owner says
+>   which, and the run is made again after the cause is put right.
+> * The file's place: `tmp/live-0081/<provider>.txt` in the checkout. The
+>   directory is covered by the `tmp/` rule of the repository's `.gitignore`
+>   (`git check-ignore -v tmp/live-0081/chatgpt.txt` names it), so nothing in
+>   it can be staged by a plain `git add`.
+>
+> **The commands.** Last, on purpose: they are run only after the sections
+> above have been read. Once, in the checkout, after the `git log` of step 1:
+>
+> ```sh
+> mkdir -p tmp/live-0081
+> ```
+>
+> Then, one provider at a time, as in steps 2 to 5 (the same sign-ins, in the
+> same order of providers); each is one line, and carries `-timeout 15m`,
+> because the run can now last up to nine minutes and forty seconds (above),
+> too near `go test`'s default ten:
+>
+> ```sh
+> LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=chatgpt go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -timeout 15m -v > tmp/live-0081/chatgpt.txt 2>&1; echo "go test exited $?"
+> LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=plan go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -timeout 15m -v > tmp/live-0081/plan.txt 2>&1; echo "go test exited $?"
+> LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=grok go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -timeout 15m -v > tmp/live-0081/grok.txt 2>&1; echo "go test exited $?"
+> LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=kilo go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -timeout 15m -v > tmp/live-0081/kilo.txt 2>&1; echo "go test exited $?"
+> ```
+>
+> Run them one at a time, each only after the one before has ended and its
+> `go test exited` line is on screen. Each holds no secret, as before.
+>
+> **What each run prints** (in its file): seven or eight lines (three, when
+> the baseline ends the run), then, for each grant the run obtained, one
+> revocation line.
+>
+> * `chatgpt sign-in-1: ok`
+> * `chatgpt baseline: status 200, kind ok, code -, requests 1`
+> * `chatgpt sign-in-2: ok`
+> * `chatgpt first-after: status 200, kind ok, code -, requests 1`
+> * `chatgpt control: status 200, kind ok, code -, requests 1`
+> * `chatgpt last-after: status 200, kind ok, code -, requests 1`, made only
+>   if `first-after` succeeded: a refresh token the provider refused is not
+>   sent again
+> * `chatgpt: kept` (or `ended`, or `indeterminate`)
+> * one revocation line per grant obtained, after the verdict line, whatever
+>   the verdict: for `plan`, `plan revoke-1: status 200, kind ok` and `plan
+>   revoke-2: status 200, kind ok`; for `kilo`, `kilo revoke-N: status 0, kind
+>   unsupported`; for `chatgpt` and `grok`, `<provider> revoke-1: status 0, kind
+>   by_hand` and `<provider> revoke-2: status 0, kind by_hand`, because the run
+>   does not revoke them (above)
+>
+> The count is of the round trips the step made. The SDK sends a refresh
+> again, with the same refresh token, up to three times in all, when its
+> request fails in transport or is answered 429 or 5xx, so `requests 2` or `3`
+> on a refresh says that the token was sent more than once. By the owner's
+> ruling "The run is `indeterminate`: run it once more (Recommended)", any use
+> step that made more than one request makes the whole run `indeterminate`,
+> whatever its status was; the count stays in the step line, and the re-run is
+> step 6's.
+>
+> **The verdict, by the owner's ruling "Add one step: refresh A once more
+> after the control (Recommended)".** A is the first session, B the second.
+> `baseline`, `first-after`, `last-after` and `control` are uses; "dead" is a
+> refusal as the grant gone (a 400 or 401 with `invalid_grant`,
+> `invalid_client`, `refresh_token_expired` or `refresh_token_invalidated`;
+> Kilo's: a 401, and only a 401: a 403 is the profile not being able to say);
+> "reused" is `refresh_token_reused`; "other" is any other failure. Any step
+> with `requests` above 1 first makes the verdict `indeterminate`; otherwise:
+>
+> | baseline | control | first-after | last-after | verdict |
+> | :--- | :--- | :--- | :--- | :--- |
+> | not ok, or ok but with `requests` above 1 | not made | not made | not made | `indeterminate`; the run ends before the second sign-in |
+> | any | not ok | any | any | `indeterminate` |
+> | ok | ok | ok | ok | `kept` |
+> | ok | ok | ok | dead | `ended` (the lazy case: the earlier grant answered once after the new sign-in, then did not) |
+> | ok | ok | ok | reused | `indeterminate` |
+> | ok | ok | ok | other | `indeterminate` |
+> | ok | ok | dead | not made | `ended` |
+> | ok | ok | reused | not made | `indeterminate` |
+> | ok | ok | other | not made | `indeterminate` |
+>
+> A baseline that failed, or that succeeded but made more than one request,
+> ends the run at once, `indeterminate`, before the second sign-in: its step
+> line prints with its count, then the verdict line, then the first grant's
+> revocation line (`by_hand` for `chatgpt` and `grok`). The owner is not asked
+> for a sign-in that could not change the verdict. `kept` says nothing of a grant that ends minutes after the run.
+> What a `last-after` that is made after a failed `first-after` would add is
+> nothing: the same refresh token would be sent again.
+>
+> **The sessions** are in the test's memory only and are gone when it ends.
+> Nothing is written to the owner's stored files, and the probe opens none.
 
 **Read this first.** If a provider does end earlier grants, the probe's
 own two sign-ins end your other sessions with that provider, in every app
@@ -358,8 +751,23 @@ module's app name at OpenAI as the existing plan live test does
    git log -1 --format=%h
    ```
 
+   > **DATED NOTE, 2026-11-19: THE COMMANDS OF STEPS 2 TO 5 BELOW ARE REPLACED
+   > BY THE AMENDMENT ABOVE. DO NOT RUN THEM.** Use the commands in the amendment's section "The commands" (above, in the amendment that opens Phase 1b), after
+   > reading its first section, "Before any command: what a run does to your
+   > accounts, and what is not known". Those commands carry `-timeout 15m` and
+   > write the test's output to `tmp/live-0081/<provider>.txt`, so that the Kilo
+   > code is alone in the window; run its `mkdir -p tmp/live-0081` once, after
+   > this step. The old commands below, run as well, would sign in twice more at
+   > the provider and leave two more grants under the owner's account (the
+   > `chatgpt` and `grok` ones by hand), with Kilo's code in the same window as
+   > the test's output. Steps 2 to 5 still say which sign-ins to make and in what
+   > order, and nothing else of theirs stands.
+
 2. The ChatGPT browser sign-in, twice: sign in in the browser window each
    time it opens, with the same account:
+
+   > **REPLACED, 2026-11-19: do not run the command below.** Run the `chatgpt`
+   > command of the amendment's section "The commands" (above, in the amendment that opens Phase 1b) instead.
 
    ```sh
    LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=chatgpt go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -v
@@ -368,11 +776,17 @@ module's app name at OpenAI as the existing plan live test does
 3. The ChatGPT plan sign-in, twice; the second may show OpenAI's consent
    again:
 
+   > **REPLACED, 2026-11-19: do not run the command below.** Run the `plan`
+   > command of the amendment's section "The commands" (above, in the amendment that opens Phase 1b) instead.
+
    ```sh
    LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=plan go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -v
    ```
 
 4. Grok's browser sign-in, twice:
+
+   > **REPLACED, 2026-11-19: do not run the command below.** Run the `grok`
+   > command of the amendment's section "The commands" (above, in the amendment that opens Phase 1b) instead.
 
    ```sh
    LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=grok go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -v
@@ -382,13 +796,36 @@ module's app name at OpenAI as the existing plan live test does
    the code the terminal shows as `Kilo code: ...`, and approve, each
    time:
 
+   > **REPLACED, 2026-11-19: do not run the command below.** Run the `kilo`
+   > command of the amendment's section "The commands" (above, in the amendment that opens Phase 1b) instead.
+
    ```sh
    LLMPROVIDER_LIVE_0081=1 LLMPROVIDER_LIVE_0081_PROVIDER=kilo go test -tags live_gateways ./llmprovider -run '^TestLive_EarlierGrant_0081$' -count=1 -v
    ```
 
 6. A run whose verdict is `indeterminate` is run once more, the same
    command; a second `indeterminate` is a stop.
+
+   > **Dated note, 2026-11-19.** "The same command" is the amendment's command
+   > for that provider. A re-run signs in twice more and leaves two more grants
+   > (by hand, for `chatgpt` and `grok`). An `indeterminate` is also any run in
+   > which a use step made more than one request, or whose baseline failed or did;
+   > a file with no verdict line is not an `indeterminate` but a run that did not
+   > measure, to be put right and made again (the amendment says what such a file
+   > holds).
+
 7. Close the terminal window.
+
+   > **Dated note, 2026-11-19.** Close it after the four files of
+   > `tmp/live-0081/` have been sent (the amendment's "What the window shows, and
+   > what the file holds").
+
+> **Dated note, 2026-11-19: SUPERSEDED.** A run now prints seven or eight lines
+> (three, when the baseline ends it) and one revocation line per grant, in its
+> file, `tmp/live-0081/<provider>.txt`, which the owner sends, whole; each use
+> step's line ends `, requests N`, and a `last-after` line follows `control`.
+> The amendment's "What each run prints" says it, with the lines for each
+> provider. The paragraph below describes the first draft.
 
 **What each run prints,** and what the owner sends back whole to the
 coordinator: five step lines and one verdict, for example
@@ -410,6 +847,14 @@ sends nothing, says so, and the PLAN stops.
 | `indeterminate` twice | a stop: the probe or the service could not tell, with the lines |
 | a provider not run | a stop: the PLAN names it and asks the owner whether to proceed without it |
 
+> **Dated note, 2026-11-19.** The verdicts are defined by the table in the
+> amendment's "The verdict", not by the first draft's: `ended` includes the lazy
+> case (the earlier grant answers once after the new sign-in and then does not);
+> `indeterminate` includes any run in which a use step made more than one
+> request and any run whose baseline failed; and only `kept` passes the test, so
+> a `go test exited 1` is any verdict but `kept`, or a run that did not measure.
+> "`kept` for all four" says nothing of a grant that ends minutes after a run.
+
 #### Phase 1c: the record (an agent)
 
 Model: lightweight, low.
@@ -421,6 +866,12 @@ Model: lightweight, low.
 
 Acceptance: four verdicts recorded, each `kept`; or a stop, with the
 owner's resolution recorded as a dated deviation before Phase 2.
+
+> **Dated note, 2026-11-19.** What the owner sends is a file per provider
+> (`tmp/live-0081/<provider>.txt`), and step 1 quotes its lines, the revocation
+> lines included, and records, for `chatgpt` and `grok`, the two grants left to be
+> removed by hand, with the owner's word when they are. A file with no verdict
+> line is not a verdict.
 
 ### Phase 2: the tests and the code, one commit
 
@@ -458,6 +909,27 @@ PLAN's execution record.
    | `TestResolveSavesInTheStep_0081` | `ResolveCredential` saves once and asks no model | green at `b109cea` (a guard) |
    | `TestCancelDuringDeviceFlowSavesNothing_0081` (new in this phase) | Grok's device sign-in through the real `auth` device flow, its issuer answered in process by the run's `HTTPClient`, the context ended during the listing: no save | to be seen red at the base; if the flow cannot be served in process without changing non-test code, the test is dropped and the execution record says why |
 
+   > **Annotation, 2026-11-18** (the MADR's amendment of the same date and this
+   > PLAN's deviation entry). At `a7e924f` the first four rows of this table are
+   > not red: record 0082 put a context check in `resolvedCredential.write`
+   > (`wizard/auth.go:1181`), so `TestCancelDuringListingSavesNothing_0081`,
+   > `TestCancelAfterIssueSavesNothing_0081`,
+   > `TestCancelDuringKiloProfileSavesNothing_0081` and
+   > `TestDeadlineDuringListingSavesNothing_0081` are green there. They are
+   > **guards**, each held by the plant "`write`'s context check removed". Their
+   > red column stands as the history at `b109cea`, where they are red. The
+   > tests red at the base are the other eight: `TestCancelledConfigureReturnsNoKey_0081`,
+   > `TestCancelAfterSaveReturnsTheResult_0081`,
+   > `TestCancelAtModelStageSavesNothing_0081`,
+   > `TestCancelAtModelStageReturnsNoKey_0081`,
+   > `TestCancelAtManualModelSavesNothing_0081`,
+   > `TestConfigureSavesOnceAfterTheModel_0081`,
+   > `TestModelStageErrorSavesNothing_0081` and
+   > `TestRotationDuringQuestionsSavedAtEnd_0081`. The three guards of the table
+   > are green at both revisions. `TestCancelDuringDeviceFlowSavesNothing_0081`
+   > and the ChatGPT plan's cases of the first row are still owed (the deviation
+   > entry says what they need).
+
 3. **Red.** `python3 -B tools/redgreen.py RED.json --expect fail --rev
    <base>` and `--rev b109cea`, for every test marked red, with the test
    files in `files`; the guards with `--expect pass`. Quote each failure.
@@ -477,6 +949,20 @@ PLAN's execution record.
      err) }`; then `commitCredential` as the last thing before each of the
      two `return res, nil` (the model-id branch and the end). Every error
      return after the step saves nothing (N2).
+
+   > **Annotation, 2026-11-18.** At `a7e924f` the session's windows (K2 to K4,
+   > K6) are covered by `write`'s check, which 0082 built and whose place 0082's
+   > N-6 fixes: after the lock, on every pass of the retry loop. Phase 2 does
+   > not move, remove or repeat it. What remains to build is: `commitCredential`
+   > (its check is the one a key and any no-session credential lacks; for a
+   > session it is the second check, before the lock); `ResolveCredential`
+   > without its own last check; `ConfigureLLM` calling the unsaved step,
+   > checking after it (N3) and committing at its end (N2). Phase 3's plants
+   > gain two on `write`'s check, each to name the test that fails: the check
+   > moved before the lock's wait, and the check skipped on the retry pass; a
+   > plant no test catches is a missing test, which Phase 2 adds. The Phase 2
+   > steps otherwise stand as written, and none starts before Phase 1c.
+
 5. **Docs**, in the same commit:
    * doc comments: `credentialStep` (saves right after its check, for
      `ResolveCredential`); `ConfigureLLM` (saves a new session as its last
@@ -738,3 +1224,588 @@ Phase 2 re-reads each at the base.
   "Accept all five and run each plan up to its live step or release
   (Recommended)". Its phases are committed and pushed by the coordinator as
   each passes. Tags and releases need the owner's word.
+
+### Deviation of 2026-11-18: 0082 already guards a session's write
+
+Found at the start of the first build attempt, before anything was built, and
+put to the owner by the coordinator; the amendment of the same date in the
+MADR carries the full account.
+
+* **Evidence.** `wizard/auth.go:1180` to `:1183`: `resolvedCredential.write`,
+  which every pass of `save`'s lock loop and the no-lock path run, begins with
+  `if err := ctx.Err(); err != nil { return fmt.Errorf("wizard: the new %s
+  session was not saved: %w", ...) }`; the session is given its store and
+  saved after it (`:1184`, `:1185`). Built by record 0082 (commits `8051b00`
+  to `fd986c4`); its N-6 is the note addressed to this record. Not
+  pre-existing at `b109cea`, where `save`'s only check was the conjunction with
+  `Token` (C2). On a scratch copy of `a7e924f` the drafted tests run as the
+  MADR's amendment tabulates: four of the fifteen that were red at `b109cea`
+  are green, eight are red, three were guards.
+* **What it changes.** The PLAN's Phase 2 table calls four tests red at the
+  base. They are not red at `a7e924f`. The PLAN's stop condition "a new test
+  cannot be red at the base without changing code that is not a test" would
+  have applied to them; the owner's ruling below is the resolution.
+* **Resolutions offered** (the three options of the stop report, the first
+  chosen): amend the record by a dated note and keep the four tests as guards
+  (recommended); build against the records as written and report each as a
+  documented deviation; drop the four tests and rely on plants alone (loses
+  the test for each session kind that D1 asks for).
+* **The owner's ruling, 2026-11-18** (relayed by the coordinator):
+  "Amend the record by dated note; keep the four tests as guards
+  (Recommended)". And on the order of work: "As the plan says: build the
+  probe now, I run it, then the code is built (Recommended)".
+* **Consequences recorded in this PLAN.**
+  * The four tests are guards, each with its plant: `write`'s context check
+    (`wizard/auth.go:1181` to `:1183`) removed. Seen to fail on a scratch copy
+    of `a7e924f`: `TestCancelDuringListingSavesNothing_0081` ("a sign-in
+    cancelled during its listing saved 1 time(s); want none", twelve cases),
+    `TestCancelAfterIssueSavesNothing_0081` ("a sign-in cancelled after the
+    issue saved 1 time(s); want none", both cases),
+    `TestCancelDuringKiloProfileSavesNothing_0081` ("a sign-in cancelled
+    during the profile read saved 1 time(s); want none"),
+    `TestDeadlineDuringListingSavesNothing_0081` ("a sign-in whose deadline
+    passed during its listing saved 1 time(s); want none"). The other three
+    guards are held by the plants of Phase 3.
+  * Phase 2's table and steps are annotated in place (additions only). What
+    remains to build is the key path (`commitCredential`'s check),
+    `ResolveCredential`'s own last check removed, and `ConfigureLLM` saving at
+    its very end after a check right after the step.
+  * **Owed in Phase 2.** `TestCancelDuringDeviceFlowSavesNothing_0081`, which
+    this PLAN adds and the drafting never wrote. It needs: Grok's device
+    sign-in through the real `auth` device flow, not the wizard's `deviceLogin`
+    seam (`wizard/device.go:31`); the issuer's device-code and token
+    endpoints answered in process through the run's `HTTPClient`, with no
+    listener; the issuer's poll interval (the auth package's own device tests
+    use 1 s, `llmprovider/auth/device_login_test.go:32`), so the test waits at
+    least one interval; the approval given, then the context ended during the
+    listing; and the expectation of the context's error and no save. If the
+    flow cannot be served in process without changing non-test code, the test
+    is dropped and the execution record says why, as the table's row says.
+    Likewise the ChatGPT plan's cases, with its consent scripted, which the
+    first row adds in Phase 2.
+* **The code claims, re-pointed at `a7e924f`** (the PLAN's own table above is
+  unchanged, at `b109cea`). Each row was checked by `tools/claims.py` on a
+  scratch copy with plain ids and `self=a7e924f`: 25 of 25 pass. 14
+  unchanged, 9 moved with the same text, 2 moved with changed text (P3, P7),
+  none no longer true.
+
+| Id | Claim | Now | Location at `a7e924f` | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| P1 now | The README's sign-in bullet | moved from line 388; text and meaning the same | `README.md:434` | `` - A sign-in saves its session to `Options.TokenStore`, once the model `` |
+| P2 now | The architecture's save paragraph | moved from line 391; text and meaning the same | `docs/architecture.md:393` | `` sign-in. A sign-in's session is saved to `Options.TokenStore` once the `` |
+| P3 now | and its "When a session is saved" | moved; the line was reflowed by 0080, same sentence | `docs/architecture.md:1120` | `- **When a session is saved.** A new session is saved once the check, the` |
+| P4 now | The changelog's open section | unchanged | `CHANGELOG.md:12` | `## [Unreleased]` |
+| P5 now | `Wait`'s doc | moved from line 251; text and meaning the same | `llmprovider/x/signin/signin.go:267` | `// Wait returns the credential the sign-in yields, or its error, which` |
+| P6 now | `ResolveCredential`'s last check's comment | moved from line 376; text and meaning the same | `wizard/configure.go:433` | `// A listing ctx ended is not a refusal: it falls back to the static` |
+| P7 now | `credentialStep`'s doc | moved; 0080 rewrote the first line: it now says the step checks, then lists | `wizard/configure.go:484` | `// credentialStep resolves d's endpoint and credential, then checks it` |
+| P8 now | The test seams: a fake transport | unchanged | `wizard/auth_test.go:349` | `type roundTripFunc func(*http.Request) (*http.Response, error)` |
+| P9 now | a session | unchanged | `wizard/auth_test.go:240` | `func testOAuthSession(provider llmprovider.ProviderID) *auth.OAuthSession {` |
+| P10 now | a JSON answer | unchanged | `wizard/session_0059_test.go:67` | `func answer0059(r *http.Request, status int, body string) *http.Response {` |
+| P11 now | a third party with no static catalog | unchanged | `wizard/describe_0056_test.go:94` | `func registry0056(t *testing.T, static []string, err error) *llmprovider.Registry {` |
+| P12 now | the provider menu's index | unchanged | `wizard/configure_test.go:21` | `func providerIdx(t *testing.T, id llmprovider.ProviderID) int {` |
+| P13 now | 0059's W2 | unchanged | `docs/decisions/0059-MADR-wizard-debugging-pass-findings.md:88` | `* **W2. A fresh sign-in replaces the saved session before the listing` |
+| P14 now | and its amendment | moved from line 490; text and meaning the same | `docs/decisions/0059-MADR-wizard-debugging-pass-findings.md:494` | `## Amendment 2026-10-24: a refresh can outlast the listing (Phase 2)` |
+| P15 now | 0056's D1 | unchanged | `docs/decisions/0056-MADR-wizard-credential-only-entry-point.md:136` | `` ### D1. `wizard.ResolveCredential` `` |
+| P16 now | `saveTo`'s comment | unchanged | `wizard/auth.go:55` | `// saveTo is the store a new session is due to: credentialStep saves it` |
+| P17 now | `Options.TokenStore`'s doc | moved from line 117; text and meaning the same | `wizard/configure.go:128` | `// TokenStore persists sessions created by the browser, device-code and` |
+| P18 now | 0059's W8 | moved from line 143; text and meaning the same | `docs/decisions/0059-MADR-wizard-debugging-pass-findings.md:147` | `` * **W8. `ConfigureLLM` asks questions on an ended context** **[probed]** `` |
+| P19 now | A record's own live variable | unchanged | `AGENTS.md:266` | `` switched on by `LLMPROVIDER_LIVE_<NNNN>`, with suffixes for its options, as `` |
+| P20 now | The plan's live sign-in registers this module's name | unchanged | `llmprovider/live_chatgpt_plan_test.go:17` | `const planAgentName = "go-llmprovider-sdk"` |
+| P21 now | auth's terminal refresh codes, the probe's allow-list | unchanged | `llmprovider/auth/oauth_session.go:62` | `"invalid_grant", "invalid_client",` |
+| P22 now | A session can be made due, to force one refresh | moved from line 484; text and meaning the same | `llmprovider/auth/oauth_session.go:595` | `func (s *OAuthSession) Invalidate() {` |
+| P23 now | The plan sign-in takes the earlier session as `Previous` | unchanged | `llmprovider/auth/oauth_plan.go:61` | `Previous *OAuthSession` |
+| P24 now | Kilo's profile read, the probe's use of a Kilo session | moved from line 179; text and meaning the same | `llmprovider/auth/kilo_device.go:187` | `func KiloProfile(ctx context.Context, token string, opts ...llmprovider.Option) (KiloAccount, error) {` |
+| P25 now | The checks a live test shares with its offline twin | unchanged | `llmprovider/live_checks_test.go:3` | `// The checks the person-gated live tests run after their sign-in, untagged so` |
+
+* **What did not change.** Phase 1's probe is built as the PLAN writes it
+  (Phase 1a, next); Phase 1b is the owner's; no code of Phase 2 is built.
+
+### Phase 1a (2026-11-18): the probe, built and not run
+
+Built under the owner's ruling "As the plan says: build the probe now, I run
+it, then the code is built (Recommended)" (the deviation entry above). No
+agent ran the live test, signed in, or held a token or a session; the live
+test was compiled and vetted only.
+
+* **Files.** `llmprovider/live_0081_grant_test.go` (new, `//go:build
+  live_gateways`): `TestLive_EarlierGrant_0081`, the real sign-ins, the real
+  browser opener and terminal device. `llmprovider/live_checks_test.go`
+  (untagged, appended): the recorder, the step and verdict code, `earlierGrant`
+  with its `run`, the two uses of a session. `llmprovider/live_twins_test.go`
+  (untagged, appended): `TestEarlierGrantReport_0081` (the redaction proof and
+  every verdict, twenty-two cases), `TestEarlierGrantStops_0081` (four),
+  `TestGrantRecorder_0081` (four). `AGENTS.md` ("Live tests"): one sentence
+  naming the probe, its two variables and where its commands are. No exported
+  name; no existing test changed.
+* **The PLAN's steps, and where each is.**
+  * Step 1, the switch: the test's first statement skips unless
+    `LLMPROVIDER_LIVE_0081` is `1`; the provider is validated against
+    `chatgpt`, `plan`, `grok`, `kilo` before any request, and any other value
+    fails with a fixed message that does not repeat it. Both variables are the
+    record's own (`tables-check` below).
+  * Step 2, memory only: no store is opened or passed; `os.Getenv` is called
+    for the two variables only (a search of the new code finds no other; the
+    HTTP transport reads the proxy variables, and the browser opener inherits
+    the environment); the plan's two sign-ins share a random host id
+    the test makes (the second takes it from `Previous`).
+  * Step 3, what the person sees: `grantShow.URL` hands a URL to the system's
+    opener only; `grantShow.Code` writes `Kilo code: <code>` to `/dev/tty`
+    only; nothing is pasted (no `InputCode`); on either failing the run stops
+    with `<provider>: stopped: the browser could not be opened` or `the
+    terminal device could not be opened`, which hold neither the URL, the code
+    nor the error's text. The opener and terminal are `grantIO` seams the twin
+    replaces.
+  * Step 4, the sequence: `earlierGrant.run`: sign-in-1, baseline, sign-in-2
+    (the plan's with the first session as `Previous`), first-after, control.
+  * Step 5, the use: one forced refresh (`Invalidate`, then `Token`) for
+    chatgpt, plan and grok, so each refresh token is sent once; one
+    `auth.KiloProfile` read for Kilo.
+  * Step 6, the record: `grantRecorder`, the transport of every request;
+    `"%s %s: status %d, kind %s, code %s"`, the sign-in steps' `"%s %s: %s"`,
+    and `"%s: %s"` for the verdict, each line passed through
+    `redact.String`.
+  * Step 7, the proof: the twin, below.
+  * Step 8, the read: below.
+* **Where the PLAN left room, and the reading taken.** None is a deviation
+  (each is inside a step as written); each is for review.
+  * A sign-in that fails ends the run with the verdict `indeterminate` (the
+    later steps cannot be measured); a failed baseline or control does not
+    stop it, and the verdict is `indeterminate`.
+  * `ended` is read as step 6's parenthesis says: kind `auth`, a status of 400
+    or 401 and a terminal code other than `refresh_token_reused`; for Kilo,
+    kind `auth` and a 401.
+  * The recorder's code is `other` for an error field that is not on the
+    allow-list, and `-` for a refusal with no OAuth error field at all (a
+    plain 401, a body that is not JSON).
+  * Only `kept` passes the test; `ended` and `indeterminate` fail it, so that
+    `go test` says so, with the verdict line above.
+  * One sign-in waits up to four minutes and the run is bound by nine, inside
+    `go test`'s default ten, so the owner's commands (which carry no
+    `-timeout`) stand as written.
+  * The opener is `open` (macOS) or `xdg-open` (Linux), given an http or
+    https URL only; elsewhere the run stops with the browser line.
+* **Step 8's read.** The three files were read. Every log or failure call in
+  the new code, by search: `t.Skip` and `t.Fatal` with fixed messages (the
+  last, `t.Fatal(stopped)`, a line built from a validated provider name and
+  one of two fixed reasons), `t.Fail()` with no message, and `earlierGrant.say`
+  at three sites, each given a provider name, a fixed step name, a status, an
+  error's kind word and an allow-listed code or `-`. No call is given a
+  session, a token, a variable holding one, an error's text or a body.
+* **Without the switch, and without the tag.** With the tag and the switch
+  unset the test's first statement is `t.Skip`, before any request, any
+  session and any read of a credential; the package has no `TestMain` and the
+  new code has no `init`. Without the tag the file is not compiled: `go list`
+  lists `live_0081_grant_test.go` among the test files only with
+  `-tags live_gateways`.
+* **Twin, red then green.** Each verdict branch and each guard of the
+  redaction was seen to fail on a plant, on a scratch clone with
+  `tools/plant.py` (17 of 17 caught, each by a test failure, none by a build
+  failure; the spec and output are kept outside the tree), then pass on the
+  unplanted tree:
+
+  | Plant | A test it failed |
+  | :--- | :--- |
+  | the step line is given the error's text | `TestEarlierGrantReport_0081/chatgpt/ended`: "the output holds a planted value (40 characters, starting "rt00")" |
+  | the recorder keeps a code outside the allow-list | `TestEarlierGrantReport_0081/chatgpt/control_fails`, and the three other providers' |
+  | the verdict is computed without the control | `TestEarlierGrantReport_0081/chatgpt/control_fails`, all four providers |
+  | the verdict is computed without the baseline | `TestEarlierGrantReport_0081/chatgpt/baseline_fails`, all four providers |
+  | the user code is logged to the output as well as the terminal | `TestEarlierGrantReport_0081/kilo/kept`, and `TestEarlierGrantStops_0081` |
+  | the opener's failure falls back to logging the URL | `TestEarlierGrantStops_0081/the_browser_fails`: "the output holds a planted value (40 characters, starting "http")" |
+  | a kept verdict is reported as ended | `TestEarlierGrantReport_0081/chatgpt/kept`, all four providers |
+  | an ended verdict is reported as indeterminate | `TestEarlierGrantReport_0081/chatgpt/ended`, all four providers |
+  | an indeterminate verdict is reported as kept | `TestEarlierGrantReport_0081/chatgpt/reused`, and the unlisted-code and plain-401 cases |
+  | `refresh_token_reused` is read as an ended grant | `TestEarlierGrantReport_0081/chatgpt/reused`, plan, grok |
+  | Kilo's ended grant is not its 401 | `TestEarlierGrantReport_0081/kilo/ended` |
+  | the plan's second sign-in is made without `Previous` | `TestEarlierGrantReport_0081/plan/kept`: "the plan's second sign-in was not made with the first session as Previous" |
+  | the recorder reads a successful response's body | `TestGrantRecorder_0081/a_success's_body_is_not_read` |
+  | the recorder does not put a refusal's body back | `TestEarlierGrantReport_0081/chatgpt/ended` |
+  | the recorder reads the request's body | `TestGrantRecorder_0081` |
+  | the terminal device is not checked before the first sign-in | `TestEarlierGrantStops_0081/the_terminal_device_cannot_be_opened` |
+  | the browser opener is not checked before the first sign-in | `TestEarlierGrantStops_0081/there_is_no_browser_opener`: "stopped "", verdict "kept", 2 sign-ins; want "grok: stopped: the browser could not be opened", none, 0" |
+
+  Survivors: none. The twin also shows its own precondition: the SDK's error
+  for a refused refresh carries the planted echo, so keeping the error's text
+  out of the output is a thing the test can fail on (the `ended` cases assert
+  it).
+* **Gates** (each with its status taken before any filter; heavy runs through
+  `run-heavy` or `run-on-host`):
+
+  | Gate | Where | Status |
+  | :--- | :--- | :--- |
+  | `make pre-add-check FILES="llmprovider/live_checks_test.go llmprovider/live_twins_test.go llmprovider/live_0081_grant_test.go"` (gofmt, lint for the host and `GOOS=windows`, vet, test, govulncheck) | session host, `run-heavy` | 0; its first run failed on one `bodyclose` finding in the new recorder test, fixed by closing the body |
+  | `go vet ./...`, `GOOS=windows go vet ./...`, `go vet -tags live_gateways ./...` | session host | 0, 0, 0 |
+  | `go test -tags live_gateways -c -o /dev/null ./llmprovider/` (compiled, never run) | session host | 0 |
+  | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | session host | 0; the one addition listed is `llmprovider/x/signin.VerifyKilo` (0080), none from this change |
+  | `go test -race -count=20 -timeout 30m ./llmprovider/` | session host (darwin/arm64), `run-heavy` | 0, 225 s |
+  | `go test -race -count=1 -timeout 45m ./...` | `pick-host` chose a Windows machine, native, through `run-on-host --race` (not a WSL distro) | 0, 43 packages ok, none failing |
+  | the 17 plants | scratch clone | 17 of 17 caught, twice (before and after the `bodyclose` fix) |
+
+  The record and docs gates after the last record edit are in the handoff.
+* **Not run, by design.** The live test itself; no environment variable of
+  the probe was set in any command.
+
+### Phase 1a, review fixes (2026-11-18)
+
+The independent review of the staged Phase 1a returned PASS WITH FINDINGS:
+the output's secrecy holds, and no request bypasses the injected client. The
+findings below were fixed in place, before any command was handed to the
+owner; nothing was committed. The live test was not run, and every experiment
+ran with `LLMPROVIDER_LIVE_0081` and `LLMPROVIDER_LIVE_0081_PROVIDER` unset
+and, for the twin and the plants, under a sandbox that denies every outbound
+connection but loopback.
+
+* **F1, the recorder read one shape of the code.** `grantCodeOf`
+  (`llmprovider/live_checks_test.go:1420`) now reads `{"error": "code"}`,
+  `{"error": {"code": "code"}}` and `{"code": "code"}`, lower-cased, in the
+  SDK's own order, then keeps the code only if it is on the allow-list. Before,
+  a nested `refresh_token_invalidated` printed `code other` and the verdict
+  `indeterminate` where it should have been `ended`, a nested
+  `refresh_token_reused` printed `other` so the stop on it could not be seen,
+  and an upper-case code printed `other`. Question: can the recorder share
+  `refreshErrorCode`'s logic? **No.** It is unexported in package `auth`; a
+  test of package `llmprovider_test` cannot name it (a scratch file naming it
+  fails: `undefined: auth.refreshErrorCode`), and `auth` has no
+  `export_test.go`, which in any case reaches only `auth`'s own tests; exporting
+  it is an API change that this record does not make. So it is a copy, and
+  `TestGrantCodeAgreesWithTheSDK_0081` (`llmprovider/live_twins_test.go:2606`)
+  fails if the two disagree: it sends 27 bodies (the five codes flat, nested,
+  bare, upper and mixed case, and unlisted, empty, null, numeric and
+  unparseable ones) to the SDK's real refresh as a 400, and requires that the
+  SDK's verdict (an auth failure, a dead refresh token) equal "the recorder's
+  code is terminal", and that the code equal the expected one. What it cannot
+  see is the code's exact value, which the SDK does not expose; it sees
+  whether it is terminal. Twin cases, each red first by a plant that undoes
+  the fix (table below): `TestEarlierGrantReport_0081/the_shape:_*` (nested
+  `invalid_grant`, `refresh_token_invalidated`, `refresh_token_expired`,
+  `refresh_token_reused`, a bare code, a bare reused code, upper case, upper
+  case reused).
+* **F2, the time a sign-in has.** Phase 1b's amendment of the same date
+  says each sign-in must finish within four minutes, how the run's nine
+  minutes are spent (two full sign-ins leave a minute for four uses, which
+  take seconds, and the revocations have a bound of their own, so a person who
+  takes the whole four minutes twice is not cut off), and that a sign-in
+  that takes longer is cancelled, the result `indeterminate` and the re-run
+  two new sign-ins.
+* **F3, the terminal and the output.** The four commands now write the test's
+  output to `tmp/live-0081/<provider>.txt` and end with `echo "go test exited
+  $?"`; the window shows only Kilo's user code (written to `/dev/tty`, which
+  the redirection does not capture) and that one line, and the file holds all
+  of `go test`'s output. `.gitignore`'s `tmp/` rule covers the directory
+  (`git check-ignore -v tmp/live-0081/chatgpt.txt` names `.gitignore:15`); no
+  rule was added. The amendment says what the window shows and what the file
+  holds.
+* **F4.** Phase 1b's amendment and Phase 1a's step 3 annotation say that the
+  authorize URL goes to the opener as a process argument and into the
+  browser's history, that the plan's second URL carries the first session's ID
+  token as `id_token_hint` (`llmprovider/auth/oauth_plan.go:251`), and that the
+  shipped sign-ins do the same.
+* **F5.** Phase 1b's amendment says what a run leaves behind and what it
+  removes (two grants per run, Kilo's without expiry and not revocable, one
+  plan client registered per run, all doubled by a re-run). Whether the probe
+  revokes its own grants was the owner's, and is ruled below: it does, after
+  the verdict is printed.
+* **F7, first half.** `grantRecorder` counts the round trips a step completes
+  (`llmprovider/live_checks_test.go:1374`), and a use step's line ends `,
+  requests N` (`:1690`). The SDK sends a refresh again, with the same token,
+  on a transport error, a 429 or a 5xx, up to three in all; the twin shows
+  `requests 3` for a 500 on a refresh, `requests 1` for Kilo's profile read
+  and `requests 2` for a refresh that was answered 503 once. What a count above
+  one means for the verdict was then the owner's to rule, and is ruled below
+  (a use step that made more than one request makes the run `indeterminate`).
+* **F8, the twin proved the code against its own assumptions.**
+  * Is the stop on a failed opener reachable on the live path? **Yes, by the
+    opener's own side effect.** `runBrowserLogin` calls `OpenURL` from a
+    goroutine and ignores its error (`llmprovider/auth/oauth_loopback.go:220-222`),
+    so the stand-ins' synchronous error proved nothing about it; but
+    `grantShow.URL` records the stop and cancels the sign-in's context itself
+    (`llmprovider/live_checks_test.go:1616`), not through what it returns, and
+    the cancel ends the browser login through its context. Two new twin cases
+    show it: a sign-in stand-in that calls the opener from a goroutine,
+    ignores the error and blocks on its context, and the shipped
+    `auth.LoginBrowserOAuth` itself against the fake issuer (discovery
+    answered), each stopped within two seconds with the plain line. For Kilo,
+    the opener is called by the probe itself, synchronously. A failed write to
+    the terminal is handled the same way (its cancel is `Code`'s own).
+  * Survivors of the reviewer's 14 plants and of the first pass's 17 were
+    given twin cases, red first by plant (table below): A (`redact.String`
+    dropped): `TestEarlierGrantSay_0081`; D (a 5xx body not put back), J (the
+    first status kept), K (a transport error keeps the old status): the
+    recorder cases of `TestGrantRecorder_0081`; E (the wait unbounded), H and L
+    (no cancel on a failed opener or terminal write): the stop cases of
+    `TestEarlierGrantStops_0081`; G (`ended` at any status) and M (a 200
+    carrying an error read as `kept`): `TestGrantVerdict_0081`; I (auth before
+    canceled): `TestGrantKind_0081`.
+  * B and C and N lived in the tagged file. B, the scheme and host check,
+    is now `grantWebURL` in the untagged file with `TestGrantWebURL_0081`. C,
+    the switch, and the provider check are `grantRunTest`, which the live test
+    calls with `os.Getenv`, with `TestEarlierGrantRunTest_0081` (the switch
+    off skips and builds nothing; a provider that is none of the four fails
+    at once with a message that does not repeat it; the verdict decides the
+    failure). N, `t.Fail()`, is `grantApply`, which the live test calls with
+    its `*testing.T`, with `TestGrantApply_0081` on a stand-in. What stays in
+    the tagged file and has no twin: the binding of `os.Getenv`, the real
+    sign-ins, the opener and terminal, the call of `grantApply(t, out)`; the
+    twin cannot reach them without a live run, and what holds them is the
+    compile, vet and the review's read.
+* **F9.** Phase 1a's step 5 text, "Grok's discovery document, which comes
+  first", is corrected by annotation: a refresh makes no discovery request.
+* **F10.** `AGENTS.md`'s sentence now says the probe prints step lines and a
+  verdict (a status, an error's kind, an allow-listed code and a request
+  count per step), and where its output goes.
+* **F11.** "Reads no environment variable but its two" is corrected in
+  Phase 1a's step 2 by annotation and in the Phase 1a entry above: the test
+  calls `os.Getenv` for those two; the transport reads the proxy variables and
+  the opener inherits the environment.
+* **F12, a reading taken.** The recorder reads the body of every response of
+  400 or more, not only a refused refresh's, as step 6 says; only an
+  allow-listed code is kept, and every body is put back.
+* **F13, the edge case.** A use that times out at one minute while its
+  refresh, detached from the caller, is still running leaves a late reply that
+  can overwrite the next step's status, and the plan's second sign-in reads the
+  first session's fields without the session's lock. It is not expected (the
+  refresh's own bound is under the minute), and the step lines would show it
+  as `canceled` for the use and an extra round trip counted in the next
+  step's `requests`: the count makes it visible. Recorded in Phase 1a's
+  annotation.
+* **The owner's four rulings of the same day**, relayed by the coordinator, each
+  label quoted as a label; Phase 1a's annotations say what each built and
+  Phase 1b's amendment says what the owner is told.
+  * "Only `kept` passes (Recommended)": `grantPasses`
+    (`llmprovider/live_checks_test.go:1544`), as built, now with its own twin
+    test (`TestGrantPasses_0081`) and a plant.
+  * "Revoke the probe's own two grants at the end, after the verdict is printed
+    (Recommended)": `earlierGrant.finish` (`:1724`) prints the verdict, then
+    `revokeAll` (`:1747`) revokes each session obtained with the SDK's
+    `auth.RevokeOAuthSession`, on a context detached from the run's and bound
+    at twenty seconds. What `RevokeOAuthSession` does for each provider, with
+    the lines of its code: `chatgpt`, a JSON request to OpenAI's `/oauth/revoke`
+    (`llmprovider/auth/oauth_revoke.go:92`; the run does not send it, see below);
+    `plan`, discovery then a form
+    request to the discovered revocation endpoint with the issued client id
+    (`:144`); `grok`, discovery then a form request (`:123`); `kilo`, no request,
+    an error matching `ErrUnsupported` (`:72`). Each is sent through the
+    session's own HTTP client (`:53`, `:79`), which the run has set to the
+    recorder's. No call of the SDK removes the client a plan sign-in registers,
+    and none revokes Kilo's device token; no non-test code was added or
+    changed, and both are on Phase 1b's by-hand list. Whether a revocation can
+    end anything besides the grant it names is not verified, and Phase 1b says
+    so before the run. Twin: `TestEarlierGrantRevocation_0081` (revoked,
+    refused, server error, unsupported by `TestEarlierGrantReport_0081/kilo/*`,
+    bound expired, the run's bound already passed, a failed first sign-in, a
+    stop after the first sign-in).
+  * "Add one step: refresh A once more after the control (Recommended)": the
+    sixth step `last-after`, and the verdict table in Phase 1b's amendment,
+    written before the code; `grantVerdict` (`:1505`) and
+    `TestGrantVerdict_0081` hold every row.
+  * "The run is `indeterminate`: run it once more (Recommended)":
+    `grantVerdict`'s first loop. The revocation requests are kept out of the
+    count (Phase 1a's annotation).
+  * Readings changed by these, ruled on 2026-11-19: "As built: never resend a
+    refused token; the last step runs only after a success (Recommended)"
+    (`last-after` only after a successful `first-after`), and "As built now: a
+    failed baseline ends the run as `indeterminate` (Recommended)". No code
+    changed for either. Readings the owner was told and did not change: the
+    four-minute wait, the nine-minute bound and `xdg-open`. The commands now
+    carry `-timeout 15m`.
+  * The `chatgpt` revoke risk, ruled on 2026-11-19: "Run `chatgpt` with
+    revocation switched off; its two grants are listed for removal by hand
+    (Recommended)". `grantRevokes` (`llmprovider/live_checks_test.go`, after
+    `grantRevokeLimit`) is false for `chatgpt` only, and `revokeAll` makes no
+    request for it on any path; its lines read `chatgpt revoke-N: status 0, kind
+    by_hand`, a fixed word that is neither `ok`, nor Kilo's `unsupported`, nor
+    a failure (`grantByHand`). Phase 1b's table lists the two grants under
+    Codex's client id as left, to be removed by hand, and keeps the
+    not-verified statement as the reason. The twin runs `chatgpt` on the
+    verdict, indeterminate and stop paths and requires zero requests to a
+    revocation endpoint and the fixed lines; the revocation twin cases that used
+    `chatgpt` as the provider that is revoked now use `plan`, the only provider
+    the run revokes after the rulings below.
+* **The second review's findings (2026-11-19).** The reviewer's final read
+  found the code sound and every ruling built as labelled; its findings, fixed
+  in place, nothing committed:
+  * **N2, the order of Phase 1b's amendment.** The amendment now opens with
+    "Before any command: what a run does to your accounts, and what is not
+    known": a table, per provider, of what the run does to the real account
+    and what is not known, then the not-verified statement and `grok`'s facts
+    (its revocation sends the Grok CLI's own client id,
+    `llmprovider/auth/oauth_constants.go:13`, set at
+    `oauth_loopback.go:296-301` and sent at `oauth_revoke.go:137` and `:159`:
+    the condition that led the owner to switch `chatgpt`'s off; `plan` revokes
+    only the client the probe registered). The commands are the amendment's
+    last section but one, with a line that says they are run only after the
+    rest has been read. The owner then ruled `grok`'s revocation off (below),
+    and the table and the by-hand list say so.
+  * **N3, the MADR.** A dated amendment under D12 quotes the nine labels and
+    says what each changes in D12; no line above it is touched.
+  * **N4, a 403 is not a dead grant.** Kilo's profile answering 403 is
+    classified an auth failure by the SDK (`llmprovider/api_error.go:225`) and
+    is, by 0080-MADR, the profile not able to say. `grantDead`
+    (`llmprovider/live_checks_test.go:1527`) takes only a 401 for Kilo, and,
+    for the others, only a 400 or 401 with a terminal code. The twin cases:
+    `TestEarlierGrantReport_0081/<provider>/forbidden` for all four providers
+    (indeterminate), and rows of `TestGrantVerdict_0081` for Kilo's 403, 404,
+    500 and 200 auth failures and for a terminal code at 403, 404, 422, 429 and
+    502 for the others. Red first by the reviewer's plant P9 and by N4-1 and
+    N4-2, which the twin did not notice before.
+  * **N5, the recorder read more than the SDK.** The recorder read 64 KiB for
+    the code where the SDK reads 2048 bytes (`oauthErrorBodyLimit`,
+    `llmprovider/auth/oauth_session.go:32`), so a longer body gave the
+    recorder a code and the SDK none. `grantErrorCode`
+    (`llmprovider/live_checks_test.go:1402`) now reads `grantCodeLimit`
+    (`:1397`, 2048) bytes for the code, and still puts the whole body back.
+    The agreement table gains bodies of exactly 2048, 2049, about 3000 and
+    70000 bytes, and the recorder test a long body put back whole. Red first:
+    plant N5-1 (`grantCodeLimit` back to 64 KiB) fails
+    `TestGrantCodeAgreesWithTheSDK_0081` with "the SDK calls the refresh token
+    dead: false; the recorder's code "invalid_grant" is terminal: true", the
+    reviewer's demonstration.
+  * **N6 and N8, the window and the `grok` facts.** In the same amendment: `go
+    test exited 0` also shows on a skip or "no tests to run", and `exited 1`
+    also when the redirect failed because `tmp/live-0081/` is missing (no file);
+    a run that measured has a verdict line in its file. For `grok`: xAI answers a
+    reused token as plain `invalid_grant` (`xai-grok-login/src/error.rs:77`), so
+    only the count rule guards a `grok` verdict. The notes about a failed `grok`
+    revoke line and about a discovery that fails fell away with the ruling that
+    switches `grok`'s revocation off; its by-hand entry replaces them.
+  * **N1, `grok`'s revocation (ruling of 2026-11-19).** "Switch `grok`'s
+    revocation off too; its two grants are listed for removal by hand
+    (Recommended)". `grantRevokes` (`llmprovider/live_checks_test.go:1320`) is
+    false for `grok` as for `chatgpt`; the run makes no revocation request, and
+    no discovery request for one, on any path, and its lines read `grok
+    revoke-N: status 0, kind by_hand`. Only `plan` is revoked by the run. The
+    twin runs `chatgpt` and `grok` on the verdict, indeterminate, stop and
+    bound-passed paths, requiring zero revocation requests and zero discovery
+    requests (`TestEarlierGrantRevocation_0081/<provider>'s_grants_are_not_revoked,_*`);
+    the revocation cases that used `grok` move to `plan`. Plants: R6-1 (the
+    `grok` switch removed), R6-2 (`plan` switched off by mistake), R6-3 (a `grok`
+    line reading `ok`), R6-4 (the `chatgpt` switch removed).
+  * **N7, a baseline of more than one request (ruling of 2026-11-19).** "Stop
+    there: end the run as `indeterminate` before the second sign-in
+    (Recommended)". `earlierGrant.run` ends the run after the baseline when its
+    count is above one, on the path a failed baseline takes
+    (`llmprovider/live_checks_test.go:1698`, the first grant revoked where the
+    revocation is on, a `by_hand` line otherwise, the baseline's line printed
+    with its count). The row is in Phase 1b's verdict table and in
+    `grantVerdict`'s doc; `TestGrantVerdict_0081` has a row, and
+    `TestEarlierGrantReport_0081/<provider>/a_baseline_that_needed_two_requests_ends_the_run_before_the_second_sign-in`
+    the end-to-end case. Plants: R7-1 (the run goes on to the second
+    sign-in), R7-2 (a baseline of three requests is not read).
+
+* **The plants** (`tools/plant.py` on a scratch clone, under a sandbox that denies
+  every outbound connection but loopback, `LLMPROVIDER_LIVE_0081` and
+  `LLMPROVIDER_LIVE_0081_PROVIDER` unset; each by a test failure, none by a build
+  failure; the spec and output are kept outside the tree). The reviewer's 14
+  (A to N), the 17 of the first pass re-expressed for the code as it now
+  reads, one or more for each fix and each ruling, and the reviewer's 15 of the second review (the survivor among them, a Kilo 403 taken as dead, is caught since N4). `plant: all 88 plant(s) caught`.
+  Survivors: none among them. What no twin reaches, and what holds it
+  instead: in the live test, the binding of `os.Getenv` into `grantRunTest`,
+  the call of `grantApply(t, out)`, the real sign-ins, the real opener and
+  terminal (the compile, the vet, and the read of the file; a plant of the
+  binding or the call is not caught, because the test cannot be run without a
+  person). A plant of the tagged file could not be run by the twin's build,
+  which does not compile it.
+
+| Plant | A test it failed |
+| :--- | :--- |
+| A: redact.String dropped from the output line | `TestEarlierGrantSay_0081` |
+| B: the web-URL check removed | `TestGrantWebURL_0081` |
+| C: the switch made never true | `TestEarlierGrantRunTest_0081/the_switch_is_off` |
+| D: a 5xx body not put back | `TestGrantRecorder_0081/a_refusal's_code_is_kept_and_its_body_put_back` |
+| E: the sign-in wait unbounded | `TestEarlierGrantStops_0081/the_wait_for_the_person_is_bounded` |
+| F: the baseline's rotation not carried | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| G: ended accepted at any status | `TestEarlierGrantReport_0081/chatgpt/forbidden` |
+| H: no cancel on a browser failure | `TestEarlierGrantStops_0081/a_browser_sign-in_that_ignores_the_opener's_error_is_stopped_by_the_opener` |
+| I: auth checked before canceled | `TestGrantKind_0081` |
+| J: the first status kept, not the last | `TestEarlierGrantReport_0081/chatgpt/a_baseline_that_needed_two_requests_ends_the_run_before_the_second_sign-in` |
+| K: a transport error keeps the old status | `TestEarlierGrantRevocation_0081/a_revocation_that_outlasts_its_bound_is_cut` |
+| L: no cancel on a terminal write failure | `TestEarlierGrantStops_0081/the_terminal_device_fails_to_take_the_code` |
+| M: a 200 carrying an error read as kept | `TestGrantVerdict_0081` |
+| N: the live test's t.Fail() removed | `TestGrantApply_0081` |
+| N2: a stop's message is not fatal | `TestGrantApply_0081` |
+| N3: the switch off is not a skip | `TestGrantApply_0081` |
+| 1: the step line is given the error's text | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| 2: the recorder keeps a code outside the allow-list | `TestEarlierGrantReport_0081/chatgpt/control_fails` |
+| 3: the verdict is computed without the control | `TestEarlierGrantReport_0081/kilo/control_fails` |
+| 4: the verdict is computed without the baseline | `TestGrantVerdict_0081` |
+| 5: the user code is logged to the output as well as the terminal | `TestEarlierGrantReport_0081/kilo/kept` |
+| 6: the opener's failure falls back to logging the URL | `TestEarlierGrantRevocation_0081/a_stop_after_the_first_sign-in_still_revokes_it,_after_no_verdict` |
+| 7: a kept verdict is reported as ended | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| 8: an ended verdict (the first later use dead) is reported as indeterminate | `TestEarlierGrantReport_0081/chatgpt/ended` |
+| 8b: the lazy ending is reported as indeterminate | `TestEarlierGrantReport_0081/chatgpt/lazy` |
+| 9: an indeterminate verdict is reported as kept | `TestEarlierGrantReport_0081/chatgpt/forbidden` |
+| 10: refresh_token_reused is read as an ended grant | `TestEarlierGrantReport_0081/chatgpt/reused` |
+| 11: Kilo's ended grant is not its 401 | `TestEarlierGrantReport_0081/kilo/ended` |
+| 12: the plan's second sign-in is made without Previous | `TestEarlierGrantReport_0081/plan/kept` |
+| 13: the recorder reads a successful response's body | `TestGrantRecorder_0081/a_success's_body_is_not_read` |
+| 14: the recorder does not put a refusal's body back | `TestEarlierGrantReport_0081/chatgpt/ended` |
+| 15: the recorder reads the request's body | `TestGrantRecorder_0081/a_refusal's_code_is_kept_and_its_body_put_back` |
+| 16: the terminal device is not checked before the first sign-in | `TestEarlierGrantReport_0081/kilo/kept` |
+| 17: the browser opener is not checked before the first sign-in | `TestEarlierGrantStops_0081/there_is_no_browser_opener` |
+| F1a: the code is read case-sensitively | `TestEarlierGrantReport_0081/the_shape:_an_upper-case_code` |
+| F1b: the nested shape is not read | `TestEarlierGrantReport_0081/the_shape:_nested_invalid_grant` |
+| F1c: the bare code is not read | `TestEarlierGrantReport_0081/the_shape:_a_bare_code` |
+| F1d: refresh_token_invalidated is not terminal | `TestEarlierGrantReport_0081/the_shape:_nested_refresh_token_invalidated` |
+| F7a: a transport error is not counted | `TestGrantRecorderSteps_0081/a_transport_error_forgets_the_status_of_the_response_before_it` |
+| F7b: a step does not begin from a zero count | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| F7c: the line does not carry the count | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R1-1: grantPasses passes every verdict that is not empty | `TestEarlierGrantRunTest_0081/the_verdict_of_the_ended_run` |
+| R1-2: the run fails nothing | `TestEarlierGrantRunTest_0081/the_verdict_of_the_ended_run` |
+| R1-3: the provider's value is repeated in the fatal message | `TestEarlierGrantRunTest_0081/the_provider_is_none_of_the_four` |
+| R1-4: the probe is built before the provider is checked | `TestEarlierGrantRunTest_0081` |
+| R2-1: the revocation runs before the verdict is printed | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R2-2: a failed revocation changes the verdict | `TestEarlierGrantRevocation_0081/a_refused_revocation_is_told,_and_changes_nothing` |
+| R2-3: a revocation's error text reaches the output | `TestEarlierGrantReport_0081/plan/kept` |
+| R2-4: the second grant is skipped | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R2-5: the revocation runs on the run's own context | `TestEarlierGrantRevocation_0081/the_run's_own_bound_having_passed_does_not_stop_the_revocation` |
+| R2-6: the revocation is not bound | `TestEarlierGrantRevocation_0081/a_revocation_that_outlasts_its_bound_is_cut` |
+| R2-7: the revocation's step does not begin from nothing | `TestEarlierGrantReport_0081/kilo/kept` |
+| R2-8: a session obtained is not remembered | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R2-9: a session obtained before a stop is not revoked | `TestEarlierGrantRevocation_0081/a_grant_obtained_as_the_run_is_stopped_is_still_revoked` |
+| R5-1: the chatgpt switch is removed | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R5-2: the chatgpt switch is applied to the wrong provider | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R5-3: the chatgpt line reads ok | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R5-4: the chatgpt line reads unsupported | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| N4-1: kilo's 403 accepted as a dead grant | `TestEarlierGrantReport_0081/kilo/forbidden` |
+| N4-2: a terminal code at 403 accepted as a dead grant | `TestEarlierGrantReport_0081/chatgpt/forbidden` |
+| N5-1: the recorder reads 64 KiB for the code | `TestGrantCodeAgreesWithTheSDK_0081/a_body_of_exactly_2048_bytes` |
+| N5-2: the recorder reads 16 bytes for the code | `TestEarlierGrantReport_0081/chatgpt/ended` |
+| RV-P2: baseline's count ignored | `TestGrantVerdict_0081` |
+| RV-P3: control's count ignored | `TestGrantVerdict_0081` |
+| RV-P4: the count threshold is two | `TestGrantVerdict_0081` |
+| RV-P5: kilo left by hand | `TestEarlierGrantReport_0081/kilo/kept` |
+| RV-P7: Previous for every provider | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| RV-P11: the revoke index is wrong | `TestEarlierGrantReport_0081/plan/kept` |
+| RV-P12: chatgpt revoked but said by hand | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| RV-P13: last-after uses the second session | `TestEarlierGrantReport_0081/chatgpt/lazy` |
+| RV-P15: a failed second sign-in's first grant is not revoked | `TestEarlierGrantRevocation_0081/the_run's_own_bound_having_passed_does_not_stop_the_revocation` |
+| RV-P30: the revocation order is reversed | `TestEarlierGrantReport_0081/plan/kept` |
+| RV-P31: the by-hand line carries the last status | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| RV-P32: revocation before the verdict on a stop only | `TestEarlierGrantRevocation_0081/a_stop_after_the_first_sign-in_still_revokes_it,_after_no_verdict` |
+| R6-1: the grok switch is removed | `TestEarlierGrantReport_0081/grok/kept` |
+| R6-2: plan is switched off by mistake | `TestEarlierGrantReport_0081/plan/kept` |
+| R6-3: the grok line reads ok | `TestEarlierGrantReport_0081/grok/kept` |
+| R6-4: the chatgpt switch is removed | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R7-1: the run goes on to the second sign-in after a baseline of two requests | `TestEarlierGrantReport_0081/chatgpt/a_baseline_that_needed_two_requests_ends_the_run_before_the_second_sign-in` |
+| R7-2: a baseline of three requests is not read | `TestEarlierGrantReport_0081/chatgpt/a_baseline_that_needed_two_requests_ends_the_run_before_the_second_sign-in` |
+| R3-1: the second later use is not made | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R3-2: the second later use is made after a failed first | `TestEarlierGrantReport_0081/chatgpt/ended` |
+| R3-3: the second later use is made before the control | `TestEarlierGrantReport_0081/chatgpt/kept` |
+| R3-4: a kept verdict does not need the second later use | `TestEarlierGrantReport_0081/chatgpt/lazy` |
+| R4-1: a request count above one is not read | `TestGrantVerdict_0081` |
+| R4-2: the second later use's count is not read | `TestGrantVerdict_0081` |
+| RV-P14: a failed baseline's grant is not revoked | `TestEarlierGrantReport_0081/chatgpt/baseline_fails` |
+| R4-3: a failed baseline does not end the run | `TestEarlierGrantReport_0081/chatgpt/baseline_fails` |
+
+* **Gates** (each exit status taken before any filter; heavy runs through
+  `run-heavy`, or `run-on-host --race`, never a WSL distro):
+
+  | Gate | Where | Exit |
+  | :--- | :--- | :--- |
+  | `make pre-add-check FILES="llmprovider/live_checks_test.go llmprovider/live_twins_test.go llmprovider/live_0081_grant_test.go"` (gofmt, lint for the host and `GOOS=windows`, vet, test, govulncheck) | session machine, `run-heavy` | 0 |
+  | `go vet ./...`, `GOOS=windows go vet ./...`, `go vet -tags live_gateways ./...` | session machine | 0, 0, 0 |
+  | `go test -tags live_gateways -c -o /dev/null ./llmprovider/` (compiled, never run) | session machine | 0 |
+  | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | session machine | 0; 0, the one addition listed is `llmprovider/x/signin.VerifyKilo` (0080), none from this change |
+  | `go test -race -count=20 -timeout 30m ./llmprovider/` | session machine (darwin/arm64), `run-heavy` | 0 |
+  | `go test -race -count=1 -timeout 45m ./...` | `run-on-host --race`: `pick-host` chose the Linux machine, linux/amd64 native (not a WSL distro) | 0, 43 packages ok, none failing |
+  | the 88 plants | scratch clone, no-network sandbox | 88 of 88 caught |
+  | the twin tests of the probe, under the sandbox | session machine | 0 |
