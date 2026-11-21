@@ -162,6 +162,13 @@ func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovide
 * **`ConfigureLLM`** becomes the provider menu, then the same unexported
   credential step, then the model step. Its tests pass unchanged, except
   F8's under R1.
+  *(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) D5: `ResolveCredential`'s last context
+  check, after the step, moves into the step: the step checks the context
+  right before it saves, for every credential, so the `Result` means the
+  session is saved and an error that nothing was saved, except when the
+  store's own `Save` fails after it has written: that error comes back with
+  the new session in the store (0081-MADR S53). `ConfigureLLM` calls the
+  unsaved step and saves as its last act.)*
 * It gets an example (R50), offline, over a scripted `Prompter`.
 
 ### D2. `Options.KiloDeviceKey`

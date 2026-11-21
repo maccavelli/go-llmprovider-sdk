@@ -359,7 +359,7 @@ func TestKiloVerify_KeptSessionRefused_0080(t *testing.T) {
 func assertSessionOutage0080(t *testing.T, notices []string, class string) {
 	t.Helper()
 	menu := "could not read the Kilo account's organizations (" + class + "); using the personal account"
-	check := "could not verify the Kilo key (" + class + "); it is saved unchecked"
+	check := "could not verify the Kilo key (" + class + "); going on without verifying it"
 	if countContaining(notices, menu) != 1 || countContaining(notices, check) != 1 {
 		t.Errorf("notices %q; want %q once and %q once", notices, menu, check)
 		return
@@ -380,7 +380,7 @@ func assertSessionOutage0080(t *testing.T, notices []string, class string) {
 func TestKiloVerify_OutagesWarn_0080(t *testing.T) {
 	const limit = 300 * time.Millisecond
 	verify := func(class string) string {
-		return "could not verify the Kilo key (" + class + ")"
+		return "could not verify the Kilo key (" + class + "); going on without verifying it"
 	}
 	typed := func(t *testing.T, k *kilo0080, o Options, class string) {
 		t.Helper()

@@ -435,6 +435,15 @@ saved, as 0059-MADR's amendment and 0080-MADR D6 decide.
 * The Result's token facts (`TokenExpiry`, `Issuer`, `ClientID`,
   `AccountID`, `FedRAMP`) stay as the step assembled them, as today.
 
+*Annotation, 2026-11-20 (Phase 2, build pass 2; no new decision):* "any error
+from it saves nothing" and "its error means nothing was saved" are read as
+D9's row 7 and the state table's S52 and S53 read them: the errors meant are
+the ones that arise before the commit's write. The store's own `Save` failing
+after it has written (`FileTokenStore`'s directory sync after the rename,
+`llmprovider/auth/tokenstore_file.go:244`) comes back as the store's error
+with the new session already in the store (S53, decided; pinned by
+`TestStoreErrorAtTheCommit_0081`). The docs say the exception.
+
 ### D6. The issued token (Q5, decided)
 
 Out of scope, and the docs say so: nothing is revoked, as for a refused
@@ -1475,3 +1484,14 @@ S78 added): 78 rows; **67 decided**, **11 out of scope**, **0 open**,
 decided row names a test and the plant that must turn it red; S65's test
 is owed by 0083's PLAN. This amendment does not change the record's
 status, which is the owner's.
+
+**Annotation, 2026-11-20 (Phase 2, build pass 1; the owner's ruling).** The
+rows S7, S8, S11, S24, S28, S31 and S37 name, as `guard`, one of
+`TestCancelDuringListingSavesNothing_0081`, `TestCancelAfterIssueSavesNothing_0081`, `TestCancelDuringKiloProfileSavesNothing_0081`, `TestDeadlineDuringListingSavesNothing_0081` and `TestCancelDuringListingReturnsNoKey_0081`. Built with the words and the no-model-question assertions the second
+pass gave them, each is red at the base `77c59ca` and green after the change;
+only its count assertions (no save, an error matching the context's) are
+green at the base. The owner, relayed by the coordinator, ruled "Keep as
+built; record them as red before the change (Recommended)": in those rows
+"guard" reads "a test red at the base by its words, green by its counts". No
+row's outcome, test or plant changes. Rows S12 and S21 name guards that are
+green at the base, as written.

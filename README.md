@@ -431,11 +431,17 @@ endpoint, a credential and a model, through a `Prompter` you implement or
 `wizard.NewTextPrompter`. It never writes configuration and never logs a
 key.
 
-- A sign-in saves its session to `Options.TokenStore`, once the model
-  listing, and for Kilo its profile, has not refused it, and returns a
-  `CredOAuth` `Result` with no
-  token; the caller loads it from the store. A refused sign-in leaves the
-  store as it was. With `Options.Existing` naming such a session, the
+- A sign-in saves its session to `Options.TokenStore`: `ConfigureLLM` as
+  its last step, after the model and fallback questions, and
+  `ResolveCredential` once the model listing, and for Kilo its profile, has
+  not refused it. It returns a `CredOAuth` `Result` with no
+  token; the caller loads it from the store. A refused or cancelled sign-in,
+  or an abandoned `ConfigureLLM`, leaves the store as it was: a run whose
+  context ends before the save, by cancel or by its deadline, saves nothing
+  and returns the context's error. Nothing the provider issued is revoked,
+  and a Kilo device sign-in's token, which does not expire, stays on the Kilo
+  account until the person removes it there. With `Options.Existing` naming
+  such a session, the
   wizard checks it and offers to keep it before asking how to sign in; one
   that cannot be used is not offered, and a notice says why. One kept and
   then refused by the check leads to the sign-in menu, once, and the

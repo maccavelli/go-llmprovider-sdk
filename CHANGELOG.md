@@ -38,7 +38,7 @@ tag and its commit without notes; its notes are its section here.
   `llmprovider.ErrAuthFailure`, as a listing's refusal does. A profile that
   cannot answer, a 403, a 5xx, a failed connection or a stall past
   `Options.DiscoverLimit`, is one warning, "could not verify the Kilo key
-  (...); it is saved unchecked", and the sign-in goes on. Without `Discover`,
+  (...); going on without verifying it", and the sign-in goes on. Without `Discover`,
   or with an organization, nothing is read that was not before. The
   organization is the one the listing is given, by its real order: the last
   `catalog.WithKiloOrganization` among the options, where the options outside
@@ -66,6 +66,32 @@ tag and its commit without notes; its notes are its section here.
   is used, then the one warning above
   ([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)
   D1 to D9).
+- `ConfigureLLM` saves a new session as its last step, after the model and
+  fallback questions: a run abandoned there, or ended by an error, keeps the
+  session the store held, and an error from it means nothing was saved, except
+  when the store's own `Save` fails after it has written (`FileTokenStore`'s
+  directory sync after the rename): that error comes back with the new session
+  in the store. Two
+  runs saving to one store leave the session of the last to commit. A sign-in
+  abandoned at a model question is not kept, and nothing the provider issued
+  is revoked: a Kilo device sign-in's token does not expire, so one abandoned
+  stays on the Kilo account until the person removes it there
+  ([0081-MADR](docs/decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md)
+  D5, D6).
+
+### Fixed
+
+- The wizard saved a new sign-in when the run's context ended before the save,
+  during the model listing or after the sign-in, and returned the context's
+  error, or, at a model question, a Result; it now saves nothing and returns
+  the context's error, for every provider, session kind and key, by cancel or
+  by the run's deadline. `ResolveCredential` returns its Result when the
+  context ends after the session is saved. A run whose context has ended
+  shows none of the model listing's warnings and not the Kilo account's
+  organizations warning, and Kilo's unverified-key warning no longer says the
+  key is saved
+  ([0081-MADR](docs/decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md)
+  D2 to D5).
 
 ### Security
 

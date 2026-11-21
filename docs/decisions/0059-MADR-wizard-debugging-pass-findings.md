@@ -101,6 +101,10 @@ coverage.
     applies to Kilo with no organization, whose public listing refused
     nothing. A new Kilo session is saved once Kilo's profile, read under
     `Options.Discover`, and the listing have not refused it.)*
+  * *(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) D5: the save's position moves for
+    `ConfigureLLM`, which now saves as its last step, after its model and
+    fallback questions; `ResolveCredential` saves right after the check, as
+    before. A run whose context ends before the save saves nothing.)*
 
 #### Medium
 
@@ -149,6 +153,9 @@ coverage.
   `ConfigureLLM` does not (C14). P6: with `ctx` already cancelled, it asked
   for the provider and the API key, then failed at the model, "select
   model: context canceled".
+  *(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) D5, N3: `ConfigureLLM` now checks the
+  context once after the credential step, so a context that ended in the step
+  gives "wizard: <ctx>" before any model question.)*
 * **W9. `NoEndpointPrompt` still asks about a plain-http endpoint**
   **[read]** (C16, C17). Under `NoEndpointPrompt` a remote URL "is checked
   as a typed one is" (C16). For plain http to a remote host, that check is
@@ -514,6 +521,10 @@ unconfirmed. Q0 settles it for the owner's key.
   refuses is not saved, and the run ends with the error; nor is one when the
   run's context ends first. Any other failure saves the session as it is.
   Q2 (a) stands; this is how its "saved with it" holds.
+  *(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) D2 to D4: "nor [...] when the run's
+  context ends first" holds for every window before the write, not only the
+  wait for a refresh, for every provider, session kind and key, by cancel or
+  by the run's deadline.)*
 * **The cost.** When the listing ran out of time because the issuer was
   slow, the save waits for the refresh's own bound, at most about 46 s
   (three attempts of 15 s, and the backoff between them), unless the run is

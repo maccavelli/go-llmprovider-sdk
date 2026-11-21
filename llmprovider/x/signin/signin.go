@@ -266,7 +266,9 @@ func (s *SignIn) Answer(ctx context.Context, a authcontract.Answer) error {
 
 // Wait returns the credential the sign-in yields, or its error, which
 // ErrorKindOf names; a Cancel gives an error matching context.Canceled. It
-// saves nothing: the caller saves. It returns ctx's error when ctx ends first.
+// saves nothing: the caller saves, and only while its own context has not
+// ended, as the wizard does (0081-MADR D7). It returns ctx's error when ctx ends
+// first.
 func (s *SignIn) Wait(ctx context.Context) (Credential, error) {
 	result, err := s.run.Wait(ctx)
 	if err != nil {

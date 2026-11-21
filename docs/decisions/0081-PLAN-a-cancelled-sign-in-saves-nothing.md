@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-17
+date: 2026-11-20
 associated-madr: "0081-MADR-a-cancelled-sign-in-saves-nothing.md"
 decision-makers: repository owner
 ---
@@ -1111,6 +1111,23 @@ links-check records-check markdownlint`.
 
 Acceptance: every test as its row says; no existing test changed; no API
 change; the docs say what the code does, including what stays open.
+
+**Dated note, 2026-11-20 (build pass 1).** Built, not yet staged: see the
+execution record's "Phase 2, build pass 1". Two things it records that this
+phase's text does not say: five of the tests the table calls guards are red at
+the base on the words (its Deviation 1), and the existing test the acceptance
+says is unchanged, `wizard/kilo_verify_0080_test.go`, changes its expected
+words, as step 5's addition allows.
+
+**Dated note, 2026-11-20 (the owner's ruling on build pass 1's Deviation 1).**
+By the owner, relayed by the coordinator: "Keep as built; record them as red before the change (Recommended)". The five tests the table above calls guards, `TestCancelDuringListingSavesNothing_0081`, `TestCancelAfterIssueSavesNothing_0081`, `TestCancelDuringKiloProfileSavesNothing_0081`, `TestDeadlineDuringListingSavesNothing_0081` and `TestCancelDuringListingReturnsNoKey_0081`,
+are red at the base by their words and no-model-question assertions, and
+their count assertions (no save, an error matching the context's) are green
+there. They are tests red before the change, by that ruling; their "guard"
+labels in the table and the annotation of 2026-11-18 are superseded, and the
+MADR's state table carries a dated annotation of the same date on the rows
+that name them (S7, S8, S11, S24, S28, S31, S37). The other guards stand:
+`TestCancelDuringRefreshSavesNothing_0081`, `TestResolveSavesInTheStep_0081`.
 
 ### Phase 3: planted breaks and the gates
 
@@ -2488,3 +2505,226 @@ endpoint?" (`wizard/configure.go:704-718`), through both entry points. The
 owner's ruling "Suppress every listing warning once the context has ended
 (Recommended)" names listing warnings only, so this record leaves it as it
 is; whether it should change is the owner's to decide in a later record.
+
+### Phase 2, build pass 1 (2026-11-20): the tests and the code
+
+Built on `main` at `77c59ca` (the owner committed and pushed the records),
+by a build engineer on the coordinator's brief. **The prerequisite holds:**
+`git status --porcelain --untracked-files=all` was empty at the start, so no
+other agent held staged or uncommitted work in the tree; no other agent worked
+in it during the pass. Nothing was staged, committed, stashed or reverted. No
+live test, sign-in, built binary or outside host was used; `govulncheck`, which
+fetches its database, was skipped (`GO_PRECHECK_SKIP_VULN=1`).
+
+**Step 0, the re-grounding at `77c59ca`.**
+
+* `python3 -B tools/claims.py` on the MADR and this PLAN, at their markers:
+  47 of 47 and 25 of 25, exit 0. The re-pointed rows ("C1 now" to "M2 now",
+  "P1 now" to "P25 now") on a scratch copy with plain ids and `self=77c59ca`
+  (the MADR's other repositories at the revisions of its marker): 47 of 47
+  and 25 of 25, exit 0.
+* `git diff --stat 24756a6 77c59ca` lists records and `docs/README.md` only: no
+  file of `wizard/`, `llmprovider/` or `internal/` changed since the readiness
+  passes read them. The step-5 addition's citations each hold at `77c59ca`:
+  `wizard/auth.go:478` (the organizations warning), `wizard/kilo_verify.go:128`
+  (the notice), `wizard/kilo_verify_0080_test.go:362` and `:383`,
+  `docs/architecture.md:1148-1149`, `CHANGELOG.md:40-41`, 0080-MADR D6 at line
+  433, 0082-MADR N-6 at line 1145. **Moved: none.** The listing warnings' lines
+  (`wizard/configure.go:948`, `:951`, `:958`, `:967`, `:974`, `:977`) hold at
+  the base; they are at `:1026`, `:1029`, `:1036`, `:1045`, `:1052`, `:1055` in the
+  built tree. The PLAN's "Found, not mine to change" is 0080-PLAN's "Found, not
+  changed by 0080" (line 1076), whose first item this pass annotates.
+
+**Step 1, the base re-read** (`wizard/configure.go` at `77c59ca`):
+`credentialStep` `:498`, its `endedCheck` `:575` and `save` `:578`, doc
+`:484-497`; `ConfigureLLM` `:318`, the step `:332`, the model-id branch
+`:336-352`, `selectModel` `:354`, the fallbacks `:357-361`; `ResolveCredential`
+`:415`, the step `:429`, its last check `:433-437`;
+`resolvedCredential.save` `wizard/auth.go:1103` (`Token` check `:1107`),
+`write` `:1180`; `checkEnded` `wizard/kilo_verify.go:43`, `verifyKilo` `:82`.
+The only tests that call `credentialStep` are `TestKiloVerify_EndedContext_0080`
+(`wizard/kilo_verify_ctx_0080_test.go:46`, `:62`): unchanged, green.
+
+**Step 4, the code** (`wizard/configure.go`): `unsavedStep` is `credentialStep`'s
+old body returning `(Result, catalog.Catalog, resolvedCredential, error)`;
+`commitCredential(ctx, p, d, c)` is the context check, then `c.save(ctx, p, d)`
+(the `Prompter`, by the annotation of 2026-11-20); `credentialStep` keeps its
+signature and is the two in order; `ResolveCredential` returns it, with no
+check of its own; `ConfigureLLM` calls `unsavedStep`, checks the context once
+(N3) and commits before each of its two successful returns. `notifyListing`
+(new, unexported) shows a listing warning only while the run's `ctx` is alive,
+and the six sites in `discoverModels` use it, on `ctx`, never on the listing's
+`dCtx` (S61, S71, S72, S77). `resolveKiloDevice` shows its organizations warning
+only while `ctx` is alive, with `Discover` or without (S73, S74). `verifyKilo`'s
+notice reads "...; going on without verifying it" (S76). `write`'s check is
+not moved, removed or repeated (S63). No exported name changed.
+
+**Step 2, the tests.** `wizard/cancel_save_0081_test.go` and
+`wizard/save_at_end_0081_test.go`, 32 tests, none of the existing tests
+changed but `wizard/kilo_verify_0080_test.go`'s two expected words (`:362`,
+`:383`; the ruling "Fix both" allows it). Each lists through `testCache(t)` with
+the model metadata off, over in-process stand-ins; `TestCancelDuringDeviceFlowSavesNothing_0081`
+runs Grok's real `auth` device flow against an issuer the run's `HTTPClient`
+answers in process (discovery, keys, the device code, one poll of a one-second
+interval, a verified ID token), so it was **not dropped** and no non-test code
+changed for it. Rows to tests: as the readiness pass's map; P-1 and P-3 to P-21
+are built under the names the entry gives (P-3 and P-4 inside
+`TestCancelAtModelStageSavesNothing_0081` and `TestModelStageErrorSavesNothing_0081`,
+P-8 inside `TestCancelDuringKiloProfileSavesNothing_0081`, P-9 inside
+`TestCancelAfterIssueSavesNothing_0081`, P-14 as `TestDeadlineReturnsNoKey_0081`).
+
+**Step 3, red at the base and green on the tree** (`tools/redgreen.py`, outputs
+in the build engineer's scratch folder):
+
+* `RED.json --expect fail --rev 77c59ca`: **27 of 27 fail as expected**, exit 0.
+* `GUARDS.json --expect pass --rev 77c59ca`: **5 of 5 pass**, exit 0:
+  `TestCancelDuringRefreshSavesNothing_0081` and `TestResolveSavesInTheStep_0081`
+  (the PLAN's guards), and the three tests whose plants alone hold them,
+  `TestCancelBeforeIssueSavesNothing_0081` (P-1; the sign-in's own errors are
+  unchanged), `TestStoreErrorAtTheCommit_0081` (P-12) and
+  `TestListingLimitIsAnOutageAndSaves_0081` (P-13).
+* `--expect pass` on the tree: **32 of 32 pass**, exit 0.
+* `--rev b109cea` cannot be run for the new files: they use helpers that are not
+  at that commit (`newKilo0080`, `scriptedLock0082`, `clientNotices0082`; the
+  wizard package does not build). The base of this phase is `77c59ca`.
+
+**Deviation 1 (for the owner): five tests the PLAN calls guards are red at the
+base on the words and the no-model-question assertions.** `TestCancelDuringListingSavesNothing_0081`,
+`TestCancelAfterIssueSavesNothing_0081`, `TestCancelDuringKiloProfileSavesNothing_0081`,
+`TestDeadlineDuringListingSavesNothing_0081` and `TestCancelDuringListingReturnsNoKey_0081`
+were guards (green at `a7e924f`) as drafted. The second pass made each assert the
+whole error text (`wizard: <ctx>`) and, for `ConfigureLLM`, that no model
+question is asked, so that the commit's and N3's plants are caught; at the base
+`write`'s words (`wizard: the new Grok (xAI) session was not saved: context
+canceled`) and a model question come back instead. Their count assertions (no
+save, an error matching the context's) are green at the base; the red lines are
+only the words (for example `cancel_save_0081_test.go:354: err wizard: the new
+Grok (xAI) session was not saved: context canceled; want "wizard: context
+canceled"`) and, for `ConfigureLLM` of a typed key or an OpenAI session, `model
+questions ["No models found; enter a model id"] asked; want none`. The tests are
+written as the map says; the table's "guard" labels for these five are
+superseded by this entry and `RED.json` lists them as red. The owner's options,
+put by the coordinator: (a, recommended) keep the five as they are and record
+them red at the base, as here; (b) split each into a words-free guard and a
+words test, for the label's sake, five more tests; (c) drop the words from the
+five, which would leave the commit's and N3's plants to other tests alone.
+**Resolved, 2026-11-20:** by the owner, relayed by the coordinator: "Keep as built; record them as red before the change (Recommended)": (a). No code and no test
+changed for it. `RED.json`, `GUARDS.json` and `ALL.json`, the specs given to
+`tools/redgreen.py`, are scratch files of the build engineer, not in the tree;
+the red list holds these five, the guard list the five that are green at the
+base.
+
+**Other differences from the PLAN as written.**
+
+* `TestCancelDuringRefreshSavesNothing_0081` cancels 400 ms after the refresh
+  arrives, not 200 ms (S12), so that the save is waiting on a loaded host; the
+  assertion (the error within one second of the cancel) is as written.
+* `kilo_verify_0080_test.go:383` is a prefix of the notice (`verify`); it now
+  holds the full new words, which strengthens it and changes no behaviour.
+* **Found, not changed:** `wizard/auth_test.go:585`'s comment says
+  `credentialStep` saves a session; it still does for `ResolveCredential`, and
+  `ConfigureLLM` now saves through `commitCredential` at its end. A test file
+  not on the phase's list, so left as it is, for Phase 3's docs pass or a later
+  record.
+* `unsavedStep` is the unexported step's name; the PLAN gave no name.
+
+**Spot-check of plants** (informal, on a scratch clone with `tools/plant.py`; the
+campaign and the Windows run are Phase 3's): 19 plants, **all 19 caught**: the
+commit's check removed; the check for a session only; a cancel matched, not a
+deadline; the commit skipped when the store holds a session; N3's check removed;
+`ConfigureLLM` saving in the step again; the model-id branch not committed;
+`ResolveCredential`'s own last check put back; the listing warning shown
+whatever the context; the suppression on a cancel only; a listing ended by its
+own limit returned as a `*checkEnded`; the organizations warning kept under
+`Discover` only; Kilo's words back; `write` ignoring the store's error;
+`signsInAgainTo` ignoring the record; `save`'s `Token` on a context that never
+ends; a context check added after `Save`; each of the two architecture
+sentences removed.
+
+**Docs** (step 5): doc comments of `ConfigureLLM`, `ResolveCredential`,
+`Options.TokenStore`, `credentialStep`, `unsavedStep`, `commitCredential`,
+`resolvedCredential.save` (its last sentence as the PLAN gives it) and `saveTo`,
+`signin.SignIn.Wait`; `README.md`'s sign-in bullet; `docs/architecture.md`
+("When a session is saved", with the Kilo sentence, the measured-premise
+sentence and the "last commit wins" sentence; the wizard's paragraph on the
+save; Kilo's words); `CHANGELOG.md` `[Unreleased]` (**Fixed**, **Changed**, and
+the 0080 entry's words); dated notes in 0059-MADR (W2, W8, the amendment),
+0056-MADR D1, 0080-MADR D1 and D6, and 0080-PLAN's first "Found, not changed by
+0080" item.
+
+**Gates run** (session host, each status taken before any filter): `gofmt -l .`
+empty; `go vet ./...` and `go vet -tags live_gateways ./...` exit 0;
+`go test -count=1 ./wizard/ ./llmprovider/x/signin/` exit 0; `run-heavy -- make
+pre-add-check FILES="..."` over the seven Go files (host and `GOOS=windows`
+`golangci-lint` v2.15.0, `go vet`, `go test` of the two packages) exit 0, after
+a first run found one `gocognit` finding in `TestNoListingWarningOnAnEndedRun_0081`
+(51 of 50), which moved its table to a helper function; `run-heavy -- go test
+-race -count=1 ./...` exit 0 (43 packages ok); `run-heavy -- go test -race
+-count=3 -run '_0081$' ./wizard/` exit 0; `make api-check` exit 0 and `python3
+-B tools/apidiff.py v1.31.0` exit 0 (it lists only `signin.VerifyKilo`, 0080's);
+`make records-check tables-check changelog-check docs-check links-check
+disclosure-check` exit 0; markdownlint-cli2 0.23.2 (the cached copy, run with
+`--no-globs` over `check_links.py --lint-files`) 0 issues; `tools/claims.py` on
+both records 47 of 47 and 25 of 25; `tools/denyscan.py --changed` 0 hits;
+`tools/recordlint.py --changed` no rule rose (after one MD012 in this entry,
+fixed). Not run: `govulncheck` (the network), the Windows run and the gate
+(Phase 3), `make tools-test` and the other CI targets (Phase 3's list).
+
+**Not done in this pass:** Phase 3 (the plant campaign, the Windows run, the
+gate), and the `--rev b109cea` runs above. The plan's status is
+unchanged (`in-progress`); its front-matter date moved to 2026-11-20.
+
+### Phase 2, build pass 2 (2026-11-20): the docs and S22's other failures
+
+The independent review passed the code, every red and green claim and its own
+eight plants, and failed pass 1 on one blocker, B1, which this pass fixes with
+two small items. Same rules and boundary as pass 1; nothing staged.
+
+**Deviation 2 (B1): docs said an error from a run always means nothing was
+saved.** Found by the independent review, at pass 1's text. The statements:
+`Options.TokenStore`'s and `ConfigureLLM`'s and `ResolveCredential`'s doc
+comments, a comment in `ResolveCredential`, `docs/architecture.md`'s "When a
+session is saved", `CHANGELOG.md`'s **Changed** bullet and the dated note in
+0056-MADR D1. The state table's S53 (decided) says otherwise: when the store's
+own `Save` fails after it has written, `FileTokenStore`'s directory sync after
+the rename (`llmprovider/auth/tokenstore_file.go:244`), the run returns the
+store's error with the new session already in the store; D9 row 7 ("the store's
+error as today") and S52, S53 say the same, and `TestStoreErrorAtTheCommit_0081`
+pins it. The wording came from D5 ("any error ... saves nothing", "its error
+means nothing was saved") and step 5 of this PLAN, which read against S53 are a
+contradiction inside the record, not a new decision: S53 is decided, and the
+code and the test follow it. The docs now follow S53: each says the exception
+(`wizard/configure.go`: `Options.TokenStore`, `ConfigureLLM`, `ResolveCredential`
+and the comment in its body; `docs/architecture.md`; `CHANGELOG.md`; the
+0056-MADR note), and the MADR carries a dated annotation on D5 pointing to S53.
+No owner ruling was needed, and none was asked; the step 5 text above is left
+as written, and this entry supersedes where it says "any error".
+
+**Small item 1.** Pass 1's entry said the plan's date was unchanged; it moved
+to 2026-11-20 (front matter). The sentence is corrected.
+
+**Small item 2: S22's 429 and transport cases.** `TestSessionDueAtTheCommit_0081`
+gains a refresh answered 429 on each of the SDK's three tries, and a refresh
+whose request fails in transport (`connection reset`) on each, both with the
+run alive: the session is saved as it was, its refresh token unspent, and the
+Result. Each is green on the tree. Each was seen to fail under the existing
+plant, `save`'s first check refusing any error (`tools/plant.py`, scratch clone,
+never the tree): "err wizard: the new Grok (xAI) session was not saved:
+llmprovider: rate limited: oauth: refresh failed: Too Many Requests ...; want
+the Result" and "... refresh request: Post ... connection reset ...", each
+with `saves 0 of []; want 1, of "oauth-refresh"`, beside the 503 case's.
+
+**Follow-ups, listed and not changed** (the review's, and pass 1's): the stale
+comment at `wizard/auth_test.go:585`; P-20's `"kept"` assertion
+(`TestSaveNotesInTheArchitecture_0081`), which matches the word anywhere in the
+bullet; P-16's test-only environment variables
+(`SDK_TEST_0081_STORE`, `SDK_TEST_0081_SIGNAL`), which `scripts/check_tables.py`
+does not cover.
+
+**Gates, pass 2** (each status taken before any filter): `gofmt -l .` empty; `go vet ./...` 0;
+`golangci-lint run -c .golangci.yml --build-tags live_gateways ./wizard/... ./llmprovider/x/signin/...`
+0 issues, for the host and for `GOOS=windows`; `go test -count=1 ./wizard/
+./llmprovider/x/signin/` 0; `tools/recordlint.py --changed`, `make records-check
+docs-check links-check changelog-check`, `tools/denyscan.py --changed` and
+`tools/claims.py` on both records as in the hand-back. No race rerun: no
+existing test's timing changed, and the two new cases wait the same 0.6 s as the 503's.

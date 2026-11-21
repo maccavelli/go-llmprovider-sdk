@@ -392,8 +392,11 @@ A model no layer knows is not an error; a failed source is joined into
 the credential from the `Prompter`, from `Options.LookupEnv`, or from a
 sign-in. A sign-in's session is saved to `Options.TokenStore` once the
 listing, and for Kilo with no organization its profile (below), has not
-refused it, after any refresh the listing left running, so a
-refused sign-in leaves the store as it was. The save binds the session to
+refused it and the run's context has not ended, after any refresh the
+listing left running: right after that check for `ResolveCredential`, and as
+the last step of `ConfigureLLM`, after its model and fallback questions
+(0081-MADR D5). A refused sign-in, a cancelled one and an abandoned
+`ConfigureLLM` leave the store as it was. The save binds the session to
 the store with `(*auth.OAuthSession).UseStore`, under the session's lock,
 because a refresh the listing started may still be using it. It lists the
 models with `catalog.List`, adding `Options.ProviderOptions`. Two cases go through
@@ -1119,10 +1122,31 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   reads it there too (0016-MADR D11, A7, A10).
 - **When a session is saved.** A new session is saved once the check, the
   model listing and, for Kilo with no organization, its profile, has not
-  refused it, after any refresh the listing left running,
-  so a refused sign-in leaves the store as it was and the store gets
-  rotated tokens, never spent ones. A refresh the issuer refuses saves
-  nothing and ends the run (0059-MADR W2; 0080-MADR D3).
+  refused it and the run's context has not ended, after any refresh the
+  listing left running, so a refused or cancelled sign-in leaves the store as
+  it was and the store gets rotated tokens, never spent ones. A refresh the
+  issuer refuses saves nothing and ends the run (0059-MADR W2; 0080-MADR D3).
+  `ResolveCredential` saves right after its check, and its `Result` means the
+  session is saved. `ConfigureLLM` saves as its last step, after the model and
+  fallback questions, so an error from it means nothing was saved, except when
+  the store's own `Save` fails after it has written (`FileTokenStore`'s
+  directory sync after the rename): that error comes back with the new session
+  in the store (0081-MADR S53). An abandoned run keeps the session the store
+  held. A context that ends, by
+  cancel or by its deadline, before the save saves nothing and gives the
+  context's error; one that ends during or after the write does not take it
+  back. Two runs saving to one store leave the session of the last to commit.
+  What stays open: the write itself, which a process killed during it leaves
+  as the store's old file or its new one, and a process killed during the
+  model questions, which loses a sign-in already completed (0081-MADR D2, D5).
+  Nothing the provider issued is revoked: an unsaved session lapses at the
+  provider by its own expiry, except that an abandoned Kilo device sign-in
+  leaves a token that does not expire and that the SDK cannot revoke, which
+  the person removes in the Kilo account's settings. The earlier grant was
+  measured kept on 2026-11-19, that is, a second sign-in did not end the first
+  session, for the ChatGPT browser sign-in, the ChatGPT plan, Grok's browser
+  sign-in and Kilo's device sign-in; the OpenAI and Grok device sign-ins were
+  not probed (0081-MADR D12).
 - **Keeping a saved session.** With `Options.Existing` naming one, the
   session is checked before it is offered. One that cannot be used, such
   as an expired one with no refresh token, is not offered: a notice says
@@ -1145,8 +1169,8 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   session's read, which the organization menu needs anyway, is its check,
   with no second request. Anything else, a 403, a 5xx, a body that does not
   decode, a refused connection or a stall past `Options.DiscoverLimit`, is
-  one warning by class and status, "could not verify the Kilo key (...); it
-  is saved unchecked", and the sign-in goes on. A device session's failure is
+  one warning by class and status, "could not verify the Kilo key (...);
+  going on without verifying it", and the sign-in goes on. A device session's failure is
   two notices, in this order: the organization menu's, "could not read the
   Kilo account's organizations (...); using the personal account", since the
   personal account is used, then that one; without `Discover` the first

@@ -1085,6 +1085,10 @@ below it. The staged tree is the first staging with the reviews' fixes.
     of its own, drafted now": it goes to a record of its own, which has been
     drafted outside this tree and is placed after this phase commits; 0080
     does not change it.
+    *(Answered, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md)
+    D2 to D5, built by its Phase 2: the wizard saves a new session only while
+    the run's context has not ended, for every provider, session kind and key;
+    `ConfigureLLM` saves as its last step.)*
   * **A key that a caller's own `Prompter` returns empty, or of only spaces,
     is not checked,** for every provider, with no error. By the owner's ruling
     of 2026-11-17, relayed by the coordinator, "A record of its own: refuse an

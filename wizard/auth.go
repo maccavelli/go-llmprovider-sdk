@@ -52,8 +52,11 @@ type resolvedCredential struct {
 	source       llmprovider.TokenSource
 	vendorPath   string
 	organization string
-	// saveTo is the store a new session is due to: credentialStep saves it
-	// there once the check has not refused it (0059-MADR W2; 0080-MADR D3).
+	// saveTo is the store a new session is due to, at the run's end, not the
+	// listing's: commitCredential saves it there, right after the check for
+	// ResolveCredential and as ConfigureLLM's last step, once the check has not
+	// refused it and the run's context has not ended (0059-MADR W2; 0080-MADR
+	// D3; 0081-MADR D5).
 	saveTo auth.TokenStore
 	// kept is the saved session keepExistingOAuth kept: a listing that
 	// refuses it leads to the sign-in menu (0066-MADR V7, Q4 (a)).
@@ -417,8 +420,8 @@ func resolveVendorCLI(
 
 // resolveKiloDevice runs Kilo's device login (0017-MADR D2). The token has no
 // refresh and no expiry: it is due to the TokenStore, its only copy, which
-// credentialStep saves it to once the profile and the listing have not
-// refused it (0059-MADR W2; 0080-MADR D3), and the session is the Kilo
+// commitCredential saves it to once the profile and the listing have not
+// refused it (0059-MADR W2; 0080-MADR D3; 0081-MADR D5), and the session is the Kilo
 // credential (0016-MADR D11, A7). When the account belongs to organizations,
 // the user chooses one, or the personal account; the one Existing names is the
 // default. The profile is read from the endpoint the user entered, with the
@@ -426,15 +429,17 @@ func resolveVendorCLI(
 //
 // That read is also the credential's check, and the only one: under
 // Options.Discover it is bound by Options.DiscoverLimit and its result goes
-// on the credential, for credentialStep, which refuses a 401 as it refuses a
+// on the credential, for unsavedStep, which refuses a 401 as it refuses a
 // listing's and does not read the profile again. Any other failure, a 403, a
 // 5xx, a body that does not decode, a refused connection or a stall, is two
 // notices, in this order: the warning below, that the organizations could not
 // be read and the personal account is used, then the check's, as every Kilo
 // credential's is (0080-MADR D6: "could not verify the Kilo key"); the
-// session is saved. A ctx that ended is told by neither and returns ctx's
-// error. Without Discover nothing is checked, and a failure of any kind, a
-// 401 included, is the warning below alone (0080-MADR D3).
+// session then goes on to be saved if the run ends well. A ctx that ended, by
+// cancel or by its deadline, is told by neither, with Discover or without, and
+// the run returns its error from the next check (0081-MADR S73). Without
+// Discover nothing is checked, and a failure of any kind, a 401 included, is
+// the warning below alone (0080-MADR D3).
 func resolveKiloDevice(
 	ctx context.Context,
 	p Prompter,
@@ -463,11 +468,12 @@ func resolveKiloDevice(
 		cred.profileRead, cred.profileErr = true, err
 	}
 	if err != nil {
-		if o.Discover && (signinflow.Refused(err) || ctx.Err() != nil) {
-			// The read is the credential's check. A refusal is told by no
-			// warning: it ends the sign-in and saves nothing (0080-MADR D3). A
-			// ctx that ended is told by none either: the check returns its
-			// error and nothing is saved (D6).
+		if ctx.Err() != nil || (o.Discover && signinflow.Refused(err)) {
+			// Under Discover the read is the credential's check. A refusal is
+			// told by no warning: it ends the sign-in and saves nothing
+			// (0080-MADR D3). A ctx that ended is told by none either, with
+			// Discover or without: the run returns its error from the next
+			// check and nothing is saved (0080-MADR D6; 0081-MADR S73).
 			return cred, nil
 		}
 		// Anything else, and every failure without Discover, is told here, as
@@ -510,7 +516,7 @@ func resolveKiloDevice(
 
 // resolveKiloDeviceKey runs Kilo's device login and takes its token as the
 // key, under Options.KiloDeviceKey: nothing is saved and no organization is
-// chosen. It reads no profile itself: under Options.Discover credentialStep's
+// chosen. It reads no profile itself: under Options.Discover unsavedStep's
 // check reads it once, to verify the key as any Kilo key is (0080-MADR D2).
 // One copy of the token, in the Result (0056-MADR D2; 0016-MADR D11).
 func resolveKiloDeviceKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (resolvedCredential, error) {
@@ -1040,8 +1046,8 @@ func (s *pastePrompt) drain() {
 }
 
 // pendingOAuthCredential checks a new session and names it provider's. It is
-// not saved here: credentialStep saves it to store once the listing has not
-// refused it (0059-MADR W2).
+// not saved here: commitCredential saves it to store once the listing has not
+// refused it (0059-MADR W2; 0081-MADR D5).
 func pendingOAuthCredential(
 	store auth.TokenStore,
 	provider llmprovider.ProviderID,
@@ -1098,8 +1104,10 @@ func pendingOAuthCredential(
 // the save: a refresh of the new session in the window before would adopt the
 // store's old record of the same labels, and the save would write its tokens
 // (N-3). The context is checked after the lock is held, before anything is
-// written: a lock that outlasts the sign-in saves nothing (0081-MADR's single
-// check before the save belongs here, after the lock, and not before the wait).
+// written: a lock that outlasts the sign-in saves nothing. This is the check
+// that covers the wait (0082-MADR N-6); the caller, commitCredential, has
+// already checked the context once, before the wait, for every credential
+// (0081-MADR D5).
 func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.Descriptor) error {
 	if c.saveTo == nil || c.session == nil {
 		return nil

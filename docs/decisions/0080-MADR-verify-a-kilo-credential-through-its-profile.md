@@ -301,6 +301,11 @@ answers.)*
   error, which is queued for a record of its own; gobble then bumps its pin
   (D11, D12).
 
+*(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) D5: "the store is unchanged until the
+check passes (W2)" holds for `ResolveCredential` as written; for
+`ConfigureLLM` it holds until the run ends, since the session is saved as its
+last step, after the model and fallback questions.)*
+
 ### D2. Which credentials (Q1, answered)
 
 Every Kilo credential the credential step checks, whatever its source: a
@@ -459,6 +464,16 @@ account is used, and this one then reports the conclusion for the key. Every
 other credential shows this warning alone. Unchanged: a 401 is a refusal with
 no menu warning (D3); an ended context shows nothing and saves nothing;
 without Discover the menu's warning stands alone.)*
+
+*(Note, 2026-11-20: [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md) S76, the owner's ruling "...; going on
+without verifying it" (Recommended): the warning's words are now "could not
+verify the Kilo key (...); going on without verifying it", in place of "...;
+it is saved unchecked", which claimed a save the run may never make: a key is
+never saved, a session is saved only when the run ends well, and
+`ConfigureLLM` may still be abandoned at a model question. The decision
+stands: one warning, by class and status, and the sign-in goes on. A ctx that
+has ended shows neither this warning nor the organization menu's, with
+`Discover` or without.)*
 
 ### D7. The profile's URL stays `KiloProfile`'s (Q6, answered)
 

@@ -39,7 +39,7 @@ func (o Options) kiloProfileOptions(baseURL string) []llmprovider.Option {
 
 // checkEnded is the failure of a check that ctx ended before it could say
 // anything: neither a refusal nor a warning, and nothing may be saved after it
-// (0080-MADR D6). credentialStep returns it as the context's error.
+// (0080-MADR D6). unsavedStep returns it as the context's error.
 type checkEnded struct{ err error }
 
 func (e *checkEnded) Error() string { return e.err.Error() }
@@ -75,7 +75,7 @@ func checkCredential(
 // failure that is no refusal is told here, once, in D6's words, after the
 // menu's own warning, which resolveKiloDevice has already told.
 //
-// A 401 is a refusal, returned for credentialStep's loop as the listing's is.
+// A 401 is a refusal, returned for unsavedStep's loop as the listing's is.
 // Any other failure, a 403 included, is a warning by class and status, never
 // the service's text, and the sign-in goes on (D5, D6). A ctx that has ended is
 // neither: the check returns a *checkEnded.
@@ -125,7 +125,10 @@ func verifyKilo(
 	if err := ctx.Err(); err != nil {
 		return &checkEnded{err: fmt.Errorf("wizard: %w", err)}
 	}
-	p.Notify(LevelWarn, "could not verify the Kilo key (%s); it is saved unchecked", describe(unverified))
+	// The words claim no save: the key is never saved, a session is saved only
+	// if the run ends well, and ConfigureLLM may still be abandoned at a model
+	// question (0081-MADR S67, S76).
+	p.Notify(LevelWarn, "could not verify the Kilo key (%s); going on without verifying it", describe(unverified))
 	return nil
 }
 

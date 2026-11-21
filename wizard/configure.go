@@ -128,7 +128,15 @@ type Options struct {
 	// TokenStore persists sessions created by the browser, device-code and
 	// token-paste flows. Supplying it opts in to every sign-in method; when it
 	// is nil, only those that save no session are offered: the API key, the
-	// vendor CLI read-through, and a pasted Grok key. A new session is saved
+	// vendor CLI read-through, and a pasted Grok key. It is written only when
+	// a run returns a Result: ConfigureLLM saves a new session as its last
+	// step, after the model and fallback questions, and ResolveCredential
+	// right after its check, and a run that ends by an error, a context's end
+	// included, leaves the session the store held (0081-MADR D5), except when
+	// the store's own Save fails after it has written: that error comes back
+	// with the new session in the store (S53). Two runs
+	// saving to one store leave the session of the last to commit. A new
+	// session is saved
 	// under the store's refresh lock when the store is an auth.RefreshLocker.
 	// The save tries the lock once; if another process's refresh holds it (the
 	// try's error wraps context.Canceled, see auth.RefreshLocker), the Prompter
@@ -297,8 +305,9 @@ func (o Options) lookupEnv() func(string) string {
 // A Prompter's error ends the flow and is returned, wrapped or as it is, so
 // errors.Is matches it; so is a failed sign-in's, browser, device-code or
 // ChatGPT plan, as the login gave it, and Options.ShowDeviceCode's, as it is.
-// An ended ctx gives an error matching
-// ctx's, before any question when it has ended already (0059-MADR W8), and a
+// An ended ctx, ended by cancel or by its deadline before the save, gives an
+// error matching ctx's and saves nothing, before any question when it has
+// ended already (0059-MADR W8), and a
 // credential the provider refuses while its models are listed, or, for Kilo
 // with no organization, while its profile is read, one matching
 // llmprovider.ErrAuthFailure (for a kept session, the one signed in after
@@ -315,6 +324,23 @@ func (o Options) lookupEnv() func(string) string {
 // class and status, and goes on (0080-MADR D6); for a Kilo device session it
 // first says that the organizations could not be read and the personal
 // account is used.
+//
+// A new sign-in's session is saved to Options.TokenStore as the last thing the
+// run does, after the model and fallback questions, so an error, a context's
+// end included, saved nothing and the store keeps the session it held; a
+// sign-in abandoned at a model or fallback question is not kept (0081-MADR
+// D5). An error from the run therefore means nothing was saved, except when
+// the store's own Save fails after it has written (FileTokenStore's directory
+// sync after the rename): that error comes back with the new session in the
+// store (0081-MADR S53). A Result means the session is saved, and a context
+// that ends after the write does not take it back. A context that has ended by the end of the credential step, by
+// cancel or by its deadline, stops the run there, before any model question.
+// Nothing the provider issued is revoked: a session not saved stays valid at
+// the provider until it expires or the person removes it, and a Kilo device
+// sign-in's token never expires and the SDK cannot revoke it, so an abandoned
+// Kilo sign-in leaves a token on the account, which the person removes in the
+// Kilo account's settings. Two runs saving to one store leave the session of
+// the last to commit.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, fmt.Errorf("wizard: %w", err)
@@ -329,9 +355,14 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	res, cat, err := credentialStep(ctx, p, d, o)
+	res, cat, credential, err := unsavedStep(ctx, p, d, o)
 	if err != nil {
 		return Result{}, err
+	}
+	// A context that has ended by the end of the step stops the run here, before
+	// any model question, with the context's error (0081-MADR N3).
+	if err := ctx.Err(); err != nil {
+		return Result{}, fmt.Errorf("wizard: %w", err)
 	}
 	if len(cat.Recommended) == 0 && len(cat.Usable) == 0 {
 		// Ollama with nothing installed, or a provider whose listing failed
@@ -348,6 +379,11 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 			return Result{}, fmt.Errorf("wizard: no model available for %s and none entered", d.Label)
 		}
 		res.Model = manual
+		// The new session is saved here, the last thing the run does, so any
+		// error above, a context's end included, saved nothing (0081-MADR D5, N2).
+		if err := commitCredential(ctx, p, d, credential); err != nil {
+			return Result{}, err
+		}
 		return res, nil
 	}
 
@@ -358,6 +394,9 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		if res.Fallbacks, err = selectFallbacks(ctx, p, d, cat, res.Model, existingFallbacks(o, d.ID)); err != nil {
 			return Result{}, err
 		}
+	}
+	if err := commitCredential(ctx, p, d, credential); err != nil {
+		return Result{}, err
 	}
 	return res, nil
 }
@@ -397,6 +436,16 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // nil (0066-MADR V6, Q5 (a), and its amendment "what Live says"). A listing
 // that needs no credential, such as Hugging Face's, says nothing of the key.
 //
+// A new sign-in's session is saved right after its check has not refused it,
+// before ResolveCredential returns: its Result means the session is saved, and
+// its error that nothing was saved, except when the store's own Save fails
+// after it has written: that error comes back with the new session in the
+// store (0081-MADR D5, S53). An ended ctx, by cancel or
+// by its deadline, before the save, gives an error matching ctx's and saves
+// nothing, whatever the credential; one that ends after the write returns the
+// Result. Nothing the provider issued is revoked, and a Kilo device sign-in's
+// token, which never expires, is left on the account (see ConfigureLLM).
+//
 // A Prompter's error is returned, wrapped or as it is, so errors.Is matches
 // it; so is a failed sign-in's, and Options.ShowDeviceCode's, as it is. An
 // ended ctx gives an error matching ctx's,
@@ -426,16 +475,11 @@ func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovide
 	if err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
-	res, cat, err := credentialStep(ctx, p, d, o)
-	if err != nil {
-		return Result{}, catalog.Catalog{}, err
-	}
-	// A listing ctx ended is not a refusal: it falls back to the static
-	// catalog, which must not pass for a checked credential.
-	if err := ctx.Err(); err != nil {
-		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
-	}
-	return res, cat, nil
+	// The step checks the context and saves a new session in one place,
+	// commitCredential, so its Result means the session is saved and its error
+	// that nothing was saved, but for a store's Save that fails after it has
+	// written (0081-MADR D5, S53).
+	return credentialStep(ctx, p, d, o)
 }
 
 // credentialProvider is ResolveCredential's provider: the one the user
@@ -481,29 +525,30 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 	return descriptors[idx], nil
 }
 
-// credentialStep resolves d's endpoint and credential, then checks it
+// unsavedStep resolves d's endpoint and credential, then checks it
 // (checkCredential): Kilo's profile, for a Kilo credential used with no
 // organization, then the model listing. A typed key the check refuses is asked
 // for again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
-// without the provider's confirmed shape names the shape (0059-MADR S1). A new
-// session is saved once the check has not refused it, so a refused sign-in
-// leaves the store as it was (0059-MADR W2; 0080-MADR D3). A check that ctx
-// ended returns ctx's error and saves nothing (0080-MADR D6). A Claude key's existing
+// without the provider's confirmed shape names the shape (0059-MADR S1). It
+// saves nothing: the credential is returned unsaved, for commitCredential to
+// save once the check has not refused it, so a refused sign-in leaves the
+// store as it was (0059-MADR W2; 0080-MADR D3; 0081-MADR D5). A check that ctx
+// ended returns ctx's error (0080-MADR D6). A Claude key's existing
 // workspace is listed with first; a workspace the listing refuses is asked
 // for, up to maxTypedKeys, and a refusal after that saves nothing
 // (0064-MADR D4, amendment "D4's pre-fill"). An optional key the listing
 // wants is asked for as a typed key, the first asked being the first typed
 // (0066-MADR V2). The Result names no model; the catalog is the listing, or
 // the static one (0056-MADR D1).
-func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
+func unsavedStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, resolvedCredential, error) {
 	res := Result{Provider: d.ID}
 	var err error
 	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
-		return Result{}, catalog.Catalog{}, err
+		return Result{}, catalog.Catalog{}, resolvedCredential{}, err
 	}
 	credential, err := signIn(ctx, p, d, res.BaseURL, o, true)
 	if err != nil {
-		return Result{}, catalog.Catalog{}, err
+		return Result{}, catalog.Catalog{}, resolvedCredential{}, err
 	}
 	res = credentialResult(res, credential)
 
@@ -515,13 +560,13 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	for keys, workspaces := 1, 0; stepRefusal(listErr); {
 		if refusedWorkspace(listErr) {
 			if workspaces == maxTypedKeys {
-				return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %s refused %d workspaces entered: %w",
+				return Result{}, catalog.Catalog{}, resolvedCredential{}, fmt.Errorf("wizard: %s refused %d workspaces entered: %w",
 					d.Label, workspaces, listErr)
 			}
 			p.Notify(LevelWarn, "%s needs a workspace for this key (%s)", d.Label, describe(listErr))
 			workspace, wsErr := p.Input(workspacePrompt, workspaceDefault(o, d, workspaces))
 			if wsErr != nil {
-				return Result{}, catalog.Catalog{}, fmt.Errorf("enter workspace: %w", wsErr)
+				return Result{}, catalog.Catalog{}, resolvedCredential{}, fmt.Errorf("enter workspace: %w", wsErr)
 			}
 			workspaces++
 			if workspace = strings.TrimSpace(workspace); strings.ContainsFunc(workspace, unicode.IsControl) {
@@ -538,7 +583,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			// Q4 (a); 0059-MADR W2).
 			p.Notify(LevelWarn, "the saved %s session was refused (%s); sign in again", d.Label, describe(listErr))
 			if credential, err = signIn(ctx, p, d, res.BaseURL, o, false); err != nil {
-				return Result{}, catalog.Catalog{}, err
+				return Result{}, catalog.Catalog{}, resolvedCredential{}, err
 			}
 			res = credentialResult(res, credential)
 			cat, listErr = checkCredential(ctx, p, d, res, credential, o)
@@ -555,14 +600,14 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 				if typed {
 					notifyShape(p, d, credential.apiKey)
 				}
-				return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
+				return Result{}, catalog.Catalog{}, resolvedCredential{}, refusalError(d, credential, keys, listErr)
 			}
 			p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
 			notifyShape(p, d, credential.apiKey)
 		}
 		key, keyErr := promptAPIKey(p, d, o)
 		if keyErr != nil {
-			return Result{}, catalog.Catalog{}, keyErr
+			return Result{}, catalog.Catalog{}, resolvedCredential{}, keyErr
 		}
 		credential = staticCredential(CredAPIKey, key)
 		credential.keyFrom = keyTyped
@@ -570,12 +615,38 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		keys++
 		cat, listErr = checkCredential(ctx, p, d, res, credential, o)
 	}
-	// A check that ctx ended is neither a refusal nor a warning: nothing is
-	// saved after it (0080-MADR D6).
+	// A check that ctx ended is neither a refusal nor a warning: the run stops
+	// here with ctx's error (0080-MADR D6).
 	if err := endedCheck(listErr); err != nil {
+		return Result{}, catalog.Catalog{}, resolvedCredential{}, err
+	}
+	return res, cat, credential, nil
+}
+
+// commitCredential is the one place a credential is saved: ctx's error if ctx
+// has ended, saving nothing, else c's save. The context is checked first, for
+// every credential a run ends with, a typed key and a kept session included:
+// the wizard never writes a key, but the run returns none after its context
+// ended (0081-MADR D3, D5). A session passes a second check inside save, after
+// the refresh lock is held (0082-MADR N-6).
+func commitCredential(ctx context.Context, p Prompter, d llmprovider.Descriptor, c resolvedCredential) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("wizard: %w", err)
+	}
+	return c.save(ctx, p, d)
+}
+
+// credentialStep is ResolveCredential's step: unsavedStep, then
+// commitCredential right after it, so the session is saved as soon as its
+// check has not refused it, and the error of a context that has ended means
+// nothing was saved (0081-MADR D5). ConfigureLLM calls the two apart and
+// commits as its last act.
+func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
+	res, cat, credential, err := unsavedStep(ctx, p, d, o)
+	if err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
-	if err := credential.save(ctx, p, d); err != nil {
+	if err := commitCredential(ctx, p, d, credential); err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
 	return res, cat, nil
@@ -737,7 +808,7 @@ func refusedWorkspace(err error) bool {
 	return errors.Is(err, llmprovider.ErrWorkspaceRequired) || errors.Is(err, llmprovider.ErrWorkspaceNotFound)
 }
 
-// stepRefusal reports a listing failure credentialStep answers itself, by
+// stepRefusal reports a listing failure unsavedStep answers itself, by
 // asking again or by returning it: a refused credential or workspace.
 func stepRefusal(err error) bool { return refusedCredential(err) || refusedWorkspace(err) }
 
@@ -851,7 +922,7 @@ func keepExistingKey(p Prompter, d llmprovider.Descriptor, o Options) (string, b
 
 // promptAPIKey asks for d's API key, and warns when it is plainly another
 // provider's (0059-MADR S1). A key's shape is named only once the provider
-// refuses it, in credentialStep.
+// refuses it, in unsavedStep.
 func promptAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	key, err := p.Secret(fmt.Sprintf("Enter your %s API key", d.Label))
 	if err != nil {
@@ -887,6 +958,20 @@ func (o Options) listingOptions(res Result) []llmprovider.Option {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
 	return append(opts, o.ProviderOptions...)
+}
+
+// notifyListing tells the person a listing's warning, unless the run's context
+// has ended, by cancel or by deadline: the run is over, and returns ctx's error
+// from the check that follows, so a warning about a built-in catalog would
+// describe an outcome no one will use. It reads the run's ctx, never the
+// listing's own bound, so a listing that outlasted Options.DiscoverLimit with
+// the run alive is an outage and is told (0081-MADR D4; state-table rows S61,
+// S71, S72, S77).
+func notifyListing(ctx context.Context, p Prompter, level Level, format string, args ...any) {
+	if ctx.Err() != nil {
+		return
+	}
+	p.Notify(level, format, args...)
 }
 
 // discoverModels returns the catalog to offer: the live listing when requested
@@ -945,17 +1030,17 @@ func discoverModels(
 	if err != nil {
 		fallback.Err = err
 		if len(static) == 0 {
-			p.Notify(LevelWarn, "could not list models for %s (%s)", d.Label, describe(err))
+			notifyListing(ctx, p, LevelWarn, "could not list models for %s (%s)", d.Label, describe(err))
 			return fallback, err
 		}
-		p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))
+		notifyListing(ctx, p, LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))
 		return fallback, err
 	}
 	fallback.Err = cat.Err
 	if !cat.Live && cat.Err != nil && len(static) == 0 {
 		// A failure a catalog carries, as a catalog.Lister's does, is told as
 		// a failed ListModels is (0066-MADR V4).
-		p.Notify(LevelWarn, "could not list models for %s (%s)", d.Label, describe(cat.Err))
+		notifyListing(ctx, p, LevelWarn, "could not list models for %s (%s)", d.Label, describe(cat.Err))
 		return fallback, cat.Err
 	}
 	// A live listing with nothing recommended is kept for search (0021-MADR
@@ -964,17 +1049,17 @@ func discoverModels(
 		if cat.Err != nil {
 			// Told as every other failure beside a static catalog is
 			// (0066-MADR V17).
-			p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(cat.Err))
+			notifyListing(ctx, p, LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(cat.Err))
 		}
 		return fallback, cat.Err
 	}
 	switch {
 	case cat.Live || chatGPT:
 	case cat.Err != nil:
-		p.Notify(LevelWarn, "live model listing for %s is unavailable (%s); search covers the built-in catalog only",
+		notifyListing(ctx, p, LevelWarn, "live model listing for %s is unavailable (%s); search covers the built-in catalog only",
 			d.Label, describe(cat.Err))
 	default:
-		p.Notify(LevelInfo, "live model listing for %s is unavailable; search covers the built-in catalog only", d.Label)
+		notifyListing(ctx, p, LevelInfo, "live model listing for %s is unavailable; search covers the built-in catalog only", d.Label)
 	}
 	return cat, cat.Err
 }
