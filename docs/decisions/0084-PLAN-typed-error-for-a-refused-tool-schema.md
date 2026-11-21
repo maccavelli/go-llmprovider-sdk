@@ -2531,6 +2531,196 @@ Built on `9e84a88`, after the records above. No live run, no
   added", nothing else. The `make` doc gates, claims, recordlint and denyscan
   are in the hand-back, run after this entry was written.
 
+### Phase 3, the plants and the gates (2026-11-21)
+
+Run by an agent at `6602dcd` (Phase 2's commit), on `main`, tree clean at the
+start. Nothing is staged or committed; no live run was made, no
+`LLMPROVIDER_LIVE_*` variable was set, no key was read. The MADR is unchanged.
+Steps 0 to 7 ran; the base red's exit 1 is the dated deviation below.
+
+* **Step 0, the re-grounding.** The PLAN's nine plants, the amendment of
+  2026-11-20's added plants, and the plants Phase 2's passes ran (including the
+  independent reviewer's `spec.json`, `spec2.json` and `spec3.json`, read, not
+  changed) make 70 single-edit plants, plus one `apidiff` plant. Each plant's
+  old text occurs exactly once at `6602dcd`; the line each replaces is in the
+  table. The plants are in `<scratch>/specs/` as one `tools/plant.py` spec per
+  test selection (38 specs), built by `<scratch>/make_plants.py`, which stops
+  if any old text does not occur once. A plant with two edits in the reviewer's
+  runner (ST40) is one contiguous span here.
+* **Step 1, the plants,** `python3 -B tools/plant.py` over each spec on a scratch
+  clone (never the tree), each named test run alone. Every build was checked:
+  no plant was caught by a build failure. Each failure line is the test's, the
+  first assertion line printed.
+
+| Plant | Replaces | Catching test(s), as run | First failure line |
+| :--- | :--- | :--- | :--- |
+| row removed: Grok | `llmprovider/api_error.go:668` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:141: grok-root-string/grok: llmprovider: invalid request: grok HTTP 400 invalid-argument: Failed to start sampling: [i` |
+| row removed: OpenAI | `llmprovider/api_error.go:671` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:141: openai-root-string/openai: llmprovider: invalid request: openai HTTP 400 invalid_function_parameters: Invalid sch` |
+| row removed: Anthropic | `llmprovider/api_error.go:672` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:141: claude-root-string/claude: llmprovider: invalid request: claude HTTP 400 invalid_request_error: tools.1.custom.in` |
+| row removed: Google route | `llmprovider/api_error.go:674` | `TestToolSchemaRefusal_Classify_0084`, `TestToolSchemaRefusal_Names_0084` | `toolschema_refusal_0084_test.go:141: opencode-zen-google-string-schema-tool/opencode: llmprovider: invalid request: opencode HTTP 400 INVALID_ARGUMENT` |
+| ST30: ClassifyHTTPError wraps the kind with Kind left ErrInvalidRequest | `llmprovider/api_error.go:355` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:145: grok-root-string/grok: Kind llmprovider: invalid request, Status 400; want ErrToolSchemaRefused, 400` |
+| loosened: Grok to any invalid-argument 400 (ST22, ST60) | `llmprovider/internal/toolschema/toolschema.go:78` | `TestToolSchemaRefusal_Reworded_0084`, `TestToolSchemaRefusal_OthersUnchanged_0084` | `toolschema_refusal_0084_test.go:207: grok: the tag renamed (grok): llmprovider: tool schema refused: grok HTTP 400 invalid-argument: Failed to start s` |
+| loosened: OpenAI keyed on the type invalid_request_error (ST24) | `llmprovider/internal/toolschema/toolschema.go:76` | `TestToolSchemaRefusal_Reworded_0084`, `TestToolSchemaRefusal_OthersUnchanged_0084` | `toolschema_refusal_0084_test.go:207: openai: the code changed to invalid_prompt (openai): llmprovider: tool schema refused: openai HTTP 400 invalid_pr` |
+| loosened: Anthropic keyed on its type alone (ST25, ST27) | `llmprovider/internal/toolschema/toolschema.go:82` | `TestToolSchemaRefusal_Reworded_0084`, `TestToolSchemaRefusal_OthersUnchanged_0084` | `toolschema_refusal_0084_test.go:207: claude: the tools.N. path renamed (claude): llmprovider: tool schema refused: claude HTTP 400 invalid_request_err` |
+| loosened: Google to its status alone (ST60) | `llmprovider/internal/toolschema/toolschema.go:80` | `TestToolSchemaRefusal_Reworded_0084`, `TestToolSchemaRefusal_RecordedFallback_0084`, `TestToolSchemaRefusal_OthersUnchanged_0084` | `toolschema_refusal_0084_test.go:207: zen google: the phrase changed (opencode): llmprovider: tool schema refused: opencode HTTP 400 INVALID_ARGUMENT:` |
+| name taken from the reply's text without the sent list | `llmprovider/internal/wire/refusedtool.go:64` | `TestToolSchemaRefusal_NeverNamesUnsent_0084` | `toolschema_refusal_0084_test.go:347: grok: a name the request did not send through Generate: Tool "ghost_tool"; want ""` |
+| index mapped through Request.Tools (Claude Generate) | `llmprovider/providers/claude/claude.go:305` | `TestToolSchemaRefusal_Deferral_0084` | `toolschema_refusal_0084_test.go:367: claude: Tool "deferred_tool"; want "record_city"` |
+| index mapped through Request.Tools (Claude Stream) | `llmprovider/providers/claude/claude.go:354` | `TestToolSchemaRefusal_Deferral_0084` | `toolschema_refusal_0084_test.go:383: claude-opus-4-1 through Stream: Tool "deferred_tool"; want "record_city"` |
+| ST39: Claude name filled in the resend hook only | `llmprovider/providers/claude/claude.go:302` | `TestToolSchemaRefusal_LastSendKeepsName_0084` | `toolschema_refusal_0084_test.go:445: claude on the last send: Tool ""; want "record_city"` |
+| ST29: kind not beneath ErrInvalidRequest | `llmprovider/api_error.go:68` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:155: grok-root-string/grok: Unwrap [llmprovider: tool schema refused llmprovider: invalid request]; want the kind alon` |
+| Error() prints Tool (ST31) | `llmprovider/api_error.go:200` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:167: grok-root-string/grok: Error() changed from "llmprovider: tool schema refused: grok HTTP 400 invalid-argument: Fa` |
+| ST37: shouldRetry set for the kind | `llmprovider/api_error.go:314` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:149: grok-root-string/grok: retryable true, or a rate limit or unavailability; want a terminal invalid request` |
+| ST37: parent made ErrRateLimited | `llmprovider/api_error.go:68` | `TestToolSchemaRefusal_Classify_0084` | `toolschema_refusal_0084_test.go:149: grok-root-string/grok: retryable false, or a rate limit or unavailability; want a terminal invalid request` |
+| kind missing from errorClasses (ST35) | `wizard/describe.go:24` | `TestDescribe_ToolSchemaRefused_0084` | `describe_0084_test.go:18: describe(ErrToolSchemaRefused, HTTP 400) = "invalid request, HTTP 400"; want "tool schema refused, HTTP 400"` |
+| ST12: helper takes the first of several names | `llmprovider/internal/wire/refusedtool.go:64` | `TestToolSchemaRefusal_SeveralNamed_0084` | `toolschema_refusal_0084_test.go:538: grok-root-string through Generate: Tool "record_city"; want ""` |
+| ST13: helper requires exactly one entry, not one name | `llmprovider/internal/wire/refusedtool.go:30` | `TestToolSchemaRefusal_DuplicateNames_0084` | `toolschema_refusal_0084_test.go:574: grok through Generate: Tool ""; want "record_city"` |
+| ST11/ST42/ST43: helper falls back to the last caller tool when it finds none | `llmprovider/internal/wire/refusedtool.go:77` | `TestToolSchemaRefusal_NameBeyondBound_0084` | `toolschema_refusal_0084_test.go:508: Generate: Tool "tool_nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn` |
+| ST28/ST44: helper appends the tool's name to Message | `llmprovider/internal/wire/refusedtool.go:53` | `TestToolSchemaRefusal_FieldsUnchanged_0084` | `toolschema_refusal_0084_test.go:693: grok-string-schema-tool through Generate: llmprovider: tool schema refused: grok HTTP 400 invalid-argument: Faile` |
+| ST10: helper ignores Inside (tool_search_output definitions) | `llmprovider/internal/wire/refusedtool.go:30` | `TestToolSchemaRefusal_SearchLoaded_0084` | `toolschema_refusal_0084_test.go:612: openai: the tool the search loaded: Tool ""; want "loaded_tool"` |
+| ST08: OpenCode Messages route Generate not named | `llmprovider/providers/opencode/opencode.go:358` | `TestToolSchemaRefusal_SharedLabel_0084` | `toolschema_refusal_0084_test.go:652: go messages route through Generate: Tool ""; want "record_city"` |
+| ST45: Grok logs the refusal at Debug | `llmprovider/providers/grok/grok.go:273` | `TestToolSchemaRefusal_NoLog_0084` | `toolschema_refusal_0084_test.go:820: grok-string-schema-tool: a log record holds the refusal or the tool: "llmprovider: grok: refused error=llmprovide` |
+| ST21: D3 row placed first in classifyAPIError (above key row) | `llmprovider/api_error.go:582` | `TestToolSchemaRefusal_KeyRowFirst_0084` | `toolschema_refusal_0084_test.go:334: the tag with an API key named: llmprovider: tool schema refused: grok HTTP 400 invalid-argument: Failed to start` |
+| D3: row's status widened from 400 to any 4xx mapped to ErrInvalidRequest (404, 422...) | `llmprovider/api_error.go:652` | `TestToolSchemaRefusal_ProxyAltered_0084` | `toolschema_refusal_0084_test.go:367: grok-string-schema-tool (grok) served as 404: llmprovider: tool schema refused: grok HTTP 404 invalid-argument: F` |
+| ST20/ST23/ST50: row's status condition dropped | `llmprovider/api_error.go:652` | `TestToolSchemaRefusal_ProxyAltered_0084` | `toolschema_refusal_0084_test.go:367: grok-string-schema-tool (grok) served as 401: llmprovider: tool schema refused: grok HTTP 401 invalid-argument: F` |
+| ST16: OpenAI Stream not named | `llmprovider/providers/openai/openai.go:369` | `TestToolSchemaRefusal_Names_0084` | `toolschema_refusal_0084_test.go:284: openai-root-string through Stream: Tool ""; want "record_city"` |
+| ST16: Claude Stream not named | `llmprovider/providers/claude/claude.go:354` | `TestToolSchemaRefusal_Names_0084` | `toolschema_refusal_0084_test.go:284: claude-root-string through Stream: Tool ""; want "record_city"` |
+| ST16: Grok Stream not named | `llmprovider/providers/grok/grok.go:323` | `TestToolSchemaRefusal_Names_0084` | `toolschema_refusal_0084_test.go:284: grok-root-string through Stream: Tool ""; want "record_city"` |
+| ST10: Grok Stream Listed from Request.Tools (Dispatch: deferred and use_tool) | `llmprovider/providers/grok/grok.go:323` | `TestToolSchemaRefusal_NeverNamesUnsent_0084` | `toolschema_refusal_0084_test.go:347: grok: a deferred tool that was not sent through Stream: Tool "deferred_tool"; want ""` |
+| ST10: OpenAI Listed from Request.Tools | `llmprovider/providers/openai/openai.go:345` | `TestToolSchemaRefusal_NeverNamesUnsent_0084`, `TestToolSchemaRefusal_SearchLoaded_0084` | `toolschema_refusal_0084_test.go:347: openai: a deferred tool that was not sent through Generate: Tool "deferred_tool"; want ""` |
+| ST10: OpenCode Listed from Request.Tools | `llmprovider/providers/opencode/opencode.go:470` | `TestToolSchemaRefusal_SearchLoaded_0084` | `toolschema_refusal_0084_test.go:612: zen-responses: a deferred tool not loaded: Tool "unloaded_tool"; want ""` |
+| ST08: OpenCode non-Messages Stream not named | `llmprovider/providers/opencode/opencode.go:421` | `TestToolSchemaRefusal_Names_0084`, `TestToolSchemaRefusal_SharedLabel_0084` | `toolschema_refusal_0084_test.go:284: zen-responses-root-string through Stream: Tool ""; want "record_city"` |
+| ST17: D3 rows applied in setStreamKind's status call | `llmprovider/api_error.go:479` | `TestToolSchemaRefusal_StreamUnchanged_0084` | `toolschema_refusal_0084_test.go:418: opencode-zen-google-string-schema-tool as a stream failure with code 400 (opencode-zen/google): llmprovider: tool` |
+| ST26: D3 row placed before the overflow row | `llmprovider/api_error.go:640` | `TestToolSchemaRefusal_Precedence_0084` | `toolschema_refusal_0084_test.go:449: a refusal that also says the prompt is too long: llmprovider: tool schema refused: claude HTTP 400 invalid_reques` |
+| ST32: x-should-retry rule skips the new kind | `llmprovider/api_error.go:351` | `TestToolSchemaRefusal_Precedence_0084` | `toolschema_refusal_0084_test.go:437: grok-string-schema-tool (grok) with x-should-retry: true: llmprovider: tool schema refused: grok HTTP 400 invalid` |
+| ST33: helper type-asserts *APIError instead of errors.As | `llmprovider/internal/wire/refusedtool.go:49` | `TestNameRefusedTool_Wrapped_0084` | `refusedtool_0084_test.go:96: Join: Tool ""; want record_city, set on the *APIError found` |
+| ST34: helper sets Tool on an *APIError of any kind | `llmprovider/internal/wire/refusedtool.go:50` | `TestNameRefusedTool_PassThrough_0084` | `refusedtool_0084_test.go:73: kind llmprovider: invalid request: Tool set to "record_city" on an error that is not the kind` |
+| ST41: Grok parse requires the word tool after the colon | `llmprovider/internal/toolschema/toolschema.go:110` | `TestToolSchemaRefusal_RedactedNeighbour_0084` | `toolschema_refusal_0084_test.go:466: through Generate: Tool ""; want "lookup_api_key"` |
+| ST86: limit back to 64 KiB | `llmprovider/api_error.go:113` | `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084` | `toolschema_services_0084_test.go:92: grok-string-schema-tool (grok), 70 KiB: Kind llmprovider: invalid request; want ErrToolSchemaRefused` |
+| ST86: limit one byte short of 1 MiB | `llmprovider/api_error.go:113` | `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084`, `TestToolSchemaRefusal_BigBody_0084` | `toolschema_services_0084_test.go:92: grok-string-schema-tool (grok), exactly 1 MiB, the cap: Kind llmprovider: invalid request; want ErrToolSchemaRefu` |
+| ST86: limit 2 MiB | `llmprovider/api_error.go:113` | `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084` | `toolschema_services_0084_test.go:94: grok-string-schema-tool (grok), one byte over the cap, the object cut: Kind llmprovider: tool schema refused; wan` |
+| ST86: no limit (whole body read) | `llmprovider/api_error.go:294` | `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084` | `toolschema_services_0084_test.go:94: grok-string-schema-tool (grok), one byte over the cap, the object cut: Kind llmprovider: tool schema refused; wan` |
+| ST43: helper falls back to the last tool (BigBody name past the bound) | `llmprovider/internal/wire/refusedtool.go:77` | `TestToolSchemaRefusal_BigBody_0084` | `toolschema_bigbody_0084_test.go:44: the name past the 512 bytes Message keeps through Generate: Tool "record_city"; want ""` |
+| N3/ST07: OpenAI form read on every service (Kilo, HF, Together, Gemini...) | `llmprovider/api_error.go:671` | `TestToolSchemaRefusal_OtherServices_0084` | `toolschema_services_0084_test.go:42: openai's form under gemini: llmprovider: tool schema refused: gemini HTTP 400 invalid_function_parameters: Invali` |
+| N3/ST07: Grok form read on every service | `llmprovider/api_error.go:668` | `TestToolSchemaRefusal_OtherServices_0084` | `toolschema_services_0084_test.go:42: grok's form under gemini: llmprovider: tool schema refused: gemini HTTP 400 invalid-argument: Failed to start sam` |
+| N3/ST07: Google form read on every service | `llmprovider/api_error.go:674` | `TestToolSchemaRefusal_OtherServices_0084` | `toolschema_services_0084_test.go:42: google's form under gemini: llmprovider: tool schema refused: gemini HTTP 400 INVALID_ARGUMENT: Upstream request` |
+| N3: Anthropic form read on every service but OpenCode | `llmprovider/api_error.go:672` | `TestToolSchemaRefusal_OtherServices_0084` | `toolschema_services_0084_test.go:42: anthropic's form under gemini: llmprovider: tool schema refused: gemini HTTP 400 invalid_request_error: tools.0.c` |
+| N3: Anthropic form read on every service | `llmprovider/api_error.go:672` | `TestToolSchemaRefusal_OtherServices_0084` | `toolschema_services_0084_test.go:42: anthropic's form under gemini: llmprovider: tool schema refused: gemini HTTP 400 invalid_request_error: tools.0.c` |
+| recorder: redaction skipped (ST46) | `llmprovider/toolschema_0084_record_test.go:529` | `TestToolSchemaRecord_Redacts_0084` | `toolschema_0084_record_offline_test.go:224: claude-root-string.json holds a planted value (52 bytes, starting "xai-")` |
+| recorder: Message and Code left unredacted, body still redacted (ST46) | `llmprovider/toolschema_0084_record_test.go:436` | `TestToolSchemaRecord_Redacts_0084` | `toolschema_0084_record_offline_test.go:224: claude-root-string.json holds a planted value (36 bytes, starting "3f2b")` |
+| recorder: body written before redaction (ST80) | `llmprovider/toolschema_0084_record_test.go:439` | `TestToolSchemaRecord_Redacts_0084` | `toolschema_0084_record_offline_test.go:224: claude-root-string.json holds a planted value (52 bytes, starting "xai-")` |
+| recorder: a 404 read as refused (ST67) | `llmprovider/toolschema_0084_record_test.go:344` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:345: 404: refused, ""; want unreachable, ""` |
+| recorder: a Status-0 ErrIncomplete read as other (ST67) | `llmprovider/toolschema_0084_record_test.go:337` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:345: incomplete 200: other, ""; want accepted, ""` |
+| recorder: the writer replacing a refused record (ST70) | `llmprovider/toolschema_0084_record_test.go:569` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:417: claude-root-string: wrote unreachable over the record; it holds unreachable; want refused` |
+| recorder: a blank key read as set (ST78) | `llmprovider/toolschema_0084_record_test.go:453` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:368: blank key: false, , ""; want skipped, "key unset or blank"` |
+| recorder: errors.Is(err, ErrInvalidRequest) in place of the kind (ST67) | `llmprovider/toolschema_0084_record_test.go:345` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:345: xai 400 key refusal: refused, ""; want unreachable, ""` |
+| recorder: the kind condition dropped from the refused row (ST67) | `llmprovider/toolschema_0084_record_test.go:344` | `TestToolSchemaRecord_Outcome_0084` | `toolschema_0084_record_offline_test.go:345: xai 400 key refusal: refused, ""; want unreachable, ""` |
+| recorder: the case line also prints Message (ST47) | `llmprovider/toolschema_0084_record_test.go:465` | `TestToolSchemaRecord_LogLine_0084` | `toolschema_0084_record_offline_test.go:263: printed "claude-root-string claude claude-sonnet-5: status 400, refused tools.0.custom.input_schema.type:` |
+| recorder: the case line also prints the key variable's value (ST77) | `llmprovider/toolschema_0084_record_test.go:465` | `TestToolSchemaRecord_NoLeak_0084` | `toolschema_0084_record_offline_test.go:456: output holds a made-up value (starting "sk-p")` |
+| recorder: the writer writes a record compact (ST83) | `llmprovider/toolschema_0084_record_test.go:565` | `TestToolSchemaRecord_FieldPerLine_0084` | `toolschema_0084_record_offline_test.go:484: 1 lines, first "{  \"case\": \"claude-O2-two-bad\",  \"route\": \"claude\",  \"wire\": \"messages\",  \"pr` |
+| recorder: println of the message (ST71, PrintCalls) | `llmprovider/toolschema_0084_record_test.go:465` | `TestToolSchemaRecord_CallAllowlist_0084` | `toolschema_0084_record_offline_test.go:1330: the checked files break the allowlist:` |
+| recorder: emit given the message (ST71, PrintCalls) | `llmprovider/toolschema_0084_record_test.go:465` | `TestToolSchemaRecord_CallAllowlist_0084` | `toolschema_0084_record_offline_test.go:1330: the checked files break the allowlist:` |
+| scan compares Redact with itself (ST85) | `llmprovider/toolschema_0084_scan_test.go:82` | `TestToolSchemaScan_Plant_0084` | `toolschema_0084_record_offline_test.go:1461: records copy: reported map[] (ok true); want map[3 key shape:true 4 key shape:true 5 key shape:true 6 key` |
+| scan's allowlist inverted (ST85) | `llmprovider/toolschema_0084_scan_test.go:85` | `TestToolSchemaScan_Plant_0084` | `toolschema_0084_record_offline_test.go:1430: an output file of allowed lines: 16 hits, ok true; want none` |
+| ST40: the sent list kept in a package-level variable (Grok) | `llmprovider/providers/grok/grok.go:249` | `TestToolSchemaRefusal_Concurrent_0084` | `toolschema_refusal_0084_test.go:880: the second call: Tool ""; want "tool_two"` |
+| ST38: the provider resends once after naming the tool (Grok) | `llmprovider/providers/grok/grok.go:261` | `TestToolSchemaRefusal_NoAdaptation_0084` | `toolschema_refusal_0084_test.go:740: grok-root-string: 2 requests reached the server; want one, no resend` |
+
+* **Plants whose catching test needed a note.**
+  * *Row removed (Grok, OpenAI, Anthropic):* `plant.py` prints twelve lines, and
+    `Classify` fills them. Run again with `Names` alone (`<scratch>/specs/sub1.json`,
+    exit 0, 4 of 4 caught), each fails `TestToolSchemaRefusal_Names_0084`:
+    `grok-root-string through Generate: Tool ""; want "record_city"` (and the
+    same for the OpenAI and Anthropic rows, and for ST30's wrapped kind).
+  * *ST11, ST42, ST43, "the helper, finding no sent name, falls back to the last
+    caller tool".* The reviewer's variant, which falls back only when no name
+    was read, is **not** caught by `NamesNothing` or `RedactedName` (each run alone,
+    exit 0: `NOT CAUGHT`), because in those cases the helper has already
+    returned `""` from inside its loop on a name it cannot resolve, so the fallback
+    after the loops never runs; it is caught by `NameBeyondBound` (and `BigBody`).
+    The plant as the PLAN words it, the fallback applied whenever the helper
+    resolves no name, is caught by each of the three: `NamesNothing`
+    (`grok-string-schema-tool through Generate: Tool "record_city"; want ""`),
+    `RedactedName` (`Generate: Tool "key_aaaaaaaaaaaa"; want ""`) and
+    `NameBeyondBound` (`Generate: Tool "tool_nnnn..."; want ""`), runs `sub4`,
+    `sub5` and `sub6`, each exit 0. Recorded as a fact for Phase 4: the reviewer's variant
+    survives two of the three tests the map names.
+  * *ST10, OpenCode's list from `Request.Tools`:* caught by `SearchLoaded`
+    (`zen-responses: a deferred tool not loaded: Tool "unloaded_tool"; want ""`),
+    not by `Deferral`, `NeverNamesUnsent` or `SharedLabel`, which the map does not
+    name for this provider.
+  * *ST17, `setStreamKind`'s second call (status 500, `reply` true):* **not caught,
+    and cannot be**: the call's status is `http.StatusInternalServerError`, and
+    the row needs status 400, so `reply` true changes nothing. It is an
+    equivalent mutant. The first call (the status `code` carries) is caught by
+    `StreamUnchanged`. No row is unpinned by it.
+  * *ST03, the name taken from `param`'s index:* no plant was written. The helper
+    never receives `param` (MADR H5, N2), so no one-line production change reads
+    it; the test `NeverNamesUnsent`'s `param` subcase holds the row.
+  * *ST36, a third exported name:* a plant adding `func ThirdName0084() {}` to
+    `api_error.go`, run with `command` set to a check that `tools/apidiff.py
+    9e84a88` lists exactly two additions (exit 0 on the tree: the two names;
+    caught, exit 1, with the third).
+* **Step 2, red and green.**
+  * `python3 -B tools/redgreen.py <scratch>/RED_base.json --expect fail --rev 9e84a88`:
+    **exit 1**, `redgreen: 0 of 26 fail as expected`; the nine test files copied
+    in, every package `did not build`, first lines
+    `llmprovider/toolschema_refusal_0084_test.go:140:23: undefined: ErrToolSchemaRefused`
+    and `apiErr.Tool undefined (type *APIError has no field or method Tool)`.
+    This is the PLAN's "a build failure, quoted, since the names do not exist"
+    (the PLAN's Rules for every phase), but the tool counts a build failure as a
+    finding and exits 1, so the command's exit is not 0.
+  * `python3 -B tools/redgreen.py <scratch>/RED_tree.json --expect pass`, exit 0,
+    `26 of 26 pass as expected`; with the 12 guards added (`ALL.json`), exit 0,
+    `38 of 38 pass as expected`.
+* **Deviation, dated 2026-11-21 (the coordinator's resolution, nothing waived).**
+  The base run `python3 -B tools/redgreen.py <scratch>/RED_base.json --expect
+  fail --rev 9e84a88` exits 1 by build failure: `redgreen: 0 of 26 fail as
+  expected`, each package "did not build", first lines
+  `llmprovider/toolschema_refusal_0084_test.go:140:23: undefined:
+  ErrToolSchemaRefused` and `apiErr.Tool undefined (type *APIError has no
+  field or method Tool)`. The PLAN anticipates this ("a build failure, quoted,
+  since the names do not exist"); the assertion-level red is Phase 2's stub
+  runs, build passes 1 and 2 above, where every test was red by its assertion.
+  So the exit 1 is the expected red, and the acceptance's "every command exit
+  0" does not apply to this one base run. No test is loosened and no code
+  changes.
+* **Step 3.** `run-heavy -- go test -race -count=3 -timeout 45m ./llmprovider/...
+  ./wizard/...`: exit 0, 36 packages `ok`, no `FAIL`; the last line
+  `ok  github.com/maccavelli/go-llmprovider-sdk/wizard  67.022s`; run-heavy
+  `status=0 elapsed=147s`.
+* **Step 4.** `run-heavy -- python3 -B tools/gate.py --timeout 5400`: exit 0,
+  "gate: 30 of 30 passed", run-heavy `status=0 elapsed=649s`.
+* **Step 5.** `run-heavy -- make lint`: exit 0, "0 issues."; `run-heavy -- make
+  vuln`: exit 0, "No vulnerabilities found."; `go vet -tags live_gateways
+  ./...`: exit 0, no output.
+* **Step 6,** each target run alone, exit taken first: `parity-check` 0
+  ("409 identifiers ... 0 problem(s)"); `dep-check` 0 ("46 packages, 0
+  problem(s)"); `coverage-check` 0 ("45 packages, 0 problem(s)"); `api-check` 0
+  ("against v1.31.0, 0 incompatible change(s) outside llmprovider/x/");
+  `contract-check` 0 ("0 problem(s)"); `generate-check` 0 ("3 generated file(s),
+  0 problem(s)"); `records-check` 0 ("182 records, 0 problem(s)");
+  `tables-check` 0 ("49 packages, 0 problem(s)"); `fixtures-check` 0 ("485
+  file(s), 134 hit(s), 0 problem(s)"); `changelog-check` 0 ("45 release
+  section(s), 0 problem(s)"); `docs-check` 0 ("sdkaudit: 0 violation(s) of
+  R50,R51,R52"); `markdownlint` 0 ("0 issues"); `links-check` 0 ("0
+  problem(s), 1428 relative link(s)"); `disclosure-check` 0 ("0 hit(s) in 1773
+  file(s)"); `gate-selftest` 0 ("OK"); `make tools-test` 0 ("OK"). No docs gap
+  was found by any gate.
+* **Step 7.** `python3 -B tools/claims.py` on the MADR and this PLAN: exit 0,
+  "85 of 85 pass" and "29 of 29 pass"; `tools/denyscan.py --changed`: exit 0,
+  "0 hit(s) in 1 file(s)"; `tools/recordlint.py --changed`: exit 0, "no rule
+  rose".
+* **Findings kept for Phase 4.** (1) The reviewer's weaker fallback variant
+  (fall back to the last tool only when no name was read) survives
+  `NamesNothing` and `RedactedName`, each run alone; only `NameBeyondBound`
+  and `BigBody` catch it. The PLAN's wording is caught by all three. (2)
+  OpenCode's list from `Request.Tools` is caught only by `SearchLoaded`. (3)
+  Two equivalent mutants: `setStreamKind`'s second call given `reply` true
+  (status 500; the row needs 400), and ST03's name from `param` (the helper
+  never receives `param`, so no plant exists). (4) `tools/plant.py` prints at
+  most twelve failure lines, so a second named test can be hidden by a
+  noisy first one; the row-removed plants were rerun with `Names` alone to
+  show it.
+
 ## Amendment of 2026-11-20: the test map, proposed tests, exit criteria and re-grounding
 
 A readiness pass before Phase 1a, on the coordinator's brief, documents
