@@ -901,7 +901,7 @@ plant), or the existing test that must stay green unchanged.
 | ST48 | A nil schema | decided | sent as an empty object (C2), as today | D5 | existing `tools` tests, unchanged |
 | ST49 | A schema that does not marshal | decided | `ErrInvalidRequest` before the network (C9), not the kind | D3 (a service's refusal only) | `TestValidate_UnmarshalableSchema`, unchanged |
 | ST50 | A body that is not JSON | decided | no D3 row matches; today's kind | D3 | *proposed* `ProxyAltered` (needs N7 (a)) |
-| ST51 | Interrupted mid-write | out of scope | nothing is written at run time; a recorder file cut short fails Phase 1c's fixture read, and the PLAN's one-case rerun applies | – | – |
+| ST51 | Interrupted mid-write | out of scope | nothing is written at run time; a recorder file cut short fails Phase 1c's fixture read, and the PLAN's one-case rerun applies *(annotated 2026-11-21, build pass 4: it holds, the live test again running one subtest per case) *(annotated 2026-11-21, after the re-review: the command that reruns one case with its second send is the PLAN's corrected one at Phase 1b step 4, `^<case>(#01)?$`)** | – | – |
 | ST52 | Platforms | out of scope | no path differs by platform; the owner's commands are for zsh and bash on this Mac (PLAN Phase 1b) | – | – |
 
 #### The owner's live run (Phase 1b)
@@ -1080,7 +1080,7 @@ coordinator; what each decides is in the rows below.
 | ST74 | The changelog's **Added** entry | decided | names the kind, the field, "matched by service and marker", the routes each form was recorded on, the fall-backs (a reworded refusal, a failure in a 200 or a stream, `x-should-retry`, an overflow) and the new leading text | D8; N3 to N5 | `grep -c ErrToolSchemaRefused CHANGELOG.md`, exit 0; `make changelog-check`; Phase 4's read |
 | ST75 | A `chatcompat` id beginning "opencode" | out of scope | the caller's own name; its errors already take OpenCode's rows by `serviceOf` today, and this record changes nothing about that | – | – |
 | ST76 | Phase 1c's fixture check or identifier scan finds a value the redaction should have removed | open (N9) | ~~the PLAN stops: "a hit is a stop, never a baseline entry"~~ (struck 2026-11-20, fourth pass: decided in the third amendment; see ST76 there) | – | – |
-| ST77 | How a key reaches the run | decided | only through the process environment, read by the recorder by its `ProviderEnvVars()` name and passed to the provider; never an argument, a file, a log, output or a record | the ruling on who runs the recording | `TestToolSchemaRecord_NoLeak_0084`; the PLAN's `grep` for `os.Args`, `flag.` and `os.ReadFile` in the recorder's files, exit 1 |
+| ST77 | How a key reaches the run | decided | only through the process environment, read by the recorder by its `ProviderEnvVars()` name and passed to the provider; never an argument, a file, a log, output or a record | the ruling on who runs the recording | `TestToolSchemaRecord_NoLeak_0084`; the PLAN's `grep` for `os.Args`, `flag.` and ~~`os.ReadFile`~~ *(struck 2026-11-21: `os.ReadFile` is allowed in the write function and the scan file; the fifth amendment below)* in the recorder's files, exit 1 |
 | ST78 | A key unset or blank | decided | the route is `skipped`, reason "key unset or blank"; the run goes on; nobody is asked | N8; the ruling on who runs the recording | `Outcome` (unset, empty and spaces) |
 | ST79 | What the run prints | decided | standard output and the test log carry only the case, route, model, HTTP status and outcome | the ruling on who runs the recording | `NoLeak`; `LogLine` |
 | ST80 | A key-shaped string or an `org-` id in a provider's reply | decided | neither appears in any output, log or record; a raw body or raw error text is redacted before it is written and never printed | the ruling on who runs the recording; the review's a3 | `NoLeak`, planting both into a reply's body and message |
@@ -1208,7 +1208,7 @@ already recorded.
 | ST36 | decided, check corrected | the two commits are compared on a scratch clone: `tools/apidiff.py <base> <scratch commit>`, where the scratch commit holds Phase 2's changed files on the base. Comparing with the working tree would also list another record's uncommitted Go work, since Phase 2 has no clean-tree prerequisite | D7 | that command and `make api-check` exit 0 |
 | ST37 | decided, rationale corrected | the parent-`ErrRateLimited` plant leaves `Retryable()` false, because the D3 rows return a terminal error (`api_error.go:197` to `:199`). It is caught because `Unwrap` then also yields the legacy `ErrInvalidRequest`, and by `errors.Is(err, ErrRateLimited)` being asserted false. A second plant, `shouldRetry` set for the kind, makes `Retryable()` true and is caught | D1 | `Classify` |
 | ST60 | decided, test corrected | an unrecognised `refused` record classifies at the phase's tree to the kind it has at the base, with `Tool` empty. That kind is always beneath `ErrInvalidRequest`, by ST67 | N1 | `RecordedFallback` |
-| ST67 | decided, corrected | `refused` only for an `*APIError` of status 400 to 499, other than 401, 403, 404, 408, 409 and 429, that `errors.Is` `ErrInvalidRequest`. Any other `*APIError`, and any 3xx, is `unreachable`: Gemini's and xAI's 400 key refusals (`ErrAuthFailure`, `api_error.go:554` to `:561`), a 402 (`ErrQuotaExhausted`, `:546`), and a 400 with `x-should-retry: true`. The other rows are as before | N8 ("Mark it unreachable or skipped; earlier fixtures stand (Recommended)"); a1 | `Outcome` |
+| ST67 | decided, corrected | `refused` only for an `*APIError` of status 400 to 499, other than 401, 403, 404, 408, 409 and 429, ~~that `errors.Is` `ErrInvalidRequest`~~ *(struck 2026-11-21: `errors.Is` is true for every one of those errors, a refused key's and a 402's included; ST67 as corrected in the fifth amendment below)*. Any other `*APIError`, and any 3xx, is `unreachable`: Gemini's and xAI's 400 key refusals (`ErrAuthFailure`, `api_error.go:554` to `:561`), a 402 (`ErrQuotaExhausted`, `:546`), and a 400 with `x-should-retry: true`. The other rows are as before | N8 ("Mark it unreachable or skipped; earlier fixtures stand (Recommended)"); a1 | `Outcome` |
 | ST69 | decided, widened | any read route with no recognised Phase 1 record (skipped, unreachable, root string accepted, or nothing recognised) feeds `Names` and `Classify` from its 0062 fixture, the tool moved to index 1 | N7; N8 | `Names` |
 | ST71 | decided, check replaced | the recorder's files neither call nor name `SkipIfTransient`, `skipIfTransient`, `LiveModel` or `liveModel`. No call that prints takes anything but literals, constants of fixed text and the allowlisted fields. Calls that print are `t.Log`, `Logf`, `Error`, `Errorf`, `Fatal`, `Fatalf`, `Skip`, `Skipf`, `fmt.Print*`, `fmt.Fprint*` and `log.` | the PLAN's Rules; the review's a9 | `TestToolSchemaRecord_PrintCalls_0084` |
 | ST79 | decided, made to agree with the command | the output file holds only `go test -v`'s framing lines, the `t.Logf` case line and the recorder's fixed texts. The framing lines are `=== RUN`, `=== PAUSE`, `=== CONT`, `=== NAME`, `--- PASS:`, `--- FAIL:`, `--- SKIP:`, `PASS`, `FAIL`, and `ok` or `FAIL` with the package | the ruling on who runs the recording | `TestToolSchemaScan_0084` on the output; `PrintCalls` |
@@ -1231,3 +1231,77 @@ mapped.
 Every observation of the recording run maps to an outcome with no further
 ruling. One stop is left by design, ST76's and ST84's bound: the same leak
 found again after one fix and rerun goes to the owner as a deviation.
+
+## Fifth amendment of 2026-11-21: ST67 corrected again, and three readings recorded
+
+A build stop in 0084-PLAN Phase 1a, build pass 1, and the owner's answers
+to it, relayed by the coordinator on 2026-11-21. Nothing above is
+rewritten; the sentences this amendment supersedes are struck in place and
+point here.
+
+### The evidence
+
+Measured on a scratch clone at `96594e4`, through `ClassifyHTTPError`, with
+no network. `APIError.Unwrap` appends the status's legacy sentinel to a
+terminal error whose kind differs (`llmprovider/api_error.go:179` to
+`:188`), and the status-only mapping gives every 4xx but 401, 403 and 429
+`ErrInvalidRequest` (`:221` to `:231`). So `errors.Is(err,
+ErrInvalidRequest)` does not separate a refused schema from a refused key:
+
+| Reply | `errors.Is(err, ErrInvalidRequest)` | The error's own `Kind` |
+| :--- | :--- | :--- |
+| xAI, 400 `invalid-argument` naming an API key | true | `ErrAuthFailure` (also true) |
+| Gemini, 400 `API_KEY_INVALID` | true | `ErrAuthFailure` (also true) |
+| Claude, 402 | true | `ErrQuotaExhausted` (also true) |
+| 302 | true | none: status-mapped |
+| Claude, a plain 400 `invalid_request_error` | true | none: status-mapped `ErrInvalidRequest` |
+| Claude, 400 with `x-should-retry: true` | false | `ErrProviderUnavailable` |
+
+The fourth amendment's row for ST67 asked for `errors.Is`, and for the 402
+and the two 400 key refusals to be `unreachable`; no build meets both. The
+sentence "that kind is always beneath `ErrInvalidRequest`, by ST67" in the
+fourth amendment's ST60 row, and the PLAN's "a `refused` record is therefore
+always of a kind beneath `ErrInvalidRequest`", are true of `APIError.Kind`
+(or the status-mapped kind when `Kind` is nil), not of `errors.Is`.
+
+### The owner's answers of 2026-11-21
+
+* **ST67:** "Test the error's own kind (Recommended)", the owner's answer, relayed by the
+  coordinator.
+* **The three readings:** "Record all three readings (Recommended)", the owner's answer, relayed by the
+  coordinator: (1) ST77's `grep` runs for `os.Args` and `flag.` on all four
+  recorder files, and for `os.ReadFile` on the live file only; (2) the
+  five-field log line supersedes the first amendment's format for
+  `TestToolSchemaRecord_LogLine_0084`; (3) the call allowlist names
+  `t.Logf`, `Fatal`, `Fatalf`, `Skip` and `Helper` as `(*testing.common)`
+  methods, which is where `testing` declares them, with the same meaning.
+
+### Rows changed
+
+| Id | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- |
+| ST67 | decided, corrected again | `refused` only for an `*APIError` whose status is 400 to 499, other than 401, 403, 404, 408, 409 and 429, and whose `Kind` is nil (the status-mapped `ErrInvalidRequest`) or satisfies `errors.Is(apiErr.Kind, ErrInvalidRequest)`, so `ErrContextOverflow` and the workspace kinds count and `ErrAuthFailure` and `ErrQuotaExhausted` do not. Every other condition of ST67 is unchanged: any other `*APIError` and any 3xx is `unreachable`, which holds Gemini's and xAI's 400 key refusals, a 402 and a 400 with `x-should-retry: true`; 408, 409, 5xx and a `Status`-0 failure other than `ErrIncomplete` and beneath it are `other`; a `Status`-0 `ErrIncomplete` or `ErrEmptyAnswer` is `accepted` | N8 ("Mark it unreachable or skipped; earlier fixtures stand (Recommended)"); a1; the owner's answer, "Test the error's own kind (Recommended)" | `Outcome`, each row, the 402, the 3xx and the two 400 key refusals included; a plant that tests `errors.Is(err, ErrInvalidRequest)` in place of the kind must turn it red |
+| ST77 | decided, check restated | as before; the `grep` for `os.Args` and `flag.` exits 1 on all four recorder files, and the `grep` for `os.ReadFile` exits 1 on the live file alone, since the write function and the scan file may read a file (the PLAN's last edit) | the ruling on who runs the recording; "Record all three readings (Recommended)" | `NoLeak`; those `grep`s |
+| ST47 | decided | the case line is the five-field line, `<case> <route> <model>: status <n>, <outcome>`, not the first amendment's `<id>: <outcome>, status <n>` | the ruling on who runs the recording; "Record all three readings (Recommended)" | `LogLine` |
+
+### Counts after all five amendments
+
+85 rows, as after the fourth: 75 decided, 3 out of scope, 0 open, 7 open:
+awaits live evidence (ST53, ST54, ST55, ST57, ST58, ST59, ST66). No row is
+added; ST47, ST67 and ST77 are restated.
+
+## Sixth amendment of 2026-11-21: the review's findings on Phase 1a
+
+An independent review of 0084-PLAN Phase 1a, build pass 2, and the owner's
+answer, relayed by the coordinator: "Third pass: fix all, records first (Recommended)". Three test cells
+change; no decision does, and nothing above is rewritten. The reviewer's
+blockers B1 to B3 concern the call allowlist's construction, not a row's
+outcome, and are in the PLAN's build pass 3 entry.
+
+### Rows changed
+
+| Id | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- |
+| ST46 | decided, test added | as before, and a record never holds the model's text: a `Status`-0 `ErrIncomplete` that arrives with a 200 body holding model text gives a record with no `Body` and no such text anywhere in the written file | the review; the owner's answer above | `TestToolSchemaRecord_Redacts_0084`; `TestToolSchemaRecord_NoModelText_0084` |
+| ST67 | decided, test added | as in the fifth amendment, and the second send: a case that is `other` is sent once more after the pass, and is `unreachable` if it is still `other` and `refused` if the second send is a refusal | the review; the owner's answer above | `TestToolSchemaRecord_Outcome_0084`; `TestToolSchemaRecord_SecondSend_0084` |
+| ST68 | decided, moved to Phase 1c | a route with no case `refused` or `accepted` is `skipped` as a whole, its 0062 fixtures standing; applied when Phase 1c sorts the records, since the recorder writes one record per case; ~~`TestToolSchemaRecord_Outcome_0084`~~ *(struck 2026-11-21: the recorder cannot know a route's other cases)* | N8; the review | Phase 1c's per-route line in the PLAN's execution record; `Names` and `Classify` in Phase 2 (ST69) |

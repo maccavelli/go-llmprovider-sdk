@@ -356,7 +356,11 @@ scan.)*
    record with another outcome, and writes `skipped` only where the case
    has no record (the review's a8), so a full rerun keeps every good
    record; a one-case rerun replaces that case's `other`, `unreachable` or
-   `skipped` record. `TestToolSchemaRecord_Outcome_0084` pins both.)*
+   `skipped` record. `TestToolSchemaRecord_Outcome_0084` pins both.)* *(Annotated
+   2026-11-21, build pass 4: the one-case rerun holds again; pass 3 had dropped
+   the subtests it rests on, and pass 4 restores them.)* *(Annotated 2026-11-21,
+   after the re-review: the command that runs it, second send included, is
+   the corrected one at Phase 1b step 4, which names `(#01)?`.)*
 
    *(Corrected 2026-11-20, fourth pass, the delta check's finding on a2.
    The table above goes by status alone, so a key refused with HTTP 400
@@ -371,13 +375,13 @@ scan.)*
    | the route's key variable unset, empty or all spaces | `skipped`, "key unset or blank" |
    | no error | `accepted` |
    | an `*APIError` with `Status` 0 of a kind beneath `ErrIncomplete` | `accepted` (a1) |
-   | an `*APIError` with `Status` 400 to 499, other than 401, 403, 404, 408, 409 and 429, that `errors.Is` `ErrInvalidRequest` | `refused` |
+   | an `*APIError` with `Status` 400 to 499, other than 401, 403, 404, 408, 409 and 429, ~~that `errors.Is` `ErrInvalidRequest`~~ *(struck 2026-11-21: `errors.Is` is true for a refused key's and a 402's error; the owner's answer, "Test the error's own kind (Recommended)", relayed by the coordinator)* whose `Kind` is nil (the status-mapped `ErrInvalidRequest`) or satisfies `errors.Is(apiErr.Kind, ErrInvalidRequest)` | `refused` |
    | an `*APIError` with `Status` 408, 409 or 500 to 599, or `Status` 0 of a kind not beneath `ErrIncomplete` | `other`; the recorder sends it once more after the pass and writes `unreachable` if it is still `other` |
    | any other `*APIError`: 300 to 399, 401, 403, 404, 429, or a 4xx of another kind (a refused key, a 402's exhausted quota, `ErrNotPermitted`, `x-should-retry: true`) | `unreachable` |
    | an error that is not an `*APIError` | `unreachable`, reason `transport`, never the error's text |
 
-   *A `refused` record is therefore always of a kind beneath
-   `ErrInvalidRequest` at the base. `TestToolSchemaRecord_Outcome_0084`
+   *~~A `refused` record is therefore always of a kind beneath
+   `ErrInvalidRequest` at the base.~~ *(Struck 2026-11-21: true of `Kind`, not of `errors.Is`. A `refused` record is always of a `Kind` that is nil or beneath `ErrInvalidRequest` at the base.)** `TestToolSchemaRecord_Outcome_0084`
    asserts each row, the 402, the 3xx and Gemini's and xAI's 400 key
    refusals included.)*
 3. **What is redacted in the body**, before it is cut to 4 KiB as 0062's
@@ -411,8 +415,8 @@ scan.)*
    variable is set (`ProviderEnvVars()`, P18, P19) and records `skipped`
    when it is not; builds each provider with `providers.New`,
    `WithModelProbes(false)` and `WithoutModelMetadata()`; one `Generate`
-   per case, no `WithRetry`. It logs, per case, only `"%s: %s, status %d"`
-   (the id, the outcome, the status).
+   per case, no `WithRetry`. It logs, per case, only ~~`"%s: %s, status %d"`
+   (the id, the outcome, the status)~~ *(superseded 2026-11-21: the five-field line of the later bullets)*.
    *(Annotated 2026-11-20, the review's a9: 0062's recorder passes an
    error to `t.Fatal` (`llmprovider/live_0062_refusals_measure_test.go:37`,
    `:48`, `:52`); this one does not. Every failure, skip and log call takes
@@ -435,7 +439,7 @@ scan.)*
      key unset, empty or all spaces makes the route's cases `skipped`,
      reason "key unset or blank", and the run goes on. The recorder's files
      use no `os.Args`, `flag.` or `os.ReadFile`: `grep -nE
-     'os\.Args|flag\.|os\.ReadFile'` on them exits 1;*
+     'os\.Args|flag\.|os\.ReadFile'` on them exits 1;* *(Annotated 2026-11-21, "Record all three readings (Recommended)": the `grep` for `os.Args|flag\.` exits 1 on all four recorder files, and the `grep` for `os\.ReadFile` exits 1 on the live file alone, since the write function and the scan file may read a file.)*
    * *each case's one line, on standard output and in the test log, is
      `"<case> <route> <model>: status <n>, <outcome>"` and nothing else; no
      body, `Message`, `Code` or error text is printed or logged, before or
@@ -443,7 +447,10 @@ scan.)*
    * *after the pass over every case, the recorder sends each `other` case
      once more and writes `unreachable` for one still `other`, so one
      command records everything; the one-case command of Phase 1b step 4
-     is then needed only to repeat a case on purpose;*
+     is then needed only to repeat a case on purpose;* *(Annotated 2026-11-21,
+     build pass 4: holds again, the subtests being restored.)* *(Annotated
+     2026-11-21, after the re-review: the one-case command is the corrected
+     one at Phase 1b step 4, `^<case>(#01)?$`.)*
    * *a body and an error's text are redacted in memory before anything is
      written; the record is the only file the recorder writes.)*
    *(Added 2026-11-20, fourth pass, the delta check's findings on ST71,
@@ -564,7 +571,15 @@ scan.)*
        `MatchString`; `(llmprovider.Provider).Generate`;
        `(http.RoundTripper).RoundTrip`; `(io.Closer).Close` on a reply's
        body; a `context.CancelFunc` value; and `(*testing.T).Run`,
-       `Helper`, `Logf`, `Fatal`, `Fatalf` and `Skip`;*
+       `Helper`, `Logf`, `Fatal`, `Fatalf` and `Skip`;* *(Annotated
+       2026-11-21, "Record all three readings (Recommended)": `Helper`, `Logf`,
+       `Fatal`, `Fatalf` and `Skip` resolve to `(*testing.common)`, where
+       `testing` declares them; the check names them so, with the same
+       meaning, and `Run` as `(*testing.T).Run`.)* *(Annotated 2026-11-21,
+       build passes 3 and 4: `Errorf` joins the named methods, with the argument
+       rule, for the second pass's fixed failure text; and a call through
+       `caseRunner`, the injected runner of `recordToolCases`, is allowed with
+       a `toolCase` variable and a function literal alone.)*
      * *a type conversion, which is not a call; and the builtins `len`,
        `append`, `make`, `copy`, `min` and `max`.*
 
@@ -601,10 +616,15 @@ scan.)*
      goes. This check takes the place of `PrintCalls` in each of their
      tests.*
 
-     *The check is complete by construction for the recorder's own files:
-     a call not named above cannot pass it. Its stated limit is that a
+     *~~The check is complete by construction for the recorder's own files:
+     a call not named above cannot pass it.~~ Its stated limit is that a
      library the recorder is allowed to call may itself print; the output
-     scan (MADR ST84, ST85) covers that.)*
+     scan (MADR ST84, ST85) covers that.)* *(Annotated 2026-11-21, build
+     pass 3, the independent review's B1 to B3: the claim was false as built.
+     The argument rule matched a field by its name alone, the one write
+     function was matched by its name alone, and a reassignment of the path
+     was not refused. Plants passed `CallAllowlist`; the fixes are in the
+     build pass 3 entry below, and each plant joins `toolPlants`.)*
    * *(Added 2026-11-20, the last edit, by the owner's ruling, relayed by
      the coordinator: "Apply the checker's fixes exactly; the build proves
      them (Recommended)". These five fixes amend the check above:*
@@ -876,6 +896,27 @@ else is typed in that window: no `echo`, `printenv`, `env`, `set` or `set
    run again whole.)* *(Superseded later on 2026-11-20 by the run above:
    one command with `-timeout 180m`, the recorder sending each `other`
    case a second time itself.)*
+
+   *(Corrected 2026-11-21, after the re-review of build pass 4. The two
+   one-case blocks above, with `-run '^TestLive_ToolSchema_0084$/^grok-O1-root-union$'`,
+   run the first send of a case and skip its second: Go names the second
+   subtest of a name `<case>#01`, and `-run` is applied to that name, so an
+   anchored `^<case>$` does not match it (measured, build pass 4). They are
+   not to be run. The one-case command is this one, with the case's id in
+   place of `<case>`, and its worked example for `grok-O1-root-union`:)*
+
+   ```sh
+   LLMPROVIDER_LIVE_0084=1 LLMPROVIDER_LIVE_0084_OUT="$HOME/tool-schema-0084" go test -tags live_gateways ./llmprovider -run '^TestLive_ToolSchema_0084$/^<case>(#01)?$' -count=1 -timeout 5m -v
+   ```
+
+   ```sh
+   LLMPROVIDER_LIVE_0084=1 LLMPROVIDER_LIVE_0084_OUT="$HOME/tool-schema-0084" go test -tags live_gateways ./llmprovider -run '^TestLive_ToolSchema_0084$/^grok-O1-root-union(#01)?$' -count=1 -timeout 5m -v
+   ```
+
+   *(The pattern is the owner's one-case rerun made to reach the second
+   send; it is the same command in every other respect, with the same
+   `-timeout 5m`. A case that was not `other` has no `#01` subtest, and the
+   pattern then runs the one.)*
 
 5. ~~Remove the values from the shell, then close the window:~~
 
@@ -1451,6 +1492,520 @@ revisions the marker names; Phase 2 re-reads each at the base.
   must show the check passing on the recorder (the guard) and every plant
   failing; that is the proof.
 
+### Phase 1a, build pass 1 (2026-11-21)
+
+Stopped, by the stop condition "a decided row cannot be met as written". Start
+state: branch `main`, HEAD `96594e4`, tree clean before the first write.
+
+* **Re-grounding at `96594e4`, each held.**
+  * P13: `llmprovider/refusals_0062_record_test.go:465`, `func
+    outsideModule(`, held.
+  * P14: `llmprovider/refusals_0062_record_test.go:61`, `const
+    refusalBodyLimit = 4 << 10`, held.
+  * P18: `llmprovider/provider.go:100`, `ProviderGrok:   "XAI_API_KEY",`,
+    held.
+  * P19: `llmprovider/provider.go:103`, `ProviderOpencodeZen:
+    "OPENCODE_API_KEY",`, held.
+  * P24: `llmprovider/live_0062_refusals_measure_test.go:28`, `func
+    TestLive_Refusals_0062(`, held.
+  * P28: moved from `AGENTS.md:278` to `:295`, same text, meaning unchanged
+    (as the amendment of 2026-11-20 recorded).
+  * P29: `docs/reports/0062-REPORT-thinking-refusals.md:31`, held.
+* **What was built before the stop, and kept out of the tree.** The record
+  file, the live file and the scan file, compiling (`go vet` with and
+  without `-tags live_gateways`, exit 0, on a scratch clone), kept in a
+  scratch folder, not in the tree. The offline proofs file, the plants and the
+  gate were not written or run. On the scratch clone: the key-shape scan
+  reports no line of the 62 files under `testdata/refusals-0062/`, and
+  `go/types` with `importer.ForCompiler(fset, "source", nil)` and cgo off
+  type-checks the three files with no type error in 7.4 seconds and
+  resolves every callee (so the allowlist is buildable as specified). No
+  live call was made; no `LLMPROVIDER_LIVE_*` variable was set.
+* **The stop: ST67's `refused` condition cannot be met as written.** The
+  corrected outcome table and ST67 say a `refused` record is an `*APIError`
+  of status 400 to 499, bar 401, 403, 404, 408, 409 and 429, "that
+  `errors.Is` `ErrInvalidRequest`", and that Gemini's and xAI's 400 key
+  refusals, a 402 and a 400 with `x-should-retry: true` are `unreachable`.
+  `APIError.Unwrap` appends the status's legacy sentinel for every
+  terminal error whose kind differs (`llmprovider/api_error.go`, `Unwrap`),
+  and the status-only mapping gives every 4xx but 401, 403 and 429
+  `ErrInvalidRequest` (`statusSentinel`). So `errors.Is(err,
+  ErrInvalidRequest)` is true for each of those errors. Measured on a
+  scratch clone at `96594e4`, through `ClassifyHTTPError`: xAI 400 key
+  refusal, `errors.Is(ErrInvalidRequest)` true and `ErrAuthFailure` true;
+  Gemini 400 `API_KEY_INVALID`, both true; Claude 402, `ErrInvalidRequest`
+  true and `ErrQuotaExhausted` true; a 302, `ErrInvalidRequest` true; only
+  the 400 with `x-should-retry: true` is false (`ErrProviderUnavailable`).
+  `TestToolSchemaRecord_Outcome_0084` is specified to assert the 402, the 3xx
+  and the two 400 key refusals `unreachable`, which no build with the
+  `errors.Is` condition passes. The sentence "a `refused` record is
+  therefore always of a kind beneath `ErrInvalidRequest`" is true of
+  `APIError.Kind`, not of `errors.Is`.
+* **Resolutions, recommended first.** (1) Test the kind, not the unwrap
+  chain: `refused` only when `apiErr.Kind` is nil (the status-mapped
+  `ErrInvalidRequest`) or `errors.Is(apiErr.Kind, ErrInvalidRequest)`
+  (`ErrContextOverflow`, a workspace kind and the like), with every other
+  condition of ST67 as written; amend ST67 and the table above in the
+  MADR and this PLAN, then resume. Cost: one amendment and one condition in
+  one function. (2) Keep `errors.Is` as written and drop the 402 and the two
+  key refusals from ST67's `unreachable` list and from the Outcome test:
+  a bad key then records as `refused` and joins Phase 1c's fall-back
+  tests, which contradicts the owner's ruling on N8 and ST68's route-level
+  skip. Not recommended. Consequence of doing nothing: the Outcome test
+  cannot be made to pass, and a recording with a refused xAI or Gemini key
+  or an exhausted quota would write `refused` records that Phase 1c reads as
+  schema refusals.
+* **Also noted, not a stop.** ST77's check names `os.ReadFile` in the
+  recorder's files with `grep` exiting 1, and the last edit allows
+  `os.ReadFile` in the one write function (to keep a `refused` or
+  `accepted` record, ST70) and in the scan file. Both cannot hold; the build
+  reads the last edit's allowlist as the later and specific rule, runs the
+  `grep` for `os.Args` and `flag.` on all four files, and for `os.ReadFile`
+  on the live file alone, unless the pair is amended.
+* **Deviation resolved, 2026-11-21.** The stop above was put to the owner,
+  who answered, relayed by the coordinator: "Test the error's own kind (Recommended)". `refused` only when the
+  `*APIError`'s status is 400 to 499 other than 401, 403, 404, 408, 409 and 429, and
+  its `Kind` is nil (the status-mapped `ErrInvalidRequest`) or `errors.Is(apiErr.Kind,
+  ErrInvalidRequest)`; every other ST67 condition is unchanged, and bad keys and a 402
+  stay `unreachable`, per N8. Resolution (1) above is the one chosen. The owner also
+  answered "Record all three readings (Recommended)": (1) ST77's `grep` runs for `os.Args` and `flag.` on all four
+  recorder files and for `os.ReadFile` on the live file only; (2) the five-field line
+  supersedes the first amendment's `LogLine` format; (3) the call allowlist names
+  `t.Logf`, `Fatal`, `Fatalf`, `Skip` and `Helper` as `(*testing.common)` methods, with
+  the same meaning. The corrections are annotated in place above and in the MADR's fifth
+  amendment of 2026-11-21. One more test row: `Outcome` gains a plant that tests
+  `errors.Is(err, ErrInvalidRequest)` in place of the kind, which must turn it red. No
+  file is added to scope: the four recorder files and their places are as the Files line
+  says. The recorder files kept out of the tree at the stop are not copied in until the
+  coordinator releases the build.
+
+### Phase 1a, build pass 2 (2026-11-21)
+
+Built on `96594e4`, after the owner's answers recorded above, with the tree
+holding only the two records' edits at the start. No live run: no
+`LLMPROVIDER_LIVE_*` variable was set, and the tagged file was compiled and
+vetted, never run.
+
+* **Re-grounding.** Pass 1's table stands: P13, P14, P18, P19, P24 and P29
+  held at their pinned lines, P28 at `AGENTS.md:295`, each with the same
+  text. `tools/claims.py` passes 85 of 85 and 29 of 29.
+* **What was built.** Four files in `llmprovider/`, all package
+  `llmprovider_test`:
+  * `toolschema_0084_record_test.go` (untagged): the case table (57 cases),
+    `toolOutcome` as amended (status range, and `Kind` nil or beneath
+    `ErrInvalidRequest`), the capture transport, `toolFill`,
+    `recordToolCase`, the redaction (`redact.String`, then the fixture rules
+    for request ids, account ids, workspace ids, UUIDs, e-mail addresses and
+    home paths), and `writeToolRecord`, the one function that writes;
+  * `live_0084_toolschema_measure_test.go` (`live_gateways`):
+    `TestLive_ToolSchema_0084`, with the second send of each `other` case;
+  * `toolschema_0084_scan_test.go` (untagged): `TestToolSchemaScan_0084`,
+    which skips unless `LLMPROVIDER_LIVE_0084_SCAN` is set, and the scan;
+  * `toolschema_0084_record_offline_test.go` (untagged): `Cases`,
+    `InsideModule`, `Redacts`, `LogLine`, `Outcome`, `NoLeak`,
+    `FieldPerLine`, `CallAllowlist` and `TestToolSchemaScan_Plant_0084`.
+  The two locally-held function literals of pass 1 are declared functions
+  (`toolBranch`, `toolCity`). `toolInsideModule` sits in the record file, not
+  the live file, so that `InsideModule` tests it offline; the allowlist
+  names the same calls either way.
+* **Models, per route, none replaced.** Each route keeps its 0062 model:
+  `grok` `grok-4.6`, `grok2` `grok-4.5`, `openai` `gpt-6-luna`,
+  `zen-responses` `gpt-5.5`, `claude` and `zen-messages` `claude-sonnet-5`,
+  `zen-google` and `gemini` `gemini-3.8-flash`, `zen-chat` `glm-5.3`,
+  `go-messages` `qwen3.8-flash`. Whether each is still listed was not checked,
+  since that needs a live call; Phase 1b is where an unlisted model shows.
+* **Gate.**
+
+  | Command | Exit | Decisive line |
+  | :--- | :--- | :--- |
+  | `go test -count=1 ./llmprovider/` | 0 | `ok` |
+  | `go vet -tags live_gateways ./llmprovider/` | 0 | no output |
+  | `go test -c -tags live_gateways -o <scratch>/x.test ./llmprovider/` | 0 | no output |
+  | `run-heavy -- make pre-add-check FILES=<the four files>` | 0 | `4 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+  | `make records-check` | 0 | `182 records, 0 problem(s)` |
+  | `make docs-check` | 0 | `0 violation(s) of R50,R51,R52` |
+  | `make links-check` | 0 | `0 problem(s)` |
+  | `make changelog-check` | 0 | `0 problem(s)` |
+  | `make tables-check` | 0 | `0 problem(s)` |
+  | `make disclosure-check` | 0 | `0 hit(s)` |
+  | `make api-check` | 0 | `0 incompatible change(s)` |
+
+  The first pre-add run failed on two lints in the offline file (`errorlint`
+  on a type assertion, `gocognit` on `check`); `check` was split and the
+  assertion made `errors.AsType`, and the second run passed. That is the one
+  build pass of the phase's gate that failed.
+* **Greps, as the amended ST77 reads them.** `grep -nE 'os\.Args|flag\.'` on
+  the four recorder files exits 1 (no hit); `grep -nE 'os\.ReadFile'` on the
+  live file exits 1; `grep -nE 'SkipIfTransient|skipIfTransient|LiveModel|liveModel'`
+  on the four exits 1. Each `grep` exits 0 on a scratch copy of the live file
+  with `os.Args`, `flag.Parse` and `os.ReadFile` appended.
+* **Plants.** `python3 -B tools/plant.py` on a scratch clone, 15 plants,
+  each caught (exit 0). Each failure line below is the test's:
+  * redaction skipped: `Redacts`, `claude-root-string.json holds a planted
+    value (52 bytes, starting "xai-")`;
+  * `Message` and `Code` left unredacted, body still redacted: `Redacts`,
+    `Message holds a planted value (16 bytes, starting "org-")`;
+  * body written before redaction: `Redacts`, `Body holds a planted value
+    (52 bytes, starting "xai-")`;
+  * a 404 read as refused: `Outcome`, `404: refused, ""; want unreachable, ""`;
+  * a `Status`-0 `ErrIncomplete` read as other: `Outcome`, `incomplete 200:
+    other, ""; want accepted, ""`;
+  * the writer replacing a refused record: `Outcome`, `claude-root-string:
+    wrote unreachable over the record; it holds unreachable; want refused`;
+  * a blank key read as set: `Outcome`, `blank key: false, , ""; want
+    skipped, "key unset or blank"`;
+  * `errors.Is(err, ErrInvalidRequest)` in place of the kind (the owner's
+    amendment): `Outcome`, `xai 400 key refusal: refused, ""; want
+    unreachable, ""`, and the same for Gemini's, the 402 and a not-permitted
+    4xx;
+  * the kind condition dropped from the refused row: `Outcome`, the same
+    four rows and `400 x-should-retry: refused, ""; want unreachable, ""`;
+  * the case line also prints `Message`: `LogLine`, `printed
+    "claude-root-string claude claude-sonnet-5: status 400, refused: tools.0...`;
+  * the case line also prints the key variable's value: `NoLeak`, `output
+    holds a made-up value (starting "sk-p")`;
+  * the writer writes a record compact: `FieldPerLine`, `1 lines, first "{
+    \"case\": \"claude-O2-two-bad\", ...` (checked on a scratch copy; the
+    `plant.py` run showed `Outcome`'s writer rows failing too, `it holds
+    unknown; want skipped`);
+  * the control tool not first: `Cases`, `grok-root-string: tools [{nop ...}
+    ...]; want noop first`;
+  * the scan compares `Redact` with itself: `Scan_Plant`, `records copy:
+    reported map[] (ok true); want map[3 key shape:true ...]`;
+  * the scan's allowlist inverted: `Scan_Plant`, `an output file of allowed
+    lines: 16 hits, ok true; want none`.
+  The first run of the plant for the writer replacing a refused record was
+  caught only by a build failure (`declared and not used: old`), which proves
+  nothing; its text was changed to `if _ = old; ...` and it was caught by the
+  assertion above.
+  The allowlist's own plants run inside `CallAllowlist` on in-memory copies;
+  each report line it must hold, as logged: `os.Stderr.WriteString` ->
+  `(*os.File).WriteString: call is not on the allowlist`; `io.WriteString`
+  -> `io.WriteString: call is not on the allowlist`; `println(err)` ->
+  `println: builtin is not allowed`; `panic(err)` -> `panic: builtin is not
+  allowed`; `slog.Info` -> `import "log/slog" is not allowed`; `tb := t;
+  tb.Log(err)` -> `(*testing.common).Log: call is not on the allowlist`;
+  `getListing` -> `type error: undefined: getListing`; an import of `fmt` ->
+  `import "fmt" is not allowed`; `t.Fatal(err)` ->
+  `(*testing.common).Fatal: an argument is not a constant or an allowlisted
+  field`; `t.Run(err.Error(), f)` -> `(*testing.T).Run: an argument is not a
+  constant or an allowlisted field`; and, added: `os.WriteFile` elsewhere ->
+  `outside the one write function`; `os.ReadFile` elsewhere -> `outside the
+  write function and the scan file`; a write path not built from `dir` ->
+  `path argument is not built from filepath.Join(dir, ...)`; a call through a
+  function value -> `f: call through a function value`; the case line given
+  `Message` -> `emitFunc: an argument is not a constant or an allowlisted
+  field`. An `init` function and a package-level call in the offline file are
+  caught by the same test. The guard, the three files as built, passes with
+  no report, 60 or more calls inspected and two or more through `emitFunc`;
+  the type check takes about 8 seconds.
+* **Rows.** ST46: `Redacts` (plants 1 to 3). ST47, ST79: `LogLine`,
+  `NoLeak` (plants `LogLine` and key variable). ST67, ~~ST68,~~ ST70, ST78 *(ST68 struck 2026-11-21, build pass 3)*:
+  `Outcome` (its table includes the xAI and Gemini 400 key refusals, the 402,
+  the 302 and `x-should-retry`; plants 4 to 9). ST71, ST79: `CallAllowlist`.
+  ST77, ST80: `NoLeak`, and the amended `grep`s. ST83: `FieldPerLine`
+  (the closing bracket or brace of a nested value, at two spaces' indent, is
+  read as nested under the key above, since `wiretest.Encode` writes them there). ST85, ST84, ST79:
+  `TestToolSchemaScan_Plant_0084` and the scan. On the 62 files under
+  `testdata/refusals-0062/` the scan reports no line.
+* **Not done, and why.** Phase 1b and later phases (not this phase). No
+  model-listing check (needs a live call). `TestToolSchemaScan_0084` was not
+  run on a real output file or records (none exist before 1b). The
+  `make markdownlint` target does not lint the records; with `--no-globs`
+  on the two records it finds MD004 only, as the committed records do.
+* **Docs step.** Nothing in `README.md`, `docs/guides/`,
+  `docs/architecture.md`, `docs/README.md` or `CHANGELOG.md` names a 0084
+  recorder or is made false by test-only files; the plan's changelog and
+  guide entries are Phase 2's. No docs row to fix.
+
+### Phase 1a, build pass 3 (2026-11-21)
+
+Opened on the owner's answer, relayed by the coordinator: "Third pass: fix all, records first (Recommended)".
+An independent review of build pass 2 found three blockers and three rows
+with no test that can fail. The reviewer's plants are kept in the session's
+scratch folder (`review-0084-1a/`, `plants.py`, `plants2.py`, `plant3.py` and
+their reports); none is in the tree. This entry records the findings and
+what pass 3 builds; the code follows in a later step, after the records are
+gated. A further stop is reported as before, and there is no fourth pass
+without the owner.
+
+* **B1, the argument rule matches a field by name alone**
+  (`toolschema_0084_record_offline_test.go:721`,
+  `toolNamedFields[se.Sel.Name]`). Plants that passed `CallAllowlist`, exit 0:
+  P1, `emit(toolLineFormat, toolCase{id: r.Message}.id, ...)`; P1c,
+  `t.Logf("%s", scanHit{label: root}.label)` in the scan file; P1d,
+  `resp.Status` (an `http.Response`'s reason phrase) through an `emitFunc`.
+  **Fix:** the argument must be a constant, or a selector whose
+  `info.Selections` entry is a `types.FieldVal` of a named field whose
+  receiver is `toolCase` or `toolRecord` (the record and live files) or
+  `scanHit` (the scan file alone), declared in the package; and the selector's
+  operand must itself be a variable or a field, not a composite literal or a
+  call, so that `toolCase{id: r.Message}.id` is refused.
+* **B2, the one write function is matched by name**
+  (`toolschema_0084_record_offline_test.go:650` to `:653`, `:781`). P3, a
+  method `func (toolW) writeToolRecord(dir string)` in the live file writing
+  to `filepath.Join(dir, "..", "x")`, passed. **Fix:** the write function
+  counts only when it has no receiver and is declared in the record file.
+* **B3, a reassignment of the path is not refused**
+  (`toolschema_0084_record_offline_test.go:669` to `:689`, `:803` to
+  `:812`). P2, `path := filepath.Join(dir, ...)` followed by `if r.Case == ""
+  { path = r.Message }`, passed. **Fix:** refuse any assignment to a path
+  identifier whose right-hand side is not `filepath.Join(dir, ...)`, and any
+  assignment to the `dir` parameter.
+* **ST67's second send is untested.** The two-pass loop lives in the tagged
+  live file, so no untagged test runs it; P11, which dropped it, left
+  `-run _0084` at exit 0. **Fix:** the loop moves into an untagged function
+  in the record file, `recordToolCases(cases, dir, base, emit)`, which the
+  live test calls. New test `TestToolSchemaRecord_SecondSend_0084` (ST67):
+  against replays, 503 then 503 gives `unreachable`, and 503 then 400 (a
+  refusal) gives `refused`, and the file on disk agrees. The second pass
+  fails with `t.Errorf` and the fixed text `toolTextNotWritten`, so that one
+  failed write does not stop the other retries; `(*testing.common).Errorf`
+  joins the allowlist and the argument rule, and the fixed text stays on the
+  scan's allowlist.
+* **ST46, "never the model's text", is untested.** Only the gate
+  `rep.status/100 != 2` in `toolFill` keeps a 200 body out of a record; P4
+  removed it and every 0084 test but the allowlist passed. **Fix:** new test
+  `TestToolSchemaRecord_NoModelText_0084` (ST46): a `Status`-0
+  `ErrIncomplete` arrives with a 200 body holding made-up model text; the
+  record has no `Body` and neither it nor the written file holds any of the
+  text. P4 becomes a plant.
+* **ST68 is Phase 1c's rule, not Phase 1a's.** ST68 says a route with no
+  `refused` or `accepted` case is `skipped` as a whole, and its 0062 fixtures
+  stand. The recorder writes one record per case and cannot know a route's
+  other cases; the rule is applied when Phase 1c sorts the records. It is
+  struck from the test-map rows of Phase 1a and from pass 2's row list above,
+  by annotation, and moves to Phase 1c: its check is Phase 1c's per-route line
+  in the execution record, and `Names` and `Classify` in Phase 2 use the
+  0062 fixture for such a route (ST69). The MADR's fifth-amendment table
+  carries the same move in its sixth amendment.
+* **Tests and plants added to Phase 1a's list.** In `toolPlants`, on
+  in-memory copies, each to turn `CallAllowlist` red for the reason it
+  plants: P1 (a fresh `toolCase{id: ...}` in an `emit` argument); P1c (a
+  fresh `scanHit{label: ...}` in a `t.Logf` of the scan file); P1d
+  (`resp.Status` through an `emitFunc`); P2 (the path reassigned after the
+  `Join`); P3 (a method named `writeToolRecord` in the live file writing
+  outside `dir`); and, for B2 and B3, an assignment to `dir`. By
+  `tools/plant.py` on a scratch clone: P4 (the `rep.status/100 != 2` gate
+  removed, caught by `NoModelText`) and P11 (the second pass dropped, caught
+  by `SecondSend`).
+* **Non-blocking items fixed in pass 3.** `writePathIdents` no longer panics
+  on an unnamed first parameter; the checker's Go version comes from
+  `go.mod`, not a literal; the second pass's write failure is a `t.Errorf`;
+  the useless `t.Helper()` in the live subtest is removed.
+* **Non-blocking items left as follow-ups, not fixed.** UUID over-redaction
+  (the fixture rule redacts every UUID, a public object's included); the
+  overlapping `request_id` and `req_` rules; the 4 MiB read limit of the
+  capture transport; symlinks under the output directory; the text of a
+  provider-build failure, which the recorder drops. The reviewer's P10, a
+  range over a method value (an implicit call with no `CallExpr`), was not in
+  the owner's list and is left open for the coordinator. *(Annotated 2026-11-21,
+  build pass 3: not an open gap. The reviewer's own report has P10 caught,
+  `CallAllowlist` exit 1 with `(*os.File).WriteString: call is not on the
+  allowlist`; it joins `toolPlants` as a guard plant, by the coordinator's
+  word.)*
+* **Files.** The four files of pass 2 only; no file is added to scope. The
+  record file's contents gain `recordToolCases`.
+
+#### Outcome of build pass 3 (2026-11-21)
+
+Built on `96594e4`, after the records above were gated. No live run, no
+`LLMPROVIDER_LIVE_*` variable set, nothing staged or committed.
+
+* **What changed.**
+  * B1: the argument rule is by type: a constant, or a field read from a
+    variable (a literal or a call is refused) that `types.Info.Selections`
+    marks a `FieldVal` of `toolCase` (`id`, `route`, `model`), `toolRecord`
+    (`Status`, `Outcome`) or `scanHit` (`file`, `line`, `label`), declared in
+    the package; `scanHit` only in the scan file, the other two only outside
+    it. The reviewer's fix named the receiver alone, which P1
+    (`toolCase{id: r.Message}.id`) passes, so the operand rule is added.
+  * B2: the write function is the record file's function with no receiver.
+  * B3: any assignment to `dir`, and any to a path identifier from anything
+    but `filepath.Join(dir, ...)`, is refused.
+  * `recordToolCases(cases, dir, base, emit)` is in the record file; the live
+    test is one call to it, and `t.Errorf(toolTextNotWritten, c.id)` for each
+    case returned. `(*testing.common).Errorf` joins the allowlist and the
+    argument rule.
+  * New tests: `TestToolSchemaRecord_SecondSend_0084` (503 then 503
+    unreachable; 503 then 400 refused; 400 once, one send; an unwritable
+    directory returns the case) and `TestToolSchemaRecord_NoModelText_0084`
+    (a cut-short 200 with model text has no body and no text in the file; an
+    accepted answer has counts and no text).
+  * Non-blocking: `writePathIdents` takes an unnamed first parameter; the Go
+    version is read from `go.mod`; the second pass's failure is `t.Errorf`;
+    the live subtest's `t.Helper()` is gone with the subtests.
+* ~~**A deviation from the plan's step 1, for the owner to see.** The live test
+  no longer runs each case as a subtest (`<route>-<shape>`), because the loop
+  that sends each `other` case a second time had to move into the untagged
+  `recordToolCases` to be tested, and a subtest needs the live test's `t`. A
+  single case can no longer be selected with `-run
+  'Live_ToolSchema_0084/<case>'`; a rerun is the whole run, which the writer's
+  keep rule (ST70) makes harmless, and Phase 1b's one-case command is not
+  needed. Every case line, record and outcome is as before.~~ *(Struck 2026-11-21,
+  build pass 4, by the owner's answer "Fourth pass: B3 + keep subtests (Recommended)": the subtests are
+  restored, one per case, through an injected runner; see the build pass 4
+  entry below.)*
+* **Gate, exit codes.** `go test -count=1 ./llmprovider/` 0 (`ok`);
+  `go vet -tags live_gateways ./llmprovider/` 0; `go test -c -tags
+  live_gateways -o <scratch>/x.test ./llmprovider/` 0; `run-heavy -- make
+  pre-add-check FILES=<the four files>` 0 (`4 file(s) clean (gofmt,
+  golangci-lint, go vet, go test, govulncheck)`); the `make` targets and the
+  record checks are in the hand-back. The ST77 `grep`s: `os\.Args|flag\.` on
+  the four files exits 1, `os\.ReadFile` on the live file exits 1, and the
+  forbidden helper names on the four exit 1.
+* **Plants, in `toolPlants` (in memory, `CallAllowlist`),** each caught:
+  P1, `emitFunc: an argument is not a constant or an allowlisted field`; P1c,
+  `(*testing.common).Logf: an argument is not a constant or an allowlisted
+  field` (scan file); P1d, `emitFunc: an argument is not a constant or an
+  allowlisted field`; P2, `path reassigned from something but
+  filepath.Join(dir, ...)`; the `dir` assignment, `assignment to dir`; P3,
+  `os.WriteFile: outside the one write function`; P10 (a guard), `(*os.File).WriteString: call is
+  not on the allowlist`; `t.Errorf(err)`, `(*testing.common).Errorf: an
+  argument is not a constant or an allowlisted field`. All of pass 2's
+  plants are still caught, and the guard passes.
+* **Plants, by `tools/plant.py` on a scratch clone,** 17 caught, exit 0,
+  the pass 2 set and: P4, the 200 body gate removed, `NoModelText`, `a cut-short
+  200: accepted, 200, body of 101 bytes; want accepted, 200, no body`; P11,
+  the second pass dropped, `SecondSend`, `503 then 503: 1 sends; want 2`.
+* **The reviewer's own scripts, on a scratch copy of the pass 3 files,**
+  each run as the reviewer wrote it, except where noted: `plants.py` exit 0
+  (P1 and P2 and P3 fail `CallAllowlist`, exit 1; P1b fails `LogLine` and
+  `NoLeak`; P4 fails `NoModelText` once its run pattern, which named the old
+  tests alone, names it; P6 and P7 fail; P5, P8 and P9 exit 0 as the reviewer
+  expected, being equivalent or informational); `plants2.py` exit 0 (P1, P1c,
+  P1d, P3 and P10 fail `CallAllowlist`, exit 1; P11 fails `SecondSend`, exit
+  1, its anchor moved from the live file to the record file, where the loop
+  now is); `plant3.py` exit 0, printing `exit 1`, `NoLeak` failing on the
+  body written before redaction.
+* **Left as follow-ups, unchanged.** UUID over-redaction; the overlapping
+  `request_id` and `req_` rules; the 4 MiB read limit; symlinks under the
+  output directory; the text of a provider-build failure. A variable that
+  holds a `toolCase` literal built with `id: r.Message` and is then read is not
+  seen by the operand rule, which only refuses a literal or a call in the
+  operand; the output scan (MADR ST84, ST85) covers it.
+
+### Phase 1a, build pass 4 (2026-11-21)
+
+Opened on the owner's answer, relayed by the coordinator: "Fourth pass: B3 + keep subtests (Recommended)".
+The re-review of pass 3 found B1, B2, `SecondSend` and `NoModelText` closed,
+and B3 and the subtest deviation not. The reviewer's `plants4.py` and its
+report are in the session's scratch folder (`review-0084-1a/`); none is in
+the tree. A further stop is reported as before, and there is no fifth pass.
+
+* **B3, still open: the path is tracked by name, not by variable.** Three
+  plants passed `CallAllowlist`, exit 0: N3, `{ var path = r.Message; _ =
+  os.WriteFile(path, enc, 0o600) }`, a shadowing declaration; N4,
+  `func(path string) { _ = os.WriteFile(path, enc, 0o600) }(r.Message)`, a
+  function-literal parameter; N5, `p := &path; *p = r.Message`, a write
+  through a pointer. **Fix:** record the `types.Object` that `path :=
+  filepath.Join(dir, ...)` defines (`info.Defs`); in `pathArgOK` require
+  `info.Uses[id]` to be that object, so a shadowing variable or a parameter
+  of the same name is refused; refuse any other assignment to that object;
+  and refuse `&` of it or of the `dir` parameter. Plants N3, N4 and N5 join
+  `toolPlants`.
+* **The subtest deviation of pass 3 is not accepted.** One subtest per case
+  is restored. In the record file, `type caseRunner func(c toolCase, run
+  func(emit emitFunc))` and `recordToolCases(cases, dir, base, each
+  caseRunner)`, every send, the first and the second, made through `each`.
+  In the live file, the runner calls `t.Run(c.id, ...)` and runs the case with
+  `t.Logf`. In the offline proofs, `SecondSend` passes a runner that calls
+  `run(toolBuffer(&buf))`. The checker allows a call through `caseRunner`
+  only with a `toolCase` variable and a function literal. A one-case rerun,
+  `-run '^TestLive_ToolSchema_0084$/^<case>$'`, again runs that one case and,
+  if it was `other`, its second send. Plants: a `caseRunner` call given
+  anything else, and a runner that drops the second send.
+* **What the static check cannot follow, recorded as its limit.** The
+  reviewer's N1, `x := toolCase{id: r.Message}; x.id`, and N2, `c.id =
+  r.Message`, carry a value through a variable or a field, which the
+  argument rule cannot follow. `TestToolSchemaRecord_LogLine_0084` and
+  `TestToolSchemaRecord_NoLeak_0084` catch both at run time, since the line
+  they pin is exact; both plants are run against those tests.
+* **Records.** The one-case rerun mentions in step 2, in the run rules of
+  step 5 and in the MADR's ST51 hold again, annotated, not struck; step 5's
+  list of named methods gains `Errorf` and the `caseRunner` rule; pass 3's
+  deviation entry is struck, each with a dated note.
+
+#### Outcome of build pass 4 (2026-11-21)
+
+Built on `96594e4`, after the records above. No live run, no
+`LLMPROVIDER_LIVE_*` variable set, nothing staged or committed.
+
+* **B3, by object.** `writeObjects` takes the `types.Object` that `path :=
+  filepath.Join(dir, ...)` defines (`info.Defs`, now in the checker's `Info`)
+  and the `dir` parameter's; `pathArgOK` requires `info.Uses[id]` to be that
+  object, so a shadowing variable or a literal's parameter named `path` is
+  another object and is refused; `writeAssigns` refuses any other assignment to
+  either object, an increment, a range over either, and the address of either
+  (`&`). Plants N3, N4 and N5, and one for `&dir`, are in `toolPlants` and
+  caught: N3 and N4, `os.WriteFile: path argument is not built from
+  filepath.Join(dir, ...)`; N5 and `&dir`, `address of dir or path taken`.
+* **Subtests restored.** `type caseRunner func(c toolCase, run func(emit
+  emitFunc))` and `recordToolCases(cases, dir, base, each caseRunner)` are in
+  the record file, every send, the first and the second, made through `each`.
+  The live test's runner is `t.Run(c.id, func(t *testing.T) { run(t.Logf) })`.
+  The checker allows a call through `caseRunner` only with a `toolCase`
+  variable and a function literal, and a call to a `func(emitFunc)` run
+  function only with `t.Logf`. New test `TestToolSchemaRecord_Runner_0084`
+  (one runner call per case, and one more per case that was `other`);
+  `SecondSend` passes a buffer runner. Plants in `toolPlants`: a `caseRunner`
+  call given a call as its case, and given a function value; a `run` given
+  something but `t.Logf` (`run: the argument is not t.Logf`).
+* **One finding on the one-case rerun, with its resolution.** The brief's
+  command, `-run '^TestLive_ToolSchema_0084$/^<case>$'`, runs the first send
+  of a case and not its second. Go names the second subtest of a name
+  `<case>#01` and applies `-run` to that name, so an anchored `^<case>$` skips
+  it. Measured on a scratch clone with a replayed 503 and the live test's
+  runner: `^claude-root-string$` ran `claude-root-string` alone, `status 503,
+  other`; `^claude-root-string(#01)?$` ran `claude-root-string` and
+  `claude-root-string#01`, `status 503, other` then `status 503, unreachable`.
+  The one-case command is therefore `-run
+  '^TestLive_ToolSchema_0084$/^<case>(#01)?$'`, and the live test's comment
+  says so. The runner is as the owner's answer asks; only the pattern differs.
+* **The static check's limit, recorded.** The reviewer's N1, `x :=
+  toolCase{id: r.Message}; x.id`, and N2, `c.id = r.Message`, pass
+  `CallAllowlist` (exit 0), since the argument rule cannot follow a value
+  through a variable or a field. `LogLine` and `NoLeak` catch both at run
+  time: the plants N1 and N2 below, run by `tools/plant.py`, each fail
+  `LogLine` (`printed "tools.0.custom.input_schema.type: Input should be
+  'object' claude claude-sonnet-5: status 400, refused\n"; want
+  "claude-root-string ...`). *(Extended 2026-11-21, after the re-review: the
+  reviewer's R5, `c.id = r.Message` before the second send, is the same class
+  as N1 and N2. `CallAllowlist` passes it, exit 0, and `Runner` and
+  `SecondSend` catch it at run time, since the second line they pin is exact.)*
+* **Gate, exit codes.** `go test -count=1 ./llmprovider/` 0 (`ok`); `go vet
+  -tags live_gateways ./llmprovider/` 0; `go test -c -tags live_gateways -o
+  <scratch>/x.test ./llmprovider/` 0; `run-heavy -- make pre-add-check
+  FILES=<the four files>` 0 (`4 file(s) clean (gofmt, golangci-lint, go vet,
+  go test, govulncheck)`). A first pre-add run failed on `gocyclo` in
+  `call` and a `staticcheck` De Morgan finding; the variable-call case became
+  `varCall`, and the second run passed. The ST77 `grep`s: `os\.Args|flag\.` on
+  the four files exits 1, `os\.ReadFile` on the live file exits 1, the
+  forbidden helper names on the four exit 1.
+* **Plants by `tools/plant.py` on a scratch clone, 20 caught (exit 0):** pass
+  3's set, and the second send made without the runner (`Runner`, `the runner
+  ran [claude-root-string claude-O1-root-union]; want [... claude-O1-root-union
+  claude-O1-root-union]`), N1 and N2 (`LogLine`). P11 now fails `Runner` and
+  `SecondSend`.
+* **The reviewer's scripts, on a scratch copy of the pass 4 files,** run as
+  written except two anchors. `plants.py` and `plants2.py` are the copies of
+  pass 3, whose P4 run pattern names `NoModelText` and whose P11 anchor is in
+  the record file (the loop is there). Results: `plants.py` exit 0 (P1, P2, P3
+  exit 1 on `CallAllowlist`; P4 exit 1 on `NoModelText`; P5, P8 and P9 exit 0
+  as the reviewer expected); `plants2.py` exit 0; `plants4.py` exit 0,
+  re-run on the final tree after the lint fix: P1, P1c, P1d, P3, P10, N3, N4
+  and N5 exit 1 on `CallAllowlist`; P11' and P4' exit 1 on `_0084`; N1 and N2
+  exit 0, the recorded limit.
+* **Left as follow-ups.** As in pass 3: UUID over-redaction, the overlapping
+  `request_id` and `req_` rules, the 4 MiB read limit, symlinks under the
+  output directory, a provider-build failure's text, and the limit of the
+  static check named above.
+* **One more follow-up, recorded 2026-11-21, not a fix.** The live test's
+  `each` literal never runs offline: no untagged test builds it. A literal
+  that forgot to call `run` would send nothing, and `recordToolCases` would
+  return no failure. Phase 1b's output would show it, as a run with no case
+  lines.
+
 ## Amendment of 2026-11-20: the test map, proposed tests, exit criteria and re-grounding
 
 A readiness pass before Phase 1a, on the coordinator's brief, documents
@@ -1537,7 +2092,7 @@ red at the stub unless marked a guard, and its plant joins Phase 3 step 1.
 | `TestToolSchemaRefusal_RedactedName_0084` (`providers`) | ST42 | F1 with its tool renamed to a made-up key-shaped name that redaction removes (asserted absent from `Message`): the kind, `Tool` empty | red for the kind |
 | `TestToolSchemaRefusal_NameBeyondBound_0084` (`providers`) | ST43 | F7 with its tool renamed to a 600-byte name, so `Message` is cut inside it: the kind, `Tool` empty | red for the kind |
 | `TestToolSchemaRefusal_NoLog_0084` (`providers`) | ST45 | a provider given a recording `slog` handler logs no record that holds the refusal's text or `Tool` | green (a guard) |
-| `TestToolSchemaRecord_LogLine_0084` (`llmprovider`, Phase 1a) | ST47 | the case's log line for a case whose body holds a made-up key is exactly `"<id>: <outcome>, status <n>"` | red at Phase 1a's base (the function does not exist) |
+| `TestToolSchemaRecord_LogLine_0084` (`llmprovider`, Phase 1a) | ST47 | the case's log line for a case whose body holds a made-up key is exactly ~~`"<id>: <outcome>, status <n>"`~~ *(superseded 2026-11-21, "Record all three readings (Recommended)": the five-field line `<case> <route> <model>: status <n>, <outcome>`)* | red at Phase 1a's base (the function does not exist) |
 
 Details added to tests already listed: `NeverNamesUnsent` gains a request
 that sent no tools; `Reworded`'s OpenAI case changes the code to
@@ -1653,12 +2208,12 @@ amendment's map.
 | ST46 | `TestToolSchemaRecord_Redacts_0084`, widened | 1a | the record's `Message` and `Code` left unredacted, the body still redacted |
 | ST47, ST79 | `TestToolSchemaRecord_LogLine_0084` (five fields); `TestToolSchemaRecord_NoLeak_0084` | 1a | the case line also prints `Message` |
 | ST60 | `TestToolSchemaRefusal_RecordedFallback_0084` | 2 | a row loosened to its code or type alone (Phase 3) |
-| ST67, ST68, ST70, ST78 | `TestToolSchemaRecord_Outcome_0084` | 1a | four plants: a 404 read as `refused`; a `Status`-0 `ErrIncomplete` read as `other`; the writer replacing a `refused` record; a blank key read as set |
+| ST67, ~~ST68,~~ ST70, ST78 | `TestToolSchemaRecord_Outcome_0084` | 1a | four plants: a 404 read as `refused`; a `Status`-0 `ErrIncomplete` read as `other`; the writer replacing a `refused` record; a blank key read as set *(ST68 struck 2026-11-21, build pass 3: it is Phase 1c's rule, see the entry below)* |
 | ST69 | `Names` | 2 | Anthropic's row removed (Phase 3) |
 | ST71 | the `grep` check of Phase 1a step 5 | 1a | `t.Fatal(err)` in a scratch copy; seen 2026-11-20 on `live_0062_refusals_measure_test.go`, which it hit seven times |
 | ST72 | `Names` (as ST09); `TestCheckDispatch_0040`, unchanged | 2 | none new |
 | ST73, ST74 | `grep -c ErrToolSchemaRefused` on each file; `TestDescribe_ToolSchemaRefused_0084`; Phase 4's read | 2 | the entry removed on a scratch copy: exit 1 |
-| ST77 | `NoLeak`; `grep -nE 'os\.Args\|flag\.\|os\.ReadFile'` on the recorder's files, exit 1 | 1a | the recorder logs its key variable's value |
+| ST77 | `NoLeak`; `grep -nE 'os\.Args\|flag\.\|os\.ReadFile'` on the recorder's files, exit 1 *(restated 2026-11-21: `os.Args\|flag\.` on all four files; `os\.ReadFile` on the live file alone)* | 1a | the recorder logs its key variable's value |
 | ST80 | `NoLeak` | 1a | the body written before redaction |
 | ST81 | Phase 1c's order: the checks on the records and on `tmp/0084-run.txt` before any read | 1c | none: a process rule |
 | ST82 | none: no such step | – | – |
@@ -1674,7 +2229,7 @@ amendment's map.
 | `TestToolSchemaRefusal_Precedence_0084` (`llmprovider`) | ST26, ST32 | F1, F2, F4, F7 with `x-should-retry: true`: `ErrProviderUnavailable`, `Retryable()` true; F4 with an Anthropic overflow phrase added to its message: `ErrContextOverflow` | green (a guard) |
 | `TestNameRefusedTool_Wrapped_0084` (`internal/wire`) | ST33 | the kind wrapped by `fmt.Errorf("%w")` and by `errors.Join`: `Tool` set on the `*APIError` found; the returned error is the one given | red |
 | `TestToolSchemaRefusal_RecordedFallback_0084` (`llmprovider`) | ST60, ST53 to ST59, ST66 | each Phase 1 record no matcher recognises: `ErrInvalidRequest`, `Tool` empty. Not built when there is none, as the execution record then says | green (a guard) |
-| `TestToolSchemaRecord_Outcome_0084` (`llmprovider`, Phase 1a) | ST67, ST68, ST70, ST78 | each row of Phase 1a step 2's outcome table; a key unset, `""` and `"   "`: `skipped`, "key unset or blank"; the writer keeps a `refused` or `accepted` record against every other outcome, and writes `skipped` only where none exists | red at Phase 1a's base |
+| `TestToolSchemaRecord_Outcome_0084` (`llmprovider`, Phase 1a) | ST67, ~~ST68,~~ ST70, ST78 *(ST68 struck 2026-11-21, build pass 3: Phase 1c's rule)* | each row of Phase 1a step 2's outcome table; a key unset, `""` and `"   "`: `skipped`, "key unset or blank"; the writer keeps a `refused` or `accepted` record against every other outcome, and writes `skipped` only where none exists | red at Phase 1a's base |
 | `TestToolSchemaRecord_NoLeak_0084` (`llmprovider`, Phase 1a) | ST77, ST79, ST80 | the recorder's case path, its output writer and log function replaced by buffers, a made-up key-shaped value set by `t.Setenv` under the route's variable, against an in-process transport replaying F2 with a made-up key-shaped string and a made-up `org-` id planted in its body and message: no record, output or log line holds the key or either planted value, and the line holds only the five allowlisted fields | red at Phase 1a's base |
 
 Tests changed: `FieldsUnchanged` (now in `providers`), `Concurrent` (the
