@@ -86,9 +86,9 @@ tag and its commit without notes; its notes are its section here.
   warning; the organization listing that an endpoint's own organization path
   names is sent without the organization header, and that listing's refusal
   of a wrong key was not probed live; and a key that a caller's own
-  `Prompter` returns empty, or of only spaces, is trimmed to empty and
-  returned with no check, for every provider, as before (`TextPrompter` never
-  returns one).
+  `Prompter` returns empty, or of only spaces, is asked for again, and after
+  three is an error, for every provider, so it never reaches the check
+  ([0085-MADR](docs/decisions/0085-MADR-refuse-an-empty-typed-key.md)).
   Under
   `Options.KiloDeviceKey` the profile is now read once to check the key;
   a Kilo device session's own read of the profile is its check, with no
@@ -124,6 +124,22 @@ tag and its commit without notes; its notes are its section here.
   key is saved
   ([0081-MADR](docs/decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md)
   D2 to D5).
+- The wizard returned a typed or pasted key that was empty once trimmed as a
+  successful `CredAPIKey` with no key, for every provider that requires one,
+  when a caller's `Prompter` returned it. It now gives a notice and asks
+  again, up to three asks in all for each prompt, and then returns an error
+  that matches no sentinel, with no Result; the pasted Grok key and OpenAI's
+  paste are asked again as the typed key is, where OpenAI's blank paste was
+  an error at once. A key the provider refused, followed by three blanks,
+  now ends with that error, which does not match `llmprovider.ErrAuthFailure`
+  where the run's error did, so a caller that reads that sentinel to report
+  the keys it asked for sees none for that run. An environment value or an
+  `Options.Existing` key that is empty once trimmed is no longer offered. A
+  repeat ask first checks the run's context, and an ended one returns its
+  error. The package's own `TextPrompter` already asked again for a blank
+  entry
+  ([0085-MADR](docs/decisions/0085-MADR-refuse-an-empty-typed-key.md)
+  D1 to D5, D8, D10).
 
 ### Security
 

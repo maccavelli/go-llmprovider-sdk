@@ -83,7 +83,9 @@ functions over any provider, and `Stream` streams from every one.
     `Result.Workspace`.
   - Ollama needs no key. Kilo and OpenCode accept none: they then send the
     service's anonymous or public token, which free models answer and paid
-    ones refuse with a typed error.
+    ones refuse with a typed error. The wizard still asks for a key for them
+    and takes no empty one; to use them anonymously, build the provider
+    without the wizard's key step.
 - **Errors.** A failed response is an `*APIError`, carrying the service's
   code and message (redacted, at most 512 bytes). Test it by kind with
   `errors.Is`:
@@ -459,6 +461,16 @@ key.
   `TokenStore`, only the methods
   that save no session are offered: the API key, a vendor CLI's login, and
   a pasted Grok key.
+- A typed or pasted key that is empty once trimmed is asked for again, with
+  a notice, up to three asks in all for each prompt, and the third blank
+  ends the run with an error; this holds for every provider, and for a
+  `Prompter` that answers blank for ever. A key the provider refused,
+  followed by three blanks, ends with that error too, which does not match
+  `llmprovider.ErrAuthFailure`, where the run's error did. An environment
+  value or an `Options.Existing` key that is empty once trimmed is not
+  offered. A repeat ask checks the run's context first. Inner whitespace and
+  invisible characters are not tested, and the provider's listing is left to
+  refuse them; `TextPrompter` already asked again for a blank entry.
 - With `Options.AgentName`, your app's own name, OpenAI also offers "Use
   your ChatGPT plan with this app" (`AuthChatGPTPlan`). Before the browser
   opens, a plan sign-in asks OpenAI's notice, "You're using your ChatGPT
@@ -551,9 +563,9 @@ key.
   passes with that warning. The organization listing that an endpoint's own
   organization path names is sent without the organization header, and that
   listing's refusal of a wrong key was not probed live. A key that your own
-  `Prompter` returns empty, or of only spaces, is trimmed to empty and
-  returned with no check, for every provider, as before; `TextPrompter` never
-  returns one. Without `Discover` nothing is checked and the built-in catalog
+  `Prompter` returns empty, or of only spaces, is asked for again and, after
+  three, is an error, for every provider, so it never reaches this check
+  (see the bullet above). Without `Discover` nothing is checked and the built-in catalog
   is offered. A provider that implements
   `catalog.Lister`, `chatcompat`'s among them, gives the menu its models'
   facts. `ResolveCredential`'s catalog tells whether the provider answered:

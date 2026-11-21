@@ -80,7 +80,7 @@ func TestShape_ForeignKey_0059(t *testing.T) {
 	} {
 		d := llmprovider.Descriptor{ID: c.id, Label: string(c.id), RequiresAPIKey: true}
 		f := newFake(t, fakePrompter{secrets: []string{c.key}})
-		got, _, err := resolveAPIKey(f, d, Options{Discover: true})
+		got, _, err := resolveAPIKey(context.Background(), f, d, Options{Discover: true})
 		if err != nil || got != c.key {
 			t.Fatalf("%s: resolveAPIKey: err %v; want the typed key", c.id, err)
 		}

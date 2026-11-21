@@ -92,10 +92,10 @@ func verifyKilo(
 	}
 	token := kiloToken(c)
 	if token == "" {
-		// A Prompter of the caller's own that returns an empty or all-space
-		// key gets it trimmed to empty by promptAPIKey and returned as a key,
-		// for every provider, with no check: found, and not changed here
-		// (0080-PLAN, "Found, not changed"). TextPrompter never returns one.
+		// The wizard's prompts no longer return a blank key (0085-MADR D3), so an
+		// empty token reaches this check only from a credential with no key at
+		// all, which only a Kilo descriptor that does not require a key (a
+		// caller's own) gives. There is nothing to verify.
 		return nil
 	}
 	read := kiloProfile

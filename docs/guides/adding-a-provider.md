@@ -279,7 +279,10 @@ prompt it did not expect. For a provider with the descriptor above, it asks:
    `SupportsBaseURL` is set.
 3. The key. With `Options.AllowEnv` and a set `EnvVar`, `Confirm` using it;
    with an `Options.Existing` key for this provider, `Confirm` keeping it;
-   otherwise `Secret`.
+   otherwise `Secret`. A value from the environment or `Existing` that is
+   empty once trimmed is not offered, and a `Secret` answer that is empty
+   once trimmed is asked again, up to three asks, then ends the run with an
+   error: answer a cancel with an error, not with an empty value.
 4. `Input` a model search, where blank means the recommended list, then
    `Select` the model from it. With no `StaticModels` and no listing, it asks
    instead to `Input` a model id.

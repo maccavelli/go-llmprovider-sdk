@@ -1124,6 +1124,13 @@ was given, and what follows it is this record's account of the option.
 * The context is threaded through the three unexported functions that lack
   it, `resolveAPIKey`, `promptAPIKey` and `secretKey`; `resolveTokenStdin`
   already takes it (as `_`). No exported signature changes.
+* *(Annotated 2026-11-21, Phase 1 build pass 1.)* Two existing test files
+  call `resolveAPIKey` directly and so gain `context.Background()` as the
+  first argument of three calls, by the owner's ruling "Add
+  context.Background() to the 3 calls (Recommended)":
+  `wizard/auth_shapes_0028_test.go` (two calls) and
+  `wizard/shape_0059_test.go` (one call). Nothing else in those files
+  changes. No decision changes.
 
 ### The review's findings, each checked at the cited lines
 

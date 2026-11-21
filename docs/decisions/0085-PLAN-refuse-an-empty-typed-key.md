@@ -1058,3 +1058,253 @@ ST72's row names `chatcompat.New` apart from `providers.New`'s ten.
 The MADR's "Corrections of 2026-11-20, fourth pass" adds rows ST53b, ST53c,
 ST74e, ST74f and ST81, none with a test (each out of scope), and the final
 count: 91 rows, 70 decided, 21 out of scope, 0 open.
+
+### Deviation (2026-11-21): D10 changes an existing test's call
+
+Found at the start of Phase 1 build pass 1, at `1af92ce`, before any edit.
+
+* **Evidence.** MADR D10 threads the run's context through `resolveAPIKey`,
+  `promptAPIKey` and `secretKey`. Three existing calls use
+  `resolveAPIKey(f, d, Options{...})` with no context:
+  `wizard/auth_shapes_0028_test.go:68` and `:80`, and
+  `wizard/shape_0059_test.go:83`. They stop compiling with the new
+  signature. Pre-existing; the stop list of "Rules for every phase" and
+  step 7 ("every existing test passes unchanged, or the phase stops")
+  names it.
+* **Ruling.** The owner, relayed by the coordinator: "Add
+  context.Background() to the 3 calls (Recommended)". Each of the three
+  calls gains `context.Background()` as its first argument and nothing else
+  in those two files changes. This is the only existing-test change Phase 1
+  may make.
+* **Check that the three calls still pin the function.** One plant, run on a
+  scratch clone with `tools/plant.py`, breaks `resolveAPIKey`'s return value
+  so that those tests catch it (result in the build pass 1 entry below).
+* **Recorded.** MADR D10 carries a dated annotation naming the two files.
+
+### Phase 1, build pass 1 (2026-11-21)
+
+Built on `main` at `1af92ce`, tree clean at the start, by a mainstream-tier
+agent at medium effort, on the coordinator's brief. Nothing is staged or
+committed. `<scratch>` is the session's scratch directory, never the tree.
+
+#### Step 1: the re-read at `1af92ce`
+
+`tools/claims.py` on scratch copies of the two re-pointed tables (plain ids,
+`self=1af92ce`, the five rows of other repositories left out): the MADR's 70
+rows 33 pass, the PLAN's 23 rows 14 pass. Every other row failed only
+because its line moved, and `claims.py` found its text, unchanged, at a
+later line ("text found at"); three rows have no such line and are
+re-pointed here:
+
+* **C33** ("`ConfigureLLM` and `ResolveCredential` share the step"): the text
+  `res, cat, err := credentialStep(ctx, p, d, o)` is gone. 0081 split the
+  step. `ConfigureLLM` now reads `res, cat, credential, err := unsavedStep(ctx, p, d, o)`
+  (`wizard/configure.go:358`), and `ResolveCredential` returns
+  `credentialStep(ctx, p, d, o)` (`:482`), which is `unsavedStep` then
+  `commitCredential`. The meaning holds: both entry points share one
+  step. Re-pointed rows C33 and C33b pass at `1af92ce` (3 of 3 with C49).
+* **C49 and P17** (the README's wizard bullet): 0081 reworded it. It is now
+  ``- A sign-in saves its session to `Options.TokenStore`: `ConfigureLLM` as``
+  at `README.md:444`; the new bullet follows the whole sign-in bullet. Passes
+  at `1af92ce`.
+
+The line shifts found, each the same text: `promptAPIKey` `configure.go:855`
+to `:926`; `resolveAPIKey` `:801` to `:872`; `keepExistingKey` `:840` to
+`:911`; `maxTypedKeys` `:726` to `:797`; the environment test `:816` to
+`:887`; the saved-key test `:841` to `:912`; the refusal loop `:515` to
+`:560`; the re-ask call (C6) `:563` to `:608`, now inside `unsavedStep`
+(`:543` to `:624`); the optional-key notice (C29) `:550` to `:595`; the kept
+session's sign-in (MADR `:544`) `:585`; `ConfigureLLM` `:318` to `:344`;
+`ResolveCredential` `:415` to `:464`; `resolveTokenStdin` `auth.go:596` to
+`:602` (its `Secret` call `:610`, trim `:616`, access-token check `:622`);
+`signIn`'s two `resolveAPIKey` calls `:187` and `:228`; `warnForeignKey`
+`:714` to `:720`; `notifyShape`'s guard `:731` to `:737`;
+`Prompter.Secret`'s doc `prompter.go:94`; `verifyKilo`'s skip `kilo_verify.go:94`
+and its comment `:95` to `:98`; `README.md` `:538` to `:554` (the sentence
+ST70 names), `CHANGELOG.md` `:57` to `:88` to `:91`, `docs/architecture.md`
+`:1169` to `:1222` to `:1225`, the architecture's "An optional key" `:1277` and
+"A refused key" `:1303`. 0081's code (`cff8017`) and 0084's (`6602dcd`,
+`1af92ce`) are in the base; neither touches a line this phase changes, and
+0081 left `ConfigureLLM`'s and `ResolveCredential`'s doc comments much
+longer, so the 0085 sentences were merged in as their own paragraphs. No line
+changed meaning in a way the MADR or PLAN contradicts. The only conflict
+was the deviation above.
+
+#### Step 2: the tests, red first
+
+Two new files, `wizard/empty_key_0085_test.go` and
+`wizard/empty_key_routes_0085_test.go`, written from the drafting's
+reproduction and the readiness passes' proposed tests, each against
+in-process stand-ins; the drafting's logging tests are dropped. Each red test
+was seen red with `python3 -B tools/redgreen.py <RED.json> --expect fail --rev
+<rev>` (the specs are in `<scratch>`): at `1af92ce` 12 of 12 fail on their
+assertion, and at `b109cea` 11 of 11, `TestBlankKeyNeverReachesKiloProfile_0085`
+dropped there because its stand-in (0080's) does not exist before 0080. The
+first run at `b109cea` did not build for that reason (`undefined:
+newKilo0080`), which is why the Kilo case is its own function. The guards
+(`TestKeyWhitespaceKinds_0085`, `TestNonBlankEnvAndSavedKeyUntrimmed_0085`,
+`TestCompatNoKeyNeeded_0085`, `TestTextPrompterRefusesBlank_0085`) pass at both
+revisions (4 of 4 each). The first failure line of each red test at `1af92ce`:
+
+* `TestTypedBlankKeyIsRefused_0085`: `err <nil>, kind "api_key", key "", Secret asked 1 time(s), notices []; want the second key after two asks and one notice` (81 of its subtests, 9 providers by 8 values, Kilo twice).
+* `TestConfigureBlankKeyIsRefused_0085`: `err <nil>, key "", Secret asked 1 time(s); want the second key after two asks`.
+* `TestPastedBlankKeyIsRefused_0085`: `... key "", Secret asked 1 time(s), notices []; want the second paste after two asks` (Grok and OpenAI).
+* `TestForeverBlankPrompterEnds_0085`: `err <nil>, result Result{Provider:gemini Kind:api_key}, asks 1, notices []; want "wizard: no Gemini (Google) key entered after 3 tries", no result, 3 asks, ...` (all nine).
+* `TestKeyPrompterErrorIsReturned_0085`: red only in its two "after a blank" cases (ST17); its first-ask and value-with-error cases and the raw-mode Ctrl-C case are green at the base, as guards inside it.
+* `TestCancelBeforeRepeatAsk_0085`: `err wizard: context canceled, ... want an error wrapping context canceled, prefixed "enter API key: ", no result, one ask` (at the base the cancel is met by `commitCredential`, after the blank was returned as a key).
+* `TestBlankEnvAndSavedKeyAreAbsent_0085`: `environment "   ": err <nil>, key "   ", confirms 1; want the typed key and no question`.
+* `TestBlankAfterDecliningSavedKey_0085`: `err <nil>, result Result{Provider:together ...}, asks 1; want "wizard: no Together AI key entered after 3 tries", no result, 3 asks`.
+* `TestCompatBlankKeyIsNotListed_0085`: `key set true, headers ["" "" "Bearer lm-key"]; want the key, after a request with none`.
+* `TestBlankKeyNeverReachesTheListing_0085`: `err <nil>, key "", listing requests 1, notices []; want the key, one request and no refusal`.
+* `TestBlankKeyNeverReachesKiloProfile_0085`: `err <nil>, key "", profile read with [] ...; want the key, one profile read with it and no refusal`.
+* `TestRefusedKeyThenBlanks_0085`: `err <nil>; want exactly "wizard: no Claude (Anthropic) key entered after 3 tries", matching no ErrAuthFailure`.
+
+Deviations from the readiness passes' test text, none changing a row: the
+Kilo case of `TestBlankKeyNeverReachesTheListing_0085` is its own function;
+the kept-session case of `TestRefusedKeyThenBlanks_0085` uses OpenAI, as
+written, through a store of the memory kind; the 1 MiB value and the
+control-character values are in `TestKeyWhitespaceKinds_0085` as subtests.
+
+#### Steps 3 to 5: what was built
+
+* `wizard/configure.go`: `secretKey(ctx, p, d, prompt, wrap)`, the one caller
+  of `Prompter.Secret` for a key, with the one `value != ""` test;
+  `promptAPIKey` and `resolveAPIKey` take the run's context (D10);
+  `resolveAPIKey`'s environment test and `keepExistingKey`'s saved-key test
+  trim (D5); `unsavedStep` passes ctx; doc comments of the four and a
+  paragraph each in `ConfigureLLM`'s and `ResolveCredential`'s.
+* `wizard/auth.go`: `resolveTokenStdin` calls `secretKey` and drops its own
+  trim, taking ctx in place of `_`; `signIn`'s two calls pass ctx.
+* `wizard/prompter.go`: `Prompter.Secret`'s doc. `wizard/kilo_verify.go`: the
+  comment at `:95` to `:98` (ST62), with `claims.py` rows K1 to K4 (4 of 4 at
+  the scratch commit).
+* The three existing calls: `wizard/auth_shapes_0028_test.go:68` and `:80`,
+  `wizard/shape_0059_test.go:83` gain `context.Background()`; the first file
+  also gains the `"context"` import its call needs. Nothing else in either
+  changed. One plant breaking `resolveAPIKey`'s return value (`keySaved` for
+  a typed key; a key with `x` appended) is caught at
+  `auth_shapes_0028_test.go:71` (`resolveAPIKey = "not-a-key-...", 3, <nil>;
+  want the typed key`) and `shape_0059_test.go:85` (`grok: resolveAPIKey: err
+  <nil>; want the typed key`).
+* Docs: `README.md` (a bullet after the sign-in bullet, the Kilo/OpenCode
+  line, and the sentence at ST70), `docs/architecture.md` ("A refused key",
+  "An optional key", and the ST70 sentence), `docs/guides/adding-a-provider.md`
+  (the key step), `CHANGELOG.md` (a **Fixed** entry, and 0080's entry's
+  sentence at ST70).
+
+Own breaks, on scratch clones with `tools/plant.py`, none in the tree: all 16
+caught. Trim removed (`TestTypedBlankKeyIsRefused_0085`,
+`TestConfigureBlankKeyIsRefused_0085`: `key "   ", Secret asked 1 time(s); want
+the second key after two asks`; `TestKeyWhitespaceKinds_0085`: `key length 15
+... want the key of length 11`; `TestBlankKeyNeverReachesTheListing_0085` and
+`TestBlankKeyNeverReachesKiloProfile_0085`: `key "   "` and `profile read with
+["   " ...]`; `TestCompatBlankKeyIsNotListed_0085`: headers `["" "Bearer"
+"Bearer lm-key"]`); bound removed, bound shortened to two and a blank
+returned after the bound (`TestForeverBlankPrompterEnds_0085`; the last also
+`TestBlankAfterDecliningSavedKey_0085`: `err <nil>, result Result{Provider:together ...},
+asks 3`); paste unchecked (`TestPastedBlankKeyIsRefused_0085`,
+`TestKeyPrompterErrorIsReturned_0085`); environment and saved-key test
+untrimmed (`TestBlankEnvAndSavedKeyAreAbsent_0085`); notice removed
+(`TestTypedBlankKeyIsRefused_0085`); `%w` made `%v` and the context check
+removed (`TestKeyPrompterErrorIsReturned_0085`, `TestCancelBeforeRepeatAsk_0085`);
+environment and saved key trimmed on return
+(`TestNonBlankEnvAndSavedKeyUntrimmed_0085`); the optional-key branch asking the
+typed prompt (`TestCompatNoKeyNeeded_0085`, `TestCompatBlankKeyIsNotListed_0085`,
+`TestBlankEnvAndSavedKeyAreAbsent_0085`); `TextPrompter.Secret` returning a
+blank (`TestTextPrompterRefusesBlank_0085`); `refusalError` returned after a
+blank and a kept-session refusal wrapped into the sign-in error
+(`TestRefusedKeyThenBlanks_0085`). One try aimed at
+`TestTypedBlankKeyIsRefused_0085` with "a blank returned after the bound" was
+not caught, correctly: that test asks twice and never reaches the bound; the
+trim and notice breaks catch it. This is not Phase 2's run of the PLAN's
+plants.
+
+#### The gate
+
+Each exit status taken before any filter.
+
+* `go test -count=1 ./wizard/`: exit 0, `ok ... wizard 22.3s`.
+* `run-heavy -- go test -count=1 ./...`: exit 0, 44 packages `ok`.
+* `run-heavy -- make pre-add-check FILES="<the eight changed .go files>"`:
+  exit 0, `go-precheck: 8 file(s) clean (gofmt, golangci-lint, go vet, go
+  test, govulncheck).` A first run failed on `ST1018` for two literal
+  U+200B characters in the new test file; they were made `​` escapes and
+  the run repeated.
+* `redgreen.py --expect pass` on the tree, 16 of 16 tests pass.
+* `make api-check`: exit 0, `0 incompatible change(s) outside llmprovider/x/`.
+  `tools/apidiff.py 1af92ce <scratch commit>`: exit 0, nothing listed (R55
+  names none for Phase 1).
+* `make fixtures-check`, `changelog-check`, `docs-check`, `tables-check`,
+  `disclosure-check`, `links-check`: each exit 0 (`485 file(s) ... 0
+  problem(s)`; `45 release section(s), 0 problem(s)`; `0 violation(s) of
+  R50,R51,R52`; `49 packages, 0 problem(s)`; `0 hit(s) in 1776 file(s)`; `0
+  problem(s), 1431 relative link(s) in 196 file(s)`). `go vet -tags
+  live_gateways ./...`: exit 0.
+* After this entry was written: `make records-check` exit 0 (`182 records, 0
+  problem(s)`); `make markdownlint` exit 0 (`0 issues in 0 files`);
+  `make docs-check` and `make links-check` again exit 0; `python3 -B
+  tools/claims.py` on the MADR and this PLAN exit 0 (67 of 67, 23 of 23);
+  `tools/recordlint.py --changed` exit 0 (`no rule rose`);
+  `tools/denyscan.py --changed` exit 0 (`0 hit(s) in 14 file(s)`).
+* **Added later the same day, records only.** The owner's ruling on ST62
+  asks for a dated note in 0080-PLAN under "Found, not changed by 0080"
+  (second item); it was added there, as a dated addition after the
+  2026-11-20 one, saying that Phase 1 reworded `verifyKilo`'s comment at
+  `wizard/kilo_verify.go:95` to `:98`, that 0085 closes the gap the item
+  named, and that the skip stays (MADR D8). The records gates were run again
+  (see the handoff of that edit).
+
+#### Not done, and why
+
+No `-race`, no plant of Phase 2's list, no commit, nothing pushed, no live
+run: the brief and the PLAN's Phase 2 place them elsewhere. Phase 1b is not
+built. The MADR changed only by the D10 annotation.
+
+### Phase 1, build pass 2 (2026-11-21)
+
+Tests and docs only; no production code changed. It answers the independent
+review of pass 1, which found no blocker, two rows unpinned and four doc gaps.
+The reviewer's `plants.json` was re-run unchanged on a scratch clone of the
+tree.
+
+* **R1** (the old re-wrap `fmt.Errorf("enter credential: %w", err)` put back
+  after `secretKey` in `resolveTokenStdin` passed every test; rows ST13, ST16
+  for the paste, ST32, ST33). Fixed by tests:
+  `TestKeyPrompterErrorIsReturned_0085` asserts the exact text,
+  `wrap + errKey0085.Error()`, not a prefix; a new
+  `TestForeverBlankPasteEnds_0085` runs Grok and OpenAI at the paste prompt
+  with a Prompter that pastes blank for ever: the exact error `wizard: no
+  <Label> key entered after 3 tries`, exactly 3 asks, exactly two notices, no
+  Result, no sentinel. `TestCancelBeforeRepeatAsk_0085`'s text check is exact
+  too. Re-run, R1 is caught: `err enter credential: wizard: no Grok (xAI) key
+  entered after 3 tries ... want "wizard: no Gr...` (and OpenAI's) at
+  `empty_key_0085_test.go:253`, and `err enter credential: enter credential:
+  the prompter's own error ... want the prompter's error wrapped "enter
+  credential: "` at `:364`.
+* **R2** (a looser bound at the paste prompt passed: no test sent three blanks
+  there). Same new test. Re-run, R2 is caught: `err wizard: no Grok (xAI) key
+  entered after 5 tries, ... asks 5` and OpenAI's, at `:253`.
+* **R3** (a context check before the first ask) is **not** added and
+  survives by design: MADR D10 says "The first ask is not preceded by a new
+  check", and ST53b is out of scope and unchanged. The reviewer's R3 plant
+  is therefore not caught, correctly. Controls C1 (typed prompt re-wraps) and
+  C2 (context checked only before the third ask) are caught.
+* **Red runs of the new and tightened assertions:**
+  `TestForeverBlankPasteEnds_0085` and `TestKeyPrompterErrorIsReturned_0085`
+  fail as expected at `1af92ce` and at `b109cea` with `redgreen.py --expect
+  fail --rev` (2 of 2 each; first line at the base: `err <nil>, result
+  Result{Provider:grok Kind:api_key}, asks 1, notices []; want "wizard: no
+  Grok (xAI) key entered after 3 tries" ...`); all pass on the tree.
+* **Doc gaps closed:** `ConfigureLLM`'s 0085 paragraph gains the D10 sentence
+  `ResolveCredential`'s has; `promptAPIKey`'s doc says ctx is read before the
+  second and third ask (PLAN step 6); the comment in `verifyKilo` now says an
+  empty token comes only from "a Kilo descriptor that does not require a key
+  (a caller's own)", still at `wizard/kilo_verify.go:95` to `:98`;
+  the architecture's "An optional key" says Kilo, OpenCode Zen and OpenCode Go
+  "accept an empty key at their constructors and then send the service's
+  anonymous or public token", not "take no key".
+* **Gate:** `go test -count=1 ./wizard/` exit 0; `run-heavy -- go test
+  -count=1 ./...` exit 0 (44 packages `ok`); `run-heavy -- make
+  pre-add-check` on the eight changed `.go` files exit 0 (`8 file(s)
+  clean`). The `make` checks, claims, recordlint and denyscan are in the
+  handoff of this pass and were all exit 0.

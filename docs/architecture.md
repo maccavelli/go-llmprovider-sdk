@@ -1220,9 +1220,9 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   listing's options, built in that one place, and reads the organization from
   them (`kiloendpoint.OrganizationOption`, shared by `catalog` and
   `internal/signinflow`), so the two cannot disagree. A key that a caller's
-  own `Prompter` returns empty, or of only spaces, is trimmed to empty and not
-  checked, for every provider (a record of its own); `TextPrompter` never
-  returns one. With Kilo's other gateway address
+  own `Prompter` returns empty, or of only spaces, is asked for again and,
+  after three, is an error, for every provider, so no blank key reaches this
+  check (0085-MADR). With Kilo's other gateway address
   as the endpoint the profile is read at that origin and answers 404, so the
   warning is shown at every sign-in (D7).
 - **Claude's workspace.** A Claude key not scoped to a workspace is refused
@@ -1282,7 +1282,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   key, so none is asked, and its refusal is worded as a request that
   carried none. A remote provider with no default endpoint takes no blank
   one, and under `NoEndpointPrompt`, with none in `Existing`, is an error
-  (0066-MADR V2, V3).
+  (0066-MADR V2, V3). The key it is asked for is a typed key in every
+  respect: a blank answer is asked for again, never listed with, and an
+  `Existing` key that is empty once trimmed is not offered (0085-MADR D2,
+  D5). Kilo, OpenCode Zen and OpenCode Go accept an empty key at their
+  constructors and then send the service's anonymous or public token, but
+  the wizard asks for a key for them and takes no empty one; a caller wanting
+  them anonymous builds the provider without the wizard's key step.
 - **The servers on this machine.** With `Options.LocalServers`, the
   wizard calls `chatcompat.Discover` once, before the menu, with
   `Options.HTTPClient` only, and runs over a registry of its own: the
@@ -1304,7 +1310,15 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   no organization the profile, refuses a typed key, the wizard asks
   for another, up to three keys, then returns an error. Each refusal of a
   typed key without the provider's usual shape names that shape, the last
-  included, and never the key (0059-MADR S1). A refused key from
+  included, and never the key (0059-MADR S1). A typed or pasted key that is
+  empty once trimmed, which is a Prompter's answer and not the provider's, is
+  asked for again with a notice, up to three asks for each call of the
+  prompt, and the third ends the run with a plain error that matches no
+  sentinel: a refused key followed by three blanks therefore ends with that
+  error and not `ErrAuthFailure`. One helper, `secretKey`, asks for every key,
+  so the rule holds for the typed prompt and the pasted credential alike, and
+  a repeat ask first checks the run's context (0085-MADR D2, D3, D10). A
+  refused key from
   the environment or `Options.Existing`, or a refused session or CLI login,
   is an error naming that source. Any other listing failure falls back to
   the built-in catalog, with a warning. Every notice that reports a service's

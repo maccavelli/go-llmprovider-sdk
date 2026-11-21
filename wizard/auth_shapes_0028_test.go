@@ -1,6 +1,7 @@
 package wizard
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -65,7 +66,7 @@ func TestProviderShapeWarning(t *testing.T) {
 		f := newFake(t, fakePrompter{secrets: []string{malformed, c.wellShape}})
 		for i, key := range []string{malformed, c.wellShape} {
 			before := len(f.seenNotify)
-			got, from, err := resolveAPIKey(f, d, Options{})
+			got, from, err := resolveAPIKey(context.Background(), f, d, Options{})
 			if err != nil || got != key || from != keyTyped {
 				t.Fatalf("%s: resolveAPIKey = %q, %v, %v; want the typed key", c.id, got, from, err)
 			}
@@ -77,7 +78,7 @@ func TestProviderShapeWarning(t *testing.T) {
 	for _, id := range []llmprovider.ProviderID{llmprovider.ProviderKilo, llmprovider.ProviderOllama} {
 		d := llmprovider.Descriptor{ID: id, Label: string(id), RequiresAPIKey: true}
 		f := newFake(t, fakePrompter{secrets: []string{malformed}})
-		if _, _, err := resolveAPIKey(f, d, Options{}); err != nil || len(f.seenNotify) != 0 {
+		if _, _, err := resolveAPIKey(context.Background(), f, d, Options{}); err != nil || len(f.seenNotify) != 0 {
 			t.Errorf("%s: err %v, notices %v; want no shape check", id, err, f.seenNotify)
 		}
 	}

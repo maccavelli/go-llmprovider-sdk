@@ -325,6 +325,14 @@ func (o Options) lookupEnv() func(string) string {
 // first says that the organizations could not be read and the personal
 // account is used.
 //
+// A typed or pasted key that is empty once trimmed, for any provider, is not
+// returned as a key: the person is asked again, up to three asks in all for
+// each prompt, and the third blank is a plain error that matches no sentinel,
+// llmprovider.ErrAuthFailure included, even after a key the provider refused
+// (0085-MADR D3). An ended ctx stops a repeat ask with an error matching
+// ctx's (D10). An environment value or an Options.Existing key that is
+// empty once trimmed is not offered.
+//
 // A new sign-in's session is saved to Options.TokenStore as the last thing the
 // run does, after the model and fallback questions, so an error, a context's
 // end included, saved nothing and the store keeps the session it held; a
@@ -461,6 +469,12 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // error, as are Options.SkipMethods leaving the provider no sign-in method
 // and, under Options.NoEndpointPrompt, an endpoint refused, not reached, or
 // missing for a provider with no default.
+//
+// A typed or pasted key that is empty once trimmed is asked for again, up to
+// three asks in all for each prompt, and the third blank is a plain error
+// that matches no sentinel, not llmprovider.ErrAuthFailure, even after a key
+// the provider refused; an ended ctx stops a repeat ask with an error matching
+// ctx's (0085-MADR D3, D10).
 func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderID) (Result, catalog.Catalog, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
@@ -605,7 +619,7 @@ func unsavedStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Op
 			p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
 			notifyShape(p, d, credential.apiKey)
 		}
-		key, keyErr := promptAPIKey(p, d, o)
+		key, keyErr := promptAPIKey(ctx, p, d, o)
 		if keyErr != nil {
 			return Result{}, catalog.Catalog{}, resolvedCredential{}, keyErr
 		}
@@ -868,8 +882,12 @@ func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err 
 // only ever reaches Result. A remote provider whose key is optional, such as
 // a Chat Completions server, is offered the existing key, else lists with
 // none, and is asked for one when the listing refuses that (0066-MADR V2);
-// a local one sends none.
-func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, keySource, error) {
+// a local one sends none. An environment value or an existing key that is
+// empty once trimmed is absent, as an empty one is: it is not offered and the
+// typed prompt follows; one that is not blank is offered and used as it is,
+// untrimmed (0085-MADR D5). ctx is read before the typed prompt asks again
+// (see secretKey).
+func resolveAPIKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (string, keySource, error) {
 	if !d.RequiresAPIKey {
 		if d.IsLocal {
 			return "", keyOther, nil
@@ -884,7 +902,7 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, key
 	}
 
 	if o.AllowEnv && d.EnvVar != "" {
-		if envVal := o.lookupEnv()(d.EnvVar); envVal != "" {
+		if envVal := o.lookupEnv()(d.EnvVar); strings.TrimSpace(envVal) != "" {
 			use, err := p.Confirm(
 				fmt.Sprintf("Use %s from the environment (%s)?", d.EnvVar, redact.MaskSecret(envVal)), true)
 			if err != nil {
@@ -902,14 +920,16 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, key
 		return key, keySaved, nil
 	}
 
-	key, err := promptAPIKey(p, d, o)
+	key, err := promptAPIKey(ctx, p, d, o)
 	return key, keyTyped, err
 }
 
 // keepExistingKey offers Existing's key for d, masked, and reports whether
-// the user kept it.
+// the user kept it. A key that is empty once trimmed is absent and not
+// offered; one that is not is offered and, kept, returned as it is
+// (0085-MADR D5).
 func keepExistingKey(p Prompter, d llmprovider.Descriptor, o Options) (string, bool, error) {
-	if o.Existing.Provider != d.ID || o.Existing.APIKey == "" {
+	if o.Existing.Provider != d.ID || strings.TrimSpace(o.Existing.APIKey) == "" {
 		return "", false, nil
 	}
 	keep, err := p.Confirm(
@@ -922,15 +942,58 @@ func keepExistingKey(p Prompter, d llmprovider.Descriptor, o Options) (string, b
 
 // promptAPIKey asks for d's API key, and warns when it is plainly another
 // provider's (0059-MADR S1). A key's shape is named only once the provider
-// refuses it, in unsavedStep.
-func promptAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
-	key, err := p.Secret(fmt.Sprintf("Enter your %s API key", d.Label))
+// refuses it, in unsavedStep. The key is trimmed, and a value that is empty
+// once trimmed is asked for again, up to three asks in all, then ends the run
+// with an error (secretKey; 0085-MADR D2, D3). Each call has its own three
+// asks, so a key the provider refused is followed by three more. ctx is read
+// before the second and the third ask, and an ended one ends the prompt with
+// an error matching ctx's (D10).
+func promptAPIKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
+	key, err := secretKey(ctx, p, d, fmt.Sprintf("Enter your %s API key", d.Label), "enter API key")
 	if err != nil {
-		return "", fmt.Errorf("enter API key: %w", err)
+		return "", err
 	}
-	key = strings.TrimSpace(key) // a paste's spaces (0020-MADR F18)
 	warnForeignKey(p, d, key, o)
 	return key, nil
+}
+
+// secretKey is the one place the wizard asks a Prompter's Secret for a key,
+// for the typed key (promptAPIKey) and the pasted credential
+// (resolveTokenStdin). It trims what Secret returns (a paste's spaces,
+// 0020-MADR F18) and returns it unless it is empty once trimmed:
+// strings.TrimSpace's empty, so a value of spaces, tabs, line breaks or a
+// non-breaking space is refused, and inner whitespace, a control character, an
+// invisible character Go does not count as space and a value that is not
+// UTF-8 are not (0085-MADR D4).
+//
+// A blank value gives a warning notice and the prompt again, up to
+// maxTypedKeys asks; the third blank ends the run with a plain error that
+// matches no sentinel, not llmprovider.ErrAuthFailure (D3, D6). A Prompter's
+// own error is wrapped as "<wrap>: " and returned at once, whatever value came
+// with it. Before the second and the third ask, ctx is read: an ended one
+// returns its error wrapped the same way, and Secret is not asked again (D10).
+//
+// The refusal is the one `value != ""` test below, so a later record can read
+// a caller-set option at it (D2, D7).
+func secretKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, prompt, wrap string) (string, error) {
+	for asked := 1; ; asked++ {
+		if asked > 1 {
+			if err := ctx.Err(); err != nil {
+				return "", fmt.Errorf("%s: %w", wrap, err)
+			}
+		}
+		value, err := p.Secret(prompt)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", wrap, err)
+		}
+		if value = strings.TrimSpace(value); value != "" {
+			return value, nil
+		}
+		if asked == maxTypedKeys {
+			return "", fmt.Errorf("wizard: no %s key entered after %d tries", d.Label, asked)
+		}
+		p.Notify(LevelWarn, "no key was entered; %s needs one", d.Label)
+	}
 }
 
 // listingOptions are the options of the model listing, whichever provider was

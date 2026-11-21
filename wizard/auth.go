@@ -184,7 +184,7 @@ func signIn(
 		return resolvedCredential{}, fmt.Errorf("wizard: Options.SkipMethods leaves no sign-in method for %s", d.Label)
 	}
 	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
-		key, from, err := resolveAPIKey(p, d, o)
+		key, from, err := resolveAPIKey(ctx, p, d, o)
 		if err != nil {
 			return resolvedCredential{}, err
 		}
@@ -225,7 +225,7 @@ func signIn(
 	}
 	method := methods[idx].ID
 	if method == llmprovider.AuthAPIKey {
-		key, from, keyErr := resolveAPIKey(p, d, o)
+		key, from, keyErr := resolveAPIKey(ctx, p, d, o)
 		if keyErr != nil {
 			return resolvedCredential{}, keyErr
 		}
@@ -599,21 +599,25 @@ func validateKept(provider llmprovider.ProviderID, session *auth.OAuthSession) e
 	return nil
 }
 
+// resolveTokenStdin asks for a pasted credential: Grok's API key, or OpenAI's
+// ChatGPT access token or API key. It asks through secretKey, so the paste is
+// trimmed (a paste's spaces would make an API key look like an access token,
+// 0020-MADR F18) and one that is empty once trimmed is asked for again, up to
+// three asks, then ends the run with the no-key error, before OpenAI's
+// access-token check sees it; a Prompter's own error is wrapped "enter
+// credential: " and returned at once (0085-MADR D2, D3, D8).
 func resolveTokenStdin(
-	_ context.Context,
+	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
 	// CODEX_ACCESS_TOKEN is not offered: in Codex it holds a personal access
 	// token or an agent-identity JWT, not a ChatGPT OAuth bearer (MADR 0012 §5.4).
-	value, err := p.Secret(fmt.Sprintf("Paste your %s credential", d.Label))
+	value, err := secretKey(ctx, p, d, fmt.Sprintf("Paste your %s credential", d.Label), "enter credential")
 	if err != nil {
-		return resolvedCredential{}, fmt.Errorf("enter credential: %w", err)
+		return resolvedCredential{}, err
 	}
-	// A paste's spaces would make an API key look like an access token
-	// (0020-MADR F18).
-	value = strings.TrimSpace(value)
 	if d.ID == llmprovider.ProviderOpenAI {
 		if vendor := foreignKeyVendor(value); vendor != "" {
 			return resolvedCredential{}, fmt.Errorf("wizard: this looks like %s key, not an OpenAI credential", vendor)

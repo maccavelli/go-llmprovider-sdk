@@ -92,7 +92,12 @@ type Prompter interface {
 	Input(prompt, def string) (string, error)
 
 	// Secret reads a credential without echoing it in full. Implementations
-	// must never write the value to a log.
+	// must never write the value to a log. The wizard trims the value, and
+	// does not take one that is empty once trimmed as a key: it gives a
+	// notice and asks again, up to three asks in all for each prompt, and the
+	// third blank ends the run with an error. An implementation signals a
+	// cancel with an error, not with an empty value, which is asked for again
+	// (0085-MADR D3).
 	Secret(prompt string) (string, error)
 
 	// Notify reports progress or a problem. It must not be used to display a
