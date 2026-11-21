@@ -170,7 +170,9 @@ type provider struct {
 // gives an error matching llmprovider.ErrInvalidProvider; no WithBaseURL, and
 // an option llmprovider.ResolveOptions refuses, one matching
 // llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one matching
-// llmprovider.ErrUnsupported. It makes no network call.
+// llmprovider.ErrUnsupported. A key that is empty once trimmed is no key, and
+// a server that takes no key gets no Authorization (llmprovider.NewStaticToken).
+// It makes no network call.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	// Probes are off unless the caller's WithModelProbes(true) follows: a
 	// server's generations are its own to bill (0061-MADR D4).

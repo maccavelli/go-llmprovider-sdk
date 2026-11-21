@@ -133,6 +133,7 @@ type provider struct {
 // one, and an option llmprovider.ResolveOptions refuses give an error
 // matching llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one
 // matching llmprovider.ErrUnsupported.
+// A key that is empty once trimmed is an empty key (llmprovider.NewStaticToken).
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderHuggingFace, opts)
 	if err != nil {

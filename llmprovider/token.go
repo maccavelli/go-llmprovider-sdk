@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -100,6 +101,10 @@ type TokenSource interface {
 // StaticToken returns one fixed API key without expiry. Its String,
 // GoString and LogValue never show Value. Token only reads it, so it is safe
 // for concurrent use while no goroutine changes it.
+//
+// A StaticToken built as a struct literal is not normalised: only
+// NewStaticToken, and so WithAPIKey, treat a Value that is empty once trimmed
+// as no key (0085-MADR D9).
 type StaticToken struct {
 	Value string
 	// Header is the request header the key goes in; empty is the service's
@@ -107,8 +112,15 @@ type StaticToken struct {
 	Header string
 }
 
-// NewStaticToken constructs a static API-key source.
+// NewStaticToken constructs a static API-key source. A value that is empty
+// after strings.TrimSpace (spaces, tabs, line breaks, a non-breaking space) is
+// no key and is stored as "", which every provider treats as it treats an
+// empty key; any other value is stored as given, padding included
+// (0085-MADR D9).
 func NewStaticToken(value string) *StaticToken {
+	if strings.TrimSpace(value) == "" {
+		value = ""
+	}
 	return &StaticToken{Value: value}
 }
 

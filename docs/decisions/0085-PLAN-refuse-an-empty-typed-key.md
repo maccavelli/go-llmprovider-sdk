@@ -1308,3 +1308,201 @@ tree.
   pre-add-check` on the eight changed `.go` files exit 0 (`8 file(s)
   clean`). The `make` checks, claims, recordlint and denyscan are in the
   handoff of this pass and were all exit 0.
+
+### Phase 1b, build pass 1 (2026-11-21)
+
+Built on `main` at `e4835dc` (Phase 1's commit), tree clean at the start, by
+a mainstream-tier agent at medium effort, on the coordinator's brief. It is
+the PLAN's Phase 1b with every dated addition (MADR D9, the owner's "Pull it
+into 0085", and the rulings on ST73 to ST75). Nothing is staged or committed.
+`<scratch>` is the session's scratch directory.
+
+#### Step 1: the re-ground at `e4835dc`
+
+Read at `e4835dc`: each constructor's key test (`claude.go:225`,
+`gemini.go:157`, `grok.go:184`, `huggingface.go:146`, `kilo.go:205`,
+`openai.go:237`, `opencode.go:256`, `together.go:142`, all `if s.Value ==
+""`; Ollama's `NewStaticToken("")` for no source at `ollama.go:150`;
+`chatcompat.go:196` likewise, and its `authorize` test `token.Value != ""` at
+`:335`); the catalog's `token.Value != ""` tests (`catalog/dialect.go:79`,
+`discovery.go:1185`, `:1222`, `:1419`); `x/signin/credential.go:39` and `:96`
+(`NewStaticToken(k.Key)`); `WithAPIKey` at `settings.go:109`; `NewStaticToken`
+at `token.go:111`; the package example at `provider.go:17`. Each holds the
+meaning the PLAN and MADR assert; the lines moved from `24756a6`'s citations
+(for example `claude.go:213` to `:225`, `kilo.go:205` unchanged,
+`opencode.go:240` to `:256`). 0084 is in the base and touches only the send
+paths and package docs of `claude.go` and `opencode.go`; this phase's edits in
+those two files are the doc comments above `New` and `NewZen`, so no common
+line (ST80).
+
+Two things the PLAN did not state, found by the tests at the base:
+
+* `llmprovider.ResolveOptions` already refuses a key holding a control
+  character ("the API key holds a control character, such as a pasted
+  newline"), so a key of only a tab, a lone CR or a lone LF was refused with
+  `ErrInvalidRequest` before Phase 1b, by every provider, Ollama and the Chat
+  Completions server included. Under D9 such a key is stored as `""`, never
+  reaches that check, and gets the outcome of `""`. This is what MADR ST72's
+  value list (tab, CR, LF) asks, and the **Changed** entry says it. No
+  decision changes.
+* A Chat Completions server's listing sends no `Authorization` for `""`
+  (`catalog/dialect.go:79`), but Together's listing sends a bare "Bearer"
+  with an empty key. ST74c's "`catalog.List` given `NewStaticToken("   ")` sends no
+  `Authorization`" is true for a Chat Completions server and is the outcome
+  of `""` for the others, so the test pins the first for a Chat Completions
+  server and "the outcome of an empty key" for Together.
+
+#### Step 2: the tests, red first
+
+`llmprovider/providers/blank_key_0085_test.go` (external package
+`providers_test`, so that ST77's test can import `wizard`). Seven tests, one
+for each of rows ST71 to ST77, each against an in-process `RoundTripper` that
+answers 401 and records headers; every key made up or blank. Red at
+`e4835dc` with `tools/redgreen.py --expect fail --rev e4835dc`: 5 of 5 fail on
+their assertion; guards `--expect pass`: 2 of 2; all 7 pass on the tree. The
+first failure line of each red test at the base:
+
+* `TestConstructorsBlankKeyIsNoKey_0085`: `a request carries a blank value: [X-Goog-Api-Key="   "]`.
+* `TestBlankKeyIsEmptyKeyPerProvider_0085`: `err <nil>; want the outcome of an empty key, llmprovider: invalid request: gemini api key is required`.
+* `TestStaticTokenBlankIsEmpty_0085`: `NewStaticToken("   ").Value = "   "; want empty`.
+* `TestBlankKeyNoFallback_0085`: `Claude: err <nil>, 1 request(s); want it refused at New, no request`.
+* `TestWizardAndConstructorAgreeOnBlank_0085`: `constructor: err <nil>; want the outcome of an empty key, llmprovider: invalid request: together api key is required` (its wizard half is green at the base, Phase 1 having landed).
+* Guards green: `TestConstructorsEmptyKeyUnchanged_0085` (ST71) and
+  `TestConstructorsPaddedKeySentAsGiven_0085` (ST75).
+
+Deviations from the PLAN's table, none changing a row: ST73's "red for all but
+Ollama" is red for Ollama too, by the control-character case above and by a
+caller's `Header` with spaces; ST72 for Ollama alone is green at the base
+(Ollama sends no key header for spaces). The comparisons drop the two headers
+that differ for every provider built, Kilo's task id and the OpenCode
+session id. The OpenCode gateways carry the key in `Authorization`,
+`x-api-key` or `x-goog-api-key` by route, so the test reads all three.
+
+#### Step 3 and 4: what was built
+
+* `llmprovider/token.go`: `NewStaticToken` stores a value that is empty after
+  `strings.TrimSpace` as `""` and any other as given; `StaticToken`'s doc says
+  a struct literal is not changed. `llmprovider/settings.go`: `WithAPIKey`'s
+  doc. No constructor's code changed; no exported name added.
+* Doc comments above `New` in `claude`, `gemini`, `grok`, `huggingface`,
+  `kilo`, `openai`, `together`, `ollama`, `chatcompat`, and above `NewZen`
+  in `opencode`; the package example in `llmprovider/provider.go`.
+* `README.md` (the quick start, "Credentials", the Kilo and OpenCode line),
+  `docs/architecture.md` (the `TokenSource` bullet), `CHANGELOG.md`
+  **Changed** under `[Unreleased]`.
+
+Own breaks on scratch clones with `tools/plant.py`, none in the tree, all
+caught: P-k1 (Kilo's empty-key branch removed): `TestConstructorsEmptyKeyUnchanged_0085`,
+`credential ["Bearer "]; want the anonymous or public key`. P-k2
+(`NewStaticToken` stores every value as given): each of
+`TestConstructorsBlankKeyIsNoKey_0085`, `TestBlankKeyIsEmptyKeyPerProvider_0085`,
+`TestStaticTokenBlankIsEmpty_0085` and `TestWizardAndConstructorAgreeOnBlank_0085`
+alone. P-k3 (Claude accepts a blank key; the stand-in for the environment
+fallback, since Claude's file does not import `os`): `TestBlankKeyNoFallback_0085`,
+`Claude: err <nil>, 1 request(s); want it refused at New`. P-k7
+(`NewStaticToken` trims every value): `TestConstructorsPaddedKeySentAsGiven_0085`,
+`NewStaticToken(" made-up-key ").Value = "made-up-key"; want it as given`. P-k8
+(`WithAPIKey` builds `&StaticToken{Value: key}`):
+`TestStaticTokenBlankIsEmpty_0085`, `WithAPIKey("   ") resolves to
+llmprovider.StaticToken{Header: Value:[redacted]}; want a *StaticToken with an
+empty Value`, and the two other tests. P-k6 (Ollama puts its token in
+`Authorization`) was not run: Ollama's constructor has no `Authorization` code
+of its own, so the Ollama case is held by P-k2 (`TestBlankKeyIsEmptyKeyPerProvider_0085`).
+
+#### The gate
+
+* `go test -count=1` of `./llmprovider/`, `./llmprovider/providers/...` and
+  `./wizard/`: exit 0. `run-heavy -- go test -count=1 ./...`: exit 0, 44
+  packages `ok`. Every existing test passes unchanged, none edited.
+* `run-heavy -- make pre-add-check FILES="<the 14 changed .go files>"`: exit
+  0, `go-precheck: 14 file(s) clean`.
+* `tools/apidiff.py e4835dc <scratch commit>`: exit 0, nothing listed, so no
+  exported name changed and none outside R55's list for 1b (it names none).
+* The `make` checks, claims, recordlint and denyscan: in the handoff, each
+  exit 0.
+
+#### Not done, and why
+
+No `-race`, no Phase 2 plant, no commit, no live run. gobble-cli (Phase 4) is
+not touched.
+
+### Deviation (2026-11-21): Together's listing joins Phase 1b
+
+Found by the independent review of Phase 1b build pass 1, and in the pass 1
+entry above ("Step 1", second item).
+
+* **Evidence.** ST74c says a blank key given to the listing sends no
+  `Authorization`. `llmprovider/catalog/discovery.go:1326`
+  (`fetchTogetherUsable`) calls `token.Apply(req, headerAuthorization,
+  bearerScheme)` unconditionally, so a token whose value is `""` sends a bare
+  "Bearer"; the Chat Completions listing (`catalog/dialect.go:79`) omits the
+  header. Pre-existing at `e4835dc`, and the same for `NewStaticToken("")`.
+* **Ruling.** The owner, relayed by the coordinator: **"Fix Together's
+  listing."** Together's listing omits the header when the token's value is
+  `""`.
+* **Scope.** `llmprovider/catalog/discovery.go` (the one condition at `:1326`)
+  and a new test file `llmprovider/catalog/together_blank_0085_test.go` join
+  Phase 1b's files; MADR row ST82 carries the change. No exported name moves.
+  If an existing test pinned a bare "Bearer" for an empty Together token it
+  would be directly contradicted and its one assertion changed, named here;
+  the search for one is in the pass 2 entry.
+* **Recorded.** The MADR's "Corrections of 2026-11-21, Phase 1b build pass 2"
+  holds ST82 and, from the same ruling pair, the corrected "today" facts of
+  ST48, "Case 2" and ST75.
+
+### Phase 1b, build pass 2 (2026-11-21)
+
+Records first, then code, on the coordinator's brief and the independent
+review of pass 1 (no code blocker; two record facts wrong). `<scratch>` is the
+session's scratch directory. Nothing is staged or committed.
+
+* **Record fact 1.** The owner: **"Keep as built; correct the facts
+  (Recommended)."** The MADR's "Corrections of 2026-11-21" says that
+  `settings.go:260` to `:261` (since `faf06a8`, 2026-10-07) refused any static
+  key holding a byte below 0x20 at `New`, for every provider, so the first
+  amendment's ST48, the second pass's "Case 2" and ST75's "a line feed fails
+  at the transport" were wrong for keys of tabs, CR, LF, CR+LF or a mix.
+  Behaviour, D9 and the owner's ruling stand. The `CHANGELOG.md` **Changed**
+  entry now says what changes for those keys (Kilo and OpenCode: refused to
+  anonymous or public use; Ollama and a Chat Completions server: refused to
+  built; the six: same kind, different text), corrects "every provider sent
+  it" (Ollama sends a key only under a caller's `Header`,
+  `ollama.go:291` to `:295`, and control-character blanks were refused), and
+  says a key that is not blank and holds a control character is still refused
+  at `New`.
+* **Record fact 2.** The owner: **"Fix Together's listing."** See the
+  deviation above. Built: `fetchTogetherUsable` applies the token only when
+  its value is not `""` (`llmprovider/catalog/discovery.go:1328`). The
+  search for an existing test pinning a bare "Bearer" for an empty Together
+  token found none (`go test` of the module passes with no existing test
+  touched), so no assertion was changed. New test file
+  `llmprovider/catalog/together_blank_0085_test.go`
+  (`TestTogetherListingEmptyTokenSendsNoAuthorization_0085`, ST82), and the
+  Together case of `TestStaticTokenBlankIsEmpty_0085` is tightened from "same
+  as an empty key" to "no `Authorization`", for `"   "` and `""`. Red at
+  `e4835dc` with `redgreen.py --expect fail --rev e4835dc`, 2 of 2:
+  `Authorization "Bearer    " on a listing with an empty token; want none`
+  and `NewStaticToken("   ").Value = "   "; want empty`. The plant
+  `token.Apply` restored unconditionally is caught by both:
+  `Authorization "Bearer " on a listing with an empty token; want none`
+  (`together_blank_0085_test.go:58`) and `key "": 1 listing request(s),
+  Authorization ["Bearer "]; want at least one, none with an Authorization`
+  (`blank_key_0085_test.go:335`).
+* **The review's doc fixes.** `NewGo`'s doc now says what a blank key does,
+  as `NewZen`'s does; the literal U+00A0 at `blank_key_0085_test.go:33` and in
+  the new test file is an escape.
+* **The reviewer's plants, re-run unchanged** (`plants.json`, `plants2.json`):
+  F1 (Kilo falls back to its environment variable) caught; F2 (a struct
+  literal also normalised) not caught, correctly, ST74b is out of scope and
+  nothing pins the converse; F3 (Ollama sends a credential for an empty key,
+  the stand-in) not caught, and superseded by F3b (P-k6, Ollama puts any
+  token in `Authorization`), caught; F4 (the blank test sees only ASCII
+  whitespace) caught; controls C1 caught in both files.
+* **Found, not changed.** The wizard keeps a non-blank environment value
+  untrimmed (ST39), so `"key\n"` reaches `Result.APIKey` and `New` then
+  refuses it for the control character. Not new; a follow-up for the owner.
+* **Gate.** `go test -count=1 ./...` through `run-heavy`: exit 0, 44 packages
+  `ok`; `make pre-add-check` through `run-heavy` on the 16 changed `.go`
+  files: exit 0, `16 file(s) clean`; `tools/apidiff.py e4835dc <scratch
+  commit>`: exit 0, nothing listed (the fix adds no name). The `make` checks,
+  claims, recordlint and denyscan are in the handoff of this pass.

@@ -1325,3 +1325,62 @@ The rows below are added.
 
 **Tally after the fourth pass.** 91 rows: 70 decided, 21 out of scope, 0
 open, none awaiting live evidence.
+
+## Corrections of 2026-11-21, Phase 1b build pass 2
+
+Added after Phase 1b's build pass 1 and its independent review. Nothing above
+is rewritten or removed: each statement named below stays as the record of
+what was believed, and this section corrects it. Both items are the owner's
+rulings, relayed by the coordinator.
+
+### Three "today" facts were wrong
+
+* **The statements.** The first amendment's row ST48 ("each constructor
+  compares the key with `""` untrimmed (C67now to C69now), so it is not
+  refused there and is sent"); the second pass's "Case 2, constructors and a
+  key of spaces: holds" (the same claim, for every key made of whitespace);
+  and the second pass's row ST75 ("a line feed fails at the transport, since
+  Go's HTTP client refuses a header value holding one").
+* **The truth, read at `e4835dc`.** `llmprovider/settings.go:260` to `:261`,
+  in force since `faf06a8` (2026-10-07), refuses at `New` any static key that
+  holds a byte below 0x20 or a DEL, with an error matching `ErrInvalidRequest`
+  ("the API key holds a control character, such as a pasted newline"), for
+  every provider, before any constructor's own test. So a key of only a tab, a
+  lone CR, a lone LF, CR+LF, or a mix that holds one of them, was never sent:
+  it was refused. A key of only spaces or a non-breaking space was the case
+  the statements describe: built and sent.
+* **What D9 changes for those keys, as built.** For a key of only tabs, CR, LF,
+  CR+LF or a mix holding one: Kilo, OpenCode Zen and OpenCode Go go from
+  refused to anonymous or public use; Ollama and a Chat Completions server go
+  from refused at `New` to built, with no `Authorization`; Claude, Gemini,
+  Grok, Hugging Face, OpenAI and Together keep the same kind, refused at
+  `New` with `ErrInvalidRequest`, with different text ("<id> api key is
+  required" for "the API key holds a control character"). A key that is not
+  blank and holds a control character, such as `"key\n"`, is still refused at
+  `New` by every provider.
+* **The ruling.** The owner, relayed by the coordinator: **"Keep as built;
+  correct the facts (Recommended)."** The behaviour stands for every blank
+  value, tabs and line breaks included. This correction leaves the owner's
+  ruling "Pull it into 0085" and D9 standing; the **Changed** entry says what
+  changes for these keys. No decision changes.
+* **Found, not changed.** The wizard keeps a non-blank environment value
+  untrimmed (ST39), so `"key\n"` reaches `Result.APIKey`, and `New` then
+  refuses it for the control character. This is not new and is not this
+  record's: a follow-up for the owner.
+
+### ST82: Together's listing with an empty token (the owner's ruling)
+
+ST74c says a blank key given to the listing sends no `Authorization`. At
+`e4835dc` that is true of a Chat Completions server's listing
+(`llmprovider/catalog/dialect.go:79`) and not of Together's: its listing,
+`fetchTogetherUsable`, calls `token.Apply` unconditionally
+(`llmprovider/catalog/discovery.go:1326`), so a token whose value is `""`
+sends a bare "Bearer". The owner, relayed by the coordinator: **"Fix
+Together's listing."** ST74c stays as written.
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST82 | `catalog.List` for Together given a token whose value is `""`, whether `NewStaticToken("")` or `NewStaticToken("   ")` | decided | the listing request carries no `Authorization`, as the Chat Completions listing's does; a token that is not empty is sent as before | the owner, relayed by the coordinator: "Fix Together's listing."; ST74c | `TestTogetherListingEmptyTokenSendsNoAuthorization_0085`; the tightened Together case of `TestStaticTokenBlankIsEmpty_0085` (plant: `token.Apply` restored unconditionally) |
+
+**Tally after this correction.** 92 rows: 71 decided, 21 out of scope, 0
+open, none awaiting live evidence.

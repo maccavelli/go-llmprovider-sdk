@@ -769,7 +769,16 @@ for a session, from the store.
 ## Credentials
 
 - **`TokenSource`** returns a `Token` for each request. `StaticToken` wraps an
-  API key. `openai.New` takes a source with `WithTokenSource`; a ChatGPT
+  API key. `NewStaticToken`, which `WithAPIKey` builds on, stores a key that is
+  empty once trimmed as `""` and any other key as given, so every provider
+  meets a blank key as it meets an empty one: Claude, Gemini, Grok, Hugging
+  Face, OpenAI and Together refuse it at `New` with `ErrInvalidRequest`; Kilo
+  and the OpenCode gateways send their anonymous or public key, keeping the
+  source's `Header`; Ollama and a Chat Completions server send no
+  `Authorization`; a caller's registered constructor receives `""`. No
+  constructor falls back to another source of a key. A `StaticToken` built as
+  a struct literal, `signin.VerifyKilo`, `catalog.KiloModelCapabilities` and
+  `auth.KiloProfile` are not changed (0085-MADR D9). `openai.New` takes a source with `WithTokenSource`; a ChatGPT
   session selects the ChatGPT backend, and a plan session the platform with
   OpenAI's rules for plan usage. `grok.New` takes any source: a key,
   an xAI OAuth session or the Grok CLI's login.

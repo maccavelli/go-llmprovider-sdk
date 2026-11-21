@@ -1323,7 +1323,11 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 		return nil, err
 	}
 	cfg.setUserAgent(req)
-	token.Apply(req, headerAuthorization, bearerScheme)
+	// A token whose value is empty, a blank key included (llmprovider.NewStaticToken),
+	// sends no Authorization, as the Chat Completions listing's does (0085-MADR ST82).
+	if token.Value != "" {
+		token.Apply(req, headerAuthorization, bearerScheme)
+	}
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {

@@ -53,6 +53,10 @@ if errors.Is(err, llmprovider.ErrRateLimited) {
 }
 ```
 
+An environment variable that is unset or blank gives an empty key:
+`WithAPIKey` treats a key that is empty once trimmed as no key, and Claude
+refuses it at `New` with an error matching `ErrInvalidRequest`.
+
 ## LLM providers
 
 Every provider implements one contract: `ID`, `Capabilities` and
@@ -67,7 +71,10 @@ functions over any provider, and `Stream` streams from every one.
   with `providers.New(id, opts...)`, or with its package's own `New`.
 - **Credentials** are a `TokenSource`: `WithAPIKey(key)`, or
   `WithTokenSource` for an `auth.OAuthSession`, a vendor CLI login or a
-  `CommandToken`.
+  `CommandToken`. `WithAPIKey` and `NewStaticToken` store a key that is
+  empty once trimmed as `""`, which each provider treats as it treats an
+  empty key (below), and any other key as given, padding included; a
+  `StaticToken` built as a struct literal is not changed.
   - A ChatGPT session uses `chatgpt.com/backend-api/codex`, never the
     API-key endpoint at `api.openai.com`.
   - A ChatGPT plan session, from `auth.LoginChatGPTPlan`, uses
@@ -81,7 +88,11 @@ functions over any provider, and `Stream` streams from every one.
     alone. The ID is in Anthropic's Console, under Settings, Workspaces.
     The wizard asks for it when the key needs one, and returns it in
     `Result.Workspace`.
-  - Ollama needs no key. Kilo and OpenCode accept none: they then send the
+  - Claude, Gemini, Grok, Hugging Face, OpenAI and Together refuse an empty
+    key, or one that is empty once trimmed, at `New`, with an error matching
+    `ErrInvalidRequest`.
+  - Ollama needs no key, and a Chat Completions server sends none when it is
+    given none. Kilo and OpenCode accept none: they then send the
     service's anonymous or public token, which free models answer and paid
     ones refuse with a typed error. The wizard still asks for a key for them
     and takes no empty one; to use them anonymously, build the provider

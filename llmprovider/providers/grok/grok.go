@@ -171,6 +171,7 @@ type provider struct {
 // llmprovider.ResolveOptions refuses give an error matching
 // llmprovider.ErrInvalidRequest; an OAuth session that is not Grok's, or
 // another vendor's CLI session, one matching llmprovider.ErrUnsupported.
+// A key that is empty once trimmed is an empty key (llmprovider.NewStaticToken).
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderGrok, opts)
 	if err != nil {

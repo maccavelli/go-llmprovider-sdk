@@ -104,7 +104,10 @@ func WithModel(model string) Option {
 }
 
 // WithAPIKey sets the credential to a static API key; it is shorthand for
-// WithTokenSource(NewStaticToken(key)).
+// WithTokenSource(NewStaticToken(key)). A key that is empty once trimmed,
+// such as a blank environment variable, is no key: it is stored as "" and
+// each provider treats it as it treats an empty key (see NewStaticToken). A
+// key that is not blank is sent as given.
 func WithAPIKey(key string) Option {
 	return newOption("WithAPIKey", func(s *settings) { s.tokens = NewStaticToken(key) })
 }

@@ -27,6 +27,11 @@
 //		return fmt.Errorf("try later: %w", err)
 //	}
 //
+// WithAPIKey treats a key that is empty once trimmed, such as an environment
+// variable that is unset or blank, as no key: Claude then refuses it at New with
+// an error matching ErrInvalidRequest, and Kilo, OpenCode and Ollama do what
+// they do with an empty key (NewStaticToken).
+//
 // A service's refusal of a tool's schema is an *APIError of kind
 // ErrToolSchemaRefused, beneath ErrInvalidRequest, whose Tool names the
 // refused tool when the service named exactly one the request sent: the

@@ -50,6 +50,34 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- `llmprovider.NewStaticToken`, and so `WithAPIKey`, store a key that is
+  empty once trimmed (spaces, a tab, a line break, a non-breaking space) as
+  `""`. Each provider then does what it does with an empty key: Claude,
+  Gemini, Grok, Hugging Face, OpenAI and Together refuse it at `New` with an
+  error matching `ErrInvalidRequest`; Kilo, OpenCode Zen and OpenCode Go send
+  their anonymous or public key, keeping a caller's `Header`; Ollama and a
+  Chat Completions server send no `Authorization`. What changes depends on
+  the key. A key of only spaces or a non-breaking space was built and sent
+  (Ollama sends a key only under a caller's `Header`): a blank environment
+  variable passed to `WithAPIKey`, as this module's own example does, is no
+  longer sent, and the six that refuse an empty key now refuse it at `New`
+  where the spaces failed at the service; Kilo and OpenCode now give
+  anonymous use where they sent the spaces. A key of only a tab, a lone CR, a
+  lone LF, CR+LF or a mix holding one of them, which every provider already
+  refused at `New` as holding a control character, is now an empty key too:
+  Kilo, OpenCode Zen and OpenCode Go go from refused to anonymous or public
+  use; Ollama and a Chat Completions server go from refused to built, with no
+  `Authorization`; the six keep the same kind, refused with
+  `ErrInvalidRequest`, with the text of an empty key ("<id> api key is
+  required"). A key that is not blank is sent as given, padding included, and
+  one holding a control character, such as `"key\n"`, is still refused at
+  `New`. A `StaticToken` built as a struct literal is not changed.
+  `signin.VerifyKilo`, `catalog.KiloModelCapabilities` and `auth.KiloProfile`,
+  which take the key as a string, are not changed. Together's model listing
+  also sends no `Authorization` for a token whose value is empty, where it
+  sent a bare "Bearer", as the Chat Completions listing already did
+  ([0085-MADR](docs/decisions/0085-MADR-refuse-an-empty-typed-key.md) D9,
+  ST71 to ST77, ST82).
 - An error reply is now read to 1 MiB for every provider, where it was read
   to 64 KiB, so a body between the two is parsed whole instead of cut inside
   its JSON, and other kinds can change too: a 200 KiB quota 429 from OpenAI
