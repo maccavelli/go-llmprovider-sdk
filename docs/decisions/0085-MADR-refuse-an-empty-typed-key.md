@@ -1384,3 +1384,11 @@ Together's listing."** ST74c stays as written.
 
 **Tally after this correction.** 92 rows: 71 decided, 21 out of scope, 0
 open, none awaiting live evidence.
+
+*(Annotated 2026-11-21, Phase 1b CI fix.)* ST77's test,
+`TestWizardAndConstructorAgreeOnBlank_0085`, moved from
+`llmprovider/providers/blank_key_0085_test.go` to
+`wizard/blank_key_agree_0085_test.go`, with the same assertions, by the
+owner's ruling "Move that test into wizard (Recommended)": importing `wizard`
+from the providers package's tests failed `make dep-check`. No decision
+changes.

@@ -1506,3 +1506,46 @@ session's scratch directory. Nothing is staged or committed.
   files: exit 0, `16 file(s) clean`; `tools/apidiff.py e4835dc <scratch
   commit>`: exit 0, nothing listed (the fix adds no name). The `make` checks,
   claims, recordlint and denyscan are in the handoff of this pass.
+
+### Deviation (2026-11-21): ST77's test moves into `wizard`
+
+* **Evidence.** CI on `ef36fcc` (Phase 1b) failed `dep-check` on the Ubuntu
+  `validate` and the `docs` and `gate-selftest` jobs: `dep-check: GOOS=host:
+  llmprovider/providers depends on golang.org/x/sys/unix` and on
+  `golang.org/x/term`, and for `GOOS=windows` on `golang.org/x/sys/windows`
+  and `golang.org/x/term`. Cause: `llmprovider/providers/blank_key_0085_test.go`
+  imported `wizard` (`:24`) for `TestWizardAndConstructorAgreeOnBlank_0085`.
+  Neither the builder's gate nor the coordinator's ran `dep-check`.
+* **Ruling.** The owner, relayed by the coordinator: **"Move that test into
+  wizard (Recommended)."**
+* **Done.** The test is in `wizard/blank_key_agree_0085_test.go` (package
+  `wizard`), with the same two assertions: an environment value of spaces is
+  not offered under `AllowEnv`, and `WithAPIKey("   ")` gives the outcome of
+  `""` at `providers.New` for Together. It uses the package's `fakePrompter`
+  in place of the removed `prompter0085`. The providers test file no longer
+  imports `wizard`. MADR ST77's test cell is re-pointed by a dated
+  annotation. Phase 1b's file list gains `wizard/blank_key_agree_0085_test.go`
+  and loses nothing else.
+
+### Phase 1b, CI fix (2026-11-21)
+
+On `ef36fcc`, tests and records only, after the deviation above.
+
+* **Red.** At `e4835dc`, `redgreen.py --expect fail --rev e4835dc` on the moved
+  test: 1 of 1 fail as expected, on its constructor half only (the wizard half
+  is green, Phase 1 having landed): `blank_key_agree_0085_test.go:30:
+  constructor: err <nil>; want the outcome of an empty key, llmprovider:
+  invalid request: together api key is required`.
+* **Plant.** P-k2 (`NewStaticToken` stores every value as given) still
+  catches it, with the same line.
+* **Gate, each target separately, each exit captured:** `dep-check` exit 0
+  (`GOOS=windows: 46 packages, 0 problem(s)`); `parity-check` 0;
+  `coverage-check` 0 (`45 packages, 0 problem(s)`); `api-check` 0;
+  `contract-check` 0; `generate-check` 0; `records-check` 0; `tables-check` 0;
+  `fixtures-check` 0; `changelog-check` 0; `docs-check` 0; `markdownlint` 0;
+  `links-check` 0; `disclosure-check` 0; `gate-selftest` 0 (`OK`);
+  `tools-test` 0 (`OK`); `go vet -tags live_gateways ./...` 0;
+  `run-heavy -- go test -count=1 ./...` 0 (44 packages `ok`);
+  `run-heavy -- make pre-add-check` on the two changed `.go` files 0 (`2
+  file(s) clean`). The records gates are rerun after this entry, in the
+  handoff.

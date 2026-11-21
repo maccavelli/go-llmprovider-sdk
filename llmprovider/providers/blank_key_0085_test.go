@@ -21,7 +21,6 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/chatcompat"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/x/signin"
-	"github.com/maccavelli/go-llmprovider-sdk/wizard"
 )
 
 // blanks0085 are the eight values the wizard's tests use: empty once trimmed.
@@ -369,34 +368,5 @@ func TestBlankKeyNoFallback_0085(t *testing.T) {
 	if kilo.err != nil || len(auth) == 0 || strings.Contains(strings.Join(auth, " "), envKey) ||
 		strings.TrimSpace(strings.TrimPrefix(auth[0], "Bearer")) == "" {
 		t.Errorf("Kilo: err %v, Authorization %q; want its anonymous key, not the variable's", kilo.err, auth)
-	}
-}
-
-// prompter0085 is a wizard.Prompter that records its confirms and answers a
-// made-up key to Secret.
-type prompter0085 struct{ confirms int }
-
-func (p *prompter0085) Select(string, []wizard.Choice, int) (int, error)          { return 0, nil }
-func (p *prompter0085) MultiSelect(string, []wizard.Choice, []int) ([]int, error) { return nil, nil }
-func (p *prompter0085) Confirm(string, bool) (bool, error)                        { p.confirms++; return true, nil }
-func (p *prompter0085) Input(_, def string) (string, error)                       { return def, nil }
-func (p *prompter0085) Secret(string) (string, error)                             { return "made-up-key-1234", nil }
-func (p *prompter0085) Notify(wizard.Level, string, ...any)                       {}
-
-// TestWizardAndConstructorAgreeOnBlank_0085 (ST77): an environment value of
-// spaces is not offered by ResolveCredential under AllowEnv, and the same value
-// given to WithAPIKey gives the outcome of "".
-func TestWizardAndConstructorAgreeOnBlank_0085(t *testing.T) {
-	p := &prompter0085{}
-	res, _, err := wizard.ResolveCredential(context.Background(), p, wizard.Options{AllowEnv: true, NoEndpointPrompt: true,
-		LookupEnv:       func(string) string { return "   " },
-		ProviderOptions: []llmprovider.Option{catalog.WithCache(new(catalog.Cache))}}, llmprovider.ProviderTogether)
-	if err != nil || p.confirms != 0 || res.APIKey != "made-up-key-1234" {
-		t.Errorf("wizard: err %v, confirms %d, key %q; want the typed key and no question", err, p.confirms, res.APIKey)
-	}
-	want := run0085(t, llmprovider.ProviderTogether, llmprovider.WithAPIKey(""))
-	got := run0085(t, llmprovider.ProviderTogether, llmprovider.WithAPIKey("   "))
-	if want.err == nil || got.err == nil || got.err.Error() != want.err.Error() {
-		t.Errorf("constructor: err %v; want the outcome of an empty key, %v", got.err, want.err)
 	}
 }
