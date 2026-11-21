@@ -1549,3 +1549,179 @@ On `ef36fcc`, tests and records only, after the deviation above.
   `run-heavy -- make pre-add-check` on the two changed `.go` files 0 (`2
   file(s) clean`). The records gates are rerun after this entry, in the
   handoff.
+
+### Phase 2, the plants and the gates (2026-11-21)
+
+Run on `main` at `b2244c5` (the CI fix of Phase 1b), tree clean at the start,
+by a mainstream-tier agent at medium effort, on the coordinator's brief. It
+runs the PLAN's Phase 2 steps 0 to 7 with every dated addition. No product
+code and no test changed; nothing is staged or committed; no live run.
+`<scratch>` is the session's scratch directory.
+
+#### Step 0: the re-ground at `b2244c5`
+
+Every plant's old text was asserted to occur exactly once in its file before
+any spec was written (60 plants, 60 of 60 `matches=1`, by a generator in
+`<scratch>`, never in the repository). The line each replaces:
+`wizard/configure.go` `secretKey` at `:978` to `:995` (the trim `:989`, the
+bound `:992`, the no-key error `:993`, the notice `:995`, the `Secret` error
+wrap `:985`, the context check `:980`), `resolveAPIKey` at `:890` (its
+environment test `:905`, its return `:923`), `keepExistingKey` `:932` and
+`:940`, `promptAPIKey` `:953`; `wizard/auth.go:228` (the menu branch),
+`:617` (the paste), `:583` (`keepExistingOAuth`);
+`wizard/text_prompter.go:410`; `llmprovider/catalog/dialect.go:79`;
+`llmprovider/catalog/discovery.go:1327`; `llmprovider/token.go:121`, `:122`,
+`:124`; `llmprovider/settings.go:112` and `:260`; `kilo.go:206`; `claude.go:226`;
+`ollama.go:150` and `:293`.
+
+#### Step 1: the plants, each on a scratch clone with `tools/plant.py`
+
+Each spec runs only the test or tests the PLAN or the record names, so each
+plant is attributed to that test. Sixty plants: the drafting's eight, the
+sixteen of 2026-11-20 (P-a to P-p, with P-q as the drafting's third), the
+second pass's (P-auth, P-auth2, P-b, P-cnt, P-ctx, P-o2, P-q, P-r, P-reg,
+P-s, P-t, P-txt, P-u, P-v, P-w, P-x, P-y), Phase 1's reviewers' R1 to R3, C1
+and C2, Phase 1b's P-k1, P-k2, P-k3, P-k6, P-k7, P-k8, the Phase 1b
+reviewers' F1 to F4, F3b, C1 and the Together listing plant. Every plant that must be caught was caught by its named
+test, on its assertion (no plant was caught by a failed build; see P-k3).
+First failure line of each:
+
+| Plant | Caught by | Failure line |
+| :--- | :--- | :--- |
+| D1 trim removed | `TestTypedBlankKeyIsRefused_0085` (also `TestKeyWhitespaceKinds_0085`, `TestBlankKeyNeverReachesTheListing_0085`) | `empty_key_0085_test.go:131: err <nil>, kind "api_key", key "   ", Secret asked 1 time(s)...` |
+| D2 bound removed | `TestForeverBlankPrompterEnds_0085` | `:224: err enter API key: stopped by the test after 50 asks...` |
+| D3 (= P-q) blank after the bound | `TestForeverBlankPrompterEnds_0085` | `:224: err <nil>, result Result{Provider:gemini Kind:api_key}, asks 3...` |
+| D4 (= P-k) paste unchecked | `TestPastedBlankKeyIsRefused_0085` | `:189: err <nil>, kind "api_key", key "  \t ", Secret asked 1 time(s)` |
+| D5 environment untrimmed | `TestBlankEnvAndSavedKeyAreAbsent_0085` | `empty_key_routes_0085_test.go:39: environment "   ": err <nil>, key "   ", confirms 1` |
+| D6 saved key untrimmed | the same | `:46: saved "   ": err <nil>, key "   ", confirms 1` |
+| D7 notice removed | `TestTypedBlankKeyIsRefused_0085` | `:131: ... Secret asked 2 time(s), notices []` |
+| D8 `%w` to `%v` | `TestKeyPrompterErrorIsReturned_0085` | `:364: err enter API key: the prompter's own error ... want the prompter's error wrapped` |
+| P-a `Trim(" \t ")` | `TestTypedBlankKeyIsRefused_0085` | `:131: key "\r\n", Secret asked 1 time(s)` |
+| P-b menu asks `Secret` | the same | `:131: key "", Secret asked 1 time(s), notices []` |
+| P-c `Trim(" \n")` | `TestKeyWhitespaceKinds_0085` | `:294: key length 12 ... want the key of length 11` |
+| P-d quotes stripped | the same | `:294: key length 11 ... want the key of length 13` |
+| P-e control as blank | the same | `:294: ... unexpected Secret("Enter your Together AI API key"), key length 0, asks 2` |
+| P-f over 4096 as blank | the same | the same line |
+| P-g `ToValidUTF8` first | the same | the same line |
+| P-h wraps `ErrInvalidRequest` | `TestForeverBlankPrompterEnds_0085` | `:224: err wizard: no Gemini (Google) key entered after 3 tries: llmprovider: invalid request` |
+| P-i error as blank | `TestKeyPrompterErrorIsReturned_0085` and `TestTextPrompterRefusesBlank_0085` | `:364: err wizard: no Together AI key entered after 3 tries ...` |
+| P-j value before error | `TestKeyPrompterErrorIsReturned_0085` | `:364: err <nil>, result Result{Provider:together Kind:api_key ...}, asks 1` |
+| P-l environment emptiness test removed | `TestBlankEnvAndSavedKeyAreAbsent_0085` | `:39: environment "": err <nil>, key "", confirms 1` |
+| P-m environment trimmed on return | `TestNonBlankEnvAndSavedKeyUntrimmed_0085` | `:75: environment: ... key "made-up-key" ...` |
+| P-n saved key trimmed on return | the same | `:82: saved: ... key "made-up-key" ...` |
+| P-o `promptAPIKey` returns the saved key (no error) | `TestBlankAfterDecliningSavedKey_0085` | `:124: err <nil>, result Result{Provider:together Kind:api_key ...}, asks 3; want "wizard: no Together AI key entered after ...` |
+| P-o2 `resolveAPIKey` returns the environment value (no error) | the same | `:153: err <nil>, result Result{Provider:together Kind:api_key ...}, asks 3; want "wizard: no Together AI key ...` |
+| P-p refusal removed | `TestBlankKeyNeverReachesTheListing_0085` | `:228: err <nil>, key "", listing requests 1, notices []` |
+| P-r bound of two | `TestForeverBlankPrompterEnds_0085` | `:224: ... after 2 tries ... asks 2` |
+| P-s notice on the third | the same | `:224: ... notices [<two warnings>]` |
+| P-t blank at the bound (Kilo, OpenCode) | the same | `:224: err <nil>, result Result{Provider:opencode-zen ...}, asks 3` |
+| P-txt error words | `TestForeverBlankPrompterEnds_0085` and `TestTypedBlankKeyIsRefused_0085` | `:224: err ... after 3 attempts` |
+| P-ctx check removed | `TestCancelBeforeRepeatAsk_0085` | `:439: err wizard: no Together AI key entered after 3 tries ... want an error wrapping context canceled ... one ask` |
+| P-u canceled as blank | `TestKeyPrompterErrorIsReturned_0085` | `:376: err enter API key: wizard: no value entered: EOF ... want the cancel` |
+| P-v `TextPrompter` returns blank | `TestTextPrompterRefusesBlank_0085` | `empty_key_routes_0085_test.go:204: err wizard: no Together AI key entered after 3 tries, key "", warnings 0` |
+| P-w optional-key asks typed | `TestCompatNoKeyNeeded_0085`, `TestCompatBlankKeyIsNotListed_0085` | `:168: err enter API key: fakePrompter: unexpected Secret("Enter your LM Studio API key")` |
+| P-x local asks typed | `TestOllama_RefusedNoKeyAsked_0066`, `TestCompatNoKeyNeeded_0085` | `compat_0066_test.go:202: err = enter API key: fakePrompter: unexpected Secret("Enter your Ollama (local) API key")` |
+| P-y declined session deleted | `TestBlankAfterDecliningSavedKey_0085` | `:146: saves 1 (was 1), deletes 1, kept session OAuthSession(nil); want the store untouched` |
+| P-reg | `TestTypedBlankKeyIsRefused_0085` | `:159: err <nil>, key "", Secret asked 1 time(s)` |
+| P-cnt | `TestRefusedKeyThenBlanks_0085` | `:280: err enter API key: fakePrompter: unexpected Secret("Enter your LM Studio API key")` |
+| P-auth | the same | `:268: err wizard: Claude (Anthropic) refused 1 keys ...` |
+| P-auth2 | the same | `:298: err wizard: no OpenAI key entered after 3 tries: model listing: ...` |
+| D10 check (`resolveAPIKey` return broken) | `TestProviderShapeWarning`, `TestShape_ForeignKey_0059` | `auth_shapes_0028_test.go:71: openai: resolveAPIKey = "not-a-key-aB3dE5gH7jK9mN1pQaB3x", 1, <nil>; want the typed key` |
+| Own: Chat Completions listing sends a header for a blank token | `TestCompatBlankKeyIsNotListed_0085` | `:168: ... headers ["Bearer" "Bearer lm-key"]` |
+| Phase 1 R1 (paste re-wrap) | `TestKeyPrompterErrorIsReturned_0085`, `TestForeverBlankPasteEnds_0085` | `:253: err enter credential: wizard: no Grok (xAI) key entered after 3 tries ...` |
+| Phase 1 R2 (paste bound of five) | `TestForeverBlankPasteEnds_0085` | `:253: err ... after 5 tries ... asks 5` |
+| Phase 1 C1, C2 (controls) | `TestKeyPrompterErrorIsReturned_0085`; `TestCancelBeforeRepeatAsk_0085` | `:364: err enter API key: enter API key: ...`; `:439: ... asks 2 ... one ask` |
+| P-k1 Kilo's empty-key branch removed | `TestConstructorsEmptyKeyUnchanged_0085` | `blank_key_0085_test.go:182: err <nil>, credential ["Bearer "]; want the anonymous or public key` |
+| P-k2 `NewStaticToken` as given (= C1 of `plants2.json`) | `TestConstructorsBlankKeyIsNoKey_0085`, `TestBlankKeyIsEmptyKeyPerProvider_0085`, `TestStaticTokenBlankIsEmpty_0085`, and `TestWizardAndConstructorAgreeOnBlank_0085` | `blank_key_0085_test.go:224: a request carries a blank value: [X-Goog-Api-Key="   "]`; on the moved test alone, in `wizard`: `blank_key_agree_0085_test.go:30: constructor: err <nil>; want the outcome of an empty key, llmprovider: invalid request: together api key is required` |
+| P-k3 Claude's blank refusal unreachable | `TestBlankKeyNoFallback_0085` | `blank_key_0085_test.go:364: Claude: err <nil>, 1 request(s); want it refused at New, no request` |
+| P-k6 = F3b Ollama puts any token in `Authorization` | `TestConstructorsEmptyKeyUnchanged_0085`, `TestConstructorsBlankKeyIsNoKey_0085` | `blank_key_0085_test.go:190: err <nil>, Authorization ["Bearer "]; want a request with no Authorization` |
+| P-k7 `NewStaticToken` trims every value | `TestConstructorsPaddedKeySentAsGiven_0085` | `:346: NewStaticToken(" made-up-key ").Value = "made-up-key"; want it as given` |
+| P-k8 `WithAPIKey` builds a literal | `TestStaticTokenBlankIsEmpty_0085` | `:300: WithAPIKey("   ") resolves to llmprovider.StaticToken{...}; want a *StaticToken with an empty Value` |
+| F1 Kilo falls back to its environment variable | `TestBlankKeyNoFallback_0085` | `:370: Kilo: err <nil>, Authorization ["Bearer <made-up>"]; want its anonymous key, not the variable's` |
+| F4 blank test sees only ASCII whitespace; C1 control | `TestConstructorsBlankKeyIsNoKey_0085` | `:224: a request carries a blank value: [X-Goog-Api-Key=" "]` |
+| Together listing `token.Apply` unconditional | `TestTogetherListingEmptyTokenSendsNoAuthorization_0085`, `TestStaticTokenBlankIsEmpty_0085` | `together_blank_0085_test.go:58: Authorization "Bearer " on a listing with an empty token; want none` |
+
+Listed as recorded, not as failures, and run with every `_0085` test of the
+package: **R3** (a context check before the first ask) and **F2** (a struct
+literal also normalised, ST74b, out of scope) and **F3** (Ollama sends a
+made-up credential for an empty key; superseded by F3b) are not caught by any of them, as the
+earlier entries record (R3 survives by design, MADR D10).
+
+**Three plants first run as not caught, each judged before being counted
+(a paused earlier run of this phase reported them).**
+
+* **P-k6 and F3b were aimed at the wrong test.** That run named
+  `TestBlankKeyIsEmptyKeyPerProvider_0085`, which does not read an
+  `Authorization` header for Ollama. The tests that hold Ollama's case are
+  `TestConstructorsEmptyKeyUnchanged_0085` (`:190`, the line the reviewer's
+  run quoted at `:191` before the file's edit) and
+  `TestConstructorsBlankKeyIsNoKey_0085`. Aimed there, P-k6 is caught.
+* **P-o and P-o2 were mis-specified in that run, not uncaught.** It wrote them
+  as "return the saved key or the environment value *with* the error".
+  `signIn` (`wizard/auth.go:187` and `:228`) returns
+  `resolvedCredential{}, err` on any error from `resolveAPIKey` and never reads
+  the key, so such a plant changes nothing observable: an equivalent mutant,
+  and no test can catch it. The PLAN's row says a blank "never falls back to the
+  declined key", which is a fallback: the key returned and no error. Built so,
+  P-o (`if o.Existing.APIKey != "" { return o.Existing.APIKey, nil }` before
+  `return "", err` in `promptAPIKey`, `:953`) is caught by case (a) of
+  `TestBlankAfterDecliningSavedKey_0085` and P-o2 (`resolveAPIKey` returns the
+  environment value and `keyEnvironment` with a nil error, `:923`) by its case
+  (d), at the lines in the table. The with-the-error forms were also run and
+  are not caught, by design: they are listed here as equivalent mutants, not
+  as plants.
+* **P-k3 as first written was not a valid plant.** `if false {` in `claude.go`
+  leaves `s` unused, so the package does not build and "caught" meant only
+  `[build failed]`. The plant used is `if s.Value == "" && s.Header ==
+  "never-0085" {`, which builds and is caught by assertion (table).
+
+P-l, named in the 2026-11-20 entry, was missing from the paused run's
+generator; it is in this one and is caught.
+
+#### Step 2: red and green
+
+`redgreen.py` with specs in `<scratch>`:
+
+* Phase 1's thirteen tests, `--expect fail --rev e4835dc~1`: `13 of 13 fail as
+  expected`, exit 0.
+* Phase 1b's tests, `--expect fail --rev e4835dc`, with
+  `TestWizardAndConstructorAgreeOnBlank_0085` now in `./wizard/` (file
+  `wizard/blank_key_agree_0085_test.go`) and Together's listing test in
+  `./llmprovider/catalog/`: `6 of 6 fail as expected`, exit 0.
+* The two guards, `--expect pass --rev e4835dc`: `2 of 2 pass as expected`,
+  exit 0.
+* All 25 named tests on the tree, `--expect pass`: `25 of 25 pass as
+  expected`, exit 0.
+
+#### Steps 3 to 6: the gates, each exit captured
+
+Heavy runs one at a time through `run-heavy`; the rest direct.
+
+* `run-heavy -- go test -race -count=1 ./wizard/...`: exit 0 (`ok ...
+  wizard 23.541s`).
+* `run-heavy -- python3 -B tools/gate.py --timeout 5400`: exit 0, `gate: 30 of
+  30 passed`.
+* `run-heavy -- make lint`: exit 0, `0 issues.`; `run-heavy -- make vuln`:
+  exit 0, `No vulnerabilities found.`; `go vet -tags live_gateways ./...`:
+  exit 0.
+* CI's set, one target at a time: `parity-check` 0; `dep-check` 0
+  (`GOOS=host: 46 packages, 0 problem(s)`, `GOOS=windows: 46 packages, 0
+  problem(s)`); `api-check` 0 (`against v1.31.0, 0 incompatible change(s)`);
+  `contract-check` 0; `generate-check` 0; `records-check` 0; `tables-check` 0;
+  `fixtures-check` 0; `changelog-check` 0; `docs-check` 0; `markdownlint` 0
+  (`0 issues`); `links-check` 0; `disclosure-check` 0; `coverage-check` 0
+  (`45 packages, 0 problem(s)`, through `run-heavy`); `gate-selftest` 0 (`OK`,
+  through `run-heavy`); `tools-test` 0 (`OK`, through `run-heavy`).
+
+#### Step 7 and the verdict
+
+`tools/claims.py` on the MADR (`67 of 67 pass`) and this PLAN (`23 of 23
+pass`), `tools/denyscan.py --changed` and `tools/recordlint.py --changed`:
+exit 0 before this entry, and rerun after it, in the handoff. No docs gap was
+found. Every plant that must be caught is caught by its named test; R3, F2 and
+F3 are recorded as not caught, by design or out of scope. Exit criterion met:
+no blocker, every row tested, plants caught.
+
+Not found in this run, for the owner: nothing beyond the follow-ups already
+recorded (a non-blank environment value keeps its line feed, ST39; `TextPrompter`'s
+late line feed, ST69).
