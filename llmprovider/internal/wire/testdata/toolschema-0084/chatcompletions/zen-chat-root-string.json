@@ -1,0 +1,29 @@
+{
+  "case": "zen-chat-root-string",
+  "route": "zen-chat",
+  "wire": "chatcompletions",
+  "provider": "opencode-zen",
+  "opencode_route": "chat_completions",
+  "model": "glm-5.3",
+  "shape": "root-string",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 163,
+  "output_tokens": 16
+}

@@ -1,0 +1,29 @@
+{
+  "case": "go-messages-root-string",
+  "route": "go-messages",
+  "wire": "messages",
+  "provider": "opencode-go",
+  "opencode_route": "messages",
+  "model": "qwen3.8-flash",
+  "shape": "root-string",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "kind": "empty_answer",
+  "message": "messages: the answer has no content",
+  "outcome": "accepted"
+}

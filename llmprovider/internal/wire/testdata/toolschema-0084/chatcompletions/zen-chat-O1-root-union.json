@@ -1,0 +1,50 @@
+{
+  "case": "zen-chat-O1-root-union",
+  "route": "zen-chat",
+  "wire": "chatcompletions",
+  "provider": "opencode-zen",
+  "opencode_route": "chat_completions",
+  "model": "glm-5.3",
+  "shape": "O1-root-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "city"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 209,
+  "output_tokens": 49
+}

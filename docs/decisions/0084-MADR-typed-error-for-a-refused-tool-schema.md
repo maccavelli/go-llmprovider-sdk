@@ -1305,3 +1305,31 @@ outcome, and are in the PLAN's build pass 3 entry.
 | ST46 | decided, test added | as before, and a record never holds the model's text: a `Status`-0 `ErrIncomplete` that arrives with a 200 body holding model text gives a record with no `Body` and no such text anywhere in the written file | the review; the owner's answer above | `TestToolSchemaRecord_Redacts_0084`; `TestToolSchemaRecord_NoModelText_0084` |
 | ST67 | decided, test added | as in the fifth amendment, and the second send: a case that is `other` is sent once more after the pass, and is `unreachable` if it is still `other` and `refused` if the second send is a refusal | the review; the owner's answer above | `TestToolSchemaRecord_Outcome_0084`; `TestToolSchemaRecord_SecondSend_0084` |
 | ST68 | decided, moved to Phase 1c | a route with no case `refused` or `accepted` is `skipped` as a whole, its 0062 fixtures standing; applied when Phase 1c sorts the records, since the recorder writes one record per case; ~~`TestToolSchemaRecord_Outcome_0084`~~ *(struck 2026-11-21: the recorder cannot know a route's other cases)* | N8; the review | Phase 1c's per-route line in the PLAN's execution record; `Names` and `Classify` in Phase 2 (ST69) |
+
+## Seventh amendment of 2026-11-21: what Phase 1 settled in the provider table
+
+Dated addition; nothing above is rewritten. Phase 1b's run recorded 57 cases
+(the PLAN's execution record, "Phase 1b, the recording run" and "Phase 1c, the
+fixtures"). Each fixture is under
+`llmprovider/internal/wire/testdata/toolschema-0084/<wire>/<case>.json`. A
+cell not named here stays "not established".
+
+| Provider and route | Cell | Now | Fixture |
+| :--- | :--- | :--- | :--- |
+| Grok, Responses (`grok-4.6`) | root string; owner's shape | root string refused 400, `invalid-argument`, tag, name after it; owner's shape refused the same way, named the same way; typed branches accepted; union below the root accepted; history accepted | `responses/grok-*` |
+| Grok, Responses (`grok-4.5`) | O6 | root string, owner's shape and two bad: tag, name, colon, one tool (`record_city`) named | `responses/grok2-*` |
+| OpenAI, Responses (`gpt-6-luna`) | owner's shape | accepted, 200; typed branches, union below the root and history accepted; two bad: refused, `invalid_function_parameters`, one tool named (`record_country`; only that one is bad) | `responses/openai-*` |
+| OpenCode Zen, Responses route (`gpt-5.5`) | owner's shape; tool named? | accepted, 200; refusal as OpenAI, named by `function '<name>'`; typed branches, union below the root and history accepted | `responses/zen-responses-*` |
+| Anthropic, Messages (`claude-sonnet-5`) | owner's shape | refused, 400, `invalid_request_error`: `tools.1.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level`; typed branches refused the same way; union below the root accepted; history accepted; two bad: one named, by index | `messages/claude-*` |
+| OpenCode Go, Messages route (`qwen3.8-flash`) | root string and others | all six accepted, 200 (three are `empty_answer`, recorded `accepted`, ST67); the owner's shape accepted | `messages/go-messages-*` |
+| Gemini, Interactions (`gemini-3.8-flash`) | owner's shape | refused, 400, `invalid_request`: `Invalid schema in function tool 'record_city' parameters: specifies required field 'city' which is not defined in properties` (typed branches the same; two bad: one named); root string, union below the root and history accepted | `interactions/gemini-*` |
+| OpenCode Zen, Google generateContent route (`gemini-3.8-flash`) | owner's shape | not established: the three refusals (O1 to O3) are `Unknown name "additionalProperties" at 'tools[0].function_declarations[1].parameters'`, not the union; root string, union below the root and history `unreachable` (429, each run twice) | `generatecontent/zen-google-*` |
+| OpenCode Zen, Messages route (`claude-sonnet-5`), ST66 | refused form | not established: root string and two bad `unreachable` (status 0, each run twice); owner's shape, typed branches, union below the root and history accepted | `messages/zen-messages-*` |
+| Chat Completions: OpenCode Zen chat (`glm-5.3`) | owner's shape and others | all six accepted, 200 | `chatcompletions/zen-chat-*` |
+
+Rows: ST53, ST54, ST55, ST56, ST57, ST58, ST59 and ST66 are settled or
+recorded as above, per case; the per-case sort is in the PLAN's execution
+record. No row changes its decided outcome. Two observations the rows did not
+predict are in that record as follow-ups for the owner: the Zen Google
+route's refusal of `additionalProperties`, and the single-quoted name in
+Gemini's refusal.

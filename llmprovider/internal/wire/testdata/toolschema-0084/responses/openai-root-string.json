@@ -1,0 +1,30 @@
+{
+  "case": "openai-root-string",
+  "route": "openai",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "shape": "root-string",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "invalid_function_parameters",
+  "message": "Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \"object\"', got 'type: \"string\"'.",
+  "body": "{\n  \"error\": {\n    \"code\": \"invalid_function_parameters\",\n    \"message\": \"Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \\\"object\\\"', got 'type: \\\"string\\\"'.\",\n    \"param\": \"tools\",\n    \"type\": \"invalid_request_error\"\n  }\n}",
+  "outcome": "refused"
+}

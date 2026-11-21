@@ -1,0 +1,55 @@
+{
+  "case": "gemini-O3-typed-branches",
+  "route": "gemini",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "shape": "O3-typed-branches",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {},
+            "required": [
+              "city"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {},
+            "required": [
+              "country"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "invalid_request",
+  "message": "Invalid schema in function tool 'record_city' parameters: specifies required field 'city' which is not defined in properties.",
+  "body": "{\"error\":{\"message\":\"Invalid schema in function tool 'record_city' parameters: specifies required field 'city' which is not defined in properties.\",\"code\":\"invalid_request\"}}",
+  "outcome": "refused"
+}

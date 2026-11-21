@@ -1,0 +1,41 @@
+{
+  "case": "claude-O4-nested-union",
+  "route": "claude",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "shape": "O4-nested-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {},
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 497,
+  "output_tokens": 4
+}

@@ -1,0 +1,23 @@
+{
+  "case": "gemini-O5-history-dropped",
+  "route": "gemini",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "shape": "O5-history-dropped",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "history": "a prior call of record_city and its result",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 60,
+  "output_tokens": 46
+}

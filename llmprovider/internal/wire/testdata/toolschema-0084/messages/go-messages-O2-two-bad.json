@@ -1,0 +1,56 @@
+{
+  "case": "go-messages-O2-two-bad",
+  "route": "go-messages",
+  "wire": "messages",
+  "provider": "opencode-go",
+  "opencode_route": "messages",
+  "model": "qwen3.8-flash",
+  "shape": "O2-two-bad",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "city"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_country",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "kind": "empty_answer",
+  "message": "messages: the answer has no content",
+  "outcome": "accepted"
+}

@@ -1,0 +1,24 @@
+{
+  "case": "zen-messages-O5-history-dropped",
+  "route": "zen-messages",
+  "wire": "messages",
+  "provider": "opencode-zen",
+  "opencode_route": "messages",
+  "model": "claude-sonnet-5",
+  "shape": "O5-history-dropped",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "history": "a prior call of record_city and its result",
+  "status": 200,
+  "kind": "empty_answer",
+  "message": "messages: the answer has no content",
+  "outcome": "accepted"
+}

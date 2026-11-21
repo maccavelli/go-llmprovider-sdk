@@ -1,0 +1,55 @@
+{
+  "case": "zen-messages-O2-two-bad",
+  "route": "zen-messages",
+  "wire": "messages",
+  "provider": "opencode-zen",
+  "opencode_route": "messages",
+  "model": "claude-sonnet-5",
+  "shape": "O2-two-bad",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "city"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_country",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 0,
+  "outcome": "unreachable",
+  "reason": "transport"
+}

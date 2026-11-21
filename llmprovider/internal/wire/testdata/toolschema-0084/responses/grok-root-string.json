@@ -1,0 +1,30 @@
+{
+  "case": "grok-root-string",
+  "route": "grok",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.6",
+  "shape": "root-string",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "invalid-argument",
+  "message": "Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is not an object type)",
+  "body": "{\"code\":\"invalid-argument\",\"error\":\"Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is not an object type)\"}",
+  "outcome": "refused"
+}

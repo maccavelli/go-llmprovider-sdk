@@ -1,0 +1,56 @@
+{
+  "case": "zen-google-O3-typed-branches",
+  "route": "zen-google",
+  "wire": "generatecontent",
+  "provider": "opencode-zen",
+  "opencode_route": "google",
+  "model": "gemini-3.8-flash",
+  "shape": "O3-typed-branches",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {},
+            "required": [
+              "city"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {},
+            "required": [
+              "country"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "INVALID_ARGUMENT",
+  "message": "Upstream request failed: [400] Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters': Cannot find field.",
+  "body": "{\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"message\":\"Upstream request failed: [400] Invalid JSON payload received. Unknown name \\\"additionalProperties\\\" at 'tools[0].function_declarations[1].parameters': Cannot find field.\"}}",
+  "outcome": "refused"
+}

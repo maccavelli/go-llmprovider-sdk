@@ -1,0 +1,57 @@
+{
+  "case": "grok2-O2-two-bad",
+  "route": "grok2",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.5",
+  "shape": "O2-two-bad",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "city"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_country",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "invalid-argument",
+  "message": "Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is an anyOf/oneOf union with a non-object branch)",
+  "body": "{\"code\":\"invalid-argument\",\"error\":\"Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is an anyOf/oneOf union with a non-object branch)\"}",
+  "outcome": "refused"
+}

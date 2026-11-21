@@ -1,0 +1,24 @@
+{
+  "case": "zen-responses-O5-history-dropped",
+  "route": "zen-responses",
+  "wire": "responses",
+  "provider": "opencode-zen",
+  "opencode_route": "responses",
+  "model": "gpt-5.5",
+  "shape": "O5-history-dropped",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "history": "a prior call of record_city and its result",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 69,
+  "output_tokens": 27
+}

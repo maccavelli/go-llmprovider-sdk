@@ -1,0 +1,44 @@
+{
+  "case": "zen-google-O4-nested-union",
+  "route": "zen-google",
+  "wire": "generatecontent",
+  "provider": "opencode-zen",
+  "opencode_route": "google",
+  "model": "gemini-3.8-flash",
+  "shape": "O4-nested-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {},
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 429,
+  "kind": "rate_limited",
+  "code": "RESOURCE_EXHAUSTED",
+  "message": "The inference service is overloaded. Please try again later.",
+  "body": "{\"error\":{\"code\":429,\"status\":\"RESOURCE_EXHAUSTED\",\"message\":\"The inference service is overloaded. Please try again later.\"}}",
+  "outcome": "unreachable"
+}

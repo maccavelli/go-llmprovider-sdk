@@ -1,0 +1,41 @@
+{
+  "case": "openai-O4-nested-union",
+  "route": "openai",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "shape": "O4-nested-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {},
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 57,
+  "output_tokens": 5
+}

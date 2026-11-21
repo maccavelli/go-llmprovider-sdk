@@ -1,0 +1,42 @@
+{
+  "case": "zen-chat-O4-nested-union",
+  "route": "zen-chat",
+  "wire": "chatcompletions",
+  "provider": "opencode-zen",
+  "opencode_route": "chat_completions",
+  "model": "glm-5.3",
+  "shape": "O4-nested-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {},
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 191,
+  "output_tokens": 57
+}

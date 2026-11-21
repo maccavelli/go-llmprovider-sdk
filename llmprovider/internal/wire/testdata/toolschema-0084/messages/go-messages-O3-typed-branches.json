@@ -1,0 +1,54 @@
+{
+  "case": "go-messages-O3-typed-branches",
+  "route": "go-messages",
+  "wire": "messages",
+  "provider": "opencode-go",
+  "opencode_route": "messages",
+  "model": "qwen3.8-flash",
+  "shape": "O3-typed-branches",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {},
+            "required": [
+              "city"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {},
+            "required": [
+              "country"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 400,
+  "output_tokens": 22
+}

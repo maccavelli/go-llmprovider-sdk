@@ -1,0 +1,28 @@
+{
+  "case": "zen-messages-root-string",
+  "route": "zen-messages",
+  "wire": "messages",
+  "provider": "opencode-zen",
+  "opencode_route": "messages",
+  "model": "claude-sonnet-5",
+  "shape": "root-string",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 0,
+  "outcome": "unreachable",
+  "reason": "transport"
+}

@@ -1,0 +1,57 @@
+{
+  "case": "claude-O2-two-bad",
+  "route": "claude",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "shape": "O2-two-bad",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "city"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_country",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 400,
+  "kind": "invalid_request",
+  "code": "invalid_request_error",
+  "message": "tools.1.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools.1.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level\"},\"request_id\":\"req_REDACTED\"}",
+  "outcome": "refused"
+}

@@ -818,6 +818,14 @@ LLMPROVIDER_LIVE_0084_SCAN=<scratch>/tool-schema-0084 go test ./llmprovider -run
 echo "exit=$?"
 ```
 
+*(Corrected 2026-11-21, Phase 1b's run. The first scan command above passes
+`LLMPROVIDER_LIVE_0084_SCAN=tmp/0084-run.txt`, a path relative to the
+checkout, but `go test` runs in the package directory (`llmprovider/`), so
+the scan failed with "the scan could not read its target" and read nothing.
+Pass an absolute path, `"$PWD/tmp/0084-run.txt"` run from the checkout's
+root, or `../tmp/0084-run.txt`. The records scan already used an absolute
+path. Mechanical; no decision changes.)*
+
 *A hit in the output file, or a line outside the list above, is the MADR's
 ST84: the file is deleted unread, and the run is repeated once. A hit in a
 record is ST76, handled in Phase 1c. Only after every scan exits 0 does
@@ -2005,6 +2013,166 @@ Built on `96594e4`, after the records above. No live run, no
   that forgot to call `run` would send nothing, and `recordToolCases` would
   return no failure. Phase 1b's output would show it, as a run with no case
   lines.
+
+### Phase 1b, the recording run (2026-11-21)
+
+Run by the coordinator under the owner's ruling "API keys from the environment
+only (Recommended)", at `a800e74`. The five key variables (`XAI_API_KEY`,
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENCODE_API_KEY`)
+were checked present by name only; no value was read.
+
+* **Command.** The corrected step 2 command (`-trimpath`, `-timeout 180m`),
+  records to `<scratch>/tool-schema-0084`, output to `tmp/0084-run.txt`. Exit
+  0; `ok ... 274.571s`; 57 case lines; 175 output lines.
+* **Deviation, mechanical, for the owner.** The first scan command's relative
+  path failed (corrected beside the command, above). It was run again with the
+  file's absolute path: `--- PASS: TestToolSchemaScan_0084`.
+* **Scans, each exit 0, run before any line was read:** the key-shape scan on
+  the output (`--- PASS`, checked with `-v`), `scripts/check_fixtures.py
+  tmp/0084-run.txt`, `tools/denyscan.py tmp/0084-run.txt`, and the key-shape
+  scan on the records directory (`--- PASS`).
+* **Outcomes by route (case lines), 57 in all:** claude 200 accepted 2, 400
+  refused 4; gemini 200 accepted 3, 400 refused 3; go-messages 200 accepted 6;
+  grok 200 accepted 3, 400 refused 3; grok2 400 refused 3; openai 200 accepted
+  4, 400 refused 2; zen-chat 200 accepted 6; zen-google 400 refused 3, 429
+  unreachable 3; zen-messages status 0 unreachable 2, 200 accepted 4;
+  zen-responses 200 accepted 4, 400 refused 2. No case was `other`, so no
+  second send was made; none was `skipped`.
+* **The five `unreachable` cases** were each run once more with the one-case
+  command (`-run '^TestLive_ToolSchema_0084$/^<case>(#01)?$' -timeout 5m`), as
+  step 4 allows; each output passed the three scans and gave the same line:
+  `zen-google-root-string`, `zen-google-O4-nested-union`,
+  `zen-google-O5-history-dropped` (429, unreachable); `zen-messages-root-string`,
+  `zen-messages-O2-two-bad` (status 0, unreachable). The records scan passed
+  again after the reruns; 57 records.
+* **Models.** Each route kept its 0062 model (Phase 1a); none was unlisted.
+
+### Phase 1c, the fixtures (2026-11-21)
+
+By an agent, at `a800e74`, tree clean but for the git-ignored `tmp/`.
+
+* **Re-grounding.** P28 holds, moved from `AGENTS.md:278` to `AGENTS.md:295`,
+  same text (`an account, user or organization id becomes its prefix and
+  `REDACTED``). `make fixtures-check` at `a800e74` before the copy: exit 0,
+  `fixtures-check: 428 file(s), 134 hit(s), 0 problem(s)`.
+* **Copy.** The 57 records were copied unread, unchanged, from
+  `<scratch>/tool-schema-0084` to `llmprovider/internal/wire/testdata/toolschema-0084/<wire>/`
+  (`chatcompletions` 6, `generatecontent` 6, `interactions` 6, `messages` 18,
+  `responses` 21).
+* **Checks before any record was read, each exit 0:** `make fixtures-check`
+  (`485 file(s), 134 hit(s), 0 problem(s)`: 428 plus the 57, hits unchanged);
+  `python3 -B tools/denyscan.py --changed` (`0 hit(s) in 57 file(s)`);
+  `TestToolSchemaScan_0084` on the copies with `-v` (`--- PASS`, not
+  `--- SKIP`). No hit, so no copy was removed (ST76, ST83).
+* **One line per case.** Columns: id; outcome; status; code; whether and where
+  the tool is named; the test it feeds (ST53 to ST59, ST66; ST68, ST69).
+  "Names" is the matcher test `Names`; `Classify`, `RecordedFallback`,
+  `OthersUnchanged` and `SeveralNamed` are the tests the rows name.
+
+| Case | Outcome | Status | Code | Tool named? Where | Feeds |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `claude-O1-root-union` | refused | 400 | invalid_request_error | yes, by index: `tools.1.` (`record_city`) | ST54 (1): recognised; joins `Classify`, `Names` |
+| `claude-O2-two-bad` | refused | 400 | invalid_request_error | yes, by index: `tools.1.` (`record_city`) | ST55 (1): one tool named, `Tool` is it, `SeveralNamed` not built; one named by index; joins `Names` |
+| `claude-O3-typed-branches` | refused | 400 | invalid_request_error | yes, by index: `tools.1.` (`record_city`) | ST56: evidence only (refused); no test |
+| `claude-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `claude-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `claude-root-string` | refused | 400 | invalid_request_error | yes, by index: `tools.1.` (`record_city`) | ST53 (1): the 0062 form again; joins `Classify`, `Names` |
+| `gemini-O1-root-union` | refused | 400 | invalid_request | yes, `'record_city'` in the message | ST54 (3): form not read by D3; `RecordedFallback` |
+| `gemini-O2-two-bad` | refused | 400 | invalid_request | yes, `'record_city'` in the message | ST55 (4): not recognised; `RecordedFallback` |
+| `gemini-O3-typed-branches` | refused | 400 | invalid_request | yes, `'record_city'` in the message | ST56: evidence only (refused); no test |
+| `gemini-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `gemini-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `gemini-root-string` | accepted | 200 | - | - | ST53 (3)/D3 not read: accepted, recorded, no change |
+| `go-messages-O1-root-union` | accepted | 200 | - | - | ST54 (2): accepted, no change |
+| `go-messages-O2-two-bad` | accepted | 200 | (200, `empty_answer`: ST67 accepted) | - | ST55 (5): nothing |
+| `go-messages-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `go-messages-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `go-messages-O5-history-dropped` | accepted | 200 | (200, `empty_answer`: ST67 accepted) | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `go-messages-root-string` | accepted | 200 | (200, `empty_answer`: ST67 accepted) | - | ST53 (3)/D3 not read: accepted, recorded, no change |
+| `grok-O1-root-union` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST54 (1): recognised; joins `Classify`, `Names` |
+| `grok-O2-two-bad` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST55 (1): one tool named, `Tool` is it, `SeveralNamed` not built; one named; joins `Names` |
+| `grok-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `grok-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `grok-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `grok-root-string` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST53 (1): the 0062 form again; joins `Classify`, `Names` |
+| `grok2-O1-root-union` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST54 (1): recognised; joins `Classify`, `Names`; ST59 (1) |
+| `grok2-O2-two-bad` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST55 (1): one tool named, `Tool` is it, `SeveralNamed` not built; one named; joins `Names` |
+| `grok2-root-string` | refused | 400 | invalid-argument | yes, `record_city` after the tag, before `:` | ST53 (1): the 0062 form again; joins `Classify`, `Names`; ST59 (1) for O6 |
+| `openai-O1-root-union` | accepted | 200 | - | - | ST54 (2): accepted, no change |
+| `openai-O2-two-bad` | refused | 400 | invalid_function_parameters | yes, `function 'record_country'` in the message | ST55 (1): one tool named, `Tool` is it, `SeveralNamed` not built; only one tool is bad (`record_country`), so one named is expected; joins `Names` |
+| `openai-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `openai-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `openai-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `openai-root-string` | refused | 400 | invalid_function_parameters | yes, `function 'record_city'` in the message | ST53 (1): the 0062 form again; joins `Classify`, `Names` |
+| `zen-chat-O1-root-union` | accepted | 200 | - | - | ST54 (2): accepted, no change |
+| `zen-chat-O2-two-bad` | accepted | 200 | - | - | ST55 (5): nothing |
+| `zen-chat-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `zen-chat-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `zen-chat-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `zen-chat-root-string` | accepted | 200 | - | - | ST53 (3)/D3 not read: accepted, recorded, no change |
+| `zen-google-O1-root-union` | refused | 400 | INVALID_ARGUMENT | no: an unknown field at `function_declarations[1]`, by index, no name | ST54 (3): form not read by D3; `RecordedFallback` |
+| `zen-google-O2-two-bad` | refused | 400 | INVALID_ARGUMENT | no: an unknown field at `function_declarations[1]`, by index, no name | ST55 (4): not recognised; `RecordedFallback` |
+| `zen-google-O3-typed-branches` | refused | 400 | INVALID_ARGUMENT | no: an unknown field at `function_declarations[1]`, by index, no name | ST56: evidence only (refused); no test |
+| `zen-google-O4-nested-union` | unreachable | 429 | RESOURCE_EXHAUSTED | - | ST57 (4): nothing |
+| `zen-google-O5-history-dropped` | unreachable | 429 | RESOURCE_EXHAUSTED | - | ST58 (4): nothing |
+| `zen-google-root-string` | unreachable | 429 | RESOURCE_EXHAUSTED | - | ST53 (4): the 0062 fixture stands at index 1 (ST69) |
+| `zen-messages-O1-root-union` | accepted | 200 | - | - | ST54 (2): accepted, no change; ST66 (4) |
+| `zen-messages-O2-two-bad` | unreachable | 0 | - | - | ST55 (5): nothing |
+| `zen-messages-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `zen-messages-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `zen-messages-O5-history-dropped` | accepted | 200 | (200, `empty_answer`: ST67 accepted) | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `zen-messages-root-string` | unreachable | 0 | - | - | ST66 (5) (status 0 twice): nothing recorded; Anthropic's marker does not join `opencode` on this evidence |
+| `zen-responses-O1-root-union` | accepted | 200 | - | - | ST54 (2): accepted, no change |
+| `zen-responses-O2-two-bad` | refused | 400 | invalid_function_parameters | yes, `function 'record_country'` in the message | ST55 (1): one tool named, `Tool` is it, `SeveralNamed` not built; only one tool is bad, as openai; joins `Names` |
+| `zen-responses-O3-typed-branches` | accepted | 200 | - | - | ST56: evidence only (accepted); no test |
+| `zen-responses-O4-nested-union` | accepted | 200 | - | - | ST57 (1): accepted, no change |
+| `zen-responses-O5-history-dropped` | accepted | 200 | - | - | ST58 (1): accepted; gobble's drop is safe on this route |
+| `zen-responses-root-string` | refused | 400 | invalid_function_parameters | yes, `function 'record_city'` in the message | ST53 (1): the 0062 form again; joins `Classify`, `Names` |
+
+* **ST68.** Every route has a `refused` or an `accepted` case, so none is
+  `skipped` and each keeps its 0062 fixtures for the cases it did not record
+  (ST69): `zen-google` `root-string` (429) and `zen-messages` `root-string`
+  (status 0) use the 0062 fixture with the tool moved to index 1.
+* **ST69, the read routes' fixture sources for `Names` and `Classify`.**
+  Recognised Phase 1 records: grok (`root-string`, `O1`, `O2`), grok2
+  (`root-string`, `O1`, `O2`), openai and zen-responses (`root-string`, `O2`),
+  claude (`root-string`, `O1`, `O2`). `zen-google` has no recognised Phase 1
+  record: its three refusals are in a form D3 does not read, so it uses its 0062
+  fixture.
+* **Unrecognised refusals (`RecordedFallback`, ST54 (3), ST55 (4)):**
+  `gemini-O1-root-union`, `gemini-O2-two-bad`, `zen-google-O1-root-union`,
+  `zen-google-O2-two-bad`.
+* **ST56 (O3), evidence only, each route's outcome:** accepted (200) on xAI
+  (`grok-O3`), OpenAI, Zen Responses, Zen chat, Go Messages and Zen
+  Messages; refused (400) on Gemini (Interactions) and Anthropic; refused (400)
+  on Zen Google for another reason (below).
+* **ST58 (O5):** every route that returned a result accepted a history calling
+  a tool no longer offered (`OthersUnchanged` gets no record: none was refused).
+* **ST66, Zen Messages:** its `root-string` and `O2` are `unreachable`
+  (status 0, each twice), so no refusal was recorded on it; (5) applies: it
+  stays `ErrInvalidRequest`, Anthropic's marker does not join `opencode` on this
+  evidence. Its `O1`, `O3`, `O4` and `O5` were accepted (`(4)`).
+* **Observations the rows do not predict, for the owner (follow-ups, not
+  fixes):** (1) `zen-google` refuses `O1`, `O2` and `O3` for the recorder's own
+  `additionalProperties: false`, an unknown field to the Gemini function
+  declaration on that route, not for the union; so `O1` there shows nothing
+  about the owner's shape, `root-string` and `O4` and `O5` are `unreachable`
+  (429), and a tool schema holding `additionalProperties` is refused on that
+  route as a plain 400 with no tool name. (2) `openai` and `zen-responses`
+  accept the owner's shape (`O1`), and their `O2` has only one bad tool
+  (`record_country`), so it cannot show two named. (3) `gemini` refuses
+  `O1` to `O3` in a form naming `record_city` in single quotes, which D3 does not
+  read. (4) Three `go-messages` and one `zen-messages` 200s are `empty_answer`,
+  recorded `accepted` by ST67.
+* **Checks after the records were written, each exit 0:** `make
+  fixtures-check` (485 files, 134 hits, 0 problems), `python3 -B tools/denyscan.py
+  --changed` (0 hits in 59 files), `make records-check` (182 records),
+  `make links-check` (0 problems), `make tables-check` (0 problems),
+  `tools/claims.py` on both records (85 of 85, 29 of 29),
+  `tools/recordlint.py --changed` (no rule rose). Left unstaged for the owner.
+* **Docs step.** README.md, docs/README.md, docs/architecture.md, docs/guides/,
+  CHANGELOG.md and AGENTS.md name no testdata index or fixtures guide that this
+  phase makes false.
 
 ## Amendment of 2026-11-20: the test map, proposed tests, exit criteria and re-grounding
 

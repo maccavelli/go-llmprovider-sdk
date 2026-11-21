@@ -1,0 +1,23 @@
+{
+  "case": "grok-O5-history-dropped",
+  "route": "grok",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.6",
+  "shape": "O5-history-dropped",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "history": "a prior call of record_city and its result",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 717,
+  "output_tokens": 46
+}

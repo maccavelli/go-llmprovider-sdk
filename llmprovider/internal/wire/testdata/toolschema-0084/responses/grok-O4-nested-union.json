@@ -1,0 +1,41 @@
+{
+  "case": "grok-O4-nested-union",
+  "route": "grok",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.6",
+  "shape": "O4-nested-union",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {},
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 751,
+  "output_tokens": 214
+}

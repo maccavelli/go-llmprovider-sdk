@@ -1,0 +1,54 @@
+{
+  "case": "zen-responses-O3-typed-branches",
+  "route": "zen-responses",
+  "wire": "responses",
+  "provider": "opencode-zen",
+  "opencode_route": "responses",
+  "model": "gpt-5.5",
+  "shape": "O3-typed-branches",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "record_city",
+      "schema": {
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {},
+            "required": [
+              "city"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {},
+            "required": [
+              "country"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 71,
+  "output_tokens": 5
+}

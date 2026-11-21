@@ -1,0 +1,23 @@
+{
+  "case": "claude-O5-history-dropped",
+  "route": "claude",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "shape": "O5-history-dropped",
+  "tools": [
+    {
+      "name": "noop",
+      "schema": {
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
+  "input": "Reply with OK.",
+  "history": "a prior call of record_city and its result",
+  "status": 200,
+  "outcome": "accepted",
+  "input_tokens": 471,
+  "output_tokens": 50
+}
