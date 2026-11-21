@@ -1333,3 +1333,59 @@ record. No row changes its decided outcome. Two observations the rows did not
 predict are in that record as follow-ups for the owner: the Zen Google
 route's refusal of `additionalProperties`, and the single-quoted name in
 Gemini's refusal.
+
+## Eighth amendment of 2026-11-21: ST43's body half and the error-body limit
+
+Dated addition; nothing above is rewritten. Phase 2, build pass 1, found that
+ST43's second half cannot be met as written, and the owner ruled on it and on
+two deviations, relayed by the coordinator on 2026-11-21.
+
+### The evidence
+
+ST43 says "a body over 64 KiB" gives "the kind; `Tool` empty". `ClassifyHTTPError`
+reads an error body through `io.LimitReader(resp.Body, apiErrorBodyLimit)`, and
+`apiErrorBodyLimit` is `64 << 10` (`llmprovider/api_error.go:106` at `9e84a88`,
+read at `:287`). A body longer than that is cut, usually inside its JSON;
+`parseAPIErrorBody` then returns no type, since the JSON does not parse, and no
+D3 row can match, each needing a code or a type. A probe on a scratch clone of
+the stub: a Grok body of 70 KiB with the tag first gave `Kind`
+`ErrInvalidRequest` and an empty `Code`. The review of that pass added a
+correction to what the row should say: a body over the cap whose error object
+closes inside the read, followed only by whitespace, still parses, so the case
+is a cut object, not a size.
+
+### The owner's rulings of 2026-11-21
+
+* **ST43:** the owner chose "Raise the body limit", then said "we need to cap
+  that body read at 128KiB", then "change this to the recommended 1 MiB". The
+  last ruling stands; **128 KiB is superseded**. `apiErrorBodyLimit` becomes
+  `1 << 20`, shared by every error path.
+* **The new package:** "Accept the internal package (Recommended)": the PLAN's
+  deviation 3 of Phase 2, build pass 1. `llmprovider/internal/toolschema` holds
+  the four forms' markers, read by `llmprovider`'s classification and by
+  `internal/wire`'s naming. It is internal, so D7 holds: the matchers stay
+  internal and nothing but the two names is exported.
+* **The test and the refactor:** "Accept both as recorded (Recommended)": the
+  Anthropic seventh-send case in `LastSendKeepsName` (ST39), and
+  `classifyInvalid` (the PLAN's deviations 2 and 4 of that pass).
+
+### Rows changed and added
+
+| Id | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- |
+| ST43 | decided, restated (the first half stands) | a name beyond `Message`'s 512-byte bound: the kind, `Tool` empty, never a prefix of the name. A refusal whose body is up to 1 MiB parses and gets the kind, with `Tool` as D2's name bound gives it: found when the name lies inside the 512 bytes `Message` keeps, empty when it lies beyond. A body whose JSON the 1 MiB read cuts keeps today's kind, `ErrInvalidRequest`, and `Tool` empty. A body over 1 MiB whose error object closes inside the read, followed only by whitespace, parses and gets the kind: the row is about a cut object, not a size | D2; C12; the owner's rulings above | `NameBeyondBound`; `TestToolSchemaRefusal_BodyLimit_0084`; `TestToolSchemaRefusal_BigBody_0084` |
+| ST86 | decided, added | `apiErrorBodyLimit` is `1 << 20` (it was `64 << 10`), the one limit on how much of an error body `ClassifyHTTPError` reads, for every provider's error replies and every listing's: an error body up to 1 MiB is parsed whole, one over it is cut at 1 MiB. `Message`, `Code` and the redaction bounds are unchanged (512 bytes, 128 bytes, 2 KiB). The cost is up to 1 MiB held while each error is classified, stated and accepted by the owner. A 200 KiB OpenAI quota 429 is `ErrQuotaExhausted`, where at 64 KiB it was cut and the plain rate limit its status gives; the limit is the module's, not the refusal's | the owner's ruling "change this to the recommended 1 MiB" | `TestClassify_ErrorBodyLimit_0084` |
+
+### What else changes in the record
+
+* Older records that state the 64 KiB read limit are annotated, each with a
+  dated note, never rewritten: 0012-MADR (the body parser's read), 0012-PLAN
+  (`classifyHTTPError`'s read) and 0021-MADR's Z1 (redaction "on up to 64 KiB
+  of an error body"). `BenchmarkClassifyHTTPError_64KiBHTML` and the records
+  that name it keep their text: 64 KiB is that benchmark's input, not the
+  limit.
+* The review of pass 1 also found D3's "by service" rule (N3, ST07) and its
+  400 not pinned against widening; the tests that pin them are in the PLAN's
+  build pass 2. No decision changes.
+
+Counts: ST86 is added, decided; ST43 is restated, and no other row changes.

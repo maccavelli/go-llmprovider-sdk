@@ -115,6 +115,21 @@
 //     MaxOutputTokens, the default output limit cut to the model's. With no
 //     facts the request decides the shape (0062-MADR D2).
 //
+// A refusal of a tool's schema is an *APIError of kind
+// llmprovider.ErrToolSchemaRefused when its reply carries a marker the
+// gateway was recorded sending, on any route: the code
+// invalid_function_parameters, as OpenAI sends it and Zen's responses route
+// did, with the tool named in the message's function '<name>'; or, on the
+// google route, INVALID_ARGUMENT naming a functionDeclaration parameters
+// schema, with the tool in backticks before it. Tool is that name when the
+// request sent a tool of it. Anthropic's form is not read here: the messages
+// route was recorded with no refusal. A refusal of anything else, such as
+// the google route's additionalProperties, stays an invalid request.
+// A failure inside a 200 body or a stream is not classified as the
+// kind and keeps the kind it had, and a reply marked x-should-retry: true,
+// or one that says the prompt is too long, keeps the kind those give it
+// (0084-MADR D1 to D4, N4, N5).
+//
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
 //
@@ -305,6 +320,11 @@ type call struct {
 	// dropped is a warning for each image the route did not send
 	// (0061-MADR D5).
 	dropped []llmprovider.Warning
+	// tools are the tools the route's body sends, in order, and held what the
+	// body holds of the caller's tools: both computed once per request, for
+	// the encoder and for naming a refused tool (0084-MADR D4).
+	tools []llmprovider.Tool
+	held  wire.Held
 }
 
 // Generate sends req to the gateway on the model's route.
@@ -319,7 +339,10 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	effort := p.learner(c)
 	build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, false, effort) }
 	if c.route != RouteMessages {
-		return wire.Send(ctx, "opencode", p.src, build, p.decode(c), effort.Check)
+		// A refusal of a tool's schema names the tool it refused, when the
+		// body held it (0084-MADR D2, D4).
+		resp, err := wire.Send(ctx, "opencode", p.src, build, p.decode(c), effort.Check)
+		return resp, wire.NameRefusedTool(err, c.held)
 	}
 	f := p.forcing.For(string(p.gateway), c.model)
 	// A required choice a model refuses fails here unless the caller opted in
@@ -332,6 +355,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// refusal learned, and a forced choice sent as auto, are reported (D7).
 	retry := messages.NewRefusalRetry(f, req.ToolChoice)
 	resp, err := wire.Send(ctx, "opencode", p.src, build, messages.Decode, wire.Retries(retry.Check, effort.Check))
+	err = wire.NameRefusedTool(err, c.held)
 	if err == nil {
 		messages.StructuredCall(req, f, resp)
 		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning,
@@ -367,6 +391,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 			build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }
 			stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src, build, messages.Events,
 				wire.Retries(retry.Check, effort.Check))
+			stream = wire.NameRefusedStream(stream, c.held)
 			stream = messages.StructuredStream(req, f, stream)
 			for ev, err := range messages.WarnOnDone(stream, retry.Warning, func() (llmprovider.Warning, bool) {
 				return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
@@ -391,8 +416,9 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	return func(yield func(llmprovider.Event, error) bool) {
 		// Each range is its own request, with its own effort learner.
 		effort := p.learner(c)
-		for ev, err := range wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src,
-			func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }, events, effort.Check) {
+		stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src,
+			func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }, events, effort.Check)
+		for ev, err := range wire.NameRefusedStream(stream, c.held) {
 			if !yield(ev, err) {
 				return
 			}
@@ -435,6 +461,15 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	}
 	if req.Instructions != "" {
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
+	}
+	// The tools the route's body holds, once (0084-MADR D4): its tools list,
+	// and on the Responses route a native deferral's definitions inside the
+	// input's tool_search_output items.
+	form := c.deferForm()
+	c.tools = deferral.Tools(req, form)
+	c.held = wire.Held{Listed: deferral.Listed(c.tools, form)}
+	if c.route == RouteResponses && form == deferral.ResponsesNative {
+		c.held.Inside = responses.SearchLoaded(c.input, req)
 	}
 	return c
 }
@@ -648,10 +683,10 @@ func (p *provider) responsesBody(c call, learner *wire.Learner) (map[string]any,
 		"store":   false,
 		"include": []string{"reasoning.encrypted_content"},
 	}
-	if tools := deferral.Tools(c.req, form); form == deferral.ResponsesNative {
-		wire.AddResponsesToolsNative(body, tools, c.req.ToolChoice)
+	if form == deferral.ResponsesNative {
+		wire.AddResponsesToolsNative(body, c.tools, c.req.ToolChoice)
 	} else {
-		wire.AddResponsesTools(body, tools, c.req.ToolChoice)
+		wire.AddResponsesTools(body, c.tools, c.req.ToolChoice)
 	}
 	var warnings []llmprovider.Warning
 	if c.reasoning != nil {
@@ -701,7 +736,7 @@ func (p *provider) messagesBody(c call, learner *wire.Learner) (map[string]any, 
 		maxTokens = messages.AddThinkingFor(body, string(effort), c.reasoning.Budget, maxTokens, facts, shape)
 	}
 	body[jsonKeyMaxTokens] = maxTokens
-	if tools := deferral.Tools(c.req, form); len(tools) > 0 {
+	if tools := c.tools; len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body[jsonKeyTools] = wire.MessagesToolsNative(tools)
 		} else {
@@ -759,7 +794,7 @@ func (p *provider) googleBody(c call, learner *wire.Learner) (map[string]any, []
 	if system := generatecontent.SystemInstruction(c.input); system != nil {
 		body["systemInstruction"] = system
 	}
-	if tools := deferral.Tools(c.req, c.deferForm()); len(tools) > 0 {
+	if tools := c.tools; len(tools) > 0 {
 		decls := make([]map[string]any, len(tools))
 		for i, tool := range tools {
 			decls[i] = map[string]any{jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, jsonKeyParameters: wire.ToolSchema(tool.Schema)}
@@ -795,7 +830,7 @@ func (p *provider) chatBody(ctx context.Context, c call, learner *wire.Learner) 
 	return chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
 		ReasoningEffort:      string(effort),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
-		Tools:                deferral.Tools(c.req, c.deferForm()),
+		Tools:                c.tools,
 		SendStrict:           true,
 		ToolChoice:           c.req.ToolChoice,
 	}), warnings

@@ -90,6 +90,18 @@
 // WarningDeferralEmulated (D7). A hosted tool_search (execution "server") in
 // a reply is dropped.
 //
+// A refusal of a tool's schema, in the form OpenAI was recorded refusing
+// with, is an *APIError of kind llmprovider.ErrToolSchemaRefused: HTTP 400,
+// code invalid_function_parameters, whether the request went with an API
+// key, a ChatGPT session or a plan session. Its Tool is the name in the
+// message's function '<name>', when it is a tool the request's body held:
+// one in its tools, the Search tool, or one a native deferral sent inside a
+// tool_search_output item; param is not read.
+// A failure inside a 200 body or a stream is not classified as the
+// kind and keeps the kind it had, and a reply marked x-should-retry: true,
+// or one that says the prompt is too long, keeps the kind those give it
+// (0084-MADR D1 to D4, N4, N5).
+//
 // Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
 // already hold of its model: a caller's catalog.WithModelLayer, a listing
 // that ListModels or catalog.List read, and the models.dev document once
@@ -310,12 +322,31 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.check(ctx, req); err != nil {
 		return nil, err
 	}
+	// The tools the body holds, once, for the encoder and for naming a refused
+	// one (0084-MADR D4).
+	tools, held := p.tools(req)
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the effort sent is learned, and the
 	// request built again (0062-MADR D5).
 	effort := p.learner(req)
-	return wire.Send(ctx, string(llmprovider.ProviderOpenAI), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) }, p.decode(req), effort.Check)
+	resp, err := wire.Send(ctx, string(llmprovider.ProviderOpenAI), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, tools) }, p.decode(req), effort.Check)
+	// A refusal of a tool's schema names the tool it refused, when the body
+	// held it (0084-MADR D2, D4).
+	return resp, wire.NameRefusedTool(err, held)
+}
+
+// tools is the tools req's body sends, in order, and what the body holds of
+// the caller's tools (0084-MADR D4): those, and the definitions a native
+// deferral sends inside the tool_search_output items of its input.
+func (p *provider) tools(req *llmprovider.Request) ([]llmprovider.Tool, wire.Held) {
+	form, _ := p.deferForm(req)
+	tools := deferral.Tools(req, form)
+	held := wire.Held{Listed: deferral.Listed(tools, form)}
+	if form == deferral.ResponsesNative {
+		held.Inside = responses.SearchLoaded(req.Input, req)
+	}
+	return tools, held
 }
 
 // Stream streams req from the Responses API as it is generated (0031-MADR
@@ -328,11 +359,14 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	}
 	_, decoder := p.deferForm(req)
 	return func(yield func(llmprovider.Event, error) bool) {
-		// Each range is its own request, with its own effort learner.
+		// Each range is its own request, with its own effort learner and its
+		// own list of the tools the body holds (0084-MADR D4).
 		effort := p.learner(req)
-		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderOpenAI), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, decoder.Events,
-			effort.Check) {
+		tools, held := p.tools(req)
+		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderOpenAI), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, tools) }, decoder.Events,
+			effort.Check)
+		for ev, err := range wire.NameRefusedStream(stream, held) {
 			if !yield(ev, err) {
 				return
 			}
@@ -432,8 +466,8 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 // reasoning, encrypted, so the next turn can replay it.
 const includeEncryptedReasoning = "reasoning.encrypted_content"
 
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
-	[]llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner,
+	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -487,7 +521,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learn
 		// The ChatGPT backend sends the key always, above (0039-MADR D3).
 		wire.AddPromptCacheKey(body, req.Cache, p.session)
 	}
-	if tools := deferral.Tools(req, form); form == deferral.ResponsesNative {
+	if form == deferral.ResponsesNative {
 		wire.AddResponsesToolsNative(body, tools, req.ToolChoice)
 	} else {
 		wire.AddResponsesTools(body, tools, req.ToolChoice)
@@ -543,11 +577,11 @@ func (p *provider) decode(req *llmprovider.Request) func(io.Reader) (*llmprovide
 // call is the Responses request for req, asking for an event stream when
 // stream is set; a ChatGPT session's and a plan session's always do. Only a
 // ChatGPT session sends the Codex backend's headers. effort chooses the
-// effort.
+// effort, and tools are those p.tools gave for the request.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
-	effort *wire.Learner) wire.Call {
+	effort *wire.Learner, tools []llmprovider.Tool) wire.Call {
 	facts := p.facts(ctx, req, token)
-	body, warnings := p.body(req, facts, effort)
+	body, warnings := p.body(req, facts, effort, tools)
 	if stream {
 		body["stream"] = true
 	}

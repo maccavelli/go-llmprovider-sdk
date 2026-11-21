@@ -120,7 +120,8 @@ routes to §1: B3, B4, B5, B6, B7, D5 and D6.
     quota errors (MADR §1.1).
   * `ErrNotPermitted = errors.New("llm: not permitted")`.
 * **`classifyHTTPError(provider string, resp *http.Response) error`:**
-  * It reads at most 64 KiB of the body, then parses the service envelope
+  * It reads at most 64 KiB of the body *(annotated 2026-11-21: 1 MiB since
+    0084-MADR's eighth amendment, ST86)*, then parses the service envelope
     (MADR §1.1 table). The service comes from the `provider` label:
     `opencode-*`, `kilo`, `openai`, `grok`, `claude`, `gemini`, and a
     generic `{error:{message}}` or `{error:"…"}` parser for Hugging Face and

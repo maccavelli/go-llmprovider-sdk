@@ -256,7 +256,8 @@ func (e *APIError) Unwrap() error // returns sentinel
 ```
 
 and two sentinels, `ErrQuotaExhausted` and `ErrNotPermitted`. A per-service
-body parser, reading at most 64 KiB of the error body, fills `Type` and
+body parser, reading at most 64 KiB of the error body *(annotated 2026-11-21:
+the limit is 1 MiB since 0084-MADR's eighth amendment, ST86)*, fills `Type` and
 `Message`:
 
 | Service | Envelope |

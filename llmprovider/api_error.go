@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/toolschema"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -41,6 +42,30 @@ var (
 	// Shortening the input can succeed; retrying it unchanged cannot. It also
 	// matches ErrInvalidRequest (0015-MADR D7, amendment of 2026-09-30).
 	ErrContextOverflow error = &sentinelError{msg: "llmprovider: context window exceeded", parent: ErrInvalidRequest}
+	// ErrToolSchemaRefused marks a service's refusal of a tool's schema: the
+	// request carried a tool whose schema the service will not take, so no
+	// retry of it can succeed, and it fails the same way on every turn that
+	// sends the tool. Sending the same conversation without that tool can
+	// succeed, which is the host's decision; the SDK rewrites, drops and
+	// resends nothing. It also matches ErrInvalidRequest, so every check for
+	// an invalid request still holds. APIError.Tool names the refused tool when
+	// the service named exactly one the request sent.
+	//
+	// The kind is read from an HTTP error reply only, by the service and the
+	// marker the service was recorded refusing with: Grok's tag
+	// [invalid_client_tool_schema]; the code invalid_function_parameters, which
+	// OpenAI sends, on OpenAI and on OpenCode, whose Responses route passes it
+	// on; Anthropic's invalid_request_error whose message begins "tools.N."
+	// and holds input_schema, on Claude; and OpenCode's Google route's
+	// INVALID_ARGUMENT naming a functionDeclaration parameters schema. A
+	// refusal in another form, or one a service has reworded, stays an
+	// ErrInvalidRequest. A failure inside a 200 body or a stream is not
+	// classified as this kind and keeps the kind it had. A reply marked
+	// x-should-retry: true is ErrProviderUnavailable, and one that says the
+	// prompt is too long is ErrContextOverflow, as before. A body longer than
+	// the 1 MiB an error is read to, whose JSON the read cuts, keeps the kind
+	// it had (0084-MADR D1, D3, ST17, ST43).
+	ErrToolSchemaRefused error = &sentinelError{msg: "llmprovider: tool schema refused", parent: ErrInvalidRequest}
 	// ErrWorkspaceRequired marks Anthropic's refusal of a request that names
 	// no workspace from a key not scoped to one. Naming a workspace the key
 	// may use can succeed; retrying unchanged cannot. It also matches
@@ -80,12 +105,16 @@ var (
 )
 
 const (
-	// apiErrorBodyLimit bounds how much of an error body is read.
-	apiErrorBodyLimit = 64 << 10
+	// apiErrorBodyLimit bounds how much of an error body is read, for every
+	// error reply: 1 MiB, up to which a body is parsed whole, so a refusal that
+	// carries a large body is still read for its code (0084-MADR, eighth
+	// amendment, ST86; it was 64 KiB, which cut such a body inside its JSON).
+	// The cost is up to that much held while the error is classified.
+	apiErrorBodyLimit = 1 << 20
 	// apiErrorMessageLimit bounds APIError.Message.
 	apiErrorMessageLimit = 512
 	// apiErrorRedactLimit bounds how much of a message is redacted. Only the
-	// first apiErrorMessageLimit bytes are kept, so redacting a 64 KiB HTML
+	// first apiErrorMessageLimit bytes are kept, so redacting a large HTML
 	// page whole is wasted work (0021-MADR Z1); four times the kept bytes
 	// leaves room for redaction to shorten what comes first (0028-MADR D-A10).
 	apiErrorRedactLimit = 2 << 10
@@ -132,6 +161,14 @@ type APIError struct {
 	// Reason is the service's reason for a response it cut short, such as
 	// "max_output_tokens".
 	Reason string
+	// Tool is the name of the tool whose schema the service refused, exactly
+	// as the request sent it; empty when the service named none, named
+	// several, named one the request did not send, or the kind is not
+	// ErrToolSchemaRefused. A provider sets it after the send, from the tools
+	// its request held, so it is only ever the name of a tool the caller gave:
+	// no text from the response reaches it. Error does not print it
+	// (0084-MADR D2, D6).
+	Tool string
 
 	// terminal reports that retrying cannot succeed; Retryable reads it.
 	terminal bool
@@ -274,7 +311,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		ResetAt:    resetAt,
 		Limit:      limitOf(envelope),
 	}
-	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
+	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body, true)
 	noteCompletionFillsContext(e, envelope.message())
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).
 	// The body's instant outranks a header's, and gives the delay when no
@@ -439,7 +476,7 @@ func setStreamKind(e *APIError, code, errType, message string, env apiErrorEnvel
 	// HTTP status in code: classify it as that status, through the service's
 	// own table and the overflow check (0026-MADR F5).
 	if status, err := strconv.Atoi(code); err == nil && status >= http.StatusBadRequest && status <= 599 {
-		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), status, env, nil)
+		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), status, env, nil, false)
 		noteCompletionFillsContext(e, message)
 		return
 	}
@@ -453,7 +490,7 @@ func setStreamKind(e *APIError, code, errType, message string, env apiErrorEnvel
 	default:
 		// 500 stands in for "no status": the table's codes win; else the
 		// error's type decides (0028-MADR D-H8); else retryable.
-		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
+		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil, false)
 		if errors.Is(e.Kind, ErrProviderUnavailable) {
 			if terminal, ok, kind := classifyStreamType(env, errType); ok {
 				e.terminal, e.Kind = terminal, kind
@@ -534,8 +571,11 @@ var (
 )
 
 // classifyAPIError applies MADR 0012 §1.1's table (with its 2026-09-27 rows)
-// and falls back to the status-only mapping.
-func classifyAPIError(service string, status int, env apiErrorEnvelope, body []byte) (terminal bool, sentinel error) {
+// and falls back to the status-only mapping. reply is true for the body of an
+// HTTP error reply, false for a failure read from inside a 200 stream: only a
+// reply can be a refusal of a tool's schema (0084-MADR D3; the owner's ruling
+// on N4).
+func classifyAPIError(service string, status int, env apiErrorEnvelope, body []byte, reply bool) (terminal bool, sentinel error) {
 	has := func(types ...string) bool {
 		return slices.ContainsFunc(types, env.hasType)
 	}
@@ -589,14 +629,52 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		return true, ErrProviderUnavailable
 	case status >= http.StatusInternalServerError:
 		return false, ErrProviderUnavailable
+	default:
+		return classifyInvalid(service, status, env, reply)
+	}
+}
+
+// classifyInvalid is the last rows of classifyAPIError's table, for a reply no
+// row above it took: an overflow, a refusal of a tool's schema, and the
+// status alone.
+func classifyInvalid(service string, status int, env apiErrorEnvelope, reply bool) (terminal bool, sentinel error) {
+	switch {
 	// An overflow whose completion alone fills the context cannot be mended
 	// by shortening the input, so it stays an invalid request
 	// (0028-MADR D-H3).
 	case errors.Is(statusSentinel(status), ErrInvalidRequest) && contextOverflow(env) && !completionFillsContext(env.message()):
 		return true, ErrContextOverflow
+	// A service's refusal of a tool's schema, by the service and the marker it
+	// was recorded with (0084-MADR D3). It is after every row of the table, so
+	// a refused key, a workspace, an overflow and a quota keep their kinds
+	// (0084-MADR, the owner's ruling on N5); x-should-retry: true still turns
+	// it into ErrProviderUnavailable, after the table.
+	case reply && status == http.StatusBadRequest && toolSchemaRefusal(service, env):
+		return true, ErrToolSchemaRefused
 	default:
 		return true, statusSentinel(status)
 	}
+}
+
+// toolSchemaRefusal reports whether env is a refusal of a tool's schema in a
+// form service was recorded sending (0084-MADR D3, with N3's ruling that a
+// form applies on every route of its service): Grok's own; the OpenAI form on
+// OpenAI, whose API key, ChatGPT session and plan session all send under its
+// label, and on OpenCode, whose Responses route sent it; Anthropic's on
+// Claude only, since OpenCode's Messages route was recorded with no refusal;
+// and the Google route's form on OpenCode.
+func toolSchemaRefusal(service string, env apiErrorEnvelope) bool {
+	switch toolschema.Read(env.types, env.message()) {
+	case toolschema.Grok:
+		return service == string(ProviderGrok)
+	case toolschema.OpenAI:
+		return service == string(ProviderOpenAI) || service == serviceOpencode
+	case toolschema.Anthropic:
+		return service == string(ProviderClaude)
+	case toolschema.Google:
+		return service == serviceOpencode
+	}
+	return false
 }
 
 // claudeWorkspaceRefusal is the class of an Anthropic workspace refusal, each

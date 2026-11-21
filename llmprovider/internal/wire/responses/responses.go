@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
@@ -239,6 +240,25 @@ func InputLoading(items []llmprovider.Item, req *llmprovider.Request) []InputIte
 		}
 	}
 	return input
+}
+
+// SearchLoaded is the names of the caller's tools InputLoading sends inside
+// the tool_search_output items of items, once each, in order: the tools a
+// request holds outside its tools list (0084-MADR D4). It reads what
+// InputLoading encoded, so it names exactly the definitions that went out.
+func SearchLoaded(items []llmprovider.Item, req *llmprovider.Request) []string {
+	var out []string
+	for _, in := range InputLoading(items, req) {
+		if in.Tools == nil {
+			continue
+		}
+		for _, tool := range *in.Tools {
+			if name, ok := tool[wire.KeyName].(string); ok && name != "" && !slices.Contains(out, name) {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
 }
 
 // InputDispatch is Input for a request whose deferred tools go out through

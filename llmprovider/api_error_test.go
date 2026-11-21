@@ -184,7 +184,10 @@ func TestClassifyHTTPStatus(t *testing.T) {
 	}
 }
 
-// htmlErrorPage is a gateway's 64 KiB HTML error page, with one link.
+// htmlErrorPage is a gateway's 64 KiB HTML error page, with one link. (Dated
+// 2026-11-21, 0084-MADR's eighth amendment, ST86: 64 KiB was then the most of
+// an error body that was read; the limit is now 1 MiB, so 64 KiB is this
+// benchmark's input, not the worst case.)
 func htmlErrorPage() string {
 	const para = "<p>The upstream server returned an invalid response while handling this request. Please wait a moment and try again.</p>\n"
 	head := `<!DOCTYPE html><html><head><title>502 Bad Gateway</title><style>body{font-family:sans-serif}</style></head>` +

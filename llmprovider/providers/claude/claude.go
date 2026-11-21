@@ -117,6 +117,18 @@
 // model's own when that is smaller; it is never raised.
 // With no facts, the request decides the shape, and a refusal is learned
 // (0062-MADR D2, D3).
+//
+// A refusal of a tool's schema, in the form Anthropic was recorded refusing
+// with, is an *APIError of kind llmprovider.ErrToolSchemaRefused: HTTP 400,
+// error type invalid_request_error, and a message that begins "tools.N." and
+// holds input_schema. Its Tool is entry N of the tools list as sent after
+// deferral, which on a model before Claude 4.5 leaves out a deferred tool
+// not yet loaded, so it can differ from Request.Tools; an index past the
+// list names nothing.
+// A failure inside a 200 body or a stream is not classified as the
+// kind and keeps the kind it had, and a reply marked x-should-retry: true,
+// or one that says the prompt is too long, keeps the kind those give it
+// (0084-MADR D1 to D4, N4, N5).
 package claude
 
 import (
@@ -280,9 +292,17 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// sent once more, or the refusal returned (0034-MADR D3). A refusal of the
 	// effort sent is learned, and the request built again (0062-MADR D5).
 	retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
+	// The tools the body holds, once, for the encoder and for resolving the
+	// index of a refused one (0084-MADR D4).
+	form, tools := p.tools(req)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false, effort) },
+		func(token llmprovider.Token) wire.Call {
+			return p.call(req, p.facts(ctx, req, token), false, effort, tools)
+		},
 		messages.Decode, wire.Retries(retry.Check, effort.Check))
+	// A refusal of a tool's schema names the tool it refused, by the index it
+	// gave into the list as sent (0084-MADR D2, D4).
+	err = wire.NameRefusedTool(err, wire.Held{Listed: deferral.Listed(tools, form)})
 	if err == nil {
 		// A named tool sent as structured outputs is returned as its call
 		// (0034-MADR D8); a refusal learned, and a forced choice sent as
@@ -322,11 +342,16 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	return func(yield func(llmprovider.Event, error) bool) {
-		// Each range is its own request, with its own retry checks.
+		// Each range is its own request, with its own retry checks and its own
+		// list of the tools the body holds (0084-MADR D4).
 		retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
+		form, tools := p.tools(req)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true, effort) },
+			func(token llmprovider.Token) wire.Call {
+				return p.call(req, p.facts(ctx, req, token), true, effort, tools)
+			},
 			messages.Events, wire.Retries(retry.Check, effort.Check))
+		stream = wire.NameRefusedStream(stream, wire.Held{Listed: deferral.Listed(tools, form)})
 		stream = messages.StructuredStream(req, f, stream)
 		for ev, err := range messages.WarnOnDone(stream, retry.Warning,
 			func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }) {
@@ -352,10 +377,18 @@ func (p *provider) modelFor(req *llmprovider.Request) string {
 	return p.model
 }
 
+// tools is the form req's deferred tools go out in, and the tools that form
+// sends, in order (0040-MADR D1, D2, D6).
+func (p *provider) tools(req *llmprovider.Request) (deferral.Form, []llmprovider.Tool) {
+	form := deferral.Of(deferral.Messages, p.modelFor(req))
+	return form, deferral.Tools(req, form)
+}
+
 // call is the Messages request for req, asking for an event stream when
-// stream is set, at the effort effort chooses.
-func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, facts, effort)
+// stream is set, at the effort effort chooses, sending tools.
+func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner,
+	tools []llmprovider.Tool) wire.Call {
+	body, warnings := p.body(req, facts, effort, tools)
 	if stream {
 		body["stream"] = true
 	}
@@ -418,9 +451,10 @@ func outputLimit(info catalog.ModelInfo) int {
 }
 
 // body is the Messages request for req, with its model's facts, at the
-// effort effort chooses.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effort *wire.Learner) (map[string]any,
-	[]llmprovider.Warning) {
+// effort effort chooses, sending tools, the list p.tools gave for the
+// request.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effort *wire.Learner,
+	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
 	model := p.modelFor(req)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
@@ -450,7 +484,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effor
 		body["system"] = strings.Join(system, "\n\n")
 	}
 	thinking, warnings := p.addReasoning(body, req, maxTokens, facts, effort)
-	if tools := deferral.Tools(req, form); len(tools) > 0 {
+	if len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body["tools"] = wire.MessagesToolsNative(tools)
 		} else {

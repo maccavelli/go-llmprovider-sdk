@@ -33,17 +33,18 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `internal/signinflow` may also import the nested module `authcontract`,
   which is itself standard library only (0073-MADR D1). (0015 D2, D13; the table's `internal/wire` rows, 0026
   F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2;
-  `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `llmprovider/x/signin`, `internal/signinflow` and
+  `internal/toolschema`, 0084 D3; `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `llmprovider/x/signin`, `internal/signinflow` and
   `authcontract`, 0074 D3)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
-  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource` |
+  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource`, `internal/toolschema` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
   | `internal/kiloendpoint` | Kilo's endpoints, derived from a credential, and whether one has an organization; in the module's own `internal`, not `llmprovider`'s, so that `internal/signinflow` may import it (0080 D4) | the standard library |
   | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages` |
   | `llmprovider/internal/nilsource` | a typed-nil `TokenSource`'s test, for `llmprovider` and `catalog` | the standard library |
+  | `llmprovider/internal/toolschema` | a service's refusal of a tool's schema, read from a reply: its form and the names it gives, for `llmprovider`'s classification and `internal/wire`'s naming (0084 D3) | the standard library |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
   | `llmprovider/internal/compatid` | `chatcompat.WithID`'s value, for `catalog` and `providers/chatcompat` | the standard library |
   | `llmprovider/internal/compatdialect` | which server a Chat Completions listing is from, for `catalog` and `providers/chatcompat` | the standard library |
@@ -57,7 +58,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()`, `DefaultWith(opts...)` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
-  | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider`, `internal/transport`, `internal/redact` |
+  | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider`, `internal/transport`, `internal/redact`, `internal/toolschema` |
   | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact`, `internal/wire/deferral` |
   | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, for the wire formats and the providers | `llmprovider`, `internal/wire/messages` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
@@ -214,13 +215,14 @@ tool that holds a rule, where one does. For how the code is laid out, read
 
 - **R24. `*APIError` is the only structured error.** It carries `Provider`,
   `Status`, `Kind`, `Code`, a redacted and bounded `Message`, `RetryAfter`,
-  `ResetAt`, `Limit` and `Reason`. (0015 D7; 0072 D1, D2)
+  `ResetAt`, `Limit`, `Reason` and `Tool`, the refused tool's name when the kind
+  is `ErrToolSchemaRefused`. (0015 D7; 0072 D1, D2; 0084 D2)
 - **R25. Test errors by kind with `errors.Is`.** Each error unwraps to one of
   `ErrRateLimited` (with `ErrQuotaExhausted` beneath it), `ErrAuthFailure`,
-  `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow` and
-  `ErrIncomplete` beneath it), `ErrProviderUnavailable`, `ErrUnsupported` or
+  `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow`,
+  `ErrIncomplete` and `ErrToolSchemaRefused` beneath it), `ErrProviderUnavailable`, `ErrUnsupported` or
   `ErrInvalidProvider`. A new failure mode maps to an existing kind before it
-  earns a new one. (0015 D7 and its amendments of 2026-09-30 and 2026-10-01)
+  earns a new one. (0015 D7 and its amendments of 2026-09-30 and 2026-10-01; 0084 D1)
 - **R26. Retryability is `Retryable()`.** (0015 D7)
 - **R27. Every sentinel's message starts `llmprovider:`,** and so does an
   `*APIError`'s, with its kind's text. A wrapped error keeps the prefix of

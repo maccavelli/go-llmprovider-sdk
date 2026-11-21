@@ -90,8 +90,18 @@ functions over any provider, and `Stream` streams from every one.
   - `ErrRateLimited`, with `ErrQuotaExhausted` beneath it;
   - `ErrAuthFailure` and `ErrNotPermitted`;
   - `ErrInvalidRequest`, with `ErrContextOverflow`, `ErrIncomplete`,
-    `ErrWorkspaceRequired` and `ErrWorkspaceNotFound` beneath it;
+    `ErrToolSchemaRefused`, `ErrWorkspaceRequired` and `ErrWorkspaceNotFound`
+    beneath it;
   - `ErrProviderUnavailable` and `ErrUnsupported`.
+
+  A service's refusal of a tool's schema is `ErrToolSchemaRefused`, so a
+  host can send the same conversation without that tool; `APIError.Tool`
+  names it when the service named exactly one tool the request sent, and is
+  empty otherwise. It is read by service and marker, from an HTTP error
+  reply, on Grok, OpenAI (its API key and its sessions), Claude, and
+  OpenCode (Zen's Responses and Google routes were recorded). A refusal in
+  any other form stays `ErrInvalidRequest`, and the SDK never rewrites,
+  drops or resends a tool.
 
   A truncated answer is an error of kind `ErrIncomplete`. A text answer cut
   by the token limit keeps its text and sets `Response.FinishReason`; one

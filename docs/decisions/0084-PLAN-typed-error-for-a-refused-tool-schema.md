@@ -104,7 +104,12 @@ starts before that.
   error's `param` (C15), `Error()` unchanged in form (D6).
 * `llmprovider/internal/wire/`: one unexported helper that names the
   refused tool from a classified error and the list a request sent (D4),
-  and its tests.
+  and its tests. *(Annotated 2026-11-21, the owner's ruling "Accept the
+  internal package (Recommended)": and `llmprovider/internal/toolschema`, the
+  one place the four forms' markers are written, read by `api_error.go` and by
+  this helper; see build pass 2. `api_error.go` also holds the error-body
+  limit, `apiErrorBodyLimit`, raised to 1 MiB by the owner's ruling on ST43,
+  MADR ST86.)*
 * `llmprovider/providers/{grok,openai,claude,opencode}/`: each send path
   passes its sent list to the helper where it returns an error, for
   `Generate` and `Stream`; each package doc says which refusals it reads.
@@ -2173,6 +2178,358 @@ By an agent, at `a800e74`, tree clean but for the git-ignored `tmp/`.
 * **Docs step.** README.md, docs/README.md, docs/architecture.md, docs/guides/,
   CHANGELOG.md and AGENTS.md name no testdata index or fixtures guide that this
   phase makes false.
+
+### Phase 2, build pass 1 (2026-11-21)
+
+Built by an agent at `9e84a88` (Phase 1c's commit), on `main`, tree clean at
+the start. Nothing is staged or committed; no live run was made, no
+`LLMPROVIDER_LIVE_*` variable was set, no key was read. The MADR is unchanged.
+
+* **Step 1, the base re-read.** Every line the PLAN and the MADR's H1 to H8
+  cite holds its text; the lines that moved are `docs/architecture.md`'s
+  P16, now `:569` (`:566` at `24756a6`, `:563` at `b109cea`), and none other.
+  P1 `api_error.go:538`, P2 `:103`, P3 `:690`; P4 `deferral.go:253`; P5 and
+  P6 `tools.go:85`, `:101`; P7 and P8 `grok.go:252`, `:297`; P9 `openai.go:317`
+  (its stream `:333`); P10 `claude.go:283`; P11 and P12 `opencode.go:322`,
+  `:765` (the Messages send `:334`, H3); P15 `llmtest.go:125`; P17
+  `CHANGELOG.md:12`; P20 `describe.go:15`; P21 and P22
+  `api-standards.md:215`, `:218`; P25 `retry.go:20`. H1 `api_error.go:309`,
+  `:314`; H2 `:441` and `generatecontent.go:307`; H3 `serviceOf` `:498`,
+  `:500`; H4 `openai.go:317`, `:333`; H5 `api_error.go:259`, `:275` (the
+  envelope is still not kept on the error); H6 `contract.go:271`; H7
+  `reauth.go:50`, `:57`, `learn.go:300`, `responses/refusal.go:49`; H8
+  `post.go:115`; C13 `:559`; C20 `messages/learn.go:80`. `git diff --stat
+  24756a6 HEAD` over `llmprovider/`, `wizard/`, `docs/architecture.md`,
+  `docs/guides/` and `CHANGELOG.md` shows no change to a Go file this phase
+  changes: the changes are 0081's and 0083's wizard files, `signin.go`, the
+  Phase 1 recorder and the two docs. No meaning changed, so no stop. Relation
+  to 0080 and the others: 0080's **Added** and **Changed** entries are in
+  `CHANGELOG.md` `[Unreleased]`, and this phase adds its own **Added** beside
+  them; 0081, 0083, 0085 and 0087 hold no file in common with this phase
+  (their PLANs cite `api_error.go`, `claude.go` and `opencode.go` as evidence
+  only; 0087's names `wizard/describe.go` as not changed). 0080's gates ran the
+  suite on the Windows laptop by `run-on-host` and `pre-add-check` and `-race`
+  by `run-heavy` on the session host; this phase's ran on this Mac by
+  `run-heavy`.
+* **Step 2, the stub**, on a scratch clone of `9e84a88`, committed there and
+  never pushed: `ErrToolSchemaRefused` as D1 says and `Tool string` on
+  `APIError`, in `api_error.go` alone; nothing classified, nothing named. The
+  tests were copied in, and `tools/redgreen.py --root <scratch> --rev <stub>`
+  ran each package once. **Red at the stub, each by its assertion** (the first
+  failing line is given; every one fails on the kind, and the ones marked
+  both also on `Tool`): `Classify` (`llmprovider`, `:141`, "want
+  ErrToolSchemaRefused, and so ErrInvalidRequest", then `Kind`, `Unwrap` and
+  the text, each for the 14 records); `Names` (`:283`, the kind, and `Tool ""`;
+  want the name; both); `NeverNamesUnsent` (`:347`, the kind only, 22 lines,
+  none on `Tool`: the empty `Tool` holds at the stub, as the PLAN says);
+  `Deferral` (`:367`, both); `LastSendKeepsName` (`:412`, both, for xAI, and
+  for Anthropic's seventh send through Generate and Stream, which at the stub
+  still reached the schema refusal after seven sends, so the sequence is
+  built right); `RedactedNeighbour` (`:466`, both); `RedactedName` (`:486`,
+  the kind only); `NameBeyondBound` (`:506`, the kind only); `SeveralNamed`
+  (`:538`, the kind only; built, since F1 and F4 take a second name by a named
+  edit); `NamesNothing` (`:558`, the kind only); `DuplicateNames` (`:574`,
+  both); `SearchLoaded` (`:612`, both); `SharedLabel` (`:652`, both);
+  `Concurrent` (`:879`, both); `TestDescribe_ToolSchemaRefused_0084`
+  (`describe_0084_test.go:18`, "invalid request, HTTP 400", want "tool schema
+  refused, HTTP 400"). **Red by a build failure, as the PLAN says of the
+  helper:** `TestNameRefusedTool_PassThrough_0084`, `_Wrapped_0084`,
+  `_Forms_0084` and `TestNameRefusedStream_0084` (`undefined: Held`,
+  `undefined: NameRefusedTool`), and, added in this pass, `TestListed_0084`
+  (`deferral`), `TestSearchLoaded_0084` (`responses`) and `TestRead_0084` and
+  `TestReferences_0084` (`internal/toolschema`, no such package at the stub).
+  **Green at the stub, as guards (`--expect pass`, 11 of 11):** `Reworded`,
+  `RecordedFallback`, `OthersUnchanged`, `KeyRowFirst`, `ProxyAltered`,
+  `StreamUnchanged`, `Precedence`, and `Kinds` (the sentinel as D1 declares it)
+  in `llmprovider`; `FieldsUnchanged`, `NoAdaptation` and `NoLog` in
+  `providers`. At the base, `9e84a88`, every one of the 23 red tests does not
+  build, in each of the seven packages (`undefined: ErrToolSchemaRefused`,
+  `undefined: Held`).
+* **Step 3, the tests**, each in a `_0084_test.go` file of its package, read
+  from the 0062 fixtures and Phase 1's, by Phase 1c's sort (13 recognised
+  records and the 0062 Google record feed `Classify` and `Names`; the four
+  unrecognised feed `RecordedFallback`; the three evidence-only records are
+  listed so that a new refusal cannot go untested): `llmprovider/
+  toolschema_refusal_0084_test.go` (9 tests), `llmprovider/providers/
+  toolschema_refusal_0084_test.go` (16), `llmprovider/internal/wire/
+  refusedtool_0084_test.go` (4), `wizard/describe_0084_test.go` (1), and three
+  small files for the three helpers this phase adds: `internal/wire/deferral/
+  listed_0084_test.go`, `internal/wire/responses/searchloaded_0084_test.go`
+  and `internal/toolschema/toolschema_0084_test.go`. Each named edit of a
+  recorded body is stated in its test's comment.
+* **Step 5, the code.** `llmprovider/api_error.go`: `ErrToolSchemaRefused`
+  beside `ErrContextOverflow`, `APIError.Tool` with D2's doc, the rows of D3
+  after the key, workspace and overflow rows (`classifyInvalid`, below), for
+  an HTTP error reply only (`classifyAPIError` takes `reply bool`; the two
+  stream call sites pass false). `llmprovider/internal/wire/refusedtool.go`:
+  `Held`, `NameRefusedTool` (finds the `*APIError` by `errors.AsType`, sets
+  `Tool` only when every name and index the message gives resolves to one
+  name the body held, returns the error it was given) and `NameRefusedStream`.
+  `deferral.Listed` and `responses.SearchLoaded` give the helper the list as
+  sent after deferral. The four providers compute the tools list once per
+  request (`deferral.Tools`, threaded through `call` and `body`; OpenCode holds
+  it in its per-request `call`), pass it to the encoder and to the helper, in
+  `Generate` and `Stream` (OpenCode on every route, Messages included).
+  `wizard/describe.go`: the kind before `ErrInvalidRequest`.
+* **Deviations and decisions for the coordinator and the owner** (each with
+  its evidence; none is worked around):
+  1. **ST43's second half cannot be met as written.** The row says a name
+     beyond the 512-byte bound "or a body over 64 KiB" gives "the kind;
+     `Tool` empty". A body over 64 KiB is read only to 64 KiB
+     (`api_error.go`, `io.LimitReader`), so its JSON is cut and does not
+     parse; `parseAPIErrorBody` then returns no type, and no D3 row can match
+     (each needs a code or type). A probe on the scratch clone: a Grok body of
+     70 KiB with the tag first gives `Kind` `ErrInvalidRequest` and an empty
+     `Code`. The first half is tested (`NameBeyondBound`); the second has no
+     test, since the only test that would pass asserts a different outcome
+     than the row. Resolutions: (a) amend ST43 to say a body over 64 KiB keeps
+     `ErrInvalidRequest` as today, and pin that with a guard (recommended; no
+     code); (b) read the marker from the raw text when the JSON does not parse
+     (new code and a new matcher, a change to D3). Doing nothing leaves the row
+     false.
+  2. **`LastSendKeepsName` as the PLAN words it cannot reach the last send.**
+     Grok's ladder is five efforts and then one send with none, so at most six
+     sends, and the hook is consulted after each; a name filled in the hook
+     would still pass the PLAN's two-send case. The test keeps the PLAN's
+     Grok case and adds the last allowed send on Anthropic, where five effort
+     refusals, each listing fewer efforts, and one shape refusal make the
+     seventh send, `wire.MaxSends`, refused for its schema, through Generate
+     and Stream; it asserts seven sends.
+  3. **A new internal package, `llmprovider/internal/toolschema`.** The PLAN
+     puts the markers in `classifyAPIError` and the naming in `internal/wire`;
+     `llmprovider` cannot import `wire`, and `wire` can read only `APIError`'s
+     fields, so the four forms' markers would be written twice. One package
+     holds `Form`, `Read` and `References`, imported by both, so they cannot
+     disagree. It is not exported API (`apidiff` lists the two names only).
+     It costs a row in `docs/architecture.md`'s and the standards guide's
+     package tables, added, and `tables-check` passes. Resolution if refused:
+     duplicate the markers in both packages, with a test that they agree.
+  4. **`classifyInvalid`.** Adding the D3 rows to `classifyAPIError` took its
+     cyclomatic complexity to 42 against a limit of 40 (`gocyclo`, pre-add).
+     The overflow row, the new row and the status-only default moved into
+     `classifyInvalid`, called from the table's `default`, in the same order;
+     the lint stays as it is. `errcheck` found a blank type assertion in
+     `SearchLoaded`; fixed. The first `pre-add-check` failed on those two and
+     the second passed, so no step failed twice.
+  5. **`NoLog` is a guard**, as the PLAN says (green at the stub): it asserts
+     the refusal is returned and no log record holds the tool or the text, not
+     the kind. **`Kinds`, `Wrapped`/`Forms`/`NamedStream`, `Listed`,
+     `SearchLoaded`, `Read` and `References`, and `Names`' ST72 case are not
+     in the PLAN's table**: each pins a helper or a row (D1, ST72) the table
+     reaches only through other tests.
+  6. **Follow-ups outside the record's cases, not done:** Gemini's refusal
+     (single-quoted name), Zen Google's refusal of `additionalProperties`
+     before the union, OpenAI's and Zen Responses' O2 holding one bad tool, and
+     Zen Messages' having no refusal recorded stay as Phase 1c left them; no
+     matcher and no row was added for any.
+* **Checks of the tests themselves, on scratch copies, never the tree.** Eight
+  single breaks, not Phase 3's plants (which are not run in this phase), each
+  caught: Grok's tag changed in `toolschema` (`TestRead_0084`,
+  `TestReferences_0084`); `Listed` not blanking the wrapper (`TestListed_0084`);
+  `SearchLoaded` finding nothing (`TestSearchLoaded_0084`); a type assertion in
+  place of `errors.As` (`Wrapped`); `Tool` set on an error of any kind
+  (`PassThrough`); the rows applied in `setStreamKind`'s calls
+  (`StreamUnchanged`); the rows before the overflow row (`Precedence`); Claude's
+  index mapped through `Request.Tools` (`Deferral`, `NeverNamesUnsent`).
+* **The gate**, on this Mac, each status taken before any filter:
+  `go test -count=1` on each changed package, exit 0 (`llmprovider`,
+  `internal/toolschema`, `internal/wire`, `internal/wire/deferral`,
+  `internal/wire/responses`, `providers`, `grok`, `openai`, `claude`,
+  `opencode`, `wizard`: each `ok`); `run-heavy -- go test -count=1 ./...`,
+  exit 0, 44 packages `ok`, 30 s, run after the last code change; PLAN step 7
+  on a scratch clone of the phase's tree, exit 0, the eight packages `ok`, no
+  existing test changed (no existing test file is in the porcelain);
+  `run-heavy -- make pre-add-check FILES="<the 18 changed .go files>"`, exit
+  0, "go-precheck: 18 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)"; `make records-check` 0, `docs-check` 0 (`sdkaudit: 0
+  violation(s) of R50,R51,R52`), `links-check` 0, `changelog-check` 0,
+  `tables-check` 0 (49 packages, 0 problems), `disclosure-check` 0 (0 hits),
+  `fixtures-check` 0 (485 files, 134 hits, 0 problems), `markdownlint` 0;
+  `make api-check` 0 ("0 incompatible change(s) outside llmprovider/x/": it
+  lists incompatible changes only, as the MADR's D7 annotation says, so it
+  lists neither name); `tools/apidiff.py 9e84a88 <scratch commit>` on a scratch
+  clone with this phase's files copied in, exit 0, "Compatible changes:
+  `llmprovider.APIError.Tool`: added; `llmprovider.ErrToolSchemaRefused`:
+  added", and nothing else (ST36); `python3 -B tools/claims.py` on both
+  records, exit 0 ("85 of 85 pass", "29 of 29 pass"); `tools/recordlint.py
+  --changed`, exit 0 ("no rule rose"); `tools/denyscan.py --changed`, exit 0
+  ("0 hit(s) in 23 file(s)"). The doc gates were run again after this entry
+  was written, with the same results. No `-race` run: this phase's PLAN names
+  none.
+* **Docs step (D8, ST73, ST74).** `docs/guides/api-standards.md` R24 (`Tool`)
+  and R25 (the kind), both citing 0084 D1 and D2, and its package table;
+  `docs/architecture.md`'s error paragraph (the kind, the routes each form was
+  recorded on, N3 to N5, the fall-backs), its "Errors" bullet, and its package
+  rows for `llmprovider`, `internal/wire`, `responses`, `deferral` and the new
+  `internal/toolschema`; `CHANGELOG.md` `[Unreleased]` **Added**; `README.md`'s
+  "Errors" bullet; the package docs of `llmprovider`, `grok`, `openai`,
+  `claude` and `opencode`, and the doc comments of `ErrToolSchemaRefused` and
+  `APIError.Tool`; `wizard/describe.go`'s `errorClasses`. ST73's and ST74's
+  checks: `grep -c ErrToolSchemaRefused` on each of ten files (the standards
+  guide, the architecture, the changelog, the README, `provider.go`, the four
+  providers' files and `describe.go`), each exit 0 with a count of 1 or 2,
+  and, on a scratch copy of `describe.go` with the name replaced, a count of
+  0 and exit 1. Phase 4 reads the text against ST73 and ST74.
+* **Not done.** The MADR's provider table and state table are not amended
+  (nothing asserted there changed; deviation 1 is put to the owner first).
+  Phase 3's plants, `-race`, `make lint` over the whole module, `make vuln`,
+  `go vet -tags live_gateways ./...` and CI's set are Phase 3's. No commit.
+
+### Phase 2, build pass 2 (2026-11-21)
+
+Opened on the owner's rulings, relayed by the coordinator, and an independent
+review of pass 1 that found no blocker and the gaps below. Records first (this
+entry's opening, the MADR's eighth amendment and the annotations it names),
+then code, with no stop between. A third pass would need the owner.
+
+* **The owner's rulings.**
+  1. **ST43.** "Raise the body limit", then "we need to cap that body read at
+     128KiB", then "change this to the recommended 1 MiB". The last stands;
+     **128 KiB is superseded**. `apiErrorBodyLimit` (`api_error.go:106`) is
+     `1 << 20`, shared by every error path; the cost is up to 1 MiB held while
+     each error is classified. ST43's body half now reads as the MADR's eighth
+     amendment says, and ST86 is the new row for the limit itself. Deviation 1
+     of pass 1 is closed by it: resolution (b) of that entry, in a form that
+     reads no raw text.
+  2. **The new package.** "Accept the internal package (Recommended)": the
+     deviation below.
+  3. **The test and the refactor.** "Accept both as recorded (Recommended)":
+     the two deviations below.
+* **Deviation, dated 2026-11-21: `llmprovider/internal/toolschema` is added to
+  Phase 2's scope** (pass 1, deviation 3). `In scope` lists `internal/wire` for
+  the helper and `api_error.go` for the rows; neither can hold the markers once
+  (`llmprovider` cannot import `wire`; `wire` reads only `APIError`'s fields).
+  The package holds `Form`, `Read` and `References`, read by both. It is
+  internal: `make api-check` and `tools/apidiff.py` list the two names only.
+  Its rows are in the architecture's and the standards guide's package tables.
+* **Deviation, dated 2026-11-21: `LastSendKeepsName` gains the Anthropic
+  seventh-send case** (pass 1, deviation 2). The PLAN's Grok case cannot reach
+  the last allowed send (five rungs and one send with none: six sends, the hook
+  consulted after each), so it is kept, and a second case sends seven times on
+  Anthropic and names the error of the seventh, through Generate and Stream.
+* **Deviation, dated 2026-11-21: `classifyInvalid`** (pass 1, deviation 4).
+  Adding the D3 rows took `classifyAPIError` to cyclomatic complexity 42 against
+  the lint's 40. The overflow row, the D3 rows and the status-only default are
+  `classifyInvalid`, called from the table's `default`, in the same order. The
+  lint is unchanged.
+* **The review's findings, and what pass 2 does.**
+  * **(a) "By service" (N3, ST07) was unpinned.** Reading each marker form on
+    every service left every test green. A guard, `TestToolSchemaRefusal_
+    OtherServices_0084` (`llmprovider`, green at the stub), serves F1, F2, F4
+    and F7 unedited but for the label: each under `gemini`, `kilo`,
+    `huggingface`, `ollama`, `together` and a `chatcompat` id; Grok's form under
+    `openai`, `claude` and `opencode`; OpenAI's under `grok` and `claude`;
+    Google's under `openai`, `grok`, `claude` and `gemini`; Anthropic's under
+    `grok`, `openai`, `gemini` and `kilo`. Each asserts today's kind. Plants:
+    the four reviewer's survivors (a form read on every service).
+  * **(b) D3's "400" was pinned against removal, not widening.** `ProxyAltered`
+    gains 404 and 422; plant: the status condition widened to any status that
+    maps to `ErrInvalidRequest`.
+  * **(c) ST73's docs.** The package docs of `llmprovider`, `grok`, `openai`,
+    `claude` and `opencode` say what N3 to N5 decided: a failure inside a 200
+    body or a stream is not classified, and `x-should-retry: true` and an
+    overflow win. In the changelog, the architecture and the sentinel's doc,
+    "stays `ErrInvalidRequest`" for a failure inside a 200 or a stream reads
+    "keeps today's kind", as ST17 decides. The architecture's `toolschema` row
+    names `Refs` and the `Form` constants.
+  * **(d)** `toolschema.go`'s claim that classification and naming "cannot
+    disagree" is softened: they share the markers but read different inputs
+    (the helper reads `apiErr.Code` and the redacted, bounded `Message`), so it
+    can only fall to an empty `Tool`, the safe direction.
+* **The limit's tests** (ST43, ST86), red at the stub unless marked a guard:
+  `TestClassify_ErrorBodyLimit_0084` (`llmprovider`: an overflow-typed 400 of
+  200 KiB is `ErrContextOverflow`; one of exactly 1 MiB parses; one cut by the
+  read keeps `ErrInvalidRequest`, a guard in that half); `TestToolSchemaRefusal_
+  BodyLimit_0084` (`llmprovider`: a 70 KiB refusal gets the kind; one of
+  exactly 1 MiB, the cap, gets the kind; one whose JSON the read cuts keeps
+  today's kind, a guard; one over 1 MiB whose object closes early, followed by
+  whitespace, gets the kind); `TestToolSchemaRefusal_BigBody_0084`
+  (`providers`: through Grok's Generate and Stream, a 70 KiB refusal names its
+  tool, and one whose name lies beyond `Message`'s 512 bytes has the kind and
+  no `Tool`). Each body is a recorded one with a named edit: padding added in a
+  field after the error, or whitespace after the object. The 64 KiB limit's
+  other statements, searched for in tests, docs and records (`64 << 10`,
+  "64 KiB", `apiErrorBodyLimit`): `api_error.go`'s two comments are updated;
+  0012-MADR, 0012-PLAN and 0021-MADR's Z1 are annotated; the file-size limits
+  of the token and client stores (0016, 0082 and their tests, `auth`, the
+  wizard) are another limit and are not touched; `htmlErrorPage` and its
+  benchmark keep 64 KiB as their input, with a dated note in the test's
+  comment that the read limit is now larger.
+* **Follow-ups, not done now** (seen in review): Claude computes its deferral
+  form twice, in `call`'s warnings and in `body` (`claude.go:379`, `:463`);
+  `classifyAPIError`'s positional `reply bool` may be better as a named type or
+  a field of the envelope. Also, from the re-review of this pass: `redactInput`'s
+  2 KiB clip (0021-MADR Z1) is now the only bound on redaction cost for a
+  message of up to 1 MiB, and no test pins it; removing it survives every test,
+  since the output is unchanged and only the cost changes. A benchmark guard or
+  an allocation assertion would cover it, in a later record.
+* **Correction, dated 2026-11-21, after the re-review:** the MADR's ST86 row
+  said an overflow-typed 400 of 200 KiB is `ErrContextOverflow`, but
+  `TestClassify_ErrorBodyLimit_0084` checks an OpenAI quota 429 at 200 KiB; the
+  row now says that, `ErrQuotaExhausted`, in place.
+
+#### Outcome of build pass 2 (2026-11-21)
+
+Built on `9e84a88`, after the records above. No live run, no
+`LLMPROVIDER_LIVE_*` variable, nothing staged or committed.
+
+* **The limit.** `apiErrorBodyLimit` is `1 << 20`; its comment and
+  `apiErrorRedactLimit`'s say so. The search for the old limit, in tests, docs
+  and records, found: the two comments (updated); 0012-MADR, 0012-PLAN and
+  0021-MADR's Z1 (annotated, dated); `htmlErrorPage` (a dated note: 64 KiB is
+  the benchmark's input); the file-size limits of `auth`, the wizard and
+  0016, 0081 and 0082's records (another limit, left alone); and one test that
+  stated the limit without saying so, `TestLookupModel_Bounds_0033`, whose
+  "100 KiB error body" had been cut by the 64 KiB read and now parses. **An
+  existing test changed**, by the owner's ruling and not by choice: the
+  original bound, at most 512 bytes of error text, is kept for a 2 MiB body,
+  which the new read cuts, and a 100 KiB body, now parsed, is held to the
+  `APIError`'s 512-byte `Message` and 1 KiB of text. A scratch copy with
+  `apiErrorMessageLimit` at 4096 turns the test red (2,123 bytes). The full
+  suite found no other test that depended on the old limit.
+* **The new tests.** `TestToolSchemaRefusal_OtherServices_0084` (a guard),
+  `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084`
+  (`llmprovider`, in `toolschema_services_0084_test.go`),
+  `TestToolSchemaRefusal_BigBody_0084` (`providers`), and 404 and 422 in
+  `ProxyAltered`. **At the stub:** `OtherServices` and `ProxyAltered` green
+  (12 of 12 guards pass); `BodyLimit` red by its assertion ("70 KiB: Kind
+  llmprovider: invalid request; want ErrToolSchemaRefused"),
+  `ErrorBodyLimit` red ("200 KiB: llmprovider: rate limited: openai HTTP 429",
+  want quota exhausted: the old read cut it), `BigBody` red ("70 KiB through
+  Generate: Tool \"\"; want \"record_city\"").
+* **Plants, on scratch copies of this tree, never the tree: all 13 caught.**
+  Pass 2's own: the limit back at 64 KiB (`BodyLimit`); at the superseded
+  128 KiB (`BodyLimit`, the 1 MiB cases); at 2 MiB (`BodyLimit`, the
+  one-byte-over cut case; `ErrorBodyLimit`); the helper falling back to the
+  last tool (`BigBody`, the name past the bound); an OpenAI, Grok, Google, or
+  Anthropic form read on every service, and Anthropic's on every service but
+  OpenCode (`OtherServices`, each under `gemini`, `kilo` and the others); the
+  row's status widened to any status that maps to `ErrInvalidRequest`, to 404
+  only and to 422 only (`ProxyAltered`). **The reviewer's `plant_runner.py`,
+  unchanged, with its `spec.json` and `spec2.json`, against a scratch copy of
+  this tree: 25 of 25 caught**, including the four survivors of pass 1 (the
+  OpenAI, Grok and Google forms on every service, and the 400 widened) and the
+  fifth, Anthropic's form on every service but OpenCode (`spec2.json`).
+* **The review's other findings.** (c): the package docs of `llmprovider`,
+  `grok`, `openai`, `claude` and `opencode` now say that a failure inside a
+  200 body or a stream is not classified and keeps the kind it had, and that
+  `x-should-retry: true` and an overflow win; the changelog, the architecture
+  and the sentinel's doc read "keeps today's kind" for such a failure, and the
+  changelog and the architecture state the 1 MiB read; the architecture's
+  `toolschema` row names `Refs` and the `Form` constants. (d): `toolschema.go`'s
+  comment now says the two share markers and read different inputs, so the
+  helper can only fall to an empty `Tool`.
+* **The gate**, on this Mac, each status before any filter: `go test -count=1`
+  on each changed package, exit 0 (the eleven of pass 1, and `catalog`);
+  `run-heavy -- go test -count=1 ./...`, exit 0, 44 packages `ok`, 29 s, after
+  the last code change (an earlier run of this pass failed once, on
+  `TestLookupModel_Bounds_0033`, above); `run-heavy -- make pre-add-check
+  FILES="<the 22 changed .go files>"`, exit 0, "go-precheck: 22 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`, exit
+  0 ("0 incompatible change(s)"); `tools/apidiff.py 9e84a88 <scratch commit>`,
+  exit 0, "Compatible changes: `APIError.Tool`: added; `ErrToolSchemaRefused`:
+  added", nothing else. The `make` doc gates, claims, recordlint and denyscan
+  are in the hand-back, run after this entry was written.
 
 ## Amendment of 2026-11-20: the test map, proposed tests, exit criteria and re-grounding
 

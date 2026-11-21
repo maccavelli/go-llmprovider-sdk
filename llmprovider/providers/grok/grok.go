@@ -73,6 +73,17 @@
 // can name only in the list, appends it instead (D6). Either way the response
 // carries WarningDeferralEmulated (D7).
 //
+// A refusal of a tool's schema, in the form xAI was recorded refusing with,
+// is an *APIError of kind llmprovider.ErrToolSchemaRefused: HTTP 400, code
+// invalid-argument, and a message holding the tag
+// [invalid_client_tool_schema], then the tool's name and a colon. Its Tool is
+// that name when the request sent a tool of it, after deferral, and never
+// the use_tool wrapper; a refused API key keeps llmprovider.ErrAuthFailure.
+// A failure inside a 200 body or a stream is not classified as the
+// kind and keeps the kind it had, and a reply marked x-should-retry: true,
+// or one that says the prompt is too long, keeps the kind those give it
+// (0084-MADR D1 to D4, N4, N5).
+//
 // Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
 // already hold of its model: a caller's catalog.WithModelLayer, a listing
 // that ListModels or catalog.List read, and the models.dev document once
@@ -245,13 +256,21 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := deferral.CheckDispatch(form, req); err != nil {
 		return nil, err
 	}
+	// The tools the body holds, once, for the encoder and for naming a refused
+	// one (0084-MADR D4).
+	tools := deferral.Tools(req, form)
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the effort sent is learned, and the
 	// request built again (0062-MADR D5).
 	effort := p.learner(req)
-	return wire.Send(ctx, string(llmprovider.ProviderGrok), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false, effort) },
+	resp, err := wire.Send(ctx, string(llmprovider.ProviderGrok), p.src,
+		func(token llmprovider.Token) wire.Call {
+			return p.call(req, p.facts(ctx, req, token), false, effort, tools)
+		},
 		decoder.DecodeFor(string(llmprovider.ProviderGrok)), effort.Check)
+	// A refusal of a tool's schema names the tool it refused, when the body
+	// held it (0084-MADR D2, D4).
+	return resp, wire.NameRefusedTool(err, wire.Held{Listed: deferral.Listed(tools, form)})
 }
 
 // check refuses, before the network, what the capabilities refuse, and an
@@ -292,11 +311,16 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	return func(yield func(llmprovider.Event, error) bool) {
-		// Each range is its own request, with its own effort learner.
+		// Each range is its own request, with its own effort learner and its
+		// own list of the tools the body holds (0084-MADR D4).
 		effort := p.learner(req)
-		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGrok), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true, effort) },
-			decoder.Events, effort.Check) {
+		tools := deferral.Tools(req, form)
+		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGrok), p.src,
+			func(token llmprovider.Token) wire.Call {
+				return p.call(req, p.facts(ctx, req, token), true, effort, tools)
+			},
+			decoder.Events, effort.Check)
+		for ev, err := range wire.NameRefusedStream(stream, wire.Held{Listed: deferral.Listed(tools, form)}) {
 			if !yield(ev, err) {
 				return
 			}
@@ -326,9 +350,10 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 }
 
 // body is the Responses request for req, with its model's facts, at the
-// effort learner chooses.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
-	[]llmprovider.Warning) {
+// effort learner chooses, sending tools, the list deferral.Tools gave for the
+// request.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner,
+	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -364,7 +389,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learn
 			body["include"] = []string{"reasoning.encrypted_content"}
 		}
 	}
-	wire.AddResponsesTools(body, deferral.Tools(req, form), req.ToolChoice)
+	wire.AddResponsesTools(body, tools, req.ToolChoice)
 	effort, warnings := p.effort(req, facts, learner)
 	if effort != "" {
 		body["reasoning"] = map[string]any{"effort": effort}
@@ -403,9 +428,10 @@ func (p *provider) effort(req *llmprovider.Request, facts catalog.ModelInfo, lea
 }
 
 // call is the Responses request for req, asking for an event stream when
-// stream is set, at the effort effort chooses.
-func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, facts, effort)
+// stream is set, at the effort effort chooses, sending tools.
+func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner,
+	tools []llmprovider.Tool) wire.Call {
+	body, warnings := p.body(req, facts, effort, tools)
 	if stream {
 		body["stream"] = true
 	}

@@ -443,10 +443,22 @@ func TestLookupModel_Bounds_0033(t *testing.T) {
 		t.Errorf("a cancelled context: %v, want context.Canceled", err)
 	}
 	const secret = "sk-secret-credential-0033"
-	big := newLookupServer(t, lookupDoc, http.StatusBadRequest, `{"error":{"message":"`+strings.Repeat("x", 100<<10)+secret+`"}}`)
+	// Dated 2026-11-21, 0084-MADR's eighth amendment (ST86): an error body is
+	// read to 1 MiB, not 64 KiB, so a 100 KiB body is now parsed whole, and its
+	// error carries the APIError's Message bounded to 512 bytes, behind the
+	// listing's prefix; it was a body the 64 KiB read cut. The original
+	// bound, at most 512 bytes of error text, is kept for a body over the new
+	// limit, which the read cuts.
+	big := newLookupServer(t, lookupDoc, http.StatusBadRequest, `{"error":{"message":"`+strings.Repeat("x", 2<<20)+secret+`"}}`)
 	_, err := LookupModel(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken(secret), "grok-x", lookupOpts(big)...)
 	if err == nil || len(err.Error()) > 512 || strings.Contains(err.Error(), secret) {
-		t.Errorf("a 100 KiB error body: %d bytes, credential present %v; want at most 512, none", len(errText(err)), strings.Contains(errText(err), secret))
+		t.Errorf("a 2 MiB error body: %d bytes, credential present %v; want at most 512, none", len(errText(err)), strings.Contains(errText(err), secret))
+	}
+	parsed := newLookupServer(t, lookupDoc, http.StatusBadRequest, `{"error":{"message":"`+strings.Repeat("x", 100<<10)+secret+`"}}`)
+	_, err = LookupModel(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken(secret), "grok-x", lookupOpts(parsed)...)
+	if apiErr, ok := errors.AsType[*llmprovider.APIError](err); !ok || len(apiErr.Message) > 512+len("…") ||
+		len(err.Error()) > 1024 || strings.Contains(err.Error(), secret) {
+		t.Errorf("a 100 KiB error body: %d bytes, credential present %v; want a Message of at most 512 bytes, none", len(errText(err)), strings.Contains(errText(err), secret))
 	}
 	if _, err := LookupModel(context.Background(), "no-such-provider", nil, "m"); !errors.Is(err, llmprovider.ErrInvalidProvider) {
 		t.Errorf("an unknown provider: %v, want ErrInvalidProvider", err)

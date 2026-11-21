@@ -26,6 +26,15 @@
 //	if errors.Is(err, llmprovider.ErrRateLimited) {
 //		return fmt.Errorf("try later: %w", err)
 //	}
+//
+// A service's refusal of a tool's schema is an *APIError of kind
+// ErrToolSchemaRefused, beneath ErrInvalidRequest, whose Tool names the
+// refused tool when the service named exactly one the request sent: the
+// host decides whether to send the conversation again without it, and the
+// SDK rewrites, drops and resends nothing (0084-MADR D1, D2, D5). A failure inside a 200 body or a stream is not classified as the
+// kind and keeps the kind it had, and a reply marked x-should-retry: true,
+// or one that says the prompt is too long, keeps the kind those give it
+// (0084-MADR N4, N5).
 package llmprovider
 
 import (

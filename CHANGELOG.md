@@ -13,6 +13,30 @@ tag and its commit without notes; its notes are its section here.
 
 ### Added
 
+- `llmprovider.ErrToolSchemaRefused`, beneath `ErrInvalidRequest`, for a
+  service's refusal of a tool's schema, and `APIError.Tool`, the refused
+  tool's name when the service named exactly one tool the request sent,
+  else empty. The kind is matched by service and marker, from an HTTP error
+  reply, on every route of the service whose reply carries the marker: Grok's
+  `[invalid_client_tool_schema]`, recorded on its Responses route; the code
+  `invalid_function_parameters`, recorded on OpenAI's and OpenCode Zen's
+  Responses routes, and read on OpenAI's API key, ChatGPT session and plan
+  session and on every OpenCode route; Anthropic's `tools.N.` path naming
+  `input_schema`, recorded on its Messages API and read for Claude alone;
+  and OpenCode Zen's Google route's `functionDeclaration parameters schema`.
+  The name is only ever one the request's body held, after deferral
+  (Anthropic's index is into the list as sent), and the SDK still rewrites,
+  drops and resends nothing. A refusal a service has reworded, or one in
+  another form, stays `ErrInvalidRequest`; a failure inside a 200 or a stream
+  keeps today's kind; a reply marked `x-should-retry: true` is still
+  `ErrProviderUnavailable`, and an overflow still `ErrContextOverflow`. An
+  error reply is now read to 1 MiB, where it was read to 64 KiB, so a refusal
+  with a large body is parsed whole; a body whose JSON the read cuts keeps
+  today's kind. Such
+  an error's text now begins "llmprovider: tool schema refused", where it
+  began "llmprovider: invalid request"
+  ([0084-MADR](docs/decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md)
+  D1 to D4).
 - `signin.VerifyKilo(ctx, key, organization, opts...)`, in the experimental
   `llmprovider/x/signin` and so outside the v1 promise: it checks a Kilo key
   against Kilo's profile, for a caller that drives its own sign-in. It

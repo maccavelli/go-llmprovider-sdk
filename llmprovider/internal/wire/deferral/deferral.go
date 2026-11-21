@@ -283,6 +283,24 @@ func Tools(req *llmprovider.Request, form Form) []llmprovider.Tool {
 	}
 }
 
+// Listed is the names of tools, which Tools gave for form, in order: what a
+// refused tool's name or position is resolved against (0084-MADR D4). In the
+// Dispatch form the last entry is UseTool, the SDK's own wrapper, whose name
+// is "": CheckDispatch has refused a caller's tool of that name, so a UseTool
+// in this list is the wrapper's, and a refusal is never taken to name it. A
+// Search tool is listed under its own name, though the native form sends it
+// as a tool_search entry with none.
+func Listed(tools []llmprovider.Tool, form Form) []string {
+	out := make([]string, len(tools))
+	for i, tool := range tools {
+		if form == Dispatch && tool.Name == UseTool {
+			continue
+		}
+		out[i] = tool.Name
+	}
+	return out
+}
+
 // Loads is, by call id, the tools each result's ToolLoadItems load, in
 // order, once each: what a Dispatch result carries (0040-MADR D5, A5).
 func Loads(input []llmprovider.Item) map[string][]string {

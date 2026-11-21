@@ -21,6 +21,7 @@ var errorClasses = []error{
 	llmprovider.ErrIncomplete,
 	llmprovider.ErrWorkspaceRequired,
 	llmprovider.ErrWorkspaceNotFound,
+	llmprovider.ErrToolSchemaRefused,
 	llmprovider.ErrInvalidRequest,
 	llmprovider.ErrOffline,
 	llmprovider.ErrProviderUnavailable,
