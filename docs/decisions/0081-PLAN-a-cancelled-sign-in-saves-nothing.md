@@ -2728,3 +2728,106 @@ does not cover.
 docs-check links-check changelog-check`, `tools/denyscan.py --changed` and
 `tools/claims.py` on both records as in the hand-back. No race rerun: no
 existing test's timing changed, and the two new cases wait the same 0.6 s as the 503's.
+
+### Phase 3, build pass 1 (2026-11-20): the plant campaign, the Windows run and the gates
+
+Run on `main` at `cff8017` (Phase 2's commit), by a build engineer on the
+coordinator's brief. `git status --porcelain --untracked-files=all` was empty at
+the start; no other agent worked in the tree. No code and no test changed; plants
+ran on scratch clones only (`tools/plant.py`, `tools/redgreen.py`); nothing was
+staged, committed, stashed or reverted. No live test, sign-in, built binary or
+provider was used. The specs (`PLANTS.json`, `RED.json`, `GUARDS.json`,
+`ALL-tree.json`) are scratch files of the build engineer, not in the tree; this
+PLAN does not ask for them to be committed.
+
+**Step 0, the re-grounding at `cff8017`.** `python3 -B tools/claims.py` on the
+MADR and this PLAN at their markers: 47 of 47 and 25 of 25, exit 0. The re-pointed
+rows ("C1 now" to "M2 now", "P1 now" to "P25 now") on a scratch copy with plain
+ids and `self=cff8017` (the MADR's other repositories at its marker's revisions):
+MADR 30 of 47, this PLAN 18 of 25, exit 1 each. Every row that moved is a line of
+a file Phase 2 was to change, and each moved because of that change, none by
+another: the text of **MADR** C1, C2, C3 (`wizard/auth.go:1103`, `:1107`, `:1185`;
+found at `:1111`, `:1115`, `:1193`), C8, C15, C16, C24, C29 (`wizard/configure.go`,
+text found at `:345`, `:371`, `:390`, `:381`, `:394`), C11 (`:919`, found at
+`:1004`), C14 (`:939`, found at `:1024`), C13 (`wizard/auth.go:478`, found at
+`:484`) and C17 (0080-MADR `:329`, found at `:334`) is present at a later line;
+C9 (`ResolveCredential`'s last check), C10 (the step's save), C20 (`Wait`'s
+doc) and C23 (`ConfigureLLM` calls `credentialStep`; now `unsavedStep`) have no
+longer the base's text, which is the change itself (D5, D7; their new words are
+in `wizard/configure.go` and `llmprovider/x/signin/signin.go`); C32's text is at
+`:387` and `:401`. **This PLAN's** P1 (`README.md:434`), P3
+(`docs/architecture.md:1120`, text at `:1123`), P6 (`wizard/configure.go:433`), P7
+(`:484`), P16 (`wizard/auth.go:55`, `saveTo`'s comment reworded), P14
+(0059-MADR `:494`, found at `:501`) and P18 (`:147`, found at `:151`) moved or
+were reworded by Phase 2's docs step. The rest hold. No moved line shows a
+behaviour that Phase 2 did not decide: the moved code is the decided code, and
+`git diff --stat 77c59ca cff8017` lists the sixteen files of Phase 2 only.
+
+**Step 1, the plants** (`python3 -B tools/plant.py PLANTS.json`, scratch clone,
+each plant run against `go test -count=1 -v ./wizard/ ./llmprovider/x/signin/`
+with a runner script that prints the failing test names): **26 plants, all 26
+caught**, exit 0. Phase 2's 19 (named in its entry) and seven more from "The
+plants, re-mapped after 0082": `save`'s first check refusing any error (P-5, S22);
+`save`'s first check removed; `write`'s check removed; `write`'s check moved
+before the lock's wait (into `writeUnderLock`, before `lockToSave`); `write`'s
+check skipped on the retry pass; the listing's suppression on the listing's own
+`dCtx` (two of the six sites); the organizations warning suppressed whatever the
+context. First failing tests, each from the quoted run: the commit's check
+removed, `TestCancelDuringListingSavesNothing_0081` and the device-flow and
+issue guards (`ResolveCredential` cases); the check for a session only,
+`TestDeadlineReturnsNoKey_0081`, `TestCancelDuringListingReturnsNoKey_0081`,
+`TestCancelledRunReturnsNoCredential_0081`; a cancel matched, not a deadline,
+`TestDeadlineDuringListingSavesNothing_0081`, `TestDeadlineReturnsNoKey_0081`,
+`TestCancelDuringKiloProfileSavesNothing_0081/deadline_during_the_read`;
+`ConfigureLLM` saving in the step again,
+`TestConfigureLLM_BrowserAndDevicePersistSessions`,
+`TestCancelBetweenTheCheckAndTheWriteSaves_0081`,
+`TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081` (not
+`TestConfigureSavesOnceAfterTheModel_0081` or `TestModelStageErrorSavesNothing_0081`
+among the first twelve lines the tool prints, which cap the list); the model-id
+branch not committed, `TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081/through_the_model-id_branch`;
+`ResolveCredential`'s own last check put back, `TestCancelAfterSaveReturnsTheResult_0081`;
+N3's check removed, `TestCancelDuringListingSavesNothing_0081/.../ConfigureLLM`;
+`write`'s check removed, `TestSaveCancelledAtAnyWaitSavesNothing_0082/a_context_ended_while_the_prompt_was_open`
+and `TestSaveWithALockerThatIgnoresTheContext_0082`; `write`'s check moved before
+the wait, `TestSaveWithALockerThatIgnoresTheContext_0082` alone; `write`'s check
+skipped on the retry pass,
+`TestSaveCancelledAtAnyWaitSavesNothing_0082/a_context_ended_while_the_prompt_was_open`
+alone; `save`'s `Token` on a context that never ends,
+`TestCancelDuringRefreshSavesNothing_0081`; `save`'s first check refusing any
+error, `TestSessionDueAtTheCommit_0081` (the 503, 429 and transport cases); each
+architecture sentence, `TestSaveNotesInTheArchitecture_0081`; `signsInAgainTo`
+ignoring the record, `TestAbandonedPlanRunKeepsTheClientRecord_0081` and
+`TestPlanPreviousOnlyForTheSameSignIn_0082`; the organizations warning,
+`TestCancelDuringKiloProfileSavesNothing_0081` (kept under `Discover` only) and
+`TestKiloVerify_NoDiscoverNoRead_0080/device_session`,
+`TestKiloVerify_OutagesWarn_0080` (suppressed always); the Kilo words,
+`TestKiloUnverifiedNoticeClaimsNoSave_0081`.
+
+**Differences from the re-mapped table (reasoned, now run).** The plant on the
+listing's own `dCtx` was caught by `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+and `TestSession_RefreshAfterLimitSaved_0059` only; the table's P-13
+(`TestListingLimitIsAnOutageAndSaves_0081`) and P-17's deadline case did not fail
+under it (the plant moved two of the six sites, the two where a failed listing
+has or has not a static catalog). It is caught, by tests that already existed;
+this is a gap in which of the new tests cover that plant, not a plant uncaught,
+and is left for the owner.
+
+**Step 2, red and green** (`tools/redgreen.py`, outputs in the scratch folder):
+`RED.json --expect fail --rev 77c59ca` **27 of 27 fail as expected**, exit 0;
+`GUARDS.json --expect pass --rev 77c59ca` 5 of 5 pass, exit 0; `ALL-tree.json
+--expect pass` on the tree **32 of 32 pass**, exit 0. (A first `--expect pass`
+run with the spec that carries `files` was refused by the tool, "files and drop
+need --rev", exit 2; the tree-form spec is the right one.) `--rev b109cea`
+remains impossible for the new files (Phase 2's entry).
+
+**Steps 3 to 7, and the Windows run** (each status taken before any filter):
+
+* `run-heavy -- go test -race -count=1 ./wizard/... ./llmprovider/x/signin/... ./internal/signinflow/... ./llmprovider/auth/...`, session host, exit 0 (four packages ok).
+* `run-heavy -- python3 -B tools/gate.py --timeout 5400`, session host, exit 0, 30 of 30 passed (589 s).
+* `make lint` exit 0 (0 issues); `make vuln` exit 0 (no vulnerabilities found; the network was reachable); `go vet -tags live_gateways ./...` exit 0.
+* `make parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest`, each exit 0 (one run per target); `run-heavy -- make tools-test` exit 0.
+* `python3 -B tools/claims.py` on the MADR and this PLAN: 47 of 47 and 25 of 25, exit 0; `tools/denyscan.py --changed` and `tools/recordlint.py --changed`, exit 0 (re-run after this entry was added, below).
+* **Windows:** `run-on-host --need windows -- go test -count=1 ./wizard/`, native Windows host, remote status 0, `ok .../wizard 21.187s`. P-16's kill and `FileTokenStore`'s write ran on Windows.
+
+**Not run / not done:** `--rev b109cea` (see above). Nothing else skipped. Phase 3's exit criterion (no blocker, every row tested, plants caught) is met; the plan's status stays `in-progress` for Phase 4.
