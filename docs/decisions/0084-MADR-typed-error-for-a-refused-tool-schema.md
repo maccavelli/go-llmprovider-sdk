@@ -1389,3 +1389,43 @@ is a cut object, not a size.
   build pass 2. No decision changes.
 
 Counts: ST86 is added, decided; ST43 is restated, and no other row changes.
+
+## Ninth amendment of 2026-11-21: Phase 4's review, and the caps on an error body's lists
+
+Dated addition; nothing above is rewritten. The independent review of Phase 2
+and 3 (0084-PLAN Phase 4) found one blocker, which the ST86 limit made reachable,
+and the owner ruled on it, relayed by the coordinator.
+
+### The evidence
+
+At the 1 MiB read (ST86), `parseAPIErrorBody` decides whether a type is new by
+scanning the list it is building (`llmprovider/api_error.go:785`,
+`!env.hasType(v)`, reached for each `details` entry at `:829`, `add(d.Reason)`),
+which is quadratic in the number of distinct reasons. The reviewer measured a
+1 MiB Google-shaped body of distinct `details[].reason` values at about 3.15 s
+to classify, and 22.6 ms at 60 KiB. `limitOf` copies every quota violation the
+parse kept (`llmprovider/api_limit.go:154`, `l.Quotas = append(...)`, no cap),
+and `parseAPIErrorBody` kept all of them (`:838`): 8,134 `Quota` entries on the
+error from a 1 MiB body. ST86 stated a cost of memory only, up to 1 MiB held
+while an error is classified; it did not state this CPU cost, nor the entries
+kept on the error.
+
+### The owner's ruling of 2026-11-21
+
+* **B1:** "Set-based check + cap the lists (Recommended)", the owner's answer,
+  relayed by the coordinator.
+* **`TestLookupModel_Bounds_0033`:** "Confirm the change (Recommended)": the
+  owner confirms that test's change, made in build pass 2, as covered by the
+  1 MiB ruling (ST86).
+
+### Rows changed and added
+
+| Id | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- |
+| ST86 | decided, annotated | as before; its stated cost, up to 1 MiB held, covered memory only. The parse's CPU cost and the entries kept on the error are bounded by ST87 | the review's B1 | `TestClassify_ManyDetails_0084` |
+| ST87 | decided, added | `parseAPIErrorBody` tells whether a type is new through a set, not by scanning the list; it reads at most 32 `details` entries of an error, and at most 32 quota violations in all, so an error keeps at most 32 `Quota` entries on `Limit` and at most 32 reasons among its types. A Google-shaped body of distinct reasons costs time in proportion to its size (corrected in place 2026-11-21, after the re-check: the best time at about 1 MiB over the best at 64 KiB is under 64, about 16 as built and 140 to 250 for the scanned list, where an absolute bound of 100 ms was first written), and one of distinct violations keeps at most 32 entries (it kept 8,134), also for two details of 40 violations each (at most 32 in all, not for each detail). An error with a few details keeps them all | the owner's ruling "Set-based check + cap the lists (Recommended)"; the review's B1 | `TestClassify_ManyDetails_0084` |
+| ST10 | decided, test added | as before, on every OpenCode route: the held list is the list as sent, so on the Google route a deferred tool that was not sent is never named | D2; D4; the review (B2) | `NeverNamesUnsent`, its zen-google case with an unsent deferred tool |
+| ST11, ST42, ST43 | decided, test added | as before; and a message that gives no name at all, with no slot where one would sit (OpenAI's `function '<name>'` replaced by words, Google's backticked name cut): the kind, `Tool` empty, with two tools sent and with one | D2; Q4; the review | `TestToolSchemaRefusal_NamesNothingNoSlot_0084`; a case of `TestNameRefusedTool_Forms_0084` |
+
+Counts: ST87 is added, decided; ST86 is annotated; no other row changes its
+outcome.

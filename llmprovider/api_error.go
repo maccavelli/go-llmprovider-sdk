@@ -118,6 +118,12 @@ const (
 	// page whole is wasted work (0021-MADR Z1); four times the kept bytes
 	// leaves room for redaction to shorten what comes first (0028-MADR D-A10).
 	apiErrorRedactLimit = 2 << 10
+	// apiErrorDetailLimit bounds how many of an error's details entries are
+	// read, and apiErrorQuotaLimit how many quota violations in all: a body
+	// of up to 1 MiB can hold tens of thousands of each, which cost time and
+	// would be kept on the error (0084-MADR, ninth amendment, ST87).
+	apiErrorDetailLimit = 32
+	apiErrorQuotaLimit  = 32
 )
 
 // APIError is a failure the service reported, with its own classification
@@ -780,9 +786,14 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		return apiErrorEnvelope{msg: strings.TrimSpace(string(body))}
 	}
 	var env apiErrorEnvelope
+	// seen tells whether a type is new in constant time: scanning env.types
+	// for each reason made a body of many distinct ones cost the square of
+	// their number (0084-MADR ST87).
+	seen := map[string]struct{}{}
 	add := func(values ...string) {
 		for _, v := range values {
-			if v != "" && v != "error" && !env.hasType(v) {
+			if _, dup := seen[v]; v != "" && v != "error" && !dup {
+				seen[v] = struct{}{}
 				env.types = append(env.types, v)
 			}
 		}
@@ -825,7 +836,7 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 	switch {
 	case json.Unmarshal(top.Error, &inner) == nil:
 		metadata = append(metadata, inner.Metadata)
-		for _, d := range inner.Details {
+		for _, d := range inner.Details[:min(len(inner.Details), apiErrorDetailLimit)] {
 			add(d.Reason)
 			if strings.HasSuffix(d.Type, "google.rpc.RetryInfo") {
 				env.retryDelay = protoDuration(d.RetryDelay)
@@ -833,7 +844,7 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			if strings.HasSuffix(d.Type, "google.rpc.ErrorInfo") {
 				metadata = append(metadata, d.Metadata)
 			}
-			for _, v := range d.Violations {
+			for _, v := range d.Violations[:min(len(d.Violations), max(0, apiErrorQuotaLimit-len(env.quotas)))] {
 				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
 				env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: scalarText(v.QuotaValue)})
 			}

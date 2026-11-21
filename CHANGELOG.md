@@ -23,16 +23,14 @@ tag and its commit without notes; its notes are its section here.
   Responses routes, and read on OpenAI's API key, ChatGPT session and plan
   session and on every OpenCode route; Anthropic's `tools.N.` path naming
   `input_schema`, recorded on its Messages API and read for Claude alone;
-  and OpenCode Zen's Google route's `functionDeclaration parameters schema`.
+  and `functionDeclaration parameters schema`, recorded on OpenCode Zen's
+  Google route and read on every OpenCode route.
   The name is only ever one the request's body held, after deferral
   (Anthropic's index is into the list as sent), and the SDK still rewrites,
   drops and resends nothing. A refusal a service has reworded, or one in
   another form, stays `ErrInvalidRequest`; a failure inside a 200 or a stream
   keeps today's kind; a reply marked `x-should-retry: true` is still
-  `ErrProviderUnavailable`, and an overflow still `ErrContextOverflow`. An
-  error reply is now read to 1 MiB, where it was read to 64 KiB, so a refusal
-  with a large body is parsed whole; a body whose JSON the read cuts keeps
-  today's kind. Such
+  `ErrProviderUnavailable`, and an overflow still `ErrContextOverflow`. Such
   an error's text now begins "llmprovider: tool schema refused", where it
   began "llmprovider: invalid request"
   ([0084-MADR](docs/decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md)
@@ -52,6 +50,16 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- An error reply is now read to 1 MiB for every provider, where it was read
+  to 64 KiB, so a body between the two is parsed whole instead of cut inside
+  its JSON, and other kinds can change too: a 200 KiB quota 429 from OpenAI
+  is now `ErrQuotaExhausted`, where it was a plain rate limit. A body whose
+  JSON the read cuts keeps the kind it had. The parse of an error body
+  reads at most 32 `details` entries and at most 32 quota violations, so a
+  large body costs time in proportion to its size and `Limit.Quotas` holds
+  at most 32 entries
+  ([0084-MADR](docs/decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md)
+  ST86, ST87).
 - The wizard checks a Kilo credential against Kilo's profile, under
   `Options.Discover` and when no organization is set, and refuses it on a
   401: a wrong Kilo key is no longer saved to fail on first use, because

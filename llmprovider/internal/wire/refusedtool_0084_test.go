@@ -125,6 +125,18 @@ func TestNameRefusedTool_Forms_0084(t *testing.T) {
 			Held{Listed: []string{"noop", ""}}, nil, ""},
 		{"grok, not in the list", "refusals-0062/responses/grok-string-schema-tool.json", "grok",
 			Held{Listed: []string{"noop"}}, nil, ""},
+		// A message that gives no name at all, no slot where one would sit (ST11,
+		// ST42, ST43; the review of Phase 4), with two tools held and with one:
+		// never the last tool, never the only one.
+		{"openai, no name slot, two tools", "refusals-0062/responses/openai-string-schema-tool.json", "openai", held0084,
+			func(m string) string { return strings.ReplaceAll(m, "function 'record_city'", "a function") }, ""},
+		{"openai, no name slot, one tool", "refusals-0062/responses/openai-string-schema-tool.json", "openai",
+			Held{Listed: []string{"record_city"}},
+			func(m string) string { return strings.ReplaceAll(m, "function 'record_city'", "a function") }, ""},
+		{"google, no name slot, two tools", "refusals-0062/generatecontent/opencode-zen-google-string-schema-tool.json", "opencode",
+			held0084, func(m string) string { return strings.ReplaceAll(m, "`record_city` ", "") }, ""},
+		{"google, no name slot, one tool", "refusals-0062/generatecontent/opencode-zen-google-string-schema-tool.json", "opencode",
+			Held{Listed: []string{"record_city"}}, func(m string) string { return strings.ReplaceAll(m, "`record_city` ", "") }, ""},
 		{"grok, in Inside only", "refusals-0062/responses/grok-string-schema-tool.json", "grok",
 			Held{Listed: []string{"noop"}, Inside: []string{"record_city"}}, nil, "record_city"},
 		{"grok, an entry of no name", "refusals-0062/responses/grok-string-schema-tool.json", "grok",

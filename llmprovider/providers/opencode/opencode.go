@@ -119,9 +119,10 @@
 // llmprovider.ErrToolSchemaRefused when its reply carries a marker the
 // gateway was recorded sending, on any route: the code
 // invalid_function_parameters, as OpenAI sends it and Zen's responses route
-// did, with the tool named in the message's function '<name>'; or, on the
-// google route, INVALID_ARGUMENT naming a functionDeclaration parameters
-// schema, with the tool in backticks before it. Tool is that name when the
+// did, with the tool named in the message's function '<name>'; or
+// INVALID_ARGUMENT naming a functionDeclaration parameters schema, with the
+// tool in backticks before it, which the google route was recorded sending.
+// Both are read on every route of the gateway, by marker. Tool is that name when the
 // request sent a tool of it. Anthropic's form is not read here: the messages
 // route was recorded with no refusal. A refusal of anything else, such as
 // the google route's additionalProperties, stays an invalid request.

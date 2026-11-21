@@ -338,6 +338,11 @@ func TestToolSchemaRefusal_NeverNamesUnsent_0084(t *testing.T) {
 			renamed(t, claude.Body, "tools.1.", "tools.2.")},
 		{"zen google: a name the request did not send", routeZenGoogle, asked(google.tools()...),
 			renamed(t, google.Body, "record_city", "ghost_tool")},
+		// ST10 on a route other than Responses (the review of Phase 4, B2): a
+		// deferred tool not loaded is not sent on OpenCode's Google route
+		// either, so the held list is the list as sent, not Request.Tools.
+		{"zen google: a deferred tool that was not sent", routeZenGoogle, asked(append(google.tools(), deferred)...),
+			renamed(t, google.Body, "record_city", "deferred_tool")},
 	} {
 		gen, stream := refusalErrors(t, tc.route, tc.req, tc.body)
 		for _, got := range []struct {
@@ -557,6 +562,47 @@ func TestToolSchemaRefusal_NamesNothing_0084(t *testing.T) {
 		gen, stream := refusalErrors(t, tc.route, asked(f.tools()...), renamed(t, f.Body, "record_city", ""))
 		wantTool(t, f.Case+" through Generate", gen, "")
 		wantTool(t, f.Case+" through Stream", stream, "")
+	}
+}
+
+// TestToolSchemaRefusal_NamesNothingNoSlot_0084 (MADR D2, Q4; ST11, ST42,
+// ST43; the review of Phase 4): the route's marker and a message that gives no
+// name at all, with no slot where a name would sit: the kind, `Tool` empty,
+// never the last or the only tool sent, with two tools sent and with one. F2
+// with its "function 'record_city'" clause replaced by words, and F7 with its
+// backticked name cut, each a named edit; OpenAI's, OpenCode Zen's Responses
+// route's and its Google route's. (`NamesNothing` empties the name in its
+// slot, which the helper reads as an empty name; here there is no name to read.)
+func TestToolSchemaRefusal_NamesNothingNoSlot_0084(t *testing.T) {
+	openai := readRecorded0084(t, "refusals-0062/responses/openai-string-schema-tool.json")
+	google := readRecorded0084(t, "refusals-0062/generatecontent/opencode-zen-google-string-schema-tool.json")
+	cutOpenAI := editMessage(t, openai.Body, func(msg string) string {
+		if !strings.Contains(msg, "function 'record_city'") {
+			t.Fatalf("F2's message changed: %q", msg)
+		}
+		return strings.ReplaceAll(msg, "function 'record_city'", "a function")
+	})
+	cutGoogle := editMessage(t, google.Body, func(msg string) string {
+		if !strings.Contains(msg, "`record_city` ") {
+			t.Fatalf("F7's message changed: %q", msg)
+		}
+		return strings.ReplaceAll(msg, "`record_city` ", "")
+	})
+	city := llmprovider.Tool{Name: "record_city", Schema: map[string]any{"type": "string"}}
+	for _, tc := range []struct {
+		name  string
+		route toolRoute
+		body  string
+	}{
+		{"openai", routeOpenAI, cutOpenAI},
+		{"zen-responses", routeZenResponses, cutOpenAI},
+		{"zen-google", routeZenGoogle, cutGoogle},
+	} {
+		for _, tools := range [][]llmprovider.Tool{{noopTool(), city}, {city}} {
+			gen, stream := refusalErrors(t, tc.route, asked(tools...), tc.body)
+			wantTool(t, fmt.Sprintf("%s, %d tool(s), through Generate", tc.name, len(tools)), gen, "")
+			wantTool(t, fmt.Sprintf("%s, %d tool(s), through Stream", tc.name, len(tools)), stream, "")
+		}
 	}
 }
 

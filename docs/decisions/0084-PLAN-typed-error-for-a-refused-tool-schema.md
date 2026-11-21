@@ -2458,11 +2458,15 @@ then code, with no stop between. A third pass would need the owner.
 * **Follow-ups, not done now** (seen in review): Claude computes its deferral
   form twice, in `call`'s warnings and in `body` (`claude.go:379`, `:463`);
   `classifyAPIError`'s positional `reply bool` may be better as a named type or
-  a field of the envelope. Also, from the re-review of this pass: `redactInput`'s
-  2 KiB clip (0021-MADR Z1) is now the only bound on redaction cost for a
-  message of up to 1 MiB, and no test pins it; removing it survives every test,
-  since the output is unchanged and only the cost changes. A benchmark guard or
-  an allocation assertion would cover it, in a later record.
+  a field of the envelope. ~~Also, from the re-review of this pass:
+  `redactInput`'s 2 KiB clip (0021-MADR Z1) is now the only bound on redaction
+  cost for a message of up to 1 MiB, and no test pins it; removing it survives
+  every test, since the output is unchanged and only the cost changes. A
+  benchmark guard or an allocation assertion would cover it, in a later
+  record.~~ *(Struck 2026-11-21, Phase 4: the claim is wrong, and the follow-up
+  is dropped. The reviewer's plant removing the clip is caught by
+  `TestClassify_16KiBTokensUnder1ms` (`api_error_cut_0028_test.go:18`), which
+  asserts that `redactInput` keeps at most 2 KiB.)*
 * **Correction, dated 2026-11-21, after the re-review:** the MADR's ST86 row
   said an overflow-typed 400 of 200 KiB is `ErrContextOverflow`, but
   `TestClassify_ErrorBodyLimit_0084` checks an OpenAI quota 429 at 200 KiB; the
@@ -2486,7 +2490,9 @@ Built on `9e84a88`, after the records above. No live run, no
   which the new read cuts, and a 100 KiB body, now parsed, is held to the
   `APIError`'s 512-byte `Message` and 1 KiB of text. A scratch copy with
   `apiErrorMessageLimit` at 4096 turns the test red (2,123 bytes). The full
-  suite found no other test that depended on the old limit.
+  suite found no other test that depended on the old limit. *(Confirmed
+  2026-11-21, Phase 4: the owner's answer "Confirm the change (Recommended)",
+  relayed by the coordinator; the change is covered by the 1 MiB ruling.)*
 * **The new tests.** `TestToolSchemaRefusal_OtherServices_0084` (a guard),
   `TestToolSchemaRefusal_BodyLimit_0084`, `TestClassify_ErrorBodyLimit_0084`
   (`llmprovider`, in `toolschema_services_0084_test.go`),
@@ -2720,6 +2726,149 @@ Steps 0 to 7 ran; the base red's exit 1 is the dated deviation below.
   most twelve failure lines, so a second named test can be hidden by a
   noisy first one; the row-removed plants were rerun with `Names` alone to
   show it.
+
+### Phase 4, the independent review and its fixes (2026-11-21)
+
+At `b4ad41f`, Phases 2 and 3 committed, tree clean. The reviewer's files are in
+the session's scratch folder (`p4-0084/`); none is in the tree. Records first
+(the MADR's ninth amendment, this entry), then code, each fix's test seen red
+before the fix. The owner's answers, relayed by the coordinator: B1, "Set-based
+check + cap the lists (Recommended)"; `TestLookupModel_Bounds_0033`, "Confirm
+the change (Recommended)".
+
+* **B1, the blocker: a quadratic duplicate check, and lists with no cap.**
+  `api_error.go:785` (`!env.hasType(v)`, reached from `:829`) scans the list
+  it builds for each reason, so at the 1 MiB read a body of distinct
+  `details[].reason` values takes about 3.15 s to classify (22.6 ms at 60 KiB);
+  `api_limit.go:154` appends `Quotas` with no cap (8,134 entries from 1 MiB).
+  ST86's stated cost covered memory only. **Done:** a set in
+  `parseAPIErrorBody`; at most 32 `details` entries and at most 32 quota
+  violations read; MADR ST87, with ST86 annotated. **Test, red first:**
+  `TestClassify_ManyDetails_0084`: a 1 MiB Google-shaped body of distinct
+  reasons classifies in under 100 ms and a body of distinct violations keeps at
+  most 32 `Quota` entries, and the entries kept on the error are asserted
+  apart (so removing a cap shows). **Plants:** the scanned list restored; each
+  cap removed.
+* **Fix 2, ST11, ST42 and ST43 unpinned.** `refusedtool.go`'s `return found` is
+  tested for a message that gives no name only with the name emptied in its
+  slot; the reviewer's plants A1, A2 and A4 (a marker seen with no name read
+  returns the last tool, or the only tool, or the last tool on OpenAI's form)
+  survived every 0084 test. **Done:** the reviewer's draft is
+  `TestToolSchemaRefusal_NamesNothingNoSlot_0084` among the providers' 0084
+  tests (F2 with `function 'record_city'` replaced by `a function`, F7 with
+  the backticked name cut, on openai, zen-responses and zen-google, through
+  Generate and Stream, with two tools sent and with one; `Tool` empty), and a
+  matching case in `TestNameRefusedTool_Forms_0084`. A1 to A4 are run again.
+* **Fix 3, ST10 on OpenCode's other routes.** B2, the held list taken from
+  `req.Tools` on the routes other than Responses, was caught by no test.
+  **Done:** a zen-google case with an unsent deferred tool in
+  `NeverNamesUnsent`.
+* **Fix 4, two docs nits.** `opencode.go`'s package doc said the Google form is
+  read "on the google route", but the code reads it on every OpenCode route (as
+  the MADR decides); the doc now matches. The changelog gains a **Changed**
+  entry: an error reply is read to 1 MiB for every provider, so other kinds can
+  change too (ST86's own example, a 200 KiB quota 429 is now
+  `ErrQuotaExhausted`), and the two caps of B1.
+* **Fix 5, records.** (D1) The execution record's claim in build pass 2 that
+  removing `redactInput`'s 2 KiB clip "survives every test" was wrong: the
+  reviewer's plant was caught by `TestClassify_16KiBTokensUnder1ms`
+  (`api_error_cut_0028_test.go:18`). Struck, dated, and the follow-up it raised
+  dropped. The owner's confirmation of `TestLookupModel_Bounds_0033` is
+  recorded where build pass 2 names that change.
+* **A follow-up, not a fix:** `io.ReadAll` over `io.LimitReader` grows its
+  buffer by doubling, so reading an error body up to 1 MiB can hold about twice
+  that while it is read; a read into a buffer sized from `Content-Length`, up to
+  the limit, would avoid it. It is bounded by the limit, and is for a later
+  record.
+
+#### Outcome of Phase 4's fixes (2026-11-21)
+
+Built on `b4ad41f`, after the records above. No live run, nothing staged or
+committed.
+
+* **B1.** `TestClassify_ManyDetails_0084` (`llmprovider`) was **red first** on
+  the unfixed code: "a 1023820-byte body of distinct reasons took 745 ms; want
+  under 100 ms", "kept 32340 types; want at most 32 reasons and the status",
+  and 8,134 quotas kept, in the error and in the envelope. It is green after
+  the fix: `parseAPIErrorBody` tells a new type through a set, reads at most
+  `apiErrorDetailLimit` (32) `details` entries and, in all, at most
+  `apiErrorQuotaLimit` (32) quota violations. The test also pins one detail
+  carrying all the violations (the entry cap does not bound it) and an error
+  with three reasons and three violations keeping all of them. ~~The bound is
+  ten times as long under the race detector (`race_0084_test.go` and
+  `norace_0084_test.go`, one constant); `-race -count=3` on the test, exit
+  0.~~ *(Struck 2026-11-21, after the re-check, see "The re-check's two
+  fixes" below: the race detector slows this parse about twentyfold, not
+  tenfold, and the two files are removed.)*
+  **Plants** (`tools/plant.py` and the reviewer's runner, on scratch copies):
+  the code before the fix, the scan restored and the details cap removed
+  together: caught (3.15 s; the time and the types); the details cap removed:
+  caught; the quota cap removed: caught (the one-detail body); each cap at
+  zero: caught. **One survivor, an equivalent mutant:** the scanned list
+  restored *alone*, with the 32-entry cap kept. The list it scans then holds at
+  most 33 types, so the cost and the output are unchanged and no test can see
+  it; the set matters only if the cap is removed, which the plants above catch.
+* **The re-check's two fixes (2026-11-21), tests only, no production change.**
+  (1) **E1:** "at most 32 quota violations in all" was unpinned: the plant that
+  caps per detail (`apiErrorQuotaLimit` in place of `max(0,
+  apiErrorQuotaLimit-len(env.quotas))`, up to 1,024 kept) survived
+  `TestClassify_ManyDetails_0084`. The reviewer's case is in that test: two
+  details of 40 violations each keep at most 32 in all. It fails under E1
+  ("kept 64 quotas") and under E3, the quota cap removed ("kept 80"). With the
+  reviewer's `caps.json` and `caps_inall.json` (the latter pointed at this
+  test's name), by `tools/plant.py`: **E1, E2 and E3 caught; E4, the scanned
+  list restored with the caps kept, stays the recorded equivalent mutant.**
+  (2) **The time bound, replaced.** The race detector slows this parse about
+  twentyfold (18 ms to 390 ms), not tenfold, so the absolute bound, ten times
+  longer under `-race`, had only about threefold headroom, and no plant was
+  caught by the time alone (the count assertions catch E2 and E3). The test
+  now takes the best of five classifications of a body of distinct reasons at
+  about 1 MiB over the best of five at 64 KiB, in the same run, and requires
+  the ratio under 64: about 16 as built, in both modes; the pre-fix code (the
+  scanned list, no caps, on a scratch copy) gives 194, red ("took 747 ms, and
+  one of 64 KiB 3.85 ms: a ratio of 194"). The count assertions are kept. The
+  two race files are removed, nothing else using them. `-race -count=5` on the
+  test through `run-heavy`, exit 0; `-count=10` without `-race`, exit 0. **A
+  follow-up, not a fix:** `perDayQuota` could be computed over every violation
+  of the kept details, with only the stored list capped; today a per-day
+  violation past the 32nd would read as `ErrRateLimited`, and no recorded body
+  comes close.
+* **Fix 2, ST11, ST42, ST43.** `TestToolSchemaRefusal_NamesNothingNoSlot_0084`
+  (the reviewer's draft, placed with the providers' 0084 tests) and four cases
+  of `TestNameRefusedTool_Forms_0084` (OpenAI's and Google's, two tools and
+  one). These tests are additions that pass on the unchanged code; their red is
+  their plants, the reviewer's A1 to A4 run unchanged from `specs/`: against
+  the providers' package, 4 of 4 caught; against `internal/wire`, 4 of 4
+  caught; against the renamed test alone, 4 of 4 caught; against the `Forms`
+  cases alone, 4 of 4 caught. (`helper_proposed.json` names the draft's own
+  test and so matches nothing now; it was run again with the new names.)
+* **Fix 3, ST10.** A zen-google case with an unsent deferred tool in
+  `NeverNamesUnsent`: the reviewer's B1 and B2 (`opencode_providers.json`), 2
+  of 2 caught; B2 was caught by no test before. The reviewer's `extra.json`
+  (C1 to C3) and `clip.json` (D1) are caught too, 4 of 4.
+* **Fix 4, docs.** `opencode.go`'s package doc says both forms are read on
+  every route of the gateway, by marker, and that the google route was recorded
+  sending the second; the changelog's **Added** says the same, and its
+  1 MiB sentence moved to a new **Changed** entry that names the example (a
+  200 KiB OpenAI quota 429 is now `ErrQuotaExhausted`) and the two caps
+  (`Limit.Quotas` holds at most 32 entries).
+* **Fix 5, records.** The build pass 2 claim about `redactInput` is struck, and
+  its follow-up dropped; the owner's confirmation of
+  `TestLookupModel_Bounds_0033` is recorded in build pass 2's entry; the
+  MADR's ninth amendment holds ST87 and the annotated ST86. The `io.ReadAll`
+  note is a follow-up above, not a fix.
+* **The gate**, on this Mac, each status before any filter: `run-heavy -- go
+  test -count=1 ./...`, exit 0, 44 packages `ok`, 30 s; `run-heavy -- make
+  pre-add-check FILES="<the 7 changed .go files>"`, exit 0, "go-precheck: 7
+  file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)" *(run
+  again after the re-check's fixes, on the 5 .go files that remain: exit 0,
+  "go-precheck: 5 file(s) clean", with `go test -count=1 ./llmprovider/` and
+  `run-heavy -- go test -count=1 ./...`, 44 packages `ok`, exit 0)*;
+  `go vet -tags live_gateways ./...`, exit 0; `tools/apidiff.py 9e84a88
+  <scratch commit>` (a scratch clone of `b4ad41f` with this phase's files
+  copied in), exit 0, exactly `APIError.Tool` and `ErrToolSchemaRefused`, both
+  compatible additions. The `make` doc gates, claims, recordlint and denyscan
+  are in the hand-back, run after this entry was written.
 
 ## Amendment of 2026-11-20: the test map, proposed tests, exit criteria and re-grounding
 
