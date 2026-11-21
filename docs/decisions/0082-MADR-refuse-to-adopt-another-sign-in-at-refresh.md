@@ -1150,6 +1150,14 @@ labels are quoted exactly; what was asked is in the words of this record.
   not stop a sign-in cancelled during a minute-long wait from saving when the
   lock comes free. R-7's loop composes with it: each pass takes the lock, then
   `write` checks the context, then saves. 0081 is not edited here.
+  *Dated note, 2026-11-20 (from 0081's records):* the check N-6 asks for is
+  `write`'s, and it stays where N-6 puts it. 0081 adds a second check, in its
+  `commitCredential`, which runs before `save` and so before the lock and its
+  wait: it is the only check at the commit for a key, or any credential with
+  no session, and for a session the early refusal. It does not replace `write`'s check,
+  which still covers a context that ends during the wait
+  (`0081-MADR-a-cancelled-sign-in-saves-nothing.md`, amendment of 2026-11-18,
+  "How the check composes with the lock and the retry loop").
 
 ### What this changes in the first amendment's claims
 

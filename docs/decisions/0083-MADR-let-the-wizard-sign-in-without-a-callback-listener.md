@@ -1077,3 +1077,490 @@ None. Every question this record put is answered ("Decided").
 (Q8). gobble-cli's pin bump, its two tests, its scripted prompters and any
 terminal flag are gobble-cli's own records' to plan, and so is
 prepare-commit-msg's pin bump (D9, D10).
+
+## Amendment of 2026-11-20: the state table, before any code
+
+*(Added 2026-11-20 by the readiness pass of the four records drafted with
+0080, before any of this record's code. Nothing above is rewritten or
+removed; no decision, status or owner answer changes. The facts are those of
+`24756a6`, the tip of `main` on 2026-11-20.)*
+
+*(Second pass, the same day: an independent review's findings and the owner's
+rulings on the first pass's open rows are applied in place, every row id
+kept. "Second pass: what changed", at the end of this amendment, lists each
+change.)*
+
+### Where the record stands
+
+* **Phase 0 has landed; nothing else has.** The records were placed in
+  `a3002aa`, the PLAN's amendment folded in by `bf8e502`, and both statuses
+  set by `8f133db` (the MADR `accepted`, the PLAN `in-progress`). At
+  `24756a6` no Go file names `0083`, `NoBrowserQuestion` or
+  `BindsNothing_0083` (`git grep`, `git log -S`). The PLAN's execution record
+  holds its drafting and its approval only.
+* **Two sentences above predate the acceptance.** "The record stays
+  `proposed` until the owner accepts it with its PLAN" (Decision Outcome) and
+  the PLAN described as "`proposed`" (More Information, "The PLAN") were true
+  when written. The ruling of 2026-11-17 in "Decided" accepted the record.
+* **Open rows.** The first pass left seven open rows; the owner ruled on all
+  of them the same day ("The owner's rulings of 2026-11-20", below). After
+  the second pass seven rows were open (ST68, ST70 to ST72, ST83 to ST85),
+  and the owner ruled on those too, the same day ("Third pass", below): no
+  row is open. This pass does not change the record's status.
+
+### Build order, and the files the two earlier records change first
+
+The coordinator's order for the three records that share the wizard's files
+is 0081, then 0085, then this record, last. At `24756a6` the PLANs' scopes
+name these files
+([0081-PLAN-a-cancelled-sign-in-saves-nothing.md](0081-PLAN-a-cancelled-sign-in-saves-nothing.md)
+"Scope" and Phase 2;
+[0085-PLAN-refuse-an-empty-typed-key.md](0085-PLAN-refuse-an-empty-typed-key.md)
+"Scope" and Phase 1):
+
+| File | 0081 changes | 0085 changes | This record changes |
+| :--- | :--- | :--- | :--- |
+| `wizard/configure.go` | the unsaved step and `commitCredential`; `credentialStep` as the two in order; `ResolveCredential`'s check after the step removed; `ConfigureLLM`'s check after the step and its save at its end; the docs of `credentialStep`, `ConfigureLLM`, `ResolveCredential`, `Options.TokenStore` | `secretKey`; `promptAPIKey`; `resolveAPIKey`'s and `keepExistingKey`'s trims; their docs and those of `ConfigureLLM` and `ResolveCredential` | the two fields; D4's check in `ConfigureLLM` and `ResolveCredential`; the docs of `Options.OpenURL`, `Options.NoPastePrompt`, `ConfigureLLM`, `ResolveCredential` |
+| `wizard/auth.go` | the docs of `resolvedCredential.save` and `saveTo` | `resolveTokenStdin` and its doc | the question and its run-held answer; `spec.NoLoopback` in `browserSignIn`; D5's instructions; D6's `OpenURL` rule |
+| `wizard/prompter.go` | – | `Prompter.Secret`'s doc | `Prompter.Select`'s doc |
+| new wizard tests | `cancel_save_0081_test.go`, `save_at_end_0081_test.go` | `empty_key_0085_test.go` and its companions | `browser_question_0083_test.go`, and the 30 existing tests of the PLAN's Phase 1 table |
+| `llmprovider/x/signin/` | `signin.go`: one sentence in `Wait`'s doc | – | `start_browser_0074_test.go` (the amendment of 2026-11-17) |
+| `README.md` | the wizard's sign-in bullet | the wizard section, and the line on Kilo and OpenCode keys | the wizard section, and the note to scripts |
+| `docs/architecture.md` | "When a session is saved", the wizard's paragraph on the save | "A refused key", "An optional key" | "The wizard", beside the `NoPastePrompt` bullet |
+| `CHANGELOG.md` `[Unreleased]` | Fixed and Changed | Fixed | Added and Changed |
+| `docs/guides/adding-a-provider.md` | – | the key step | – |
+| `wizard/kilo_verify.go` | not in its scope | not in its scope | not in its scope |
+
+The coordinator's brief names `wizard/kilo_verify.go` among the files all
+three records change. None of the three scopes at `24756a6` does. The base's
+`git diff` (PLAN, Phase 1 step 1, as amended this date) settles it.
+
+So every citation of `wizard/auth.go`, `wizard/configure.go`,
+`wizard/prompter.go`, `README.md`, `docs/architecture.md` and
+`CHANGELOG.md` re-grounded below holds at `24756a6` only, and moves again
+before this record's build. The PLAN's entry of this date makes Phase 1's
+first step a re-grounding at the base, after 0081's and 0085's code, which
+this one does not replace.
+
+### The state table
+
+Each row is one input or state the change can meet. **Decided** rows give
+the outcome a test can check, what decides it (an owner answer by its label,
+as "Decided" records it, or a D-number), and the test that pins it: the
+PLAN's name and phase, or an `NT` id, a test the PLAN's entry of this date
+proposes. **Out of scope** rows give the reason. **Open** rows are not
+decided by this record or any owner answer; they are put below.
+
+#### The caller's settings and the question
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST1 | Nothing set; the person picks "On this machine" | decided | the login gets `NoLoopback` false; the listener binds; today's instruction (C42); `OpenURL` called | D3; N3 "Only when the wizard itself shows the paste prompt; no answer means "this machine" (Recommended)" | `TestNoLoopbackOffByDefault_0083` (1) |
+| ST2 | Nothing set; an empty line | decided | the default, index 0, "On this machine": as ST1 | N3, as ST1; N4 "A two-choice menu through the existing `Select` (Recommended)" | `TestQuestionForm_0083` (1) for the index; the empty line itself: NT1 (1) |
+| ST3 | Nothing set; the input ends at the question (the first read at its end) | decided | the default, as ST1 | N3, as ST1 | `TestQuestionEndedInputIsThisMachine_0083` (1) |
+| ST4 | The input already exhausted at the question, or any other `Prompter` error from it | decided | one error that ends the run, the question rendered once, never asked again | D3; N3, as ST1; C66 | `TestQuestionExhaustedInputEnds_0083` (1) |
+| ST5 | Nothing set; the person picks "On another device" | decided | the login gets `NoLoopback` true; D5's words, the URL-only ones for a first plan sign-in; `OpenURL` not called | D3, D5, D6; Q6 "The draft's two instructions, word for word (Recommended)"; N6 "Not after the person's answer; still under the caller's option (Recommended)" | `TestQuestionAnswerElsewhere_0083` (1); the first plan sign-in's words after the answer: NT2 (1) |
+| ST6 | `NoLoopback` | decided | no question; the login gets `NoLoopback` true for OpenAI's and Grok's `browser_oauth` and for `chatgpt_plan`, first and again; D5's words; `OpenURL` called once | D1, D6, D7; Q1 "One option, `wizard.Options.NoLoopback` (Recommended)"; N2 "Set: no listener and no question; unset: ask where allowed (Recommended)"; N6, as ST5 | `TestNoLoopbackReachesTheLogin_0083`, `TestQuestionNoLoopbackStillOpens_0083` (1) |
+| ST7 | `NoLoopback` with `NoPastePrompt` | decided | an error matching `llmprovider.ErrInvalidRequest` from `ConfigureLLM` and from `ResolveCredential`, with no `Prompter` call, whatever provider or method would follow | D4; Q5 "An invalid-request error before any question is asked (Recommended)" | `TestNoLoopbackWithNoPastePromptRefused_0083` (1) |
+| ST8 | `NoBrowserQuestion` | decided | no question; `NoLoopback` false at the login; today's instruction; `OpenURL` called | D3, D7; N1 "On by default; a new `NoBrowserQuestion` field turns it off (Recommended)" | `TestNoBrowserQuestionKeepsToday_0083` (1) |
+| ST9 | `NoLoopback` with `NoBrowserQuestion` | decided | as ST6 | D7, its closing sentence | the question's absence: `TestQuestionNotAskedWhereItMustNot_0083` (1); `NoLoopback` at the login: NT3 (1) |
+| ST10 | `NoPastePrompt` alone | decided | no question; the listener binds (`NoLoopback` false at the login); the loopback alone completes | D4, D7; N3, as ST1 | `TestQuestionNotAskedWhereItMustNot_0083`, with NT12's assertion of `NoLoopback` at the login (1) |
+| ST11 | A `Driver`, no `NoLoopback` | decided | no question; the listener binds (`NoLoopback` false at the login); the loopback or the `Driver`'s paste | D7; N3, as ST1 | `TestQuestionNotAskedWhereItMustNot_0083`, with NT12's assertion of `NoLoopback` at the login (1) |
+| ST12 | A `Driver` with `NoLoopback` | decided | no question; `NoLoopback` true at the login; the `Driver`'s paste completes | D7 | no test yet: NT4 (1) |
+| ST13 | The question's form | decided | one `Select`, title "Where is the browser you will sign in with?", choices "On this machine" and "On another device: I will paste the address back", default index 0 | D3; N4, as ST2 | `TestQuestionForm_0083` (1) |
+| ST14 | Its place in a run | decided | after the method menu; before the plan's consent; before the browser | D3; N5 "Once per run, after the browser method is chosen and before consent (Recommended)" | `TestQuestionBeforeConsent_0083` (1) |
+| ST15 | A second browser sign-in in one run | out of scope at `24756a6`: no run reaches it | N5 decides that a second browser sign-in in a run reuses the answer, but no run makes two. A kept session runs no sign-in (`wizard/auth.go:199` to `:211`), so the sign-in after a refused kept session (`wizard/configure.go:535` to `:545`) is the run's first, and a refused new session ends the run (`TestKept_RefusedThenNewRefused_0066`). D3's "after a refused kept session (C68)" names that first sign-in. The PLAN's step R.3 checks at the base whether 0081's or 0085's code adds a path; if it does, the row is decided by N5 and pinned by NT13 on that path | N5 | none at `24756a6`; the reachable case is ST67 |
+| ST16 | A later run with the same `Options` value | decided | asked again: the answer is held by the run and stored nowhere | "The security properties a design must keep", its last bullet; PLAN Phase 1 step 6 | no test yet: NT5 (1) |
+| ST17 | `ResolveCredential`, as against `ConfigureLLM` | decided | the same question and outcomes, ST1 to ST15, through both entry points | D9 (gobble's terminal path, `ResolveCredential`, is asked) | `TestNoLoopbackWithNoPastePromptRefused_0083` covers both for ST7 only; the rest: NT2 (1) |
+| ST18 | The question against the plan's store reads: the saved OpenAI session, and the client record that 0082 reads in `resolveChatGPTPlan` before `browserSignIn` | decided | the question is asked right before `browserSignIn`, after both reads: a read that fails the sign-in asks no question; the warning for an undecodable record comes before the question | the owner's "Right before the browser sign-in, after the reads (Recommended)", relayed by the coordinator (2026-11-20) | NT14 (1) |
+
+#### Each provider and sign-in mode
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST19 | OpenAI `browser_oauth` with no listener | decided | the redirect is `http://127.0.0.1:1455/auth/callback`; no bind is attempted; a paste completes | D1, D2; C10; the PLAN's amendment of 2026-11-17, by the owner's "yes, fold that into the plan" | `TestNoLoopback_BindsNothing_0083` (`auth`), `TestNoLoopbackReachesTheLogin_0083` (1) |
+| ST20 | Grok `browser_oauth` with no listener | decided | the redirect names a port in 49152 to 65535; no bind is attempted; a paste completes | D1, D2; C11; the amendment, as ST19 | `TestNoLoopback_BindsNothing_0083`; the repaired `TestStart_NoLoopback_0074` (1); its 50 rounds under `-race` with 1024 listeners held (2) |
+| ST21 | `chatgpt_plan`, a first sign-in, with no listener | decided | D5's URL-only words. That only a whole URL with a `client_id` completes it is the engine's existing check (ST43), not this row's test | D2, D5; C28; R14 | `TestNoLoopbackReachesTheLogin_0083` (1); after the answer: NT2 (1) |
+| ST22 | `chatgpt_plan`, a sign-in again, with no listener | decided | D5's code-or-URL words | D2, D5 | `TestNoLoopbackReachesTheLogin_0083` (1) |
+| ST23 | Each device sign-in: OpenAI's, Grok's, Kilo's, and Kilo's under `KiloDeviceKey` | decided | no question; `NoLoopback` set or not, the sign-in runs as without it | D1 ("A device sign-in ignores it"), D2; Q2 "Every browser sign-in the wizard runs (Recommended)" | `TestQuestionNotAskedForOtherMethods_0083` (1) for OpenAI's and Grok's; Kilo's two and `NoLoopback` with a device sign-in: NT6 (1) |
+| ST24 | An API key, a pasted token (`token_stdin`), a vendor import, a kept session, a provider with no sign-in | decided | no question | D2; Q2, as ST23 | `TestQuestionNotAskedForOtherMethods_0083` (1) for the key and the import; the pasted token and the kept session: NT6 (1) |
+
+#### The callback listener
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST25 | It can bind (ST1, ST8, ST10, ST11) | decided | today's listener and paste race | D3 ("today's flow"), D7 | the login's options at the seam: `TestNoLoopbackOffByDefault_0083` (1); the real bind is `auth`'s, unchanged (C50) |
+| ST26 | 1455 taken, 1457 free | out of scope | the fallback to 1457 (C2) is unchanged; D8 changes only the text when both fail | – | – |
+| ST27 | Both taken, OpenAI `browser_oauth` | decided | an error that starts "oauth: registered callback ports unavailable;" and advises "free ports 1455 and 1457, or use device-code login" | D8; Q7 "No automatic fallback; correct the advice per method (Recommended)" | `TestPortsAdvicePerMethod_0083`, with NT15's assertion of the browser's whole advice (1); `TestListenOpenAILoopback_ErrorsWhenAllBusy`, its call syntax only (1) |
+| ST28 | Both taken, `chatgpt_plan` | decided | the same prefix; "free ports 1455 and 1457 and try again"; no "device-code"; after the consent and the discovery (C35, C22). That a failed sign-in records no consent is the engine's, existing (C52), and not this row's test | D8; Q7, as ST27 | `TestPortsAdvicePerMethod_0083` (1) |
+| ST29 | Both taken after "On this machine", in the wizard | decided | that error ends the run; no notice, no second question, no retry | D8; N7 "The ruled error only (Recommended)" | no test yet: NT7 (1) |
+| ST30 | Both families fail on both ports for a reason other than "in use" (as `isAddrInUse` reads it, `llmprovider/auth/oauth_loopback.go:565`): a sandbox's or a policy's refusal, no loopback interface | decided | the error keeps its prefix "oauth: registered callback ports unavailable;" and, in place of "free ports", points the person to the sign-in with no listener, in ST70's words | the owner's "Own advice for failures other than in-use (Recommended)", relayed by the coordinator (2026-11-20) | NT16, through the listen hook (1) |
+| ST31 | 127.0.0.1 fails for a reason other than "in use" while ::1 binds | out of scope: a stated limit | the ::1 listener alone is kept (`oauth_loopback.go:509` to `:523`) and the redirect names 127.0.0.1, so only the paste completes, under today's words | the owner's ruling on ST30 makes it a stated limit; the dual-stack listener of 0008-MADR and 0012-MADR §5.3 is unchanged | – |
+| ST32 | Grok's ephemeral bind fails | decided | the error keeps its prefix "oauth: listen for Grok callback:" and points the person to the sign-in with no listener, in ST70's words | the owner's ruling on ST30 | NT16 (1) |
+| ST33 | Under no listener, another program on this host listens on 1455 and a browser on this host is sent there | out of scope | the Consequences accept it: the code reaches that program without the PKCE verifier, and the address bar still holds the URL to paste *(inferred; not run)*; a test would bind a real port, which the PLAN's "Ports" rule forbids | – | – |
+| ST34 | The platforms: Linux, macOS, Windows | decided | ST27's and ST28's texts on each; `isAddrInUse` matches the Windows text too (`oauth_loopback.go:565`) | D8 | `TestPortsAdvicePerMethod_0083` (1), run by CI on its three platforms (`.github/workflows/ci.yml`, the `os` matrix) |
+
+#### The code pasted by hand
+
+The engine's and `auth`'s checks of a paste are not changed by this record
+(D1: "Nothing in `auth`, `internal/signinflow` or `x/signin` changes for
+it"; D5: "The paste prompts stay as they are"; "The security properties a
+design must keep": "Nothing in this record changes any of it"). With no
+listener they are the only way to finish, so each case is listed, with
+today's outcome and the test that already holds it.
+
+*(Second pass, 2026-11-20: the owner's ruling on a pasted address without
+its scheme changes the engine's parser for that one case: D11 and ST76 to
+ST86, below. The rows of this section are otherwise as written; their
+reason "D1" reads as D1 narrowed by D11.)*
+
+| Id | Case | Status | Outcome at `24756a6` (unchanged) | Reason | Held by |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST35 | A whole URL with this sign-in's state and a code | out of scope | the sign-in completes | D1, D5 | `TestEngine_PasteChecks_0074` "url with state and code"; `TestStart_NoLoopback_0074` |
+| ST36 | A bare code, where the method takes one | out of scope | taken with no state check (C16) | D1, D5 | `TestEngine_PasteChecks_0074` "bare code", "padded bare code" |
+| ST37 | Empty, or whitespace only, by a person (an Enter) | out of scope | asked again, not counted among the three pastes | 0057-MADR D4; D5 | `TestPaste_EmptyAskedAgain_0057`, `TestPaste_SlowEmptyAskedAgain_0059` |
+| ST38 | Empty three times within 50 ms (a `Prompter` that answers at once) | decided | with no listener (`NoLoopback`, or "On another device"): the sign-in ends at once with an error, in ST71's words, and does not wait for the login's limit. With a listener: unchanged, the notice and the wait for the loopback (0059-MADR W5) | the owner's "End at once with an error; neutral notice words (Recommended)", relayed by the coordinator (2026-11-20) | NT17 (1); with a listener, `TestPaste_QuickEmptiesStop_0059`, unchanged |
+| ST39 | A URL cut short | out of scope | without its state or code: asked again (ST40, ST41); with a code cut short: the exchange is refused and the sign-in ends with the issuer's error, not asked again | D1, D5 | `TestEngine_PasteChecks_0074` "another state", "no code" |
+| ST40 | A URL with another sign-in's state | out of scope | "That URL is not from this sign-in"; asked again; the third bad paste ends the sign-in with `ErrInvalidRequest` | D1; security properties | `TestEngine_PasteChecks_0074` "another state"; `TestStart_BadPaste_0074` |
+| ST41 | A URL with no state | out of scope | as ST40 | D1; security properties | `TestEngine_PasteChecks_0074` "no state" |
+| ST42 | The whole redirect URL instead of the code | out of scope | taken where the method takes a code or a URL; required for a first plan sign-in; D5's words ask for it | D1, D5 | `TestEngine_PasteChecks_0074` "url with state and code", "url_only with a client" |
+| ST43 | A bare code for a first plan sign-in | out of scope | "That is not a URL"; asked again | D1, D5; R14 | `TestEngine_PasteChecks_0074` "url_only, a bare code" |
+| ST44 | Pasted twice: a second line after the first completed the sign-in | out of scope | no paste prompt is open; a `TextPrompter` gives the line to the next question, as when the paste wins today | D5 | `TestInputerContext_PasteWins_0057` |
+| ST45 | A code that expired before it was pasted | out of scope | the exchange is refused and the sign-in ends with the issuer's error | D1 | not held by a test here; `auth`'s exchange error path |
+| ST46 | A pasted denial (`error=` with this state) | out of scope | passed on; `auth` ends the sign-in with it | D1 | `TestEngine_PasteChecks_0074` "a denial is passed on"; `TestStart_PastedDenial_0074` |
+| ST47 | The listener and a paste both arrive ("On this machine") | decided | the first wins; a paste prompt the loopback overtook is drained before any other prompt | D3 ("the listener, the paste race"); 0008-MADR D3 | `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`, `TestInputerContext_PasteWins_0057` (each scripting the answer, Phase 1 table) (1) |
+
+#### Cancel and timeout, at each stage
+
+A cancel is the run's context ending; the run's deadline is a cancel
+(0081-MADR D4, Q3 "A cancel or the run's deadline saves nothing; the
+listing's own limit still saves (Recommended)").
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST48 | A cancel while the question is on screen | decided | the question waits as every menu does. Once it returns, the run goes on as today after a cancel at any menu: the steps that follow run until one reads the context. For a plan sign-in the engine emits the consent step (`internal/signinflow/signinflow.go:538`) before it reads the context (`:544`), so the wizard renders the consent `Select`. The real OpenAI login falls back to its built-in endpoints when discovery fails (`llmprovider/auth/oauth_loopback.go:340` to `:346`), then binds, unless there is no listener, and calls `OpenURL` (`:204`, `:219` to `:223`) before it sees the ended context. The run then returns an error matching the context's; the login, if it is called, is given the ended context; nothing is saved | D3 ("adds no new way to hang"); 0081-MADR D9, the row "during the sign-in, before the provider issued anything (K1)"; what runs after the question is today's | NT8, on Grok's `browser_oauth`, which has no consent step (1) |
+| ST49 | A cancel during the plan's consent | out of scope | unchanged: 0075-MADR D4 and 0081-MADR D9 (K1) | 0081 | 0081's and 0075's tests |
+| ST50 | A cancel, or the run's deadline, while the paste is awaited with no listener, on an `InputerContext` `Prompter` | decided | an error matching `context.Canceled` or `context.DeadlineExceeded`; nothing saved; the paste read is ended by its context, with no Enter asked | 0081-MADR D9 (K1) for the error and the store; 0057-MADR D3 for the read's end. The first pass cited 0081-MADR D9 alone, which does not decide when the run ends; a `Prompter` that is not `InputerContext` is ST69 | NT9 (1) |
+| ST51 | The drain notice after a cancel or the login's limit, with no listener, when a paste read is still pending | decided | it no longer says "finished": after a cancel it says the sign-in was cancelled, after the login's limit that it ended, in ST72's words, and asks for the Enter; after the loopback won it is unchanged. Whether the same words apply with a listener is ST72 | the owner's "End at once with an error; neutral notice words (Recommended)", relayed by the coordinator (2026-11-20); for a cancel, also the ruling on ST69 | NT18 (cancel), NT19 (the login's limit) (1) |
+| ST52 | The login's own limit, 10 minutes (C7), with no listener | out of scope | the sign-in ends with the login's timeout; nothing was issued, nothing saved | D1 (`auth` unchanged); 0081-MADR D9 (K1) | – |
+| ST53 | A cancel after the paste: the exchange, the listing, the model questions, the save | out of scope | 0081-MADR D9 and D5 apply unchanged: nothing saved; `ConfigureLLM` saves last; a session's write checks the context under the lock (0082) | 0081 | 0081's tests, which include browser and plan sign-ins (ST57) |
+| ST54 | A first plan sign-in by paste, the run cancelled later | out of scope | the issued client is kept as the login returns (0075-MADR D7), as 0081-MADR D7 leaves it | 0081 Q6 "Leave both; add one sentence to `Wait`'s doc (Recommended)" | – |
+
+#### A session with no browser here
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST55 | A remote session (SSH, a container), a person at it, answering "On another device" | decided | as ST5 | D3, D6 | `TestQuestionAnswerElsewhere_0083` (1) |
+| ST56 | The same, answering "On this machine" | decided | as ST1: the listener binds on the remote host, `OpenURL` is called, and the paste race still completes, under today's words | D3 ("today's flow") | `TestNoLoopbackOffByDefault_0083` (1) |
+| ST57 | No person: the input closed or ended | decided | as ST3 or ST4 | N3, as ST1 | as ST3, ST4 |
+| ST58 | No browser can open here: `OpenURL` nil, or failing | out of scope | the URL is shown (C63); an `OpenURL` error does not end the sign-in, as today | D6 changes only whether it is called | – |
+
+#### The sibling records
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST59 | 0081's new wizard tests that run a browser or plan sign-in through the fake (its PLAN, Phase 2: `TestCancelDuringListingSavesNothing_0081`'s Grok and OpenAI browser and plan cases, and any other) meet the question at this record's base | decided | each is classified by Phase 1 step 5's rule (the save is their subject: `NoBrowserQuestion`), recorded as a deviation, the phase going on only if the rule places it without doubt | the PLAN's Phase 1 step 5 and its stop condition, approved with it ("Approval (2026-11-17)") | the census, Phase 1 step 2 (1) |
+| ST60 | 0085's new tests | decided | none runs a browser sign-in (its PLAN's Phase 1 table: keys); any that the census lists is placed as ST59 | as ST59 | the census (1) |
+| ST61 | 0082's landed wizard tests that run a plan sign-in | decided | each sets `NoPastePrompt` (`client_read_0082_test.go:63`, `save_followup_0082_test.go:64`, `save_lock_0082_test.go:253`, `:283`, `save_retry_0082_test.go:432`), so none is asked | D7; N3, as ST1 | the census (1) |
+| ST62 | 0085's blank-key prompt and this record's paste prompt | out of scope | different prompts: a blank paste of a code is ST37; the pasted token is 0085's and asks no question (ST24) | 0085-MADR D2; D2 | – |
+
+#### The two flaky tests this PLAN carries
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST63 | `TestStart_NoLoopback_0074`'s `grok` subtest dials a port another program may hold | decided | the dial goes; "binds nothing" is asserted in `auth` through the unexported listen hook | the owner's "yes, fold that into the plan" (the PLAN's amendment of 2026-11-17) | `TestNoLoopback_BindsNothing_0083` and the repaired test (1); 50 rounds, 1024 listeners held (2) |
+| ST64 | `TestVerifyIDToken_UnknownKidRefetchesOnce` failed twice in one 20-round `-race` run ("0 key fetches to populate the cache, want 1") | decided: that it is fixed under this PLAN | it no longer fails when an earlier test server's keys are cached under its URL | the owner's ruling of 2026-11-18, relayed by the coordinator, as 0082's records quote it: "fix this: fold it into the 0083 plan that already carries another flaky-test fix" ([0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md](0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md), N-5; [0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md](0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md), "A flaky test, found and not fixed (N-5)"). This record did not carry it until now | no test yet: NT10 (1); 20 rounds of `llmprovider/auth` under `-race` (2) |
+| ST65 | How it is fixed | decided | on the test side only: `keysServer`, through a helper beneath it that takes the listener, removes the key-cache entry under its own JWKS URL before it returns, so an entry an earlier server on that port left is gone; no production change | the owner's "Test side: the test server clears its own cache entry (Recommended)", relayed by the coordinator (2026-11-20). Removing the entry before the helper returns, rather than at its cleanup, follows from the ruling: the stale entry is another server's | NT10 (1) |
+
+#### The API
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST66 | The exported API | decided | exactly two additions, `wizard.Options.NoLoopback` and `wizard.Options.NoBrowserQuestion`; `Prompter` unchanged | D1, D3, D9 | `make api-check` and `tools/apidiff.py v1.31.0` (1, 2) |
+
+#### Rows added in the second pass
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST67 | A refused kept session, then the run's one browser sign-in (C68) | decided | the question asked once, after the method menu that follows the refusal, and never when the kept session is offered | D3 ("after the person chooses a browser method"); N5, as ST14 | `TestQuestionOncePerRun_0083`, re-scoped to this row (1) |
+| ST68 | One registered port fails "in use" and the other for another reason, or one family each | decided | when any registered port failed "in use", the error gives D8's "free ports" advice; the other port's reason still shows in the joined error text | the owner's "The "free the ports" advice if any port was in use (Recommended)", relayed by the coordinator (2026-11-20) | NT23 (1) |
+| ST69 | A cancel, or the run's deadline, while the paste is awaited with no listener, on a `Prompter` that is not `InputerContext` (`TextPrompter`, which prepare-commit-msg uses) | decided: a stated limit | the drain shows a notice that the sign-in was cancelled and asks for the Enter (ST72's words), then waits for the pending read; the run ends when the person presses Enter, with an error matching the context's; nothing saved | the owner's "Record it as a stated limit, with honest wording (Recommended)", relayed by the coordinator (2026-11-20); 0081-MADR D9 (K1) | NT18 (1) |
+| ST70 | The words of ST30's and ST32's advice | decided | after the error's prefix: "this host does not allow the callback listener: sign in with no listener and paste the address back (in the wizard, answer that the browser is on another device; in code, set NoLoopback)" | the owner's "The full instruction (Recommended)", relayed by the coordinator (2026-11-20) | NT16 (1) |
+| ST71 | The words, and the kind, of ST38's error | decided | "wizard: the prompter answered the paste with nothing, three times at once; with no callback listener only a paste can finish the sign-in", matching `llmprovider.ErrInvalidRequest`, as the third bad paste does | the owner's "Specific words, matching `ErrInvalidRequest` (Recommended)", relayed by the coordinator (2026-11-20) | NT17 (1) |
+| ST72 | The words of ST51's and ST69's notices, and whether they apply with a listener too | decided | after a cancel: "Sign-in cancelled; press Enter to continue"; after the login's limit: "Sign-in timed out; press Enter to continue"; with a listener and without. After a sign-in that finished (the loopback won), unchanged: "Browser sign-in finished; press Enter to continue" | the owner's ""Sign-in cancelled / timed out; press Enter to continue", in every flow (Recommended)", relayed by the coordinator (2026-11-20) | NT18, NT19, NT24 (1) |
+| ST73 | A `Prompter` that answers the question with an index out of range | decided | a plain error, through `choose` (`wizard/configure.go:1103`), and no sign-in; never read as either answer | `ConfigureLLM`'s doc: "a Prompter's choice out of range [...] plain errors" (`wizard/configure.go:308` to `:309`) | NT20 (1) |
+| ST74 | A caller's own descriptor that lists `browser_oauth` for a provider `auth` does not support | out of scope | the question is asked, then `auth` returns an error matching `ErrUnsupported` (`llmprovider/auth/oauth_loopback.go:303`), as for any method it does not support; the descriptor is the caller's to correct | – | – |
+| ST75 | `NoLoopback` with `NoPastePrompt` on a context that has already ended | out of scope | D4's error or the context's (0059-MADR W8) ends the run before any question, and nothing is saved; which comes first is not decided, and no caller is known to depend on it | – | – |
+
+#### A pasted address without its scheme (D11)
+
+The case: D5 sends the person to the address bar, which shows only the host
+and port until tapped (R6), so the paste can lack `http://`. At `24756a6`,
+`127.0.0.1:1455/auth/callback?code=…&state=…` does not parse:
+`net/url`'s `getScheme` finds no scheme when the first character is a digit,
+and `parse` then refuses a first path segment holding a colon (Go 1.27.4,
+`src/net/url/url.go:369` to `:391`, `:480` to `:482`). The engine takes it as
+a bare code (`internal/signinflow/paste.go:53` to `:58`), `auth` sends the
+whole text as the code (`llmprovider/auth/oauth_loopback.go:784`), and the
+exchange is refused; for a first plan sign-in it is "That is not a URL".
+Inferred from the source, not run; NT21 shows it at the base first.
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST76 | A paste that starts with the callback's host and port (those of the `redirect_uri` the authorize URL names), with this sign-in's state and a code, where the step takes a code or a URL | decided | the parse is retried with `http://` in front; the result is read as the address, its state checked, and the sign-in completes. The same in every flow on the engine: the wizard with a listener or without, and `x/signin` | the owner's "Accept it: retry the parse with `http://` in front (Recommended)", relayed by the coordinator (2026-11-20); D11 | NT21 (`internal/signinflow`), NT22 (`x/signin`, the real `auth` code) (1) |
+| ST77 | The same, for a first plan sign-in (a step that takes a URL only) | decided | read as the address, as ST76; a `client_id` is still required (C32) | as ST76 | NT21 (1) |
+| ST78 | The same, for a step that takes a code only (no built-in method does) | decided | read as the address, and so refused as a URL is there: "That is a URL, not a code" | as ST76: the ruling reads such a paste "as the address" | NT21 (1) |
+| ST79 | The same, with another sign-in's state, or none | decided | "That URL is not from this sign-in"; asked again, counted among the three pastes | as ST76: "the state check still applies" | NT21 (1) |
+| ST80 | The same, with whitespace before or after it | decided | trimmed first, then as ST76 | as ST76: the retry is of the parse, which reads the trimmed paste (`internal/signinflow/paste.go:49`) | NT21 (1) |
+| ST81 | The prefix tried | decided | `http://` only; never `https://` or any other | as ST76, its words | NT21 (1) |
+| ST82 | A bare code that does not start with the callback's host and port, one with a colon or a slash among them | decided | as today: taken as a bare code where the step takes one | as ST76: only a paste that starts with the callback's host and port is retried | NT21 (1) |
+| ST83 | A prefix other than the callback's own host and port: `localhost:<port>`, `[::1]:<port>`, the callback's host on another port, a longer port that begins with the callback's (`127.0.0.1:14550`), any `host:port/`, `localhost` in mixed case | decided | only the exact host and port of the registered callback qualify: the retried address is kept only when its host and port equal the `redirect_uri`'s. `127.0.0.1:14550` and another port do not qualify. `localhost:<port>` is read as today (an opaque URL whose scheme is "localhost", its state checked); `[::1]:<port>` as today, a bare code (ST87); any other `host:port/` as today | the owner's "Only the exact host and port of the registered callback (Recommended)", relayed by the coordinator (2026-11-20) | NT21 (1) |
+| ST84 | Which parser takes the retry | decided | the engine alone: it hands `auth` the address with `http://` in front; `auth`'s `parseOAuthCallback` is unchanged, and a direct caller of the lower-level sign-in with its own input does not get the retry (ST88) | the owner's "The wizard's engine only; a failed retry is refused and asked again (Recommended)", relayed by the coordinator (2026-11-20) | NT21 (the text handed on), NT22 (1) |
+| ST85 | A paste that starts with the callback's host and port whose retried parse also fails (a bad escape, a control character) | decided | refused with "That is not a usable address" and asked again, counted among the three pastes | the owner's "The wizard's engine only; a failed retry is refused and asked again (Recommended)", relayed by the coordinator (2026-11-20) | NT21 (1) |
+| ST87 | `[::1]:<port>/…` pasted without its scheme | out of scope: a stated limit | taken as a bare code, as today: the exchange is refused and the sign-in ends | the owner's ruling on ST83 | – |
+| ST88 | A direct caller of `auth.LoginBrowserOAuth` or `auth.LoginChatGPTPlan` with its own `InputCode` gets an address pasted without its scheme | out of scope: a stated limit | `auth` takes it as a bare code, as today; the two functions' doc comments say so | the owner's ruling on ST84 and ST85 | – |
+| ST86 | An address pasted with its scheme in capitals (`HTTP://127.0.0.1:…`) | out of scope | read as today: `url.Parse` lowercases the scheme (`src/net/url/url.go:454`); the callback's host is an IP, which has no case | – | – |
+
+Tally: ~~66 rows; 40 decided, 19 out of scope, 7 open, none awaiting live
+evidence~~ (the first pass). ~~After the second pass: 86 rows; 55 decided, 24
+out of scope, 7 open, none awaiting live evidence.~~ After the third pass:
+88 rows; 62 decided, 26 out of scope, none open, none awaiting live evidence. (The optional live check, Confirmation's last bullet, is the
+owner's and decides no row.)
+
+### The open rows, as put to the owner
+
+*(Second pass: the owner answered all four the same day; see "The owner's
+rulings of 2026-11-20". The rows open now are under "The open rows after the
+second pass".)*
+
+Four questions, gathered for one prompt; the coordinator words the options.
+
+1. **ST18, the question against the plan's store reads.** In a plan sign-in
+   the wizard reads the saved OpenAI session and the client record before
+   the engine runs; either read can fail the sign-in, and an unreadable
+   record shows a warning.
+2. **ST30 to ST32, a bind that fails for a reason other than a port in
+   use.** D8's advice ("free ports 1455 and 1457") is ruled for ports that
+   are taken; today the same error is given for any failure of both binds,
+   a 127.0.0.1 failure with ::1 bound keeps a listener the redirect never
+   reaches, and Grok's bind failure carries no advice.
+3. **ST38 and ST51, the no-listener paste wait's words and its end.** The
+   "answers at once" stop and the drain notice were written for a loopback
+   that may still return; with no listener, the first waits up to the
+   login's 10 minutes, and the second says "Browser sign-in finished" after
+   a cancel or a timeout.
+4. **ST65, how the key-cache flake is fixed.** The process-wide
+   `jwksCache` (`llmprovider/auth/oauth_idtoken.go:167`) is keyed by the
+   JWKS URL and kept an hour; the test counts the fetches its own server
+   sees. The reviewer's reading, that a later server reusing an earlier
+   port finds its keys cached, has not been reproduced; NT10 is that
+   reproduction.
+
+### Found while re-grounding
+
+* **C60's line is the wrong branch.** Its text holds at `24756a6`
+  (`wizard/text_prompter.go:251`), but that line is the error for an answer
+  naming no choice on the input's last line. A read after the input ended is
+  `errExhausted`, "wizard: input exhausted", wrapping `io.EOF`
+  (`wizard/text_prompter.go:75`, returned at `:153`); the first read at the
+  end still answers the default (`:68` to `:70`). D3's sentence holds
+  through `errExhausted`, and `TestQuestionExhaustedInputEnds_0083` meets
+  `errExhausted`, not C60's line.
+* **0082 moved a read into the plan path.** `resolveChatGPTPlan` now reads
+  the client record (`wizard/auth.go:279` to `:320`) before
+  `browserSignIn`, with its own notices and errors (ST18).
+* **Only one test counts the key fetches.** The test issuer's keys are made
+  once per process (`llmprovider/auth/oauth_testissuer_test.go:23`), so a
+  stale cache entry still verifies every other test's tokens; only
+  `jwksHits`, read by `TestVerifyIDToken_UnknownKidRefetchesOnce` alone
+  (`oauth_idtoken_test.go:96` to `:122`), can be thrown off by it.
+* **A sibling's filename.** The PLAN's "Prerequisites" names
+  `0083-MADR-a-cancelled-sign-in-saves-nothing.md`; the record meant is
+  [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md).
+
+### The evidence index re-pointed at `24756a6`
+
+`python3 -B tools/claims.py` on this record at its marker's revisions: 141
+of 141 rows pass (exit 0). With `--rev self=HEAD`: 108 of 141 (exit 1). Every
+failing row's text was found on another line; none is missing. The index
+above stays as it was, pinned at `b109cea`; the rows of other repositories
+are pinned to their own revisions and were not re-read. The ids below end in
+"now", so that `tools/claims.py` does not read them against `b109cea`.
+
+| Id | At `b109cea` | At `24756a6` |
+| :--- | :--- | :--- |
+| C29 now | `internal/signinflow/signinflow.go:136` | `:146` |
+| C30 now | `internal/signinflow/signinflow.go:33` | `:35` |
+| C33 now | `internal/signinflow/signinflow.go:231` | `:274` |
+| C34 now | `internal/signinflow/signinflow.go:432` | `:475`, the plan's branch (`:506` is the browser's) |
+| C35 now | `internal/signinflow/signinflow.go:403` | `:446` |
+| C36 now | `llmprovider/x/signin/signin.go:60` | `:76` |
+| C37 now | `llmprovider/x/signin/signin.go:193` | `:209` |
+| C40 now | `wizard/auth.go:240` | `:245` |
+| C41 now | `wizard/auth.go:824` | `:900` |
+| C42 now | `wizard/auth.go:763` | `:839` |
+| C43 now | `wizard/configure.go:175` | `:213` |
+| C44 now | `wizard/configure.go:131` | `:165` |
+| C45 now | `wizard/configure.go:205` | `:243` |
+| C51 now | `wizard/auth.go:873` | `:949` |
+| C52 now | `internal/signinflow/signinflow.go:467` | `:525` |
+| C55 now | `wizard/prompter.go:66` | `:72` |
+| C56 now | `wizard/prompter.go:74` | `:80` |
+| C57 now | `wizard/prompter.go:82` | `:88` |
+| C58 now | `wizard/prompter.go:114` | `:120` |
+| C60 now | `wizard/text_prompter.go:251` | unchanged; see "Found while re-grounding" |
+| C62 now | `wizard/configure.go:171` | `:209` |
+| C63 now | `wizard/configure.go:128` | `:162` |
+| C64 now | `wizard/auth.go:797` | `:873` |
+| C66 now | `wizard/configure.go:259` | `:297` |
+| C67 now | `wizard/auth.go:218` | `:223` |
+| C68 now | `wizard/configure.go:250` | `:288` |
+| C69 now | `CHANGELOG.md:93` | `:224` |
+| R12 now | `docs/decisions/0012-MADR-conform-providers-to-reference-clients.md:804` | `:809` |
+| R13 now | `docs/decisions/0012-MADR-conform-providers-to-reference-clients.md:812` | `:817` |
+| R17 now | `docs/guides/api-standards.md:317` | `:318` |
+| R18 now | `docs/guides/api-standards.md:367` | `:368` |
+| R19 now | `docs/guides/api-standards.md:77` | `:78` |
+| R20 now | `llmprovider/x/signin/doc.go:19` | `:25` |
+| R21 now | `docs/guides/api-standards.md:307` | `:308` |
+
+These lines hold at `24756a6` only. Those in `wizard/` and `CHANGELOG.md`
+move again with 0081's and 0085's code; the PLAN's Phase 1 step 1 re-reads
+them at the base.
+
+### The owner's rulings of 2026-11-20
+
+Relayed by the coordinator. Each label is quoted as the owner chose it; what
+it decides is in this record's words.
+
+* **ST18:** "Right before the browser sign-in, after the reads (Recommended)". In a plan sign-in the question comes right before
+  `browserSignIn`, after the reads of the session and the client record.
+* **ST30 to ST32:** "Own advice for failures other than in-use (Recommended)". A bind failure other than "in use" points the
+  person to the sign-in with no listener, in place of "free ports", tested
+  through the listen hook. A ::1-only listener left by a failed 127.0.0.1 bind
+  is a stated limit (ST31). The words are the owner's to approve (ST70).
+* **ST38 and ST51:** "End at once with an error; neutral notice words (Recommended)". With no listener, a `Prompter` that answers the
+  paste empty at once ends the sign-in at once with an error; the drain notice
+  no longer says "finished" after a cancel or a timeout. The words are the
+  owner's to approve (ST71, ST72).
+* **ST69, the review's case 2:** "Record it as a stated limit, with honest wording (Recommended)". With a `Prompter` that is not
+  `InputerContext`, a cancel during the paste ends the run when the person
+  presses Enter; the notice says the sign-in was cancelled and to press Enter
+  to continue.
+* **ST76 to ST82, the review's case 1:** "Accept it: retry the parse with `http://` in front (Recommended)". A paste that starts with the
+  callback's host and port is read as the address; the state check still
+  applies.
+* **ST65:** "Test side: the test server clears its own cache entry (Recommended)". No production change.
+
+### The Decision Outcome, amended 2026-11-20
+
+Nothing in D1 to D10 is rewritten; these add to them.
+
+* **D3, in a plan sign-in:** the question's place is ST18's.
+* **D5, the paste wait with no listener:** ST38, ST51 and ST69. D5's "The
+  paste prompts stay as they are" holds but for these.
+* **D8, a failure other than "in use":** ST30 and ST32; ST31 is a stated
+  limit.
+* **D11, new: a pasted address without its scheme.** The engine's paste check
+  (`internal/signinflow/paste.go`) retries, with `http://` in front, a paste
+  that starts with the callback's host and port, and reads the result as the
+  address, with every check an address meets (ST76 to ST82). D1's "Nothing in
+  `auth`, `internal/signinflow` or `x/signin` changes for it" stays true of
+  `NoLoopback`'s pass-through; this parser is the exception the ruling makes.
+  Every caller of the engine gets it, `x/signin`'s included, and the CHANGELOG
+  says so. Which prefixes qualify, which parser takes the retry, and a retry
+  that fails are ST83 to ST85, ruled in the third pass.
+* **The key-cache flake:** ST65.
+
+### The review of 2026-11-20, verified
+
+Each finding was checked at the lines it cites, at `24756a6`, before it was
+applied.
+
+1. **Case 1, the schemeless paste:** holds (D11's section above). Ruled:
+   ST76 to ST86.
+2. **Case 2, a cancel with a plain `Prompter`:** holds; `drain` notifies and
+   then blocks on the pending read (`wizard/auth.go:1034` to `:1038`). Ruled:
+   ST69; ST50 corrected.
+3. **Case 3, `Options.Driver`'s doc:** holds (`wizard/configure.go:209` to
+   `:210`). Applied in the PLAN, Phase 1 step 7's list.
+4. **Case 4, an out-of-range answer:** holds; the consent's raw `Select` reads
+   any index but 2 as a grant or not (`wizard/driver.go:230` to `:239`), and
+   `ConfigureLLM`'s doc calls a choice out of range a plain error
+   (`wizard/configure.go:308` to `:309`). ST73.
+5. **Case 5, the sibling's text:** holds. Applied in the PLAN, step R.3.
+6. **Case 6:** holds (`llmprovider/auth/oauth_loopback.go:303`). ST74, ST75.
+7. **ST50 not decided:** holds. Corrected; ST69 added.
+8. **ST48's omission:** holds (`internal/signinflow/signinflow.go:538`,
+   `:544`; `llmprovider/auth/oauth_loopback.go:340` to `:346`, `:204`, `:219`
+   to `:223`). Corrected; NT8 names Grok's `browser_oauth`.
+9. **ST15 unreachable:** holds. Out of scope at `24756a6`, with step R's
+   check; the reachable case is ST67.
+10. **ST27's test:** holds. NT15.
+11. **ST11's test:** holds; the PLAN's row asserts no `NoLoopback` value. NT12.
+12. **ST50's test:** holds; NT9 is `InputerContext` only. NT18 adds the plain
+    `Prompter`.
+13. **ST28, ST21:** hold. Annotated as the engine's existing behaviour.
+
+### The open rows after the second pass
+
+*(Third pass: the owner ruled on all seven the same day; none is open.)*
+
+Seven, gathered for one prompt through the coordinator: ST68 (a mixed bind
+failure), ST70, ST71 and ST72 (the words the rulings leave to the owner),
+ST83 (other prefixes), ST84 (which parser), ST85 (a retry that fails).
+
+### The second pass checked against the review's three questions
+
+Only the rows this pass added or changed.
+
+* **Missing cases.** A mixed failure (ST68), a failed retry (ST85), a longer
+  port beginning with the callback's (in ST83), and capitals in a scheme
+  (ST86) were found by this check and added.
+* **Decided rows not decided.** Three rest on a reading of a ruling's words,
+  stated in their rows: ST65 (when the entry is removed), ST78 (a code-only
+  step refuses the address), ST51 (the notice after the loopback won stays).
+  None rests on what the code does today alone.
+* **Tests that cannot pin their rows.** NT10's plant is a change to a test
+  helper, since the ruling allows no production change. NT13 is written only
+  if step R finds a path (ST15). ST31 is a stated limit with no test. Every
+  other changed or added decided row has a test and a named production plant
+  in the PLAN that turns it red. *(Fourth pass, 2026-11-20: true since
+  three plants were corrected. NT18's (ST69) and NT21's for ST82 could not
+  turn their tests red, and NT9's needed its fake's `Input` to block; the
+  PLAN's "Fourth pass" says how.)*
+
+### Second pass: what changed in this amendment
+
+* Rows changed in place, ids kept: ST10, ST11, ST15, ST18, ST21, ST27, ST28,
+  ST30 to ST32, ST38, ST48, ST50, ST51, ST65.
+* Rows added: ST67 to ST86.
+* Dated notes added to "Where the record stands", the paste section's
+  introduction and "The open rows, as put to the owner"; the tally struck
+  through and restated.
+* Sections added: the owner's rulings, the Decision Outcome amended, the
+  review verified, the open rows after this pass, this check.
+
+### Third pass (2026-11-20): the owner's rulings on the last seven rows
+
+Relayed by the coordinator. Each label is quoted as the owner chose it.
+
+* **ST68:** "The "free the ports" advice if any port was in use (Recommended)". Any registered port failing "in use" gives D8's advice;
+  the other reason still shows in the joined error text.
+* **ST70:** "The full instruction (Recommended)". The advice's words are the full instruction in ST70's
+  row.
+* **ST71:** "Specific words, matching `ErrInvalidRequest` (Recommended)". The error's words are ST71's, and it matches
+  `ErrInvalidRequest`.
+* **ST72:** ""Sign-in cancelled / timed out; press Enter to continue", in every flow (Recommended)". Two notices, for a cancel and for the login's limit,
+  with and without a listener. A sign-in that finished keeps "Browser sign-in
+  finished; press Enter to continue": no ruling changes it.
+* **ST83:** "Only the exact host and port of the registered callback (Recommended)". `localhost` and `[::1]` stay as today; `[::1]` is a
+  stated limit (ST87).
+* **ST84 and ST85:** "The wizard's engine only; a failed retry is refused and asked again (Recommended)". The engine alone retries and hands `auth` the
+  address with `http://` in front; a direct caller of the lower-level sign-in
+  with its own input does not get the retry, a stated limit said in the doc
+  comments (ST88). A failed retry is "That is not a usable address", asked
+  again, and counted.
+
+Rows changed in place: ST68, ST70 to ST72, ST83 to ST85. Rows added: ST87,
+ST88. Every row is now decided or out of scope.

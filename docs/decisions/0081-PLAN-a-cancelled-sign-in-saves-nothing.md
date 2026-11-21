@@ -197,6 +197,13 @@ The owner's answer to N1: "A live probe by me before release
 a session. Phase 2's code does not land before Phase 1c is recorded and no
 stop condition below is met.
 
+**Dated note, 2026-11-20.** The owner's ruling of that date on live runs,
+relayed by the coordinator, "API keys from the environment only
+(Recommended)", means a future live step that needs only environment API
+keys may be run by an agent; this record's probe, which signs in through
+the browser and by device code, was and remains the owner's, and nothing
+in 0081 is re-run.
+
 **What the probe asks, for each of four sign-ins** (MADR D12): after a
 person signs in to the same provider a second time, does the first session
 still work? The four are the ChatGPT browser sign-in (OpenAI, Codex's
@@ -855,6 +862,16 @@ sends nothing, says so, and the PLAN stops.
 > a `go test exited 1` is any verdict but `kept`, or a run that did not measure.
 > "`kept` for all four" says nothing of a grant that ends minutes after a run.
 
+**Dated note, 2026-11-20: the outcome.** The four runs of 2026-11-19 gave
+`kept` for `chatgpt`, `plan`, `grok` and `kilo` (the execution record, "Phase
+1c"). The table's first row applies: "`kept` for all four | the premise of
+0059-MADR Q2 (a) and of saving last holds for those sign-ins; Phase 2
+proceeds". Its other three rows (`ended` for any one; `indeterminate` twice;
+a provider not run) **no longer apply**, and nor does the first stop
+condition of "Rules for every phase" (`ended`, `indeterminate` twice,
+`refresh_token_reused`, a provider not run), nor its second (no line of the
+four files shows a token, a code, a client id or a URL).
+
 #### Phase 1c: the record (an agent)
 
 Model: lightweight, low.
@@ -873,7 +890,29 @@ owner's resolution recorded as a dated deviation before Phase 2.
 > removed by hand, with the owner's word when they are. A file with no verdict
 > line is not a verdict.
 
+**Dated note, 2026-11-20: done, but step 3.** Steps 1 and 2 are written: the
+execution record's "Phase 1c (2026-11-20)" and the MADR's amendment of
+2026-11-20, "D12: the four verdicts", with "Not verified" annotated in
+place. The acceptance's first branch is met: four verdicts recorded, each
+`kept`. Step 3, the commit, is the coordinator's: the readiness pass that
+wrote them stages and commits nothing.
+
 ### Phase 2: the tests and the code, one commit
+
+> **Dated addition, 2026-11-20** (the readiness pass; the execution record's
+> entry of that date holds the state table's test map). **Step 0, before step
+> 1:** re-ground every line the MADR and this PLAN cite at the phase's start
+> commit, with `python3 -B tools/claims.py` on both records at their markers
+> and on a scratch copy of the re-pointed tables pinned at that commit, and
+> the prose citations the entry lists; record each that moved. **The tests
+> also include** the proposed P-1 to P-16 that belong to this phase (the
+> entry's "Proposed tests"). **Exit criterion:** no blocker, every row tested,
+> plants caught. **Before it starts**, by the owner's rule for every record
+> that changes behaviour (its state table decides every case before code; the
+> open cases go to the owner in one prompt), the owner's answers to the state
+> table's open rows are recorded. They are: every row is decided or out of
+> scope after the third pass of 2026-11-20 (the owner's rulings on S50,
+> S61, S62, S48, S60, S76 and S77; S18 needs no ruling).
 
 Model: mainstream, high. *(Re-priced from the first draft's medium: the
 change now restructures where `ConfigureLLM` saves, and the tests are
@@ -963,6 +1002,19 @@ PLAN's execution record.
    > plant no test catches is a missing test, which Phase 2 adds. The Phase 2
    > steps otherwise stand as written, and none starts before Phase 1c.
 
+   **Annotation, 2026-11-20** (re-grounded at `24756a6`). Phase 1c is
+   recorded (`kept` for all four). `commitCredential` takes the run's
+   `Prompter`: `save` has taken one since 0082 (`wizard/auth.go:1103`, for
+   the lock's notice and retry question), so the step's `commitCredential(ctx,
+   d, c)` and `c.save(ctx, d)` read `commitCredential(ctx, p, d, c)` and
+   `c.save(ctx, p, d)`. Its own check stays its first statement, before
+   `save`, so its error, `wizard: <ctx>`, is the one a run returns whenever
+   the context has ended by the commit (MADR D9 as amended on 2026-11-18);
+   `write`'s words are returned only for a context that ends after that check,
+   during the lock's wait or its retry question. `ConfigureLLM`'s commit
+   therefore runs 0082's lock wait, notice and retry question after the model
+   and fallback questions (the MADR's state table, S35).
+
 5. **Docs**, in the same commit:
    * doc comments: `credentialStep` (saves right after its check, for
      `ResolveCredential`); `ConfigureLLM` (saves a new session as its last
@@ -990,6 +1042,61 @@ PLAN's execution record.
      questions: a run abandoned there, or ended by any error, keeps the
      session the store held (0081-MADR)";
    * the dated one-line notes the MADR's D11 lists.
+
+   **Dated addition, 2026-11-20** (the owner's rulings of that date, relayed
+   by the coordinator, and the review's decidable findings; the MADR's
+   "Second pass" and rows S50, S60 to S62, S67 to S77). Step 5 also writes,
+   and step 4 also changes:
+
+   * **Files added to the phase:** `wizard/kilo_verify.go` (`verifyKilo`'s
+     notice, `:128`); `discoverModels` in `wizard/configure.go` (the
+     listing's warnings, `:948`, `:951`, `:958`, `:967`, `:974` and `:977`);
+     `resolveKiloDevice` in `wizard/auth.go` (its organizations warning,
+     `:478`, now code, not only a doc comment);
+     `wizard/kilo_verify_0080_test.go` (its expected words, `:362` and
+     `:383`, the one existing test the ruling "Fix both" changes);
+     `docs/architecture.md:1148-1149` and `CHANGELOG.md`'s unreleased 0080
+     entry (lines 40-41), which quote today's Kilo words; a dated one-line
+     note in 0080-MADR D6 (line 433), whose words S76 replaces.
+   * **The notices** (S61, S67 to S77): Kilo's notice reads "could not
+     verify the Kilo key (<class>[, HTTP <status>]); going on without
+     verifying it" (S76), in the code, in
+     `wizard/kilo_verify_0080_test.go:362` and `:383`, in `CHANGELOG.md`
+     lines 40-41 and in `docs/architecture.md:1148-1149`, and 0080-MADR D6
+     gets a dated one-line note naming the new words; every listing warning
+     (`wizard/configure.go:948`, `:951`, `:958`, `:967`, `:974`, `:977`) is
+     not shown once the run's context has ended, by cancel or deadline, and
+     is shown as today with it alive, the listing's own limit included
+     (S61, S71, S72, S77); the organizations warning without `Discover`
+     likewise (S73, S74). Which
+     context: the run's (`ctx`), never the listing's own (`dCtx`).
+   * **`ConfigureLLM`'s doc and `Options.TokenStore`'s** (S50): one sentence,
+     that two runs saving to one store leave the session of the last to
+     commit.
+   * **The architecture note, "When a session is saved"** (S60, S62): one
+     sentence for Kilo, that an abandoned Kilo device sign-in leaves a token
+     that does not expire and that the SDK cannot revoke, which the person
+     removes in the Kilo account's settings; and one sentence that the
+     earlier grant was measured kept on 2026-11-19 for the ChatGPT browser
+     sign-in, the plan, Grok's browser sign-in and Kilo's device sign-in, the
+     OpenAI and Grok device sign-ins not probed. `ConfigureLLM`'s doc says the
+     Kilo sentence too. Neither copies D6's "lapses" for Kilo.
+   * **`save`'s doc comment** (the review's finding 3): its last sentence,
+     "The context is checked after the lock is held, before anything is
+     written: a lock that outlasts the sign-in saves nothing (0081-MADR's
+     single check before the save belongs here, after the lock, and not before
+     the wait)", becomes: "The context is checked after the lock is held,
+     before anything is written: a lock that outlasts the sign-in saves
+     nothing. This is the check that covers the wait (0082-MADR N-6); the
+     caller, commitCredential, has already checked the context once, before
+     the wait, for every credential (0081-MADR D5)." 0082-MADR N-6 carries a
+     dated note of 2026-11-20 to the same effect, written by the readiness
+     pass.
+   * **Overlap with 0085**, which by the owner's ruling rewords the comment at
+     `wizard/kilo_verify.go:95` in its own phase: the same function,
+     `verifyKilo`, different lines. 0081 builds first; 0085 re-reads
+     `verifyKilo` at its base, its notice included.
+
 6. **Before staging,** on a scratch clone of the phase's tree: `go test
    -count=1 ./wizard/ ./llmprovider/x/signin/` (session host, no `-race`);
    every existing test passes unchanged, or the phase stops.
@@ -1008,6 +1115,17 @@ change; the docs say what the code does, including what stays open.
 ### Phase 3: planted breaks and the gates
 
 Model: mainstream, low.
+
+> **Dated addition, 2026-11-20.** **Step 0, before step 1:** re-ground the
+> cited lines at the phase's start commit (Phase 2's commit), as Phase 2's step
+> 0 does, and record each that moved. **The plants** are re-mapped, and gain
+> one per proposed test, in the execution record's entry of 2026-11-20 ("The
+> plants, re-mapped after 0082"); that list replaces step 1's test names where
+> they differ. **One run on Windows:** `go test -count=1 ./wizard/` through
+> `~/.agents/skills/available-dev-hosts/scripts/run-on-host` with `--need`
+> pinning `windows` (P-16 kills a process, and the write is `FileTokenStore`'s
+> per platform). **Exit criterion:** no blocker, every row tested, plants
+> caught.
 
 1. `python3 -B tools/plant.py PLANTS.json` on a scratch clone, each plant
    caught, each failure quoted. The seven the drafting's prototype was
@@ -1046,6 +1164,11 @@ before any filter. Docs: none beyond Phase 2's; a gate that finds a docs gap
 is a deviation.
 
 ### Phase 4: the release (the owner's word)
+
+> **Dated addition, 2026-11-20.** **Step 0, before step 1:** re-ground the
+> cited lines at the release's commit, as Phase 2's step 0 does, and record
+> each that moved. **Exit criterion:** no blocker, every row tested, plants
+> caught (as Phase 3 left them, re-run on the release's commit by its CI).
 
 Model: mainstream, medium. No step runs under a standing approval: the tag
 and the GitHub Release each wait for the owner's word in the same turn.
@@ -1809,3 +1932,559 @@ connection but loopback.
   | `go test -race -count=1 -timeout 45m ./...` | `run-on-host --race`: `pick-host` chose the Linux machine, linux/amd64 native (not a WSL distro) | 0, 43 packages ok, none failing |
   | the 88 plants | scratch clone, no-network sandbox | 88 of 88 caught |
   | the twin tests of the probe, under the sandbox | session machine | 0 |
+
+### Phase 1c (2026-11-20): the owner's four runs, recorded
+
+Written by an agent, from the four files the owner's runs of 2026-11-19
+produced, `tmp/live-0081/chatgpt.txt`, `plan.txt`, `grok.txt` and `kilo.txt`
+(git-ignored: `git check-ignore -v` names `.gitignore:15`, `tmp/`), which the
+coordinator had verified the same day. Before any line was shown, each line
+of each file was scanned for anything shaped like a token, a code, a client
+id or a URL with a query; the only hit in each file was the test's name. No
+agent ran the probe, signed in or held a session. Each file holds one run of
+13 lines. Every line is quoted below as the file holds it, except that the
+module path in each file's last line is written `<module>` (an account name
+is not written into a record).
+
+`chatgpt` (the ChatGPT browser sign-in):
+
+```text
+=== RUN   TestLive_EarlierGrant_0081
+    live_checks_test.go:1584: chatgpt sign-in-1: ok
+    live_checks_test.go:1584: chatgpt baseline: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: chatgpt sign-in-2: ok
+    live_checks_test.go:1584: chatgpt first-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: chatgpt control: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: chatgpt last-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: chatgpt: kept
+    live_checks_test.go:1584: chatgpt revoke-1: status 0, kind by_hand
+    live_checks_test.go:1584: chatgpt revoke-2: status 0, kind by_hand
+--- PASS: TestLive_EarlierGrant_0081 (20.54s)
+PASS
+ok   <module>/llmprovider 21.246s
+```
+
+`plan` (the ChatGPT plan sign-in):
+
+```text
+=== RUN   TestLive_EarlierGrant_0081
+    live_checks_test.go:1584: plan sign-in-1: ok
+    live_checks_test.go:1584: plan baseline: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: plan sign-in-2: ok
+    live_checks_test.go:1584: plan first-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: plan control: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: plan last-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: plan: kept
+    live_checks_test.go:1584: plan revoke-1: status 200, kind ok
+    live_checks_test.go:1584: plan revoke-2: status 200, kind ok
+--- PASS: TestLive_EarlierGrant_0081 (29.80s)
+PASS
+ok   <module>/llmprovider 30.073s
+```
+
+`grok` (Grok's browser sign-in):
+
+```text
+=== RUN   TestLive_EarlierGrant_0081
+    live_checks_test.go:1584: grok sign-in-1: ok
+    live_checks_test.go:1584: grok baseline: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: grok sign-in-2: ok
+    live_checks_test.go:1584: grok first-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: grok control: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: grok last-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: grok: kept
+    live_checks_test.go:1584: grok revoke-1: status 0, kind by_hand
+    live_checks_test.go:1584: grok revoke-2: status 0, kind by_hand
+--- PASS: TestLive_EarlierGrant_0081 (5.14s)
+PASS
+ok   <module>/llmprovider 5.411s
+```
+
+`kilo` (Kilo's device sign-in):
+
+```text
+=== RUN   TestLive_EarlierGrant_0081
+    live_checks_test.go:1584: kilo sign-in-1: ok
+    live_checks_test.go:1584: kilo baseline: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: kilo sign-in-2: ok
+    live_checks_test.go:1584: kilo first-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: kilo control: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: kilo last-after: status 200, kind ok, code -, requests 1
+    live_checks_test.go:1584: kilo: kept
+    live_checks_test.go:1584: kilo revoke-1: status 0, kind unsupported
+    live_checks_test.go:1584: kilo revoke-2: status 0, kind unsupported
+--- PASS: TestLive_EarlierGrant_0081 (17.55s)
+PASS
+ok   <module>/llmprovider 17.825s
+```
+
+| Provider | Verdict | The four uses | Revocation | Left on the owner's account, to remove by hand | Removed |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `chatgpt` | `kept` | each 200, `requests 1` | `by_hand` twice: none sent, by the owner's ruling | two grants under Codex's client id (Phase 1b's table: not the owner's own Codex login) | not yet: the owner's word is awaited |
+| `plan` | `kept` | each 200, `requests 1` | `ok`, status 200, twice: both grants revoked | the client the first sign-in registered for this app's name (Phase 1b's table: no call of the SDK removes it; the files carry no line for it) | not yet: the owner's word is awaited |
+| `grok` | `kept` | each 200, `requests 1` | `by_hand` twice: none sent, by the owner's ruling | two grants under the Grok CLI's client id (not the owner's own Grok CLI login) | not yet: the owner's word is awaited |
+| `kilo` | `kept` | each 200, `requests 1` | `unsupported` twice: none sent | two device tokens, which do not expire | not yet: the owner's word is awaited |
+
+* **Step 1** (every line quoted, per provider; the grants left by hand): above.
+* **Step 2** (D12, per provider; "Not verified" loses N1 for the four): the
+  MADR's amendment of 2026-11-20, "D12: the four verdicts", and its "Not
+  verified" annotated in place. N1 stays unverified for the OpenAI and Grok
+  device sign-ins and for an ending minutes after a sign-in.
+* **Step 3** (commit the records' edits): not done by this pass, which stages
+  and commits nothing; it is the coordinator's.
+* **Acceptance:** met, its first branch: four verdicts recorded, each `kept`.
+  No count above one, so the count rule made nothing `indeterminate`; no
+  `refresh_token_reused`; every provider run.
+* **Not in the files, so not recorded:** the commit the runs were made at
+  (Phase 1b's step 1 prints it to the window, which is not sent), and whether
+  an earlier run of a provider was made and its file overwritten.
+
+**What `kept` means for Phase 2, by this PLAN's own text.**
+
+* Phase 1: "Phase 2's code does not land before Phase 1c is recorded and no
+  stop condition below is met." Phase 1c is recorded and no stop condition is
+  met.
+* Phase 1b, "What each outcome decides": the branch for this outcome is
+  "`kept` for all four | the premise of 0059-MADR Q2 (a) and of saving last
+  holds for those sign-ins; Phase 2 proceeds". The branches that no longer
+  apply, `ended` for any one, `indeterminate` twice and a provider not run,
+  are annotated as such under the table (2026-11-20), as are the first two
+  stop conditions of "Rules for every phase".
+* Phase 2, the annotation of 2026-11-18 to step 4: "none starts before Phase
+  1c". Met.
+* No step of Phase 2 or 3 branches on the verdict beyond "Phase 2 proceeds",
+  so none changes. What the PLAN does not say is whether the docs of Phase 2's
+  step 5 state the measured premise. That was the MADR state table's row S62,
+  put to the owner and since ruled (step 5's addition of 2026-11-20).
+
+### Readiness pass (2026-11-20): the test map, the plants and the re-grounding
+
+Records only, at `24756a6`: the MADR's amendment of 2026-11-20 holds the
+state table (66 rows: 52 decided, 11 out of scope, 3 open). Nothing was run
+but reads, `git` reads, `tools/claims.py` and two scratch scripts that read
+`git show`; no test, gate, build or live run. Nothing was staged.
+
+**Each decided row, and its test** (phase 2 unless the row says;
+"existing" is in the tree at `24756a6`, "guard" is green at `a7e924f`, "red"
+is red at the base, "P-n" is proposed below):
+
+| Rows | Test | Kind |
+| :--- | :--- | :--- |
+| S1 | `TestConfigure_EndedContextAsksNothing_0059` | existing |
+| S2 | `TestResolveCredential_ErrorKinds_0056/ctx` | existing |
+| S3, S4, S5, S6, S39 | P-1 `TestCancelBeforeIssueSavesNothing_0081` | proposed |
+| S7, S31 | `TestCancelAfterIssueSavesNothing_0081`, words; P-6's key cases (S31) | guard; proposed |
+| S8, S10, S73 | `TestCancelDuringKiloProfileSavesNothing_0081`, words, with P-8's cases (S10, S73) | guard; proposed |
+| S9, S69, S75 | `TestKiloVerify_EndedContext_0080`; `TestKiloVerify_OutagesWarn_0080` (S75, its words changed by S76) | existing |
+| S11, S28 | `TestCancelDuringListingSavesNothing_0081`, words, the plan's cases required; `TestCancelDuringDeviceFlowSavesNothing_0081`, required | guard; proposed |
+| S12 | `TestCancelDuringRefreshSavesNothing_0081`, extended (the issuer holds the refresh; the error within one second of the cancel) | guard |
+| S13 | `TestCancelledConfigureReturnsNoKey_0081`; P-9, words | red; proposed |
+| S14, S16 | `TestCancelAtModelStageSavesNothing_0081`; P-3, words per case, and its deadline case | red; proposed |
+| S15 | `TestCancelAtManualModelSavesNothing_0081`, words | red |
+| S17 | `TestModelStageErrorSavesNothing_0081`; P-4 | red; proposed |
+| S18 | P-18 `TestCancelBetweenTheCheckAndTheWriteSaves_0081` | proposed |
+| S19, S20 | `TestCancelAfterSaveReturnsTheResult_0081`; P-11 | red; proposed |
+| S21 | `TestConfigureSavesOnceAfterTheModel_0081`; `TestResolveSavesInTheStep_0081` | red; guard |
+| S22 | P-5 `TestSessionDueAtTheCommit_0081`, three cases | proposed |
+| S23 | `TestRotationDuringQuestionsSavedAtEnd_0081` | red |
+| S24 | `TestCancelDuringListingReturnsNoKey_0081`; `TestCancelledConfigureReturnsNoKey_0081`; `TestCancelAtModelStageReturnsNoKey_0081`; `TestResolveCredential_ErrorKinds_0056/ctx_ended_during_the_listing` | guard; red; red; existing |
+| S25, S26, S27 | P-6 `TestCancelledRunReturnsNoCredential_0081`, words | proposed |
+| S29, S30 | P-7 `TestCancelWithKeptSessionReturnsNoResult_0081`, words | proposed |
+| S32 | P-9, a Driver case of `TestCancelAfterIssueSavesNothing_0081` | proposed |
+| S34 | `TestSaveTakesTheRefreshLock_0082`; `TestSaveWithoutALockerSaves_0082` | existing |
+| S35 | P-10 `TestConfigureWaitsForTheLockAfterTheModel_0081` | proposed |
+| S36 | `TestSaveCancelledWhileWaitingSavesNothing_0082`; `TestSaveCancelledAtAnyWaitSavesNothing_0082` | existing |
+| S37 | `TestDeadlineDuringListingSavesNothing_0081` (a session), words; P-14 (a key) | guard; proposed |
+| S38, S71 | P-13 `TestListingLimitIsAnOutageAndSaves_0081`; `TestListing_StaticBesideNoticed_0066` (S71) | proposed; existing |
+| S40 | the context's tests above | — |
+| S41 | P-16 `TestKilledAtTheModelQuestionKeepsTheStore_0081` | proposed |
+| S42 | `TestDiscoverLimit_0080` | existing |
+| S43, S44 | the save-counting tests above | as above |
+| S45 | `TestLive_EarlierGrant_0081` (Phase 1b, the owner's) and its twins (`TestEarlierGrantReport_0081` and the others of Phase 1a) | done |
+| S48 | P-15 `TestAbandonedPlanRunKeepsTheClientRecord_0081` | proposed |
+| S49 | `TestSaveWaitsForARefreshInFlightInOneProcess_0082` | existing |
+| S50 | P-19 `TestLastCommitWins_0081` | proposed |
+| S51 | 0082's tests in `llmprovider/auth/` (`held_session_0082_test.go` and its siblings) | existing |
+| S52, S53 | P-12 `TestStoreErrorAtTheCommit_0081` | proposed |
+| S56 | `TestLockFileThatCanNeverBeOpenedAsksNeutrally_0082` | existing |
+| S60, S62 | P-20 `TestSaveNotesInTheArchitecture_0081` | proposed |
+| S61, S72 | P-17 `TestNoListingWarningOnAnEndedRun_0081` | proposed |
+| S63 | Phase 3's two plants on `write`'s check; `TestSaveCancelledAtAnyWaitSavesNothing_0082` | existing, to be seen caught |
+| S65 | owed by 0083-PLAN (the question does not exist at this record's base) | — |
+| S67, S68 | P-21 `TestKiloUnverifiedNoticeClaimsNoSave_0081` | proposed |
+| S70, S74 | `TestKiloVerify_NoDiscoverNoRead_0080` | existing |
+
+**Revised in the second pass (2026-11-20)**, before anything was committed,
+after the independent review and the owner's rulings (the MADR's "Second
+pass"): the map above, P-3, P-5 to P-9, the plants' table, and P-17 to P-21.
+"Words" means the test asserts the error's words of the first check that runs
+after its cancel: `wizard: <ctx>` from N3's check (`ConfigureLLM`) or
+`commitCredential`'s (`ResolveCredential`), compared as the whole error text,
+since `write`'s error also begins with `wizard:`; `select model: <ctx>` or `select
+fallbacks: <ctx>` from a model loop's top; "the new <label> session was not
+saved: <ctx>" from `save` or `write`. Without it a plant on one check is
+hidden by the next one. The plant of each row is in its Test cell in the
+MADR's state table.
+
+**PLAN tests that map to no row:** none. Each of Phase 2's sixteen maps
+above, and the probe's tests map to S45. **S11's tests may not be dropped**
+(the coordinator's instruction of 2026-11-20, from the review): the drop
+allowed by Phase 2's table row for `TestCancelDuringDeviceFlowSavesNothing_0081`
+and by the deviation entry of 2026-11-18 ("Owed in Phase 2") no longer
+applies, to it or to the plan's cases of `TestCancelDuringListingSavesNothing_0081`;
+a case that cannot be served in process without changing non-test code is a
+stop and a deviation put to the owner.
+
+**Proposed tests** (a dated addition to Phase 2; P-2 is not used, since S2
+has an existing test). Each is in `wizard/`, against in-process stand-ins
+(0065-MADR), lists through `testCache(t)` with model metadata off, runs both
+entry points where the row names both, and is seen to fail on its plant with
+`tools/plant.py` on a scratch clone, never in the tree. A plant is the single
+production change that must turn the test red.
+
+* **P-1 `TestCancelBeforeIssueSavesNothing_0081`** (S3 to S6, S39). Cases: a
+  browser sign-in whose `loginBrowserOAuth` seam blocks until its context
+  ends; a device sign-in whose `deviceLogin` seam does the same; the plan's
+  consent question answered after the cancel; the exchange cut off, through
+  the seam calling the shipped `auth.LoginBrowserOAuth` with `NoLoopback` and
+  the code pasted, its token endpoint served in process through the run's
+  `HTTPClient` and held until the context ends; the login's own bound, the run
+  alive (the seam returns "oauth: browser login timed out" wrapping
+  `context.DeadlineExceeded`). Asserts: the login's error, matching the
+  context's where the context ended; no Result; no save; no client record.
+  Plant: `signIn`'s browser branch returns `errors.New("wizard: sign-in
+  failed")` in place of the login's error.
+* **P-3, added to `TestCancelAtModelStageSavesNothing_0081`** (S14, S16). Each
+  case asserts the words of the first check that runs after its cancel, by D9
+  row 4: `wizard: context canceled` where the question answered was the last
+  (the final check); `select model: context canceled` where a query answered
+  leads to the matches' loop (`wizard/model_select.go:104`); `select
+  fallbacks: context canceled` where a model chosen with `NeedFallbacks` leads
+  to the fallbacks' loop. A case where the run's deadline passes while the
+  model menu is on screen, answered, asserts `context.DeadlineExceeded` and
+  `wizard: context deadline exceeded`. Plants: `commitCredential`'s check
+  removed (the final-check cases: the words become `write`'s);
+  `commitCredential` matching `context.Canceled` only (the deadline case).
+* **P-4, added to `TestModelStageErrorSavesNothing_0081`** (S17). Cases: a
+  blank model id in the empty-catalog branch ("no model available ... and none
+  entered"); a `Prompter`'s error at the fallbacks. Asserts that error and no
+  save. Plants: `commitCredential` called before the blank check in the
+  model-id branch; `commitCredential` called before `selectFallbacks`.
+* **P-5 `TestSessionDueAtTheCommit_0081`** (S22). `ConfigureLLM`, a Grok
+  device session (the seam) made due while the model question is on screen
+  (the `Prompter` calls `Invalidate`), its issuer served in process. Cases: the
+  refresh answered 200 (one save, of the rotated refresh token, and the
+  Result); answered 400 `invalid_grant` (an error matching
+  `llmprovider.ErrAuthFailure`, no save); answered 503 on each of the SDK's
+  three tries, the context alive (one save, of the session as it was, its
+  refresh token unspent, and the Result). Plants: `save`'s first check
+  (`wizard/auth.go:1107`) removed (the refusal case); that check refusing any
+  error (the 503 case).
+* **P-6 `TestCancelledRunReturnsNoCredential_0081`** (S25 to S27, S31's key).
+  Cases: an environment key (`LookupEnv`), a saved key (`Existing`), Kilo's
+  device key (`KiloDeviceKey`, the seam), a vendor CLI read-through (a file in
+  `t.TempDir()`), no credential (a keyless provider), a Claude key with the
+  cancel at the workspace question, a typed key without `Discover`. The
+  context ends before the commit. Asserts: an error matching the context's, in
+  the words `wizard: context canceled`; a zero Result; for `ConfigureLLM`, no
+  model question. Plants: `commitCredential` checks only when the credential is
+  a session or a typed key (caught by the `ResolveCredential` cases); N3's check
+  removed (caught by the `ConfigureLLM` cases through the words only: without
+  N3 the model loop's top refuses first, as `select model: context canceled`,
+  and asks nothing either way).
+* **P-7 `TestCancelWithKeptSessionReturnsNoResult_0081`** (S29, S30). Cases: a
+  kept session, the context ended during the listing (the context's error, no
+  Result, no save by the wizard); the same with the kept session's refresh
+  completing during the listing (one save, through its own store, of the
+  rotated pair, and none by the wizard); a kept session refused, a new
+  sign-in, a cancel while the last model question is on screen, answered (the
+  store holds the kept session; the words `wizard: context canceled`). Plants:
+  `commitCredential` returns before its check for a kept credential (caught by
+  the `ResolveCredential` case, which then returns the kept Result);
+  `commitCredential`'s check removed (caught by the refused-kept case through
+  `write`'s words); N3's check removed (caught by the `ConfigureLLM` case of the
+  first, through the words).
+* **P-8, cases added to `TestCancelDuringKiloProfileSavesNothing_0081`**
+  (S8, S10, S73): every case asserts the words; the organization menu answered
+  after the cancel, through both entry points; without `Discover`, the run
+  cancelled and, in another case, its deadline passing during the profile read:
+  no organizations warning. Plants: `commitCredential`'s check removed (the
+  `ResolveCredential` cases: `write`'s words); N3's check removed (the
+  `ConfigureLLM` cases: `select model:`); `resolveKiloDevice` keeping its
+  suppression under `Discover` only (S73: the warning shown); the suppression
+  matching `context.Canceled` only (S73's deadline case).
+* **P-9, cases added to `TestCancelAfterIssueSavesNothing_0081`** (S13 for a
+  session, S32): `ConfigureLLM` asks no model question and returns the words
+  `wizard: context canceled`; a case with `Options.Driver`, through both entry
+  points. Plants: N3's check removed (caught by the words: the model loop's top
+  then answers `select model: context canceled`, still asking nothing);
+  `commitCredential`'s check removed (the Driver case through
+  `ResolveCredential`).
+* **P-10 `TestConfigureWaitsForTheLockAfterTheModel_0081`** (S35). A scripted
+  locker held, as 0082's tests script one, and `NeedFallbacks`. Asserts the
+  order: the model and fallback questions, then the waiting notice, then, at
+  the bound, the retry question; declined, the store's error, no save, no
+  Result. Plant: `ConfigureLLM` saving in the step again.
+* **P-11 `TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081`** (S19,
+  S20, `ConfigureLLM`): a store whose `Save` writes, then cancels the run;
+  asserts the Result and one save, through the end and through the model-id
+  branch. Plant: a context check added after the commit in `ConfigureLLM`.
+* **P-12 `TestStoreErrorAtTheCommit_0081`** (S52, S53), `ConfigureLLM` after
+  the model questions and `ResolveCredential`: a store whose `Save` fails before
+  writing (its error, no Result, the store as it was); one that writes, then
+  fails (its error, the new session in the store). Plant: `write` ignores the
+  store's error.
+* **P-13 `TestListingLimitIsAnOutageAndSaves_0081`** (S38): `DiscoverLimit` of
+  50 ms, a listing transport that blocks until its request's context ends, the
+  run's context alive; asserts a warning, one save (in the step, or at the end)
+  and the Result. Plant: `discoverModels` returns a listing ended by its own
+  limit as a `*checkEnded`.
+* **P-14 `TestDeadlineReturnsNoKey_0081`** (S37, a key): the run's deadline
+  passes during the listing of a typed key; `ResolveCredential` returns an
+  error matching `context.DeadlineExceeded` and no key; `ConfigureLLM` asks no
+  model. Plant: `commitCredential` matches `context.Canceled` only.
+* **P-15 `TestAbandonedPlanRunKeepsTheClientRecord_0081`** (S48), a
+  `FileTokenStore` in `t.TempDir()`. Cases: a first plan sign-in (the seam, its
+  consent scripted) abandoned at the model question: no session saved, the
+  record naming the issued client; an undecodable record and a stored plan
+  session of client X: one notice, a new client Y, the run abandoned, the store
+  holding X and the record Y, then a second run's plan sign-in made with no
+  `Previous` and the consent asked. Plant: `signsInAgainTo` ignores the record.
+* **P-16 `TestKilledAtTheModelQuestionKeepsTheStore_0081`** (S41). The test
+  re-runs its own binary as a helper, told apart without a new environment
+  variable, or with one named as `scripts/check_tables.py` requires; the helper
+  runs `ConfigureLLM` with a `FileTokenStore` in a temporary directory that
+  holds an earlier session, a stand-in sign-in, and a `Prompter` that signals
+  at the model question and blocks; the test kills it (`Process.Kill`, on every
+  platform) and asserts the file holds the earlier session. Plant:
+  `ConfigureLLM` saving in the step again.
+
+* **P-17 `TestNoListingWarningOnAnEndedRun_0081`** (S61, S72, S77), `Discover`,
+  the listing cache cold, both entry points; corrected in the fourth pass of
+  2026-11-20 (a cancel during a cold-cache `catalog.List` of a provider with a
+  static catalog reaches `wizard/configure.go:974`, not `:951` or `:967`, and a
+  stale listing is live and warns nothing). One case per warning site, each
+  with the run cancelled during the listing and, in a second case, its
+  deadline passing there; each asserts that site's warning is not shown, the
+  words `wizard: <ctx>` and nothing saved:
+  * `:948`: a ChatGPT session (OpenAI, no static catalog), its listing's
+    transport returning when its request's context ends;
+  * `:951`: a third party's descriptor with a static catalog that `catalog`
+    does not list (`ErrUnsupported`, so `providerCatalog`), its `ListModels`
+    returning the context's error (`registry0056` with static ids);
+  * `:958`: a third party's `catalog.Lister` stand-in, no static catalog,
+    whose `ListCatalog` returns a catalog not live, carrying the context's
+    error, with a nil error;
+  * `:967`: the same stand-in with a static catalog, returning nothing
+    recommended;
+  * `:974`: a built-in provider with a static catalog, listed by
+    `catalog.List`: the failed listing comes back as the static catalog
+    carrying the error, with a nil error
+    (`llmprovider/catalog/discovery.go:353-366`, `:556-565`);
+  * `:977`: a `catalog.Lister` stand-in returning a catalog not live, with
+    models recommended and no error.
+
+  Plants, one per site: that site's warning shown whatever the run's context
+  (six); the suppression matching `context.Canceled` only (the deadline
+  cases). P-13 holds the other side (S71): with the run alive and the
+  listing's own limit passed, the warning is shown; its plant, the
+  suppression read from the listing's own context (`dCtx`) instead of the
+  run's.
+* **P-18 `TestCancelBetweenTheCheckAndTheWriteSaves_0081`** (S18): a store
+  whose `Save` cancels the run, then writes; nothing reads the context between
+  `write`'s check and `Save` (`wizard/auth.go:1181` to `:1185`), so this is
+  the instant. Asserts one save and the Result, through both entry points.
+  Plant: a context check added after `Save` in `write`. This replaces the
+  first pass's "S18 has no test"; the question put to the owner on it was
+  withdrawn by the coordinator.
+* **P-19 `TestLastCommitWins_0081`** (S50): two `ConfigureLLM` runs on one
+  store; run A signs in and waits at its model question while run B completes
+  and saves; A then answers and commits. Asserts the store holds A's session,
+  saved twice in all. Plant: the commit skips the save when the store already
+  holds a session.
+* **P-20 `TestSaveNotesInTheArchitecture_0081`** (S60, S62): reads
+  `docs/architecture.md` and requires, under "When a session is saved", the
+  sentence that an abandoned Kilo device sign-in leaves a token that does not
+  expire and that the person removes in the Kilo account's settings, and the
+  sentence on the measured premise naming the two device sign-ins as not
+  probed. Plants: each sentence removed, one at a time.
+* **P-21 `TestKiloUnverifiedNoticeClaimsNoSave_0081`** (S67, S68): Kilo,
+  `Discover`, no organization, the profile answering 503, the run alive; a
+  typed key and a device session, through both entry points. Asserts the
+  notice is shown in the words of S76, "...; going on without verifying
+  it", and holds no
+  "saved"; for `ConfigureLLM`, that it comes before the model question. Plant:
+  the words back to "it is saved unchecked". The existing
+  `TestKiloVerify_OutagesWarn_0080` (`wizard/kilo_verify_0080_test.go:362`,
+  `:383`) changes its expected words with it; that change is the one the
+  owner's ruling "Fix both" allows, an exception to the stop condition on an
+  existing test.
+
+**The plants, re-mapped after 0082** (reasoned from the code at `24756a6`,
+not run; Phase 3 runs them). For a session, `write`'s check refuses an ended
+context after `commitCredential`'s does, so a plant on `commitCredential`
+alone is caught only by a test of a key or one that asserts the error's
+words:
+
+| Plant (Phase 3 step 1, the 2026-11-18 annotation, and this pass) | Caught by, at `24756a6` (reasoned) | Not caught by, though named before |
+| :--- | :--- | :--- |
+| the final check (`commitCredential`'s) removed | `TestCancelAtModelStageReturnsNoKey_0081`; P-3's final-check cases (words); the `ResolveCredential` cases of the guards S7, S8, S11 and of P-7, P-8, P-9 (words) | `TestCancelAtModelStageSavesNothing_0081`'s count assertions, `TestCancelDuringListingSavesNothing_0081` without words (each held by `write`'s check) |
+| the check for a session only | `TestCancelAtModelStageReturnsNoKey_0081`; `TestCancelDuringListingReturnsNoKey_0081`'s `ResolveCredential` case; P-6's `ResolveCredential` cases | — |
+| a cancel matched, not a deadline | P-14; P-3's deadline case | `TestDeadlineDuringListingSavesNothing_0081` without words (held by `write`'s check) |
+| `ConfigureLLM` saving in the step again | `TestConfigureSavesOnceAfterTheModel_0081`; `TestModelStageErrorSavesNothing_0081`; P-10; P-16 | — |
+| the model-id branch not committed | `TestCancelAtManualModelSavesNothing_0081` (words) if the plant commits without the check; P-11's model-id case if it returns without committing | — |
+| `ResolveCredential`'s own last check put back | `TestCancelAfterSaveReturnsTheResult_0081` | — |
+| the check after the step removed (N3) | `TestCancelledConfigureReturnsNoKey_0081` (an empty catalog: a model id asked); the `ConfigureLLM` cases of P-6, P-7, P-8, P-9 and of the guards S7, S11, S37, through the words only | P-6 and P-9 as the first pass credited them, by "no model question" alone: the model loop's top refuses first and asks nothing |
+| `write`'s check removed (the 2026-11-18 guards' plant) | after Phase 2, only a cancel after the commit's check: `TestSaveCancelledAtAnyWaitSavesNothing_0082/a_context_ended_while_the_prompt_was_open` (candidate) | the guards S7, S8, S11, S37, where the commit's or N3's check now refuses first |
+| `write`'s check moved before the lock's wait | `TestSaveCancelledWhileWaitingSavesNothing_0082`, `TestSaveCancelledAtAnyWaitSavesNothing_0082` (candidates) | — |
+| `write`'s check skipped on the retry pass | `TestSaveCancelledAtAnyWaitSavesNothing_0082/a_context_ended_while_the_prompt_was_open` (candidate) | — |
+| `save`'s `Token` on `context.WithoutCancel(ctx)` | `TestCancelDuringRefreshSavesNothing_0081`, extended (S12) | the guard as drafted, held by `write`'s check |
+| `save`'s first check removed; that check refusing any error | P-5's refusal case; P-5's 503 case | — |
+| a context check added after `Save` | P-18; `TestCancelAfterSaveReturnsTheResult_0081`; P-11 | — |
+| the listing's warning shown whatever the run's context; the suppression on `context.Canceled` only; the suppression on `dCtx` | P-17; P-17's deadline case; P-13 | — |
+| the organizations warning kept under `Discover` only; suppressed whatever the context | P-8 (S73); `TestKiloVerify_NoDiscoverNoRead_0080/device_session` (S74) | — |
+| the Kilo notice's words back to "it is saved unchecked" | P-21 | — |
+| the commit skipping a save when the store holds a session | P-19 | — |
+| a sentence of the architecture note removed | P-20 | — |
+| `signsInAgainTo` ignoring the record | P-15 | — |
+
+**Re-grounding at `24756a6`.**
+
+* The code this pair cites is unchanged since `a7e924f` (`git diff --stat
+  a7e924f 24756a6`: `AGENTS.md`, this pair, and the probe's three files).
+* `python3 -B tools/claims.py` on the MADR and this PLAN, at their markers:
+  47 of 47 and 25 of 25, exit 0. The re-pointed rows ("C1 now" to "M2 now",
+  "P1 now" to "P25 now") on a scratch copy with plain ids and `self=24756a6`:
+  47 of 47 and 25 of 25, exit 0.
+* The prose citations of both records and of this PLAN's Phase 1a annotations
+  and review fixes (59 lines in `wizard/`, `llmprovider/auth/`,
+  `llmprovider/x/signin/`, `llmprovider/`, and 0082-MADR line 1145), read by a
+  scratch script against `git show 24756a6`: each holds, but one.
+  **Moved:** "Phase 1a, review fixes", F1,
+  `TestGrantCodeAgreesWithTheSDK_0081` (`llmprovider/live_twins_test.go:2606`)
+  is at `:2619` at `24756a6`, its doc comment at `:2611`; the file was
+  committed after F1 was written.
+* "Relation to 0080": the tests that call `credentialStep` directly are still
+  `TestKiloVerify_EndedContext_0080`, twice
+  (`wizard/kilo_verify_ctx_0080_test.go:46`, `:62`). None of 0082's seven
+  wizard test files calls `ConfigureLLM` or `credentialStep`.
+* Step 4's `commitCredential` needs the `Prompter` (annotated in place).
+* The MADR's sentence on the plan's client record after an abandoned run no
+  longer holds in one case since 0082 (its amendment of 2026-11-20; S48).
+* **Tests to watch, added to "Rules for every phase"'s list:**
+  `TestResolveCredential_ErrorKinds_0056/ctx_ended_during_the_listing`, held
+  today by `ResolveCredential`'s own last check, which step 4 removes, and
+  after it by `commitCredential`'s; and 0082's `wizard/save_*_0082_test.go`,
+  `wizard/client_*_0082_test.go`, which call `save` and `ResolveCredential`.
+* **The prerequisite "no other agent holds staged or uncommitted work in the
+  tree"** does not hold at the time of writing: the readiness passes of 0083,
+  0084 and 0085 hold uncommitted edits to their own records. Phase 2 starts
+  after they are committed.
+
+### Second readiness pass (2026-11-20): the review and the owner's rulings
+
+Records only, at `24756a6`, before anything of the first pass was committed;
+the first pass's entry above was revised in place where this says so. Each
+finding of the independent review was verified at its cited lines before it
+was applied, and each held. Nothing was run but reads, `git` reads and the
+records' checks; nothing staged.
+
+**The review's findings, each applied:**
+
+* Kilo's device token never expires (D6's "lapses"): the owner's ruling, D6
+  annotated, S60 decided, step 5's Kilo sentence, P-20.
+* A notice that claims a save (`wizard/kilo_verify.go:128`): the owner's
+  ruling "Fix both", S67 to S75 decided, S76 open for the words, P-21.
+* The commit's check before the lock (`wizard/auth.go:1100-1102`, 0082-MADR
+  N-6): decided from the amendment of 2026-11-18; 0082-MADR N-6's dated note;
+  step 5 gives `save`'s new last sentence.
+* S22's third branch (a refresh failing with a 5xx, a 429 or a transport
+  error at the commit): decided by D10; P-5's 503 case and its plant.
+* S48 not decided: the owner's ruling, S48 decided, P-15.
+* S13, P-6, P-9 (N3's plant hidden by the model loop's top check): words,
+  and the plants' table corrected.
+* S10, S29, S30 (the commit's plants caught only through
+  `ResolveCredential`): P-7 and P-8 name the case that holds each plant.
+* S18 needs no seam: P-18; the owner question was withdrawn.
+* S12 had no plant: the guard extended, plant `save`'s `Token` detached.
+* S11's tests may be dropped: no longer (the map's note).
+* P-3's words contradicted D9 row 4: words per case.
+* Found in the re-check, same class as the review's: the 2026-11-18 guards
+  S7, S8, S11 and S37 lose their plant ("`write`'s check removed") once the
+  commit's and N3's checks exist; they now assert the words, with the commit's
+  and N3's plants, and the plants' table says where `write`'s plant is still
+  caught.
+
+**The re-check of the rows added or changed in this pass** (S7, S8, S10 to
+S14, S18, S22, S29, S30, S37, S48, S50, S60 to S62, S67 to S77), against the
+review's three questions:
+
+* Missing case: a cancel during the listing with a listing cached within a
+  day serves the catalog stale and warns nothing (`llmprovider/catalog/
+  discovery.go:347-351`; a cancelled request's error is a `net.Error`, so it
+  counts as transient), so P-17 needs a cold cache, as it says; the listing's
+  other warnings on an ended run are not named by the ruling (S77, open). No
+  other.
+* Decided but not decided: S76 (the words) and S77 are `open`; every other
+  changed row cites the ruling or the record that decides it.
+* A test that cannot pin its row: each changed row names a plant, and each
+  plant is set against the entry point where its check runs first (the
+  plants' table). S65's test stays owed by 0083's PLAN, since its question
+  does not exist at this record's base.
+
+**Put to the owner** (the MADR's open rows, in one prompt):
+
+* **S76, the Kilo notice's new words.** Today: "could not verify the Kilo
+  key (<class>[, HTTP <status>]); it is saved unchecked" (0080-MADR D6).
+  (a, recommended) "could not verify the Kilo key (...); going on without
+  verifying it": it names no save and holds on every path, for a key and a
+  session. (b) "could not verify the Kilo key (...); it is used unchecked":
+  one word from 0080's, but "used" can read as already used. (c) "could not
+  verify the Kilo key (...); it will be saved unchecked if the setup
+  completes": keeps the save, but is wrong for a key, which the wizard never
+  saves, and is longer. Each costs the same edits: 0080-MADR D6's dated note,
+  `wizard/kilo_verify_0080_test.go:362` and `:383`, `CHANGELOG.md` lines 40-41
+  and `docs/architecture.md:1148-1149`.
+* **S77, the listing's other warnings on an ended run**
+  (`wizard/configure.go:948`, `:958`, `:974`, `:977`). (a, recommended)
+  Suppress every listing warning once the run's context has ended, one rule:
+  four more call sites and P-17's cases. (b) Only the two "using the built-in
+  catalog" warnings the ruling names: no more work, but ChatGPT's
+  no-static-catalog warning (`:948`), the common one, still shows on a cancel.
+  (c) A later record: a deferral, with inconsistent notices until then.
+
+### Third readiness pass (2026-11-20): the owner's rulings on S76 and S77
+
+Records only, at `24756a6`. The owner, relayed by the coordinator, ruled on
+the two rows the second pass left open: S76, `"…; going on without verifying it" (Recommended)`;
+S77, "Suppress every listing warning once the context has ended (Recommended)". Both rows are decided in
+the MADR's state table (77 rows: 67 decided, 10 out of scope, none open).
+Phase 2's step 5 addition names the words and every call site; P-17 gains a
+case per call site of S77 and P-21 asserts S76's words. Phase 1 carries a
+dated note on the owner's ruling on live runs. The second pass's "Put to
+the owner" above is answered by these rulings; nothing else changes.
+
+### Fourth readiness pass (2026-11-20): corrections
+
+Records only, at `24756a6`, after an independent confirmation of the third
+pass. Each item was verified at its cited lines before it was applied.
+
+* **P-17's sites.** The S61 case of the second pass could not reach
+  `wizard/configure.go:951` or `:967`; P-17 now names, per site, what drives
+  a test to it, with its own plant (above), and the MADR's S61, S72 and S77
+  say the same.
+* **Whole error text.** The tests that assert the words compare the whole
+  error text: `write`'s error also begins with `wizard:` (S7, S8, S11, S37 and
+  the legend).
+* **0082-MADR N-6's note** now says `commitCredential`'s is the only check
+  at the commit for a key; in `ConfigureLLM` a key also meets N3's check
+  (S24, S25).
+
+**Found, not changed: a follow-up for the owner (MADR row S78).** In
+`resolveBaseURL`, for Ollama or a local server, an endpoint question
+answered after a cancel runs `catalog.ValidateOllamaURLWith` on the ended
+context, shows "cannot reach <url> (...)" and asks "Try a different
+endpoint?" (`wizard/configure.go:704-718`), through both entry points. The
+owner's ruling "Suppress every listing warning once the context has ended
+(Recommended)" names listing warnings only, so this record leaves it as it
+is; whether it should change is the owner's to decide in a later record.

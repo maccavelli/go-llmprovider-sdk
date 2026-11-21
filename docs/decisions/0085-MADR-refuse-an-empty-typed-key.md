@@ -351,6 +351,14 @@ from them. The record is `proposed` until the owner accepts it.
   descriptor; OpenAI's access-token check (C17) for a non-blank paste; and
   every run whose key is not blank.
 
+*(Added 2026-11-20.)* Two decisions join this outcome, each recorded in full
+in "Amendment of 2026-11-20, second pass": **D9**, a provider's constructor
+treats a whitespace-only key as no key (the owner's ruling on ST48, "Pull it
+into 0085"), which widens this record to the public constructors; and
+**D10**, a repeat ask checks the run's context first (the owner's ruling on
+ST53). D8's "Not changing" list stands for the wizard; D9 names what it
+changes outside it.
+
 ### Consequences
 
 * Good, because no caller receives a `CredAPIKey` with no key from the
@@ -723,3 +731,590 @@ the wizard are on the first one's side.
 | U1 | kilocode's key prompt refuses only a zero-length value | `kilocode:packages/opencode/src/cli/cmd/providers.ts:176` | `validate: (x) => (x && x.length > 0 ? undefined : "Required"),` |
 | U2 | opencode's refuses only an empty value | `opencode:packages/cli/src/commands/handlers/auth/form.ts:65` | `validate: (value) => (!value ? "Required" : undefined)` |
 | U3 | codex trims stdin and refuses an empty result | `codex:codex-rs/cli/src/login.rs:363` | `if secret.is_empty() {` |
+
+## Amendment of 2026-11-20: the state table, before any code
+
+Added after the record was accepted and before any of its code. Nothing
+above is rewritten or removed; the decision, the status and every owner
+answer stand. The facts are those of `24756a6`, the tip of `main` on
+2026-11-20; the record above was written at `b109cea`.
+
+### Where the record stands at `24756a6`
+
+* **No code is built.** The PLAN's execution record holds the drafting, the
+  amendment of the drafts and the approval, and no phase. No commit after
+  the records' own (`a3002aa`, `8f133db`) names 0085, no `wizard/*0085*`
+  file exists, and no function `secretKey` exists.
+* **The lines this record changes have not changed.** The bodies of
+  `promptAPIKey`, `resolveAPIKey`, `keepExistingKey`, `resolveTokenStdin`,
+  `warnForeignKey`, `notifyShape`, `checkAccessToken`, `maxTypedKeys`,
+  `TextPrompter.Secret`, `TextPrompter.readLine` and the test's
+  `fakePrompter.Secret` are identical at `b109cea` and `24756a6` (compared
+  function by function, read only). 0080's code (`00757ed`) and 0082's
+  (`8051b00`, `04433ae`, `5f2c2ab`, `1545172`, `fd986c4`) moved them down
+  their files; "The evidence index re-pointed at `24756a6`", below, gives
+  each line.
+* **Build order.** The coordinator's order of 2026-11-20 builds the three
+  records that share the wizard's files as 0081, then this record, then
+  0083; 0084 is built apart. This record's code therefore starts on the
+  commit that carries 0081's code (the PLAN's "Prerequisites", annotated
+  there), and 0081's code waits on the owner's live run (0081-PLAN Phase
+  1b).
+* **Two "Not verified" items are now read at a commit.** `verifyKilo`
+  returns without reading Kilo's profile for an empty token (C64now), and
+  its comment says this record's gap is "found, and not changed here"
+  (C65now), which becomes untrue when this record's code lands (ST62).
+  `signin.VerifyKilo` has no empty-key test of its own (C66now). gobble-cli's
+  `Secret` still turns an exactly empty answer, compared untrimmed, into a
+  cancel at that repository's head `b1994a0` (G2now; read only).
+
+### The boundary with a consumer's own input layer
+
+A consumer CLI has a known first-run defect: the line feed left over from a
+CR+LF answer to a menu is read by its next prompt as an empty API key. That
+consumer fixes its input layer under its own record, and this record is not
+widened to cover it. **This record decides only what the SDK does with the
+value a `Prompter`'s `Secret` returns.** Everything before that value, how
+the consumer reads its terminal, which bytes it leaves between two prompts,
+and whether it turns an empty answer into a cancel, is the `Prompter`
+implementation's. Rows ST23 to ST25 state each side. The SDK's own
+`TextPrompter` is unchanged (D2): its line mode reads to the line feed and
+trims (C18); its raw mode drops a line feed that arrives with the carriage
+return and leaves a later one to the next prompt, by design (C70).
+
+### The state table
+
+Terms. **Blank**: empty after `strings.TrimSpace` (D4). **Asked again**: one
+warning notice, then the same prompt again. **The no-key error**: the plain
+error D3 names, returned after the third blank at one prompt, with no
+Result. The **typed prompt** is `promptAPIKey`'s and the **paste prompt**
+`resolveTokenStdin`'s; both call D2's one helper. A test marked
+"(proposed)" is added by the PLAN's entry of 2026-11-20, with its plant; a
+row's phase is the PLAN's Phase 1 unless it says otherwise. "Today" is the
+code at `24756a6`.
+
+**A. The value the typed prompt receives** (every provider that requires a
+key; `ResolveCredential` and `ConfigureLLM` alike, ST26)
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST1 | `""` | decided | asked again; a key on the second ask is the Result's `APIKey`, `Kind` `api_key`, after two `Secret` calls and one warning notice | D1 (the ruling, "A record of its own: refuse an empty key at the prompt, every provider (Recommended)"), D3, D4 | `TestTypedBlankKeyIsRefused_0085` |
+| ST2 | whitespace only: spaces, a tab, a non-breaking space, a mix | decided | as ST1 | D4 (Q1, "Empty after trimming ordinary whitespace (Recommended)") | `TestTypedBlankKeyIsRefused_0085` (four of its six values) |
+| ST3 | a lone CR, `"\r"`, or a lone LF, `"\n"` | decided | as ST1: `TrimSpace` removes either | D4 (Q1) | `TestTypedBlankKeyIsRefused_0085`, two values added (proposed) |
+| ST4 | CR+LF, `"\r\n"` | decided | as ST1 | D4 (Q1) | `TestTypedBlankKeyIsRefused_0085` (its CRLF value) |
+| ST5 | a key padded with spaces or a non-breaking space, or with a trailing `"\n"` or `"\r\n"` | decided | trimmed and used: one ask, no notice, `APIKey` the key alone | D4 ("no value that is trimmed today becomes a key, and nothing new is trimmed"); 0020-MADR F18 | `TestKeyWhitespaceKinds_0085`; a trailing `"\r\n"` added (proposed) |
+| ST6 | a quoted key, `"\"made-up-key\""` or `"'made-up-key'"`, and a value of two quote characters alone | decided | returned unchanged, quotes kept; neither is blank, so neither is asked again | D4 ("nothing new is trimmed"); Q1's text, "if nothing is left, it is refused"; PLAN "Out of scope" (no check of a key's shape) | `TestKeyWhitespaceKinds_0085`, three values added (proposed) |
+| ST7 | an interior space, line feed, NUL or ESC (`"made up key"`, `"made-up\nkey"`, `"made-up\x00key"`, `"made-up\x1bkey"`) | decided | returned unchanged; under `Discover` the listing is its only check, without it the Result carries it | D4 ("Inner whitespace, other control characters [...] are not tested; the provider's listing or request is left to refuse them"); Consequences, last bullet | `TestKeyWhitespaceKinds_0085` (inner spaces); three control-character values added (proposed) |
+| ST8 | only characters Go does not count as space, such as a lone zero-width space | decided | returned unchanged | D4 ("a lone zero-width space is not" blank) | `TestKeyWhitespaceKinds_0085` |
+| ST9 | a very long key (1 MiB of letters) | decided | returned unchanged; no length bound. A bound would be a check of the key's shape, which is out of scope | D4; PLAN "Out of scope" | `TestKeyWhitespaceKinds_0085`, one value added (proposed) |
+| ST10 | not valid UTF-8: `"\xff"`, or a lone `"\xa0"` byte (a non-breaking space in a legacy single-byte code page) | decided | returned unchanged: `TrimSpace` removes no invalid byte, so neither is blank. Validating the encoding is out of scope | D4 (the rule is `TrimSpace`'s; "nothing new is trimmed"); PLAN "Out of scope" | `TestKeyWhitespaceKinds_0085`, two values added (proposed) |
+
+**B. The bound, the notice and the error**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST11 | three blanks in a row at one prompt | decided | the no-key error after three `Secret` calls; no Result; no listing request | D3 (Q3, "Up to three asks per prompt, then an error (Recommended)") | `TestForeverBlankPrompterEnds_0085` |
+| ST12 | whether the third blank also gives the warning notice before the error | open | today's draft (PLAN step 4) gives two notices and none with the error; D3 says "a blank value gives a warning notice [...] and the prompt again", which the third cannot have | none | none until answered |
+| ST13 | the words of the notice and of the error | open | D3's proposals, "no key was entered; <Label> needs one" and "wizard: no <Label> key entered after 3 tries"; D3 says they "may change before the PLAN is approved" and "Not verified" says the owner has not seen them; the approval of 2026-11-17 does not name them. The same words would follow a blank paste prompt, "Paste your <Label> credential" | the kind only: D3, D6 (Q4) | `TestTypedBlankKeyIsRefused_0085` and `TestForeverBlankPrompterEnds_0085` once answered |
+| ST14 | the no-key error's type, and `errors.Is` | decided | a plain `fmt.Errorf` value; `errors.Is` is false for `llmprovider.ErrAuthFailure`, `llmprovider.ErrInvalidRequest`, `context.Canceled` and `io.EOF`; no exported name is added; a caller can tell it apart only by its text | D3 ("It matches no sentinel and is not an `ErrAuthFailure`"), D6 (Q4, "A plain wizard error, no new name (Recommended)") | `TestForeverBlankPrompterEnds_0085`, four `errors.Is` assertions added (proposed) |
+| ST15 | blanks across the refusal loop: a typed key the listing refuses is asked for by a new call of the typed prompt; does its blank count restart? | open | the PLAN's helper restarts it at each call: up to three asks for each key, so at most nine `Secret` calls for the three keys of 0028-MADR D-H10. D3's "for each prompt, counted apart from refused keys" and Q3's "per prompt" can be read as each call or as each of the two prompts in a run | none | none until answered |
+
+**C. The `Prompter`'s other answers, and runs with no person**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST16 | `Secret` returns an error on the first ask | decided | returned at once, wrapped "enter API key: " (typed) or "enter credential: " (paste); `errors.Is` matches the `Prompter`'s error; no second ask | D3 ("A `Prompter`'s own error is wrapped as now [...] and returned at once") | `TestKeyPrompterErrorIsReturned_0085` (typed and paste) |
+| ST17 | `Secret` returns an error after one blank | decided | one notice, then the error returned at once, wrapped as ST16; no third ask | D3 | `TestKeyPrompterErrorIsReturned_0085`, a blank-then-error case added (proposed) |
+| ST18 | `Secret` returns a value and an error together | decided | the error is returned, wrapped as ST16; the value is not used | D3 | `TestKeyPrompterErrorIsReturned_0085`, a value-with-error case added (proposed) |
+| ST19 | a caller's `Prompter` that says "cancelled" with `""` | decided | asked twice more, then the no-key error, which does not match `context.Canceled` | D3 ("the owner chose that bound over ending at the first blank"); Consequences, Neutral | `TestForeverBlankPrompterEnds_0085` |
+| ST20 | non-interactive with the SDK's `TextPrompter`: a blank line, then end of input | decided | `TextPrompter` warns once and returns "wizard: no value entered: EOF" (C22); the wizard wraps it as ST16 and returns it at once; `errors.Is(err, io.EOF)` is true; the wizard's own bound is never reached | D2 (`TextPrompter` unchanged), D3 | `TestTextPrompterRefusesBlank_0085`, an end-of-input case added (proposed) |
+| ST21 | interactive `TextPrompter`, blank entries, line or raw mode | decided | `TextPrompter` asks again itself ("empty value; please try again", C20), without a bound of its own, and never returns a blank; the wizard sees the key | D2; R2 | `TestTextPrompterRefusesBlank_0085` |
+| ST22 | Ctrl-C at `TextPrompter`'s raw-mode prompt | decided | "wizard: cancelled: context canceled", wrapped as ST16, returned at once; `errors.Is(err, context.Canceled)` is true | D2, D3 | `TestKeyPrompterErrorIsReturned_0085` (the same `%w` wrap, with a sentinel) |
+
+**D. The consumer boundary**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST23 | a consumer's `Secret` returns the line feed left from a CR+LF menu answer, `"\n"`, or `""` | decided (SDK side) | asked again, as ST1; if the consumer's next read returns the person's key, the run goes on with it | D3, D4 | `TestTypedBlankKeyIsRefused_0085` with `"\n"` (ST3, proposed) |
+| ST24 | a consumer's `Secret` turns an empty answer into a cancel error before the SDK sees it (G1) | decided (SDK side) | the error is returned at once, as ST16 | D3 | `TestKeyPrompterErrorIsReturned_0085` |
+| ST25 | why the consumer left the line feed, and how its terminal layer reads | out of scope | the consumer's own record; the SDK's contract starts at the value `Secret` returns | the ruling's reach ("at the prompt"); D2 | none |
+
+**E. Providers, credential kinds and entry points**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST26 | the two entry points, `ResolveCredential` and `ConfigureLLM` | decided | the same outcome through either: they share the credential step (C33) | D2 | `TestTypedBlankKeyIsRefused_0085`; `TestConfigureBlankKeyIsRefused_0085` |
+| ST27 | the API key as a provider's only method (`signIn`'s first branch, C12) and as a menu choice (C13; Grok, Kilo, OpenAI) | decided | the same refusal on both branches | D2 ("every route into the two key prompts") | `TestTypedBlankKeyIsRefused_0085`, which reaches both; Phase 1 names in it which providers take the menu (proposed) |
+| ST28 | the typed prompt asked again after a listing refusal (C6) | decided | the same helper and the same refusal | D2 | `TestCompatBlankKeyIsNotListed_0085` (the same call site) |
+| ST29 | each of the nine providers that require a key, Kilo, OpenCode Zen and OpenCode Go among them | decided | refused alike; no code names those three; nothing is built for the later keyless option | D2; D7 (Q6, "A later record adds an option that lets an empty key through") | `TestTypedBlankKeyIsRefused_0085` (nine by six) |
+| ST30 | a provider whose key is optional (a Chat Completions server, one found by `LocalServers` that wants a key), asked after its listing refuses no key | decided | asked again; the server never sees a blank `Authorization` | D2 | `TestCompatBlankKeyIsNotListed_0085` |
+| ST31 | a provider that takes no key: Ollama, a keyless Chat Completions server | decided | no key prompt, unchanged | D2 ("Ollama and a keyless server see no change") | `TestCompatNoKeyNeeded_0085`; the existing `TestOllama_RefusedNoKeyAsked_0066` |
+| ST32 | the paste prompt, Grok, blank | decided | asked again, the same bound and error as the typed prompt | D2, D8 | `TestPastedBlankKeyIsRefused_0085` |
+| ST33 | the paste prompt, OpenAI, blank | decided | asked again where today it is the access-token error at once; a non-blank paste still meets the foreign-key and access-token checks unchanged (C17) | D8 | `TestPastedBlankKeyIsRefused_0085`, an OpenAI case added (proposed) |
+| ST34 | a browser sign-in's pasted URL or code (`Input`, `InputContext` or `Options.Driver`) | out of scope | unchanged: not a key, and not read by `Secret` | D2 (the two prompts only) | none |
+| ST35 | the device sign-ins, the ChatGPT plan, the vendor CLI import, a kept session | out of scope | unchanged: no typed key; each checks its own session (an empty kept session is not offered; an empty Kilo token is an error, C24) | D2 | none |
+| ST36 | Kilo's device token as a key (`Options.KiloDeviceKey`) | out of scope | unchanged: an empty token is already an error (C24); a token of spaces is the service's, not typed | "Every route", its Kilo row | none |
+
+**F. The environment and `Options.Existing`, the routes this record includes**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST37 | the environment value blank, under `AllowEnv` | decided | absent: no `Confirm`; the typed prompt follows | D5 (Q2, "Yes: a blank value counts as absent (Recommended)") | `TestBlankEnvAndSavedKeyAreAbsent_0085` |
+| ST38 | the environment value `""` | decided | absent, as today (C8) | D5 | `TestBlankEnvAndSavedKeyAreAbsent_0085`, `""` among its values (proposed if absent) |
+| ST39 | the environment value not blank but padded, such as `"made-up-key\n"` | decided | offered, and if kept used untrimmed: the Result's `APIKey` keeps the line feed | D5 ("offered and used as now, untrimmed"); Q2's option not chosen, "a kept value also trimmed before use" | `TestNonBlankEnvAndSavedKeyUntrimmed_0085` (proposed) |
+| ST40 | `AllowEnv` false, or a descriptor with no `EnvVar` | out of scope | unchanged: the environment is not read | not a value this record meets | none |
+| ST41 | `Options.Existing.APIKey` blank, for a provider that requires a key | decided | absent: no `Confirm`; the typed prompt follows | D5 (Q2) | `TestBlankEnvAndSavedKeyAreAbsent_0085` |
+| ST42 | `Options.Existing.APIKey` blank, for a provider whose key is optional | decided | absent: listed with no key (the trim is `keepExistingKey`'s, which both branches call, C10) | D5 (Q2) | `TestBlankEnvAndSavedKeyAreAbsent_0085`, a Chat Completions case added (proposed) |
+| ST43 | `Options.Existing.APIKey` not blank but padded | decided | offered, and if kept used untrimmed | D5 | `TestNonBlankEnvAndSavedKeyUntrimmed_0085` (proposed) |
+| ST44 | a valid stored key exists (`Existing` or the environment), the person declines it, then three blanks | decided | the no-key error, no Result; a blank never falls back to the declined key; the wizard writes no configuration, so the caller's stored key is as it was (the caller decides what to do with it) | D3; `ConfigureLLM`'s doc, "It never writes configuration" | `TestBlankAfterDecliningSavedKey_0085` (proposed) |
+| ST45 | a valid stored key, declined, then a blank and a new key | decided | the new key is the Result's | D3 | `TestBlankAfterDecliningSavedKey_0085` (proposed) |
+| ST46 | a valid stored session in `Options.TokenStore`, declined; the API key method; three blanks | decided | the no-key error; the store's session is as it was, since a key reaches no save | D3; 0081-MADR, amendment of 2026-11-18 ("a key reaches no `save`") | `TestBlankAfterDecliningSavedKey_0085`, a session case (proposed) |
+
+**G. The programmatic API outside the wizard, which this record leaves out**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST47 | a provider built with `llmprovider.WithAPIKey("")` | out of scope | unchanged: six refuse it with `ErrInvalidRequest`; Kilo, OpenCode Zen and OpenCode Go send their anonymous or public token (C45 to C47) | the ruling ("at the prompt"); D7 relies on it for anonymous use (C48) | none |
+| ST48 | a provider built with a key of spaces | out of scope | unchanged: each constructor compares the key with `""` untrimmed (C67now to C69now), so it is not refused there and is sent | the ruling ("at the prompt"); D2 | none |
+| ST49 | `signin.VerifyKilo` with an empty key | out of scope | unchanged (C66now) | PLAN "Out of scope" (0080's checks and `llmprovider/x/signin`) | none |
+| ST50 | a vendor CLI's auth file, a `TokenStore`'s file | out of scope | unchanged: no typed key; this record includes the environment and `Options.Existing` only | D5 | none |
+
+**H. The run's state, and each platform**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST51 | under `Discover`, a blank then a key | decided | the listing is asked once, with the key; for Kilo, the profile is read once, with the key; no "refused this key" notice | Decision Drivers ("A refusal before any request"); D2 | `TestBlankKeyNeverReachesTheListing_0085` (Claude); a Kilo case added (proposed) |
+| ST52 | without `Discover`, any blank answer | decided | a blank is never the Result's `APIKey` | D1, D3 | `TestTypedBlankKeyIsRefused_0085` |
+| ST53 | the run's context is cancelled, or its deadline passes, while the prompt is being asked again (a caller's `Prompter` returns blank after the cancel) | open | the PLAN's helper takes no context: it asks up to twice more, then gives the no-key error, which does not match the context's; with a key, 0081's check after the step returns the context's error. `ConfigureLLM`'s doc promises an error matching ctx's for an ended context in the cases it names | none (0081-MADR D4 makes a deadline a cancel) | none until answered |
+| ST54 | two runs at once, or a `Prompter` used from two goroutines | out of scope | the helper holds no state outside its call, and the wizard calls `Secret` from one goroutine | not a case this change creates | none |
+| ST55 | permission refused | out of scope | the change opens no file and calls no service; `LookupEnv` is the caller's function | not a case this change meets | none |
+| ST56 | interrupted while writing | out of scope | nothing is written: a key reaches no save | 0081-MADR, amendment of 2026-11-18 | none |
+| ST57 | Linux, macOS, Windows | decided | the same outcome: the helper is string handling with no platform branch; `TextPrompter`'s per-platform paths are unchanged | D2, D4 | the Phase 1 tests, in CI's three-system matrix (`.github/workflows/ci.yml`) |
+
+**I. The sibling records**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST58 | 0081 lands first and splits `credentialStep` into an unsaved step and `commitCredential`, moving the re-ask call site (C6) and changing the docs of `ConfigureLLM` and `ResolveCredential` | decided | this record changes `promptAPIKey`'s body, not its call sites; the doc sentences are merged into 0081's at this record's base | "Relation to 0080 and to the save-on-cancel record" (the edits "do not overlap in code; the doc comments may") | the PLAN's Phase 1 step 1, redone at 0081's commit; `TestConfigureBlankKeyIsRefused_0085` against 0081's `ConfigureLLM` |
+| ST59 | 0081's "saving last": a run that ends with the no-key error | decided | nothing is saved and no Result is returned | D3; 0081-MADR D5 (one save path, after the step) | `TestBlankAfterDecliningSavedKey_0085`, its session case (proposed) |
+| ST60 | 0083 lands after and changes `Prompter.Select`'s doc and the package doc in `wizard/prompter.go`, beside this record's `Prompter.Secret` doc | out of scope | its question uses `Select` and `Confirm`, never `Secret`; 0083's own re-grounding reads `wizard/prompter.go` as this record leaves it | D2 | none |
+| ST61 | 0084 changes the send paths of `claude.go` and `opencode.go` | out of scope | this record cites their constructors as evidence only (C46, C47) and changes neither; the PLAN re-reads the cited lines at its base | D2 | none |
+| ST62 | 0080's `verifyKilo`: its skip of an empty token, and its comment that this record's gap is "found, and not changed here" (C64now, C65now) | open | the skip stays (D8). The comment becomes untrue when this record lands; the PLAN's scope does not name `wizard/kilo_verify.go`, and its step 6 covers earlier records, not code comments | D8, for the skip only | none until answered |
+| ST63 | the later record for keyless use (D7) | decided | nothing is built for it: no field, no descriptor fact, no menu entry, no code naming the three providers | D7 (Q6) | `TestTypedBlankKeyIsRefused_0085` (all nine refused alike) |
+
+**J. What a caller observes**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST64 | a caller whose `Prompter` returned a blank key, which today gets a `CredAPIKey` Result with an empty key | decided | a notice and the question again, then the no-key error; a blank environment value or saved key is no longer offered; a blank OpenAI paste is asked again; a blank Grok paste is asked again | D8 | the tests of ST1, ST11, ST32, ST33 and ST37 |
+| ST65 | a caller that relied on a blank key for anonymous Kilo, OpenCode Zen or OpenCode Go through the wizard | decided | the no-key error after three asks; it builds the provider without the wizard's key step until the later record exists | D7; Consequences, the first Bad bullet | `TestTypedBlankKeyIsRefused_0085`; `TestForeverBlankPrompterEnds_0085` |
+| ST66 | the release note | decided | a **Fixed** entry under `[Unreleased]` naming what ST64 lists | D6 (Q5, "Fixed, in the next release with 0080 and the other four (Recommended)") | `make changelog-check` (form only); Phase 1's review of the entry |
+
+**Tally.** 66 rows: 47 decided, 14 out of scope, 5 open (ST12, ST13, ST15,
+ST53, ST62), none awaiting live evidence. By the `madr-and-plan-writing`
+rule, a record with an open row is `proposed`; this amendment does not
+change the status, which is the owner's. The PLAN's Phase 1 does not start
+until the five are answered.
+
+### The open rows, as put to the owner
+
+Each is put as one question in the coordinator's one prompt; the answers go
+into "Decided" with their labels, and the rows become `decided`.
+
+* **ST12, ST13.** The notice's and the error's words, and whether the third
+  blank also gives the notice.
+* **ST15.** Whether the blank count restarts at each call of the typed
+  prompt within a run.
+* **ST53.** What a run whose context ends while the prompt is asked again
+  returns, and whether it asks again at all.
+* **ST62.** Whether Phase 1 rewords `verifyKilo`'s comment and adds a dated
+  note to 0080-PLAN's "Found, not changed".
+
+### The evidence index re-pointed at `24756a6`
+
+The index above stays as it was, at `b109cea`. This table is beside it, one
+row per row, with the same claim, and eight rows more (C64 to C70, G2); its
+ids end in "now" so that `tools/claims.py`, which reads one revision marker
+per record, does not read them against `b109cea`. Each row of this
+repository was checked at `24756a6` by `tools/claims.py` on a scratch copy
+of this table with plain ids and its own marker (`self=24756a6`): 63 of 63
+pass, and the new rows with `gobble-cli=b1994a0` added, 8 of 8. Two
+planted errors in the scratch copy (C1 one line off; C50 at its old line)
+were each caught. The four rows of other repositories (G1, U1 to U3) stay
+pinned to the revisions of the marker above.
+
+Tally of the 67 rows: **29 unchanged**, **33 moved** (same text, still
+true), **1 moved with changed text** (C50: still true in substance; the
+paragraph now also names Kilo's profile), **4 pinned**. C24, C33 and C62
+match more than one line; the row names the one that carries the claim.
+After 0081's code, C6, C7, C25, C27 to C29 and C33 are in the functions
+0081 restructures, and are re-read at this record's base (PLAN Phase 1
+step 1).
+
+| Id | Claim | Now | Location at `24756a6` | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C1now | The typed key's prompt | moved | `wizard/configure.go:855` | `func promptAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {` |
+| C2now | asks once | moved | `wizard/configure.go:856` | `key, err := p.Secret(fmt.Sprintf("Enter your %s API key", d.Label))` |
+| C3now | trims and tests nothing | moved | `wizard/configure.go:860` | `key = strings.TrimSpace(key) // a paste's spaces (0020-MADR F18)` |
+| C4now | returns whatever is left | moved | `wizard/configure.go:862` | `return key, nil` |
+| C5now | `resolveAPIKey` asks it as the typed key | moved | `wizard/configure.go:834` | `key, err := promptAPIKey(p, d, o)` |
+| C6now | the credential step asks it again after a refusal | moved | `wizard/configure.go:563` | `key, keyErr := promptAPIKey(p, d, o)` |
+| C7now | and makes it the credential | moved | `wizard/configure.go:567` | `credential = staticCredential(CredAPIKey, key)` |
+| C8now | The environment skips only an empty value | moved | `wizard/configure.go:816` | `if envVal := o.lookupEnv()(d.EnvVar); envVal != "" {` |
+| C9now | and returns it untrimmed | moved | `wizard/configure.go:823` | `return envVal, keyEnvironment, nil` |
+| C10now | A saved key is not offered only when empty | moved | `wizard/configure.go:841` | `if o.Existing.Provider != d.ID \|\| o.Existing.APIKey == "" {` |
+| C11now | and is returned untrimmed | moved | `wizard/configure.go:849` | `return o.Existing.APIKey, true, nil` |
+| C12now | A provider that requires a key is an API-key credential whatever the key | moved | `wizard/auth.go:189` | `if d.RequiresAPIKey \|\| key != "" {` |
+| C13now | The menu's API-key method asks the same | moved | `wizard/auth.go:225` | `key, from, keyErr := resolveAPIKey(p, d, o)` |
+| C14now | The pasted credential's own prompt | moved | `wizard/auth.go:604` | `value, err := p.Secret(fmt.Sprintf("Paste your %s credential", d.Label))` |
+| C15now | trims | moved | `wizard/auth.go:610` | `value = strings.TrimSpace(value)` |
+| C16now | and returns it as a key | moved | `wizard/auth.go:622` | `return staticCredential(CredAPIKey, value), nil` |
+| C17now | OpenAI's paste is checked as an access token | moved | `wizard/auth.go:616` | `if err := checkAccessToken(value, time.Now()); err != nil {` |
+| C18now | `TextPrompter` trims a line | unchanged | `wizard/text_prompter.go:156` | `trimmed := strings.TrimSpace(line)` |
+| C19now | `Secret` refuses an empty value | unchanged | `wizard/text_prompter.go:402` | `if value != "" && !readFailed(err) {` |
+| C20now | and warns | unchanged | `wizard/text_prompter.go:410` | `p.Notify(LevelWarn, "empty value; please try again")` |
+| C21now | raw mode trims the entry | unchanged | `wizard/text_prompter.go:496` | `return strings.TrimSpace(string(entered)), nil` |
+| C22now | the end of input is an error | unchanged | `wizard/text_prompter.go:408` | `return "", fmt.Errorf("wizard: no value entered: %w", err)` |
+| C23now | `Prompter.Secret`'s doc says nothing of an empty value | moved | `wizard/prompter.go:94` | `// Secret reads a credential without echoing it in full. Implementations` |
+| C24now | A Kilo device login with no token is an error | moved (also at 522) | `wizard/auth.go:450` | `errors.New("wizard: Kilo login returned no token")` |
+| C25now | no model entered is a plain error | moved | `wizard/configure.go:348` | `fmt.Errorf("wizard: no model available for %s and none entered", d.Label)` |
+| C26now | Typed keys are bounded at three | moved | `wizard/configure.go:726` | `const maxTypedKeys = 3` |
+| C27now | the existing refusal loop | moved | `wizard/configure.go:515` | `for keys, workspaces := 1, 0; stepRefusal(listErr); {` |
+| C28now | and its notice | moved | `wizard/configure.go:560` | `p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))` |
+| C29now | An optional key is asked only after a refusal | moved | `wizard/configure.go:550` | `p.Notify(LevelWarn, "%s refused the request without a key (%s); enter its key", d.Label, describe(listErr))` |
+| C30now | `resolveAPIKey` branches on `RequiresAPIKey` | moved | `wizard/configure.go:802` | `if !d.RequiresAPIKey {` |
+| C31now | a local provider sends none | moved | `wizard/configure.go:804` | `return "", keyOther, nil` |
+| C32now | `notifyShape` already guards an empty key | moved | `wizard/auth.go:731` | `if !ok \|\| key == "" \|\| s.re.MatchString(key) {` |
+| C33now | `ConfigureLLM` and `ResolveCredential` share the step | moved (also at 429) | `wizard/configure.go:332` | `res, cat, err := credentialStep(ctx, p, d, o)` |
+| C34now | The descriptor's fact | unchanged | `llmprovider/registry.go:31` | `RequiresAPIKey bool` |
+| C35now | and its local flag | unchanged | `llmprovider/registry.go:29` | `IsLocal bool` |
+| C36now | Kilo requires a key | unchanged | `llmprovider/providers/kilo/descriptor.go:23` | `RequiresAPIKey:  true,` |
+| C37now | OpenCode Zen requires a key | unchanged | `llmprovider/providers/opencode/descriptor.go:19` | `RequiresAPIKey:  true,` |
+| C38now | Together requires a key | unchanged | `llmprovider/providers/together/descriptor.go:19` | `RequiresAPIKey:  true,` |
+| C39now | Gemini requires a key | unchanged | `llmprovider/providers/gemini/descriptor.go:17` | `RequiresAPIKey: true,` |
+| C40now | Claude requires a key | unchanged | `llmprovider/providers/claude/descriptor.go:17` | `RequiresAPIKey: true,` |
+| C41now | Grok requires a key | unchanged | `llmprovider/providers/grok/descriptor.go:24` | `RequiresAPIKey: true,` |
+| C42now | OpenAI requires a key | unchanged | `llmprovider/providers/openai/descriptor.go:25` | `RequiresAPIKey: true,` |
+| C43now | Ollama is local and takes none | unchanged | `llmprovider/providers/ollama/descriptor.go:18` | `IsLocal:         true,` |
+| C44now | a Chat Completions descriptor requires no key | unchanged | `llmprovider/providers/chatcompat/descriptor.go:7` | `// sets, and no key required. It has no default base URL, no environment` |
+| C45now | Kilo's constructor with no key sends the anonymous token | unchanged | `llmprovider/providers/kilo/kilo.go:203` | `src = llmprovider.NewStaticToken(anonymousToken)` |
+| C46now | OpenCode's sends the public token | unchanged | `llmprovider/providers/opencode/opencode.go:238` | `src = llmprovider.NewStaticToken(publicToken)` |
+| C47now | Claude's refuses a blank key at once | unchanged | `llmprovider/providers/claude/claude.go:214` | `return nil, fmt.Errorf("%w: claude api key is required", llmprovider.ErrInvalidRequest)` |
+| C48now | The README says Kilo and OpenCode accept none | unchanged | `README.md:84` | `Ollama needs no key. Kilo and OpenCode accept none: they then send the` |
+| C49now | The README's wizard section | moved | `README.md:434` | `` - A sign-in saves its session to `Options.TokenStore`, once the model `` |
+| C50now | The architecture's account of a refused key | moved, text changed | `docs/architecture.md:1249` | `- **A refused key.** When the listing, or for a Kilo credential used with` |
+| C51now | and of an optional key | moved | `docs/architecture.md:1223` | `- **An optional key, and no default endpoint.** A remote provider with no` |
+| C52now | The guide's order of the key prompts | unchanged | `docs/guides/adding-a-provider.md:282` | `` otherwise `Secret`. `` |
+| C53now | The changelog's open section | unchanged | `CHANGELOG.md:12` | `## [Unreleased]` |
+| C54now | The compatibility promise | moved | `docs/guides/api-standards.md:318` | `` - **R48. From `v1.0.0`, every non-internal package outside `llmprovider/x/` is `` |
+| C55now | 0028's refused-key rule | unchanged | `docs/decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md:415` | `### D-H10. The wizard asks again when the service refuses the key` |
+| C56now | 0066's optional key | unchanged | `docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md:101` | `* **V2. A Chat Completions server that wants a key cannot be configured,` |
+| C57now | Kilo's gateway serves free models to anonymous requests | unchanged | `docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md:219` | `The gateway allows unauthenticated access for free models only.` |
+| C58now | The test prompter returns what it is scripted with | unchanged | `wizard/fake_prompter_test.go:162` | `func (f *fakePrompter) Secret(prompt string) (string, error) {` |
+| G1now | gobble's `Secret` turns an empty answer into a cancel | pinned to its repository | `gobble-cli:internal/cli/prompt.go:71` | `if err == nil && s == "" {` |
+| C59now | OpenCode Go requires a key | unchanged | `llmprovider/providers/opencode/descriptor.go:34` | `RequiresAPIKey:  true,` |
+| C60now | Hugging Face requires a key | unchanged | `llmprovider/providers/huggingface/descriptor.go:19` | `RequiresAPIKey:  true,` |
+| C61now | `ResolveCredential`'s doc: a listing may need no credential | moved | `wizard/configure.go:398` | `// that needs no credential, such as Hugging Face's, says nothing of the key.` |
+| C62now | `resolveTokenStdin` holds the run's `Options` | moved (also at 111, 176, 390, 443, 551, 782, 857, 893) | `wizard/auth.go:600` | `o Options,` |
+| C63now | `Descriptor` has no fact that a provider accepts no key | unchanged | `llmprovider/registry.go:16` | `type Descriptor struct {` |
+| U1now | kilocode's key prompt refuses only a zero-length value | pinned to its repository | `kilocode:packages/opencode/src/cli/cmd/providers.ts:176` | `validate: (x) => (x && x.length > 0 ? undefined : "Required"),` |
+| U2now | opencode's refuses only an empty value | pinned to its repository | `opencode:packages/cli/src/commands/handlers/auth/form.ts:65` | `validate: (value) => (!value ? "Required" : undefined)` |
+| U3now | codex trims stdin and refuses an empty result | pinned to its repository | `codex:codex-rs/cli/src/login.rs:363` | `if secret.is_empty() {` |
+| C64now | verifyKilo skips an empty token | new | `wizard/kilo_verify.go:94` | `if token == "" {` |
+| C65now | and its comment names this record's gap as found and not changed | new | `wizard/kilo_verify.go:95` | `// A Prompter of the caller's own that returns an empty or all-space` |
+| C66now | signin.VerifyKilo has no empty-key test of its own | new | `llmprovider/x/signin/verify.go:74` | `func VerifyKilo(ctx context.Context, key, organization string, opts ...llmprovider.Option) error {` |
+| C67now | Claude's constructor compares the key with "" untrimmed | new | `llmprovider/providers/claude/claude.go:213` | `if s.Value == "" {` |
+| C68now | Kilo's constructor likewise | new | `llmprovider/providers/kilo/kilo.go:205` | `if s.Value == "" {` |
+| C69now | OpenCode's likewise | new | `llmprovider/providers/opencode/opencode.go:240` | `if s.Value == "" {` |
+| C70now | TextPrompter's raw mode leaves a late line feed to the next prompt | new | `wizard/text_prompter.go:487` | `// read is not waited for: it is the user's next Enter.` |
+| G2now | gobble's Secret still compares the answer untrimmed at its current head | new, at gobble-cli `b1994a0` | `gobble-cli:internal/cli/prompt.go:71` | `if err == nil && s == "" {` |
+
+## Amendment of 2026-11-20, second pass: the owner's rulings, the review, and the constructors
+
+Added the same day, after an independent review of the first amendment and
+the owner's rulings on its open rows. Nothing above is rewritten or
+removed. Where a row of the first amendment's table is decided or changed
+here, the row below with the same id replaces it from this amendment on; the
+first amendment's row stays as the record of what was open. Facts are of
+`24756a6`, and of gobble-cli at `b1994a0`, read only.
+
+### The owner's rulings of 2026-11-20
+
+Each from the owner, relayed by the coordinator; the label is quoted as it
+was given, and what follows it is this record's account of the option.
+
+* **ST12, ST13, the words and the third blank:** "Approve the draft as it is
+  (Recommended)". The notice is "no key was entered; <Label> needs one",
+  shown after the first and the second blank; the third blank gives no
+  notice and ends the run with "wizard: no <Label> key entered after 3
+  tries", at the typed and the paste prompt alike (PLAN step 4).
+* **ST15, the count after a refused key:** "Restart at each prompt, as
+  drafted (Recommended)". Each call of the typed prompt has its own three
+  asks; with the three keys of 0028-MADR D-H10, a run asks `Secret` at most
+  nine times.
+* **ST53, a context that ends during a repeat ask:** "Check before each
+  repeat ask; return the cancel's error (Recommended)". Decision D10 below.
+* **ST62, `wizard/kilo_verify.go:95`:** "Reword the comment in 0085 and note
+  it in 0080's plan (Recommended)". The comment is reworded in Phase 1, the
+  file joins Phase 1's scope for that one comment, and a dated note goes in
+  0080-PLAN's "Found, not changed by 0080".
+* **Review case 1, a refused key followed by blanks:** "Confirm D3; add the
+  row and test; note it for gobble (Recommended)". Row ST67.
+* **ST48, a key made only of spaces given to a provider's constructor:**
+  "Pull it into 0085". This is not the recommended option. The outcome the
+  owner chose: constructors treat a whitespace-only key as no key. Decision
+  D9 below; it widens this record from the wizard's prompts to the public
+  constructors of every provider.
+
+### D9. A provider's constructor treats a whitespace-only key as no key (the owner's ruling on ST48)
+
+* **The ruling.** A key that is empty after `strings.TrimSpace`, given to a
+  provider through `llmprovider.WithAPIKey` or `llmprovider.NewStaticToken`,
+  is no key, and is never sent to a service as a credential. A key that
+  reaches a request by another path is not covered (third pass, "Not
+  reached"; fourth pass). This is a new decision, added by this amendment;
+  D1 to D8 stand, and D2's "the check is the prompt's" stays true of the
+  wizard's prompts, beside it.
+* **What it reaches.** Every built-in provider's constructor (`claude.New`,
+  `gemini.New`, `grok.New`, `huggingface.New`, `kilo.New`, `openai.New`,
+  `opencode.NewZen`, `opencode.NewGo`, `together.New`, `ollama.New`,
+  `chatcompat.New`), through `llmprovider.WithAPIKey` and
+  `llmprovider.WithTokenSource` with a `*llmprovider.StaticToken`, and
+  through `providers.New` and `Registry.New`, which call the ten built-ins
+  they list, and `chatcompat.New` directly. No provider
+  has a key option of its own; `WithAPIKey` is the one key option.
+* **What it leaves open** (rows ST73 to ST75, for the owner): what "no key"
+  yields for each provider, since today's empty-key behaviour differs by
+  provider (0020-MADR F52: six refuse an empty key at `New`, Kilo and the
+  OpenCode gateways send their anonymous key "by design", and Ollama and a
+  Chat Completions server send no `Authorization`); where the rule lives,
+  which decides whether it reaches a caller-registered descriptor's
+  constructor, `catalog.List`'s token source and `llmprovider/x/signin`; and
+  whether a padded key that is not blank is trimmed.
+* **Unchanged by it:** an empty key `""`, which is no key already (ST71); a
+  key that is not blank (pending ST75); `TokenSource`s that are not a
+  `*StaticToken` (sessions, a vendor CLI's login, a `CommandToken`); every
+  exported name (R55: none is added).
+* **Consequences.** Good, because a blank environment variable passed to
+  `WithAPIKey`, as this module's own example does
+  (`llmprovider/provider.go:17`, `README.md:42`), is no longer sent as a key,
+  and the wizard's D5 and the constructors agree on a blank value. Bad,
+  because it is a change to public constructor behaviour, a **Changed** entry
+  under `[Unreleased]`, which a caller that sent a blank key on purpose
+  observes; and because, under ST73's first option, a blank Kilo or OpenCode
+  variable then gives anonymous use rather than a refused key.
+
+### D10. A repeat ask checks the context first (the owner's ruling on ST53)
+
+* Before the second and the third ask at the typed prompt and at the paste
+  prompt, the helper reads the run's context. If it has ended, the prompt
+  returns at once with an error that wraps the context's error, wrapped as
+  the prompt's other errors are ("enter API key: " or "enter credential: "),
+  so `errors.Is` matches `context.Canceled` or `context.DeadlineExceeded`
+  (0081-MADR D4: a deadline is a cancel). No further `Secret` call is made.
+* The first ask is not preceded by a new check: `ConfigureLLM` and
+  `ResolveCredential` already check before any question (0059-MADR W8).
+* *(Fourth pass.)* That check precedes only the run's first ask. D10 covers
+  the blank re-asks inside one call of the prompt, and nothing else: the
+  ruling was put as the context ending while the key prompt is asked again
+  after a blank. The typed prompt asked after a listing refusal
+  (`wizard/configure.go:563`) and the sign-in menu after a refused kept
+  session (`:544`) come after a listing request and are not covered by it
+  (rows ST53b, ST53c); where a cancelled run is checked is 0081's record.
+* The context is threaded through the three unexported functions that lack
+  it, `resolveAPIKey`, `promptAPIKey` and `secretKey`; `resolveTokenStdin`
+  already takes it (as `_`). No exported signature changes.
+
+### The review's findings, each checked at the cited lines
+
+* **Case 1, a refused key followed by blanks: holds.** At `24756a6` a refused
+  typed key is asked for again (`wizard/configure.go:560` to `:566`), and the
+  run that ends on a refusal returns `refusalError`, which wraps the
+  listing's error and so matches `llmprovider.ErrAuthFailure` (`:554` to
+  `:558`, `:775`). After this record, the helper's no-key error is returned
+  as it is at `:563` to `:566`. gobble-cli branches on `ErrAuthFailure` to
+  report the keys it asked for (`llm/provider/signin.go:372` to `:374` at
+  `b1994a0`; the review cited `:366` to `:368`). Applied: row ST67.
+* **Case 2, constructors and a key of spaces: holds.** `WithAPIKey` stores
+  the key as given (`llmprovider/settings.go:109`); each constructor tests
+  `== ""` (C67now to C69now, and the same test in Gemini, Grok, Hugging
+  Face, OpenAI and Together); the package example passes
+  `os.Getenv(...)` (`llmprovider/provider.go:17`); gobble's environment
+  path tests `!= ""` (`llm/provider/ambient.go:31`) and passes the key to
+  `WithAPIKey` (`llm/provider/provider.go:218` to `:219`). Applied by the
+  owner's ruling: D9, rows ST71 to ST80.
+* **Case 3, a caller-registered descriptor with `RequiresAPIKey`: holds.**
+  The first amendment's rows name the nine built-ins and the Chat
+  Completions server only. Applied: row ST68.
+* **Case 4, `TextPrompter`'s late line feed: holds, out of scope.** A line
+  feed that raw mode leaves (C70now) is read by the next line-mode prompt as
+  an empty line, which takes the default without a word
+  (`wizard/text_prompter.go:356` to `:358` for `Input`; `Select` likewise).
+  Applied: row ST69, recorded as found, with a follow-up.
+* **Question 3, tests that cannot pin their rows: each holds**, checked
+  against the drafting's tests as handed over: Kilo shows no method menu
+  without a `TokenStore` or `KiloDeviceKey` (`wizard/auth.go:94` to `:95`,
+  `:183`), and the drafting's Options set neither; the forever-blank test
+  fails only above three asks and runs Together alone; the error test uses a
+  sentinel; the two guards (ST21, ST31) and test 10's case (c) had no plant
+  of this record's that turns them red; ST44's environment half had no test.
+  Applied: the rows marked below, and the PLAN's entry of this date.
+
+### The state table: rows decided or changed by this amendment
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST11 | three blanks in a row at one prompt | decided | exactly three `Secret` calls and two notices, then the no-key error; no Result; no listing request | D3 (Q3); the ruling on ST12, ST13 | `TestForeverBlankPrompterEnds_0085`, asserting exactly three asks and two notices (plants P-r, P-s) |
+| ST12 | the third blank and the notice | decided | the first and second blank each give one notice; the third gives none and ends the run | the owner, relayed by the coordinator: "Approve the draft as it is (Recommended)" | `TestForeverBlankPrompterEnds_0085` (two notices; plant P-s) |
+| ST13 | the words | decided | notice "no key was entered; <Label> needs one"; error "wizard: no <Label> key entered after 3 tries"; the same at the paste prompt | the owner, relayed by the coordinator: "Approve the draft as it is (Recommended)" | `TestTypedBlankKeyIsRefused_0085` (the notice; plant: the drafting's "notice removed"); `TestForeverBlankPrompterEnds_0085` (the error's text; plant P-txt) |
+| ST15 | blanks across the refusal loop | decided | the count restarts at each call of the typed prompt: after a refused key, three more asks are possible; at most nine `Secret` calls in a run | the owner, relayed by the coordinator: "Restart at each prompt, as drafted (Recommended)" | `TestRefusedKeyThenBlanks_0085`, its count case (plant P-cnt) |
+| ST19 | a caller's `Prompter` that says "cancelled" with `""` | decided | asked exactly twice more, then the no-key error, which does not match `context.Canceled` | D3; Consequences, Neutral | `TestForeverBlankPrompterEnds_0085` (plants P-r, P-s; P-h for the non-match) |
+| ST21 | interactive `TextPrompter`, blank entries, line or raw mode | decided | `TextPrompter` asks again itself, three of its own warnings "empty value; please try again", and never returns a blank; the wizard's notice is not shown | D2; R2 | `TestTextPrompterRefusesBlank_0085`, asserting three `TextPrompter` warnings and no wizard notice (plant P-v) |
+| ST22 | Ctrl-C at `TextPrompter`'s raw-mode prompt | decided | "wizard: cancelled: context canceled", wrapped "enter API key: ", returned at once; `errors.Is(err, context.Canceled)` | D2, D3 | `TestKeyPrompterErrorIsReturned_0085`, a raw-mode case through `rawSeam0059` and a Ctrl-C byte (plant P-u) |
+| ST27 | the API key as a provider's only method and as a menu choice | decided | the same refusal on both branches; Grok and OpenAI take the menu with no `TokenStore`, Kilo only with one (or `KiloDeviceKey`) | D2 | `TestTypedBlankKeyIsRefused_0085`, with Kilo run twice, without and with a memory `TokenStore`, asserting which runs asked the method menu (plant P-b) |
+| ST31 | a provider that takes no key: Ollama, a keyless Chat Completions server | decided | no key prompt | D2 | `TestCompatNoKeyNeeded_0085` (plant P-w); `TestOllama_RefusedNoKeyAsked_0066` (plant P-x) |
+| ST44 | a valid stored key (`Existing`, or the environment under `AllowEnv`), declined, then three blanks | decided | the no-key error, no Result; a blank never falls back to the declined key; the wizard writes no configuration | D3; `ConfigureLLM`'s doc | `TestBlankAfterDecliningSavedKey_0085`, cases (a) `Existing` (plant P-o) and (d) the environment (plant P-o2) |
+| ST46 | a valid stored session, declined; the API key method; three blanks | decided | the no-key error, no Result; the store is not written, neither saved nor deleted | D3; 0081-MADR, amendment of 2026-11-18 | `TestBlankAfterDecliningSavedKey_0085`, case (c) (plant P-q for the error; P-y for the store) |
+| ST48 | a provider built with a key of spaces | decided (by D9; replaces the first amendment's "out of scope") | see ST72 to ST75 | D9 | see ST72 |
+| ST53 | the context ends, by cancel or deadline, before a repeat ask | decided | no further `Secret` call; an error wrapping the context's, matched by `errors.Is` | D10; the owner, relayed by the coordinator: "Check before each repeat ask; return the cancel's error (Recommended)" | `TestCancelBeforeRepeatAsk_0085` (plant P-ctx) |
+| ST59 | 0081's saving last: a run that ends with the no-key error | decided | no Result, and the store is not written | D3; 0081-MADR D5 | `TestBlankAfterDecliningSavedKey_0085`, case (c) (plants P-q, P-y) |
+| ST62 | `verifyKilo`'s skip and its comment | decided | the skip stays; the comment at `wizard/kilo_verify.go:95` to `:98` is reworded to say a prompt no longer returns a blank key (0085), and 0080-PLAN carries a dated note | D8 (the skip); the owner, relayed by the coordinator: "Reword the comment in 0085 and note it in 0080's plan (Recommended)" | a comment: Phase 1's review, and `tools/claims.py` on a row added for the new text at Phase 1 |
+| ST65 | a caller relying on a blank key for anonymous Kilo, OpenCode Zen or OpenCode Go through the wizard | decided | for each of the three, three asks, then the no-key error | D7; Consequences | `TestForeverBlankPrompterEnds_0085`, run for all nine providers (plant P-t) |
+
+**New rows**
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST67 | a key the listing refuses, then three blanks (also: an optional key refused without a key, C29; a kept session refused, then the API key method) | decided | the no-key error, which does not match `llmprovider.ErrAuthFailure` (today: `refusalError`, which does); one listing request; four `Secret` calls. gobble-cli's report of the keys asked for, read only for `ErrAuthFailure`, is not filled | D3 ("It matches no sentinel and is not an `ErrAuthFailure`"); the owner, relayed by the coordinator: "Confirm D3; add the row and test; note it for gobble (Recommended)" | `TestRefusedKeyThenBlanks_0085` (plants P-auth, P-auth2) |
+| ST68 | a caller's descriptor in `Options.Registry` with `RequiresAPIKey` | decided | asked again, as ST1; the refusal names no provider | D2 ("the check is the prompt's, not the descriptor's") | `TestTypedBlankKeyIsRefused_0085`, a registered-descriptor case (plant P-reg) |
+| ST69 | `TextPrompter`'s raw mode leaves a late line feed, which the next line-mode prompt takes as an empty line and its default | out of scope, found | unchanged; a `TextPrompter` defect apart from this record. Follow-up: a record of its own, for the owner to open | D2 (`TextPrompter` unchanged) | none |
+| ST70 | the docs that state the gap today: `README.md:538`, `CHANGELOG.md:57` (0080's entry under `[Unreleased]`), `docs/architecture.md:1169` | decided | each sentence is corrected in Phase 1 to say a blank key is asked again | PLAN Phase 1 "Acceptance" ("the docs say what the code does") | `make docs-check`; Phase 1's review |
+| ST71 | `""` given to a built-in constructor | decided | unchanged: Claude, Gemini, Grok, Hugging Face, OpenAI and Together refuse it at `New` with `ErrInvalidRequest`; Kilo sends its anonymous key, OpenCode Zen and Go their public key, each keeping a caller's `Header`; Ollama and a Chat Completions server send no `Authorization` | 0020-MADR F52; D7 relies on it; D9 ("Unchanged by it") | the existing `TestKeyedProviders_RefuseAnEmptyKey`; `TestConstructorsEmptyKeyUnchanged_0085` (proposed; plant P-k1) |
+| ST72 | a whitespace-only key (spaces, a tab, a lone CR, a lone LF, CR+LF) given to each built-in constructor through `WithAPIKey` | decided | it is never sent as a credential: no request to the service carries it in any header | D9 | `TestConstructorsBlankKeyIsNoKey_0085` (proposed; plant P-k2) |
+| ST73 | what "no key" then yields for each provider | open | today the providers differ (ST71); 0020-MADR F52 decides `""` only | none | none until answered |
+| ST74 | where the rule lives, and so what else it reaches: a caller-registered descriptor's constructor, `WithTokenSource(NewStaticToken(key))`, a `StaticToken` with its own `Header`, `catalog.List`'s token source, `llmprovider/x/signin`'s `APIKey` and `VerifyKilo` | open | today none of them tests for blank | none | none until answered |
+| ST75 | a padded key that is not blank (`" sk-x "`, `"sk-x\n"`) given to a constructor | open | today it is sent as given; a line feed fails at the transport, since Go's HTTP client refuses a header value holding one. D5 keeps the wizard's environment and saved values untrimmed, and does not decide the constructors | none | none until answered |
+| ST76 | a blank key and another source of a key (the provider's environment variable, a store) | decided | no constructor falls back to another source; no constructor reads the environment today, and "no key" adds none | D9 ("no key") | `TestConstructorsBlankKeyIsNoKey_0085`, with the provider's variable set by the test (plant P-k3) |
+| ST77 | the wizard and the constructors on the same blank value | decided | the wizard treats a blank environment or saved value as absent (D5), and a constructor as no key (D9) | D5, D9 | the tests of ST37 and ST72 |
+| ST78 | the public API and the docs | decided | no exported name is added or removed; `make api-check` and `tools/apidiff.py v1.31.0` show no change; the doc comments of every `New` named in D9 and of `WithAPIKey`, the package example (`llmprovider/provider.go:17`), `README.md` (`:42`, `:68`, `:84`), `docs/architecture.md` and a **Changed** entry under `[Unreleased]` say what a blank key does | D9; AGENTS.md "API work" (docs in the same change) | `make api-check`; `tools/apidiff.py v1.31.0`; `make docs-check`; Phase 1b's review |
+| ST79 | what gobble-cli and other consumers observe | decided | a refused key followed by blanks ends with the no-key error, not `ErrAuthFailure` (ST67); a blank environment variable passed to `WithAPIKey` is no longer sent (ST72), with ST73's outcome in its place. The changelog entries and PLAN Phase 4's adoption note say both | D3, D9; the ruling on case 1 | Phase 4 (gobble-cli's record) |
+| ST80 | files other records change | decided | `llmprovider/providers/claude/claude.go` and `llmprovider/providers/opencode/opencode.go` (0084's send paths); `README.md`, `docs/architecture.md`, `CHANGELOG.md` (0081, 0083, 0084); `wizard/kilo_verify.go` (0081, by the owner's ruling, changes its notice at `:128` and when warnings are shown). Each is re-read at the start commit of the phase that edits it | "Relation to 0080 and to the save-on-cancel record" (the second to land re-reads and merges) | the first step of Phases 1 and 1b |
+
+2026-11-20, ST69's follow-up: [0087-MADR-late-line-feed-after-a-hidden-entry.md](0087-MADR-late-line-feed-after-a-hidden-entry.md) and [0087-PLAN-late-line-feed-after-a-hidden-entry.md](0087-PLAN-late-line-feed-after-a-hidden-entry.md).
+
+**Tally after this amendment.** 80 rows: 63 decided, 14 out of scope
+(ST48 left that column for decided; ST69 joined it), 3 open (ST73, ST74,
+ST75), none awaiting live evidence. The constructor phase (PLAN Phase 1b)
+does not start until the three are answered; Phase 1 may start without
+them.
+
+### Self-check of the rows added or changed here
+
+Against the review's three questions, limited to the rows above:
+
+* **A missing case.** ST72 lists five whitespace shapes; a non-breaking
+  space and a mix are D4's too, and the test's table carries the six values
+  of the wizard's tests plus a lone CR and LF, so the two match. A key with
+  its own `Header` and a key given as a `TokenSource` belong to ST74. No
+  other case was found.
+* **Decided but not decided.** ST71's "unchanged" rests on 0020-MADR F52 and
+  D9's own "unchanged" list, not on today's code alone. ST76 rests on D9's
+  "no key": a fall-back would be a new source, which the ruling did not
+  choose. ST73 to ST75 stay open: the ruling chose the direction, not the
+  outcome per provider, the place, or the trim.
+* **A test that cannot pin its row.** Each decided row above names a test
+  and a plant that turns it red; ST62 and ST70 are documentation, pinned by
+  review and the docs checks, not by a Go test, and say so.
+
+## Amendment of 2026-11-20, third pass: the owner's rulings on ST73 to ST75
+
+Added the same day. Nothing above is rewritten or removed. The rows below
+replace the second pass's rows of the same id; ST73 and ST74 are each split
+into lettered rows. After this amendment no row is open.
+
+### The owner's rulings
+
+Each from the owner, relayed by the coordinator; the label as given.
+
+* **ST73, what "no key" means for a whitespace-only key:** "Same as an empty
+  key today, provider by provider (Recommended)".
+* **ST74, where the rule lives:** "In `WithAPIKey` and `NewStaticToken`
+  (Recommended)".
+* **ST75, a padded key that is not blank:** "Sent as given (Recommended)".
+
+### D9, its outcomes (dated addition, 2026-11-20, third pass)
+
+D9's "What it leaves open" is answered:
+
+* **What "no key" yields.** A whitespace-only key behaves exactly as `""`
+  does today, provider by provider (0020-MADR F52): Claude, Gemini, Grok,
+  Hugging Face, OpenAI and Together refuse it at `New` with an error
+  matching `llmprovider.ErrInvalidRequest`, with the text `""` gives
+  ("<id> api key is required"); Kilo sends its anonymous key and OpenCode
+  Zen and Go their public key, keeping a caller's `Header`; Ollama and a
+  Chat Completions server send no `Authorization`. No constructor falls back
+  to another source.
+* **Where.** In `llmprovider.NewStaticToken`, which stores a value that is
+  empty after `strings.TrimSpace` as `""`, and in `llmprovider.WithAPIKey`,
+  which builds its source with `NewStaticToken` (`llmprovider/settings.go:109`)
+  and whose doc comment says so. It therefore reaches every constructor, a
+  caller-registered one included, `catalog.List` given a `NewStaticToken`,
+  and `llmprovider/x/signin`'s `APIKey` and `DeviceKey` sources, which use
+  `NewStaticToken` (`x/signin/credential.go:39`, `:96`). No constructor's
+  code changes. Not reached: a `StaticToken` built as a struct literal;
+  `signin.VerifyKilo`, which takes the key as a string;
+  `catalog.KiloModelCapabilities`, which builds `Token{Value: apiKey}`
+  itself (`llmprovider/catalog/discovery.go:1530`, `:1535`); and
+  `auth.KiloProfile`, which sends `"Bearer "+token` whatever the token
+  (`llmprovider/auth/kilo_device.go:187`, `:199`). A blank key given to
+  one of these is sent as it is today (rows ST74b, ST74d to ST74f).
+* **A padded key that is not blank** is stored and sent as given, as D5
+  keeps the wizard's environment and saved values.
+
+### The state table: rows ST71 to ST80 as decided
+
+Each of ST71 to ST77 has one test of PLAN Phase 1b; ST78 to ST80 are checks
+and a step, named with them.
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST71 | `""` given to a built-in constructor | decided | unchanged, as D9's outcomes list it | 0020-MADR F52; D9 | `TestConstructorsEmptyKeyUnchanged_0085` (plant P-k1) |
+| ST72 | a whitespace-only key (spaces, a tab, a non-breaking space, a mix, a lone CR, a lone LF, CR+LF) given through `WithAPIKey` to each of the eleven built-in constructors | decided | never sent as a credential: no request carries it in any header | D9 | `TestConstructorsBlankKeyIsNoKey_0085` (plant P-k2) |
+| ST73a | the same key, to Claude, Gemini, Grok, Hugging Face, OpenAI or Together | decided | refused at `New` with an error matching `ErrInvalidRequest`, its text that of `""` | the owner, relayed by the coordinator: "Same as an empty key today, provider by provider (Recommended)" | `TestBlankKeyIsEmptyKeyPerProvider_0085` (plant P-k2) |
+| ST73b | the same key, to Kilo, OpenCode Zen or OpenCode Go | decided | Kilo sends its anonymous key, OpenCode its public key; a caller's `Header` is kept | the same ruling | `TestBlankKeyIsEmptyKeyPerProvider_0085` (plant P-k2) |
+| ST73c | the same key, to Ollama or a Chat Completions server | decided | no `Authorization` header is sent | the same ruling | `TestBlankKeyIsEmptyKeyPerProvider_0085` (plants P-k2 for the Chat Completions server, P-k6 for Ollama) |
+| ST73d | the same key, to a caller-registered provider's constructor | decided | the constructor receives a `*StaticToken` whose `Value` is `""`, and does what it does with `""` | the same ruling; the owner, relayed by the coordinator: "In `WithAPIKey` and `NewStaticToken` (Recommended)" | `TestBlankKeyIsEmptyKeyPerProvider_0085` (plant P-k2) |
+| ST74a | `NewStaticToken(v)` and `WithAPIKey(v)` for a blank `v` | decided | `NewStaticToken("  ").Value` is `""`; `WithAPIKey("  ")` resolves to a `*StaticToken` whose `Value` is `""` | the owner, relayed by the coordinator: "In `WithAPIKey` and `NewStaticToken` (Recommended)" | `TestStaticTokenBlankIsEmpty_0085` (plants P-k2, P-k8) |
+| ST74b | a `StaticToken` built as a struct literal, `&StaticToken{Value: "  "}` | out of scope | not normalised: a literal calls neither function. `StaticToken`'s doc comment says so (PLAN Phase 1b step 4) | the same ruling ("In `WithAPIKey` and `NewStaticToken`") | none |
+| ST74c | `catalog.List` given `NewStaticToken("  ")`; `x/signin`'s `APIKey{Key: "  "}` and `DeviceKey` sources | decided | reached: the token's `Value` is `""`, so no `Authorization` is sent | the same ruling | `TestStaticTokenBlankIsEmpty_0085` (plant P-k2) |
+| ST74d | `signin.VerifyKilo(ctx, "  ", ...)`, which takes the key as a string | out of scope | unchanged: the string reaches neither function; PLAN "Out of scope" names `llmprovider/x/signin`'s checks | the same ruling; PLAN "Out of scope" | none |
+| ST74e | `catalog.KiloModelCapabilities(ctx, "  ", model)` | out of scope (fourth pass) | unchanged: it builds `Token{Value: apiKey}` itself (`discovery.go:1535`), and its request sends a non-empty value (`:1419` to `:1420`), so the spaces are sent | the owner, relayed by the coordinator: "In `WithAPIKey` and `NewStaticToken` (Recommended)" places the rule there; a token built another way is not covered | none |
+| ST74f | `auth.KiloProfile(ctx, "  ", ...)` | out of scope (fourth pass) | unchanged: it sets `Authorization` to `"Bearer "+token` whatever the token (`kilo_device.go:199`) | the same ruling, for the same reason | none |
+| ST75 | a padded key that is not blank (`" made-up-key "`, `"made-up-key\n"`) given to `NewStaticToken` or `WithAPIKey` | decided | stored and sent as given | the owner, relayed by the coordinator: "Sent as given (Recommended)"; D5 | `TestConstructorsPaddedKeySentAsGiven_0085` (plant P-k7) |
+| ST76 | a blank key and another source of a key | decided | no constructor falls back to the provider's environment variable or any other source | D9 | `TestBlankKeyNoFallback_0085` (plant P-k3) |
+| ST77 | the wizard and the constructors on the same blank environment value | decided | the wizard does not offer it (D5); `WithAPIKey` of it gives `""`'s outcome (D9) | D5, D9 | `TestWizardAndConstructorAgreeOnBlank_0085` (plant P-k2; the first pass's "environment test untrimmed" for the wizard half) |
+| ST78 | the public API and the docs | decided | no exported name added or removed; the doc comments of `WithAPIKey`, `StaticToken`, `NewStaticToken` and each constructor, the package example, `README.md`, `docs/architecture.md` and a **Changed** entry say what a blank key does, and that a struct literal is not changed | D9; AGENTS.md "API work" | `make api-check`; `tools/apidiff.py v1.31.0`; `make docs-check` |
+| ST79 | what gobble-cli and other callers observe | decided | ST67's error; a blank variable passed to `WithAPIKey` refused at `New` for the six, anonymous or public use for Kilo and OpenCode | D3, D9 | Phase 4's adoption note; the **Changed** entry |
+| ST80 | files other records change | decided | `claude.go` and `opencode.go`: 0084 changes their send paths and package docs; Phase 1b changes only the doc comments above `New`, `NewZen` and `NewGo`, so no common line. `README.md`, `docs/architecture.md` and `CHANGELOG.md`: changed by 0081, 0083 and 0084, and by Phases 1 and 1b. `wizard/kilo_verify.go`: 0081, by the owner's ruling, changes its notice at `:128` and when warnings are shown; Phase 1 rewords the comment at `:95` to `:98`. Each is re-read at the start commit of the phase that edits it, and the second to land merges | "Relation to 0080 and to the save-on-cancel record" | the first step of Phases 1 and 1b |
+
+**Tally after this amendment.** 86 rows: 70 decided, 16 out of scope, 0
+open, none awaiting live evidence.
+
+## Corrections of 2026-11-20, fourth pass
+
+Corrections found by an independent confirmation of the second and third
+passes; no decision and no ruling changes. Edits to those passes' own text
+(not yet committed) were made in place: D9's "never sent" now names the two
+places, D9 names `chatcompat.New` apart from `providers.New`'s ten, D9's
+"Not reached" list and rows ST74e and ST74f name two more key paths, D10
+names what it does not cover, and ST80 carries the second pass's overlaps.
+The rows below are added.
+
+| Id | Case | State | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST53b | the context ends after the listing request after which the typed prompt is asked again (`wizard/configure.go:563`) | out of scope | unchanged by this record: D10's check precedes only blank re-asks inside one call of the prompt | the owner's ruling on ST53, "Check before each repeat ask; return the cancel's error (Recommended)", was put as the context ending while the prompt is asked again after a blank; where a cancelled run is checked is 0081-MADR's (D2, D5, D9) | none |
+| ST53c | the context ends during the listing request after which a refused kept session leads to the sign-in menu (`wizard/configure.go:544`) | out of scope | unchanged by this record, as ST53b | the same | none |
+| ST81 | a token source that is not a `*StaticToken`, such as a `CommandToken`, returns a blank value | out of scope, found | unchanged by D9; such a value is sent as today. Found, not changed: nine providers look up model facts with `WithAPIKey(token.Value)` (for example `claude.go:397`, `kilo.go:361`; `catalog/lookup.go:164`), which after D9 gives `""`, while the listing is cached under the source's raw value (`catalog/discovery.go:337`), so the lookup misses that listing. `CachedFacts` starts no fetch (`catalog/lookup.go:160` to `:162`), so nothing more is sent | D9 ("Unchanged by it": sources that are not a `*StaticToken`) | none |
+
+**Tally after the fourth pass.** 91 rows: 70 decided, 21 out of scope, 0
+open, none awaiting live evidence.

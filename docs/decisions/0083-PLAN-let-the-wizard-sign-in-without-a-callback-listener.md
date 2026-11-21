@@ -879,3 +879,478 @@ and section, since that text is not at `b109cea`.
 * C under `-race`, on Linux, on Windows, or at 50 rounds: those are Phase
   2's.
 * Option D was not built.
+
+## Amendment 2026-11-20: the state table's tests, re-grounding at each phase's start, and the base after 0081 and 0085
+
+*(Added 2026-11-20 by the readiness pass, before any of this PLAN's code.
+Nothing above is rewritten or removed. It carries out the MADR's amendment
+of the same date, "the state table, before any code", whose `ST` rows it
+cites. Facts are those of `24756a6`.)*
+
+### Where the PLAN stands
+
+* **Phase 0 is done; it had no execution entry.** `a3002aa` placed the two
+  records and their index rows, `bf8e502` folded in the amendment of
+  2026-11-17, and `8f133db` set the MADR `accepted` and this PLAN
+  `in-progress`, each with its index row (`docs/README.md:185`, `:186`).
+* **Phases 1 to 5 have not started.** At `24756a6` no Go file names `0083`,
+  `NoBrowserQuestion` or `BindsNothing_0083`.
+* **Phase 1 waits for the open rows.** The MADR's amendment has seven open
+  rows (ST18, ST30 to ST32, ST38, ST51, ST65), put to the owner as four
+  questions in one prompt. Phase 1 does not start until each is answered.
+  *(Second pass, the same day: the owner ruled on those four; seven rows are
+  open now, ST68, ST70 to ST72 and ST83 to ST85, and the same condition
+  applies to them.)* *(Third pass: the owner ruled on those seven too; no
+  row is open, and Phase 1 waits on no record.)*
+  Each answer is then recorded by a dated note in the MADR, and where it asks
+  for code, by a test here with its plant, before the build.
+
+### The base, now
+
+* "Prerequisites" defines the base as 0080-PLAN Phase 3's commit. 0080's code
+  has landed (`00757ed`), and so has 0082's (`8051b00`, `04433ae`, `5f2c2ab`,
+  `1545172`, `fd986c4`).
+* The coordinator's order for the three records that share the wizard's
+  files is 0081, then 0085, then this PLAN. **The base is now the commit on
+  `main` that carries 0081-PLAN Phase 2's code, 0085-PLAN Phase 1's code,
+  and any review fix of either.**
+* "Prerequisites" names `0083-MADR-a-cancelled-sign-in-saves-nothing.md`.
+  The record meant is
+  [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md).
+* The files those two records change before this PLAN's build are in the
+  MADR's amendment, "Build order, and the files the two earlier records
+  change first".
+
+### The first step of each unbuilt phase: re-ground at the phase's start commit
+
+Each of Phases 1 to 5 begins with a step R, before its own step 1. The
+execution record quotes its output.
+
+**Phase 1, step R, at the base.** This is redone at the base after 0081's
+and 0085's code, whatever was re-read before. The re-grounding of
+2026-11-20 at `24756a6` does not stand in for it.
+
+1. Run `git diff --stat 24756a6 <base>`. Then run `git diff 24756a6 <base> --`
+   on each of these paths:
+   * `wizard/configure.go`, `wizard/auth.go`, `wizard/prompter.go` and
+     `wizard/kilo_verify.go`;
+   * `llmprovider/x/signin/signin.go`;
+   * `README.md`, `docs/architecture.md`, `CHANGELOG.md` and
+     `docs/guides/adding-a-provider.md`;
+   * every new `wizard/*_test.go`.
+
+   Record each hunk that touches a symbol, a line or a doc this PLAN cites.
+   Say whether `wizard/kilo_verify.go` changed. The coordinator's brief
+   expects it to; none of the three scopes names it.
+2. Run `python3 -B tools/claims.py --rev self=<base>` on the MADR and this
+   PLAN, and capture its exit status. Read each failing row against the "now"
+   tables of 2026-11-20 (the MADR's, and "Citations at `24756a6`" below).
+   Record each row that moved. A row whose text is gone is a stop.
+3. Re-read, at the base:
+   * the symbols "Relation to 0080" lists;
+   * 0081's unsaved step and `commitCredential`, and where the refused
+     kept session's second sign-in now comes from (ST15);
+   * the first checks of `ConfigureLLM` and `ResolveCredential`, beside
+     0081's check after the step. D4's check must still come before any
+     question (ST7);
+   * `resolveChatGPTPlan`'s reads of the session and the client record
+     (ST18, as the owner answers it);
+   * 0085's `secretKey` and `resolveTokenStdin` (ST24, ST62);
+   * `Prompter.Secret`'s doc beside `Select`'s (`wizard/prompter.go`);
+   * the `[Unreleased]` sections 0081 and 0085 filled;
+   * *(second pass)* 0081-MADR's Decision Outcome as it stands at the base,
+     D4, D7 and D9 above all, on which ST48, ST50, ST53, ST54 and ST69
+     rest. 0081's record is being amended on 2026-11-20 by its own readiness
+     pass. A changed D4, D7 or D9 is a stop;
+   * *(second pass)* whether 0081's or 0085's code adds a path to a second
+     browser sign-in in one run (ST15). If it does, NT13 is written on that
+     path and ST15 becomes decided by a dated note; if not, ST15 stays out of
+     scope and NT13 is not written;
+   * *(second pass)* the sites of the second pass's plants and changes:
+     `stepRenderer.run`'s call of `signinflow.Start` (`wizard/driver.go:70`
+     at `24756a6`), `pastePrompt.input` and `drain` (`wizard/auth.go:961`,
+     `:1018`), `pasteCheck.check` (`internal/signinflow/paste.go:48`),
+     `parseOAuthCallback` (`llmprovider/auth/oauth_loopback.go:763`),
+     `listenLoopbackBothFamilies` and `isAddrInUse` (`:502`, `:565`), and
+     `keysServer` (`llmprovider/auth/oauth_idtoken_test.go:17`).
+4. Re-run the census (step 2) at the base. Its list must equal the Phase 1
+   table plus whatever ST59 to ST61 place. A test that 0081 or 0085 added
+   and that meets the question is classified by step 5's rule and recorded
+   as a deviation. The phase goes on only if the rule places it without
+   doubt.
+
+**Phases 2 to 5, step R, at the phase's start commit.** Run
+`python3 -B tools/claims.py --rev self=<start>` on both records, with its
+status captured. Re-read every line the phase's own steps cite.
+
+### Exit criterion of each unbuilt phase
+
+Phases 1, 2, 3, 4 and 5 each end on, besides their own "Acceptance": **no
+blocker, every row tested, plants caught.** "Every row" is every decided row
+of the MADR's amendment that the phase's tests pin, by the map below.
+
+### The test map: each decided row, and the test that pins it
+
+| Row | Test | Phase |
+| :--- | :--- | :--- |
+| ST1 | `TestNoLoopbackOffByDefault_0083` | 1 |
+| ST2 | `TestQuestionForm_0083`; NT1 | 1 |
+| ST3 | `TestQuestionEndedInputIsThisMachine_0083` | 1 |
+| ST4 | `TestQuestionExhaustedInputEnds_0083` | 1 |
+| ST5 | `TestQuestionAnswerElsewhere_0083`; NT2 | 1 |
+| ST6 | `TestNoLoopbackReachesTheLogin_0083`, `TestQuestionNoLoopbackStillOpens_0083` | 1 |
+| ST7 | `TestNoLoopbackWithNoPastePromptRefused_0083` | 1 |
+| ST8 | `TestNoBrowserQuestionKeepsToday_0083` | 1 |
+| ST9 | `TestQuestionNotAskedWhereItMustNot_0083`; NT3 | 1 |
+| ST10 | `TestQuestionNotAskedWhereItMustNot_0083`, with NT12 (second pass) | 1 |
+| ST11 | `TestQuestionNotAskedWhereItMustNot_0083`, with NT12 (second pass) | 1 |
+| ST12 | NT4 | 1 |
+| ST13 | `TestQuestionForm_0083` | 1 |
+| ST14 | `TestQuestionBeforeConsent_0083` | 1 |
+| ST15 | none at `24756a6`: out of scope since the second pass, as no run reaches it; NT13 if step R finds a path. `TestQuestionOncePerRun_0083` now pins ST67 | 1 |
+| ST16 | NT5 | 1 |
+| ST17 | `TestNoLoopbackWithNoPastePromptRefused_0083` (ST7's case); NT2 | 1 |
+| ST19 | `TestNoLoopback_BindsNothing_0083`, `TestNoLoopbackReachesTheLogin_0083` | 1 |
+| ST20 | `TestNoLoopback_BindsNothing_0083`; `TestStart_NoLoopback_0074`, repaired; its 50 rounds | 1, 2 |
+| ST21 | `TestNoLoopbackReachesTheLogin_0083`; NT2 | 1 |
+| ST22 | `TestNoLoopbackReachesTheLogin_0083` | 1 |
+| ST23 | `TestQuestionNotAskedForOtherMethods_0083`; NT6 | 1 |
+| ST24 | `TestQuestionNotAskedForOtherMethods_0083`; NT6 | 1 |
+| ST25 | `TestNoLoopbackOffByDefault_0083` | 1 |
+| ST27 | `TestPortsAdvicePerMethod_0083`, with NT15 (second pass); `TestListenOpenAILoopback_ErrorsWhenAllBusy` | 1 |
+| ST28 | `TestPortsAdvicePerMethod_0083` | 1 |
+| ST29 | NT7 | 1 |
+| ST34 | `TestPortsAdvicePerMethod_0083`, on CI's three platforms | 1, 5 (the tag's CI) |
+| ST47 | `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`, `TestInputerContext_PasteWins_0057`, each scripting the answer | 1 |
+| ST48 | NT8 | 1 |
+| ST50 | NT9 | 1 |
+| ST55 | `TestQuestionAnswerElsewhere_0083` | 1 |
+| ST56 | `TestNoLoopbackOffByDefault_0083` | 1 |
+| ST57 | `TestQuestionEndedInputIsThisMachine_0083`, `TestQuestionExhaustedInputEnds_0083` | 1 |
+| ST59 | the census at the base, step R.4 and step 2 | 1 |
+| ST60 | the census | 1 |
+| ST61 | the census | 1 |
+| ST63 | `TestNoLoopback_BindsNothing_0083`; `TestStart_NoLoopback_0074`, repaired; the 50-round run with 1024 listeners held | 1, 2 |
+| ST64 | NT10; 20 rounds of `llmprovider/auth` under `-race` | 1, 2 |
+| ST66 | `make api-check`; `python3 -B tools/apidiff.py v1.31.0` | 1, 2 |
+
+The 40 decided rows all appear. Every new test this PLAN names maps to at
+least one row: `TestNoLoopbackReachesTheLogin_0083` (ST6, ST19, ST21, ST22),
+`TestNoLoopbackOffByDefault_0083` (ST1, ST25, ST56),
+`TestQuestionAnswerElsewhere_0083` (ST5, ST55),
+`TestQuestionNoLoopbackStillOpens_0083` (ST6), `TestQuestionForm_0083`
+(ST2, ST13), `TestQuestionBeforeConsent_0083` (ST14),
+`TestQuestionOncePerRun_0083` (ST15),
+`TestQuestionNotAskedWhereItMustNot_0083` (ST9 to ST11),
+`TestQuestionNotAskedForOtherMethods_0083` (ST23, ST24),
+`TestQuestionEndedInputIsThisMachine_0083` (ST3, ST57),
+`TestQuestionExhaustedInputEnds_0083` (ST4, ST57),
+`TestNoLoopbackWithNoPastePromptRefused_0083` (ST7, ST17),
+`TestNoBrowserQuestionKeepsToday_0083` (ST8), `TestPortsAdvicePerMethod_0083`
+(ST27, ST28, ST34), `TestNoLoopback_BindsNothing_0083` (ST19, ST20, ST63),
+and the repaired `TestStart_NoLoopback_0074` (ST20, ST63). None maps to no
+row. The 30 existing tests of the Phase 1 table imply no new row. They keep
+their own records' assertions, and the table's rule is the PLAN's stop
+condition, not a behaviour.
+
+*(Annotated 2026-11-20, by the later passes. This paragraph is the first
+pass's. There are now 62 decided rows. `TestQuestionOncePerRun_0083` pins
+ST67, not ST15, which no run reaches at `24756a6`. See "Second pass" and
+"Third pass" below, and the MADR's amendment.)*
+
+### Proposed tests for decided rows with none (dated addition to Phase 1)
+
+Each is written in `wizard/browser_question_0083_test.go` unless the row
+says otherwise, under "Rules for every phase". Each is seen red as Phase 1
+step 4 says, and each plant goes in `PLANTS.json` for Phase 2 step 1: the
+single production change that must turn the test red, on a scratch clone.
+
+| Id | Rows | Test | Asserts | Plant |
+| :--- | :--- | :--- | :--- | :--- |
+| NT1 | ST2 | a case in `TestNoLoopbackOffByDefault_0083` | a `TextPrompter` given an empty line at the question: `NoLoopback` false at the login, today's instruction | the question's default index passed as 1 |
+| NT2 | ST5, ST17, ST21 | cases in `TestQuestionAnswerElsewhere_0083` | the answer "On another device" through `ConfigureLLM` and through `ResolveCredential`, for OpenAI's and Grok's `browser_oauth`, a first plan sign-in (D5's URL-only words) and a plan sign-in again (the code-or-URL words) | (a) the first plan sign-in given the code-or-URL words after the answer; (b) the question skipped when the step is entered from `ResolveCredential` |
+| NT3 | ST9 | a case in `TestQuestionNotAskedWhereItMustNot_0083` | `NoLoopback` with `NoBrowserQuestion`: no question, and `NoLoopback` true at the login | `spec.NoLoopback = o.NoLoopback && !o.NoBrowserQuestion` |
+| NT4 | ST12 | `TestDriverWithNoLoopback_0083` | a `Driver` and `NoLoopback`: no `Select` with the question's title; `NoLoopback` true at the login; the `Driver`'s paste completes the sign-in | `NoLoopback` not set on the spec when a `Driver` is set |
+| NT5 | ST16 | `TestQuestionAskedAgainNextRun_0083` | two `ConfigureLLM` runs with one `Options` value and one store, each answered "On another device": the question asked once in each run, `NoLoopback` true at each login | the answer kept in a package-level variable |
+| NT6 | ST23, ST24 | cases in `TestQuestionNotAskedForOtherMethods_0083` | Kilo's device sign-in, with and without `KiloDeviceKey`; the pasted ChatGPT token; a kept session: no question. With `NoLoopback` set, Grok's device sign-in runs its device login as without it | the question asked in the `token_stdin` branch |
+| NT7 | ST29 | `TestPortsBusyEndsTheRun_0083` | the browser login's stub returns an error starting "oauth: registered callback ports unavailable;" after "On this machine": the run returns it; the question was asked once; no further `Select`, `Confirm` or `Input`; no notice naming the other answer | the question asked again when the login returns that error |
+| NT8 | ST48 | `TestQuestionThenCancelledRunSavesNothing_0083` | *(second pass)* Grok's `browser_oauth` through the login seam, which has no consent step: a `Prompter` whose question `Select` cancels the run's context and then answers "On another device": the run returns an error matching `context.Canceled`; the store saved nothing; the login's stub, if called, saw an ended context | `signinflow.Start` given `context.WithoutCancel(ctx)` in `stepRenderer.run` (`wizard/driver.go:70`) |
+| NT9 | ST50 | `TestNoLoopbackCancelDuringPasteSavesNothing_0083` | `NoLoopback`; an `InputerContext` `Prompter` whose paste read returns only when its context ends; the run's context cancelled during the paste, and in a second case its deadline passed: an error matching `context.Canceled`, then `context.DeadlineExceeded`; nothing saved; the run on a goroutine, done within 5 s. *(Fourth pass.)* The fake's plain `Input` blocks until the test's cleanup releases it, and asserts nothing | `pastePrompt.read` calls `Input`, not `InputContext`: the read cannot be ended, `drain` waits for an Enter that never comes, and `stepRenderer.run`'s `wg.Wait()` (`wizard/driver.go:155`) holds the run past the 5 s bound |
+| NT10 | ST64, ST65 | `TestVerifyIDToken_StaleKeysForAReusedURL_0083`, in `llmprovider/auth` | *(second pass, by the owner's ruling on ST65)* a port from `nettest.Port`; a fresh entry put in `jwksCache` under `http://127.0.0.1:<port>/jwks`, as an earlier server on that port leaves it; a server built on that port by the helper beneath `keysServer`; then `TestVerifyIDToken_UnknownKidRefetchesOnce`'s sequence: one fetch to populate, one refetch for the unknown kid, the published key found, no further fetch | the helper's clearing removed: a change to a test helper, since the ruling allows no production change. Expected red then with "0 key fetches to populate the cache, want 1" (not run: this pass runs no test) |
+
+**Phase 2 gains** a run of the package that showed the flake, as it showed
+it, through the queue:
+`~/.agents/skills/available-dev-hosts/scripts/run-heavy -- go test -race -count=20 -timeout 45m ./llmprovider/auth/`.
+Its status is captured before any filter. `TestVerifyIDToken_UnknownKidRefetchesOnce`
+must not fail.
+
+### Citations at `24756a6`
+
+`python3 -B tools/claims.py` on this PLAN at its marker (`self=b109cea`):
+44 of 44 rows pass (exit 0). With `--rev self=HEAD`: 32 of 44 (exit 1).
+Every failing row's text was found on another line; none is missing. The
+ids end in "now", so that `tools/claims.py` does not read them against
+`b109cea`.
+
+| Id | At `b109cea` | At `24756a6` |
+| :--- | :--- | :--- |
+| P1 now | `wizard/prompter.go:72` | `:78` |
+| P2 now | `wizard/configure.go:200` | `:238` |
+| P3 now | `wizard/auth.go:812` | `:888` |
+| P4 now | `wizard/auth.go:824` | `:900` |
+| P5 now | `wizard/auth.go:765` | `:841` |
+| P6 now | `wizard/auth.go:801` | `:877`, the paste flow's call (`:867` is the `NoPastePrompt` branch's) |
+| P7 now | `wizard/auth.go:218` | `:223` |
+| P20 now | `README.md:381` | `:427` |
+| P21 now | `README.md:471` | `:553` |
+| P22 now | `docs/architecture.md:1010` | `:1092` (`:389` is a level-three heading of the same words) |
+| P23 now | `docs/architecture.md:1073` | `:1192` |
+| P44 now | `internal/signinflow/signinflow.go:448` | `:506`, the browser branch (`:475` is the plan's) |
+
+The other 32 rows, P8 to P19 and P24 to P43, hold on their lines at
+`24756a6`. The `wizard/`, `README.md`, `docs/architecture.md` and
+`CHANGELOG.md` rows move again with 0081's and 0085's code (step R).
+
+### Execution record: the readiness pass (2026-11-20)
+
+* **Read, at `24756a6`:**
+  * both records whole;
+  * `AGENTS.md` and `docs/README.md`'s rows;
+  * the Decision Outcome of
+    [0081-MADR-a-cancelled-sign-in-saves-nothing.md](0081-MADR-a-cancelled-sign-in-saves-nothing.md)
+    and its amendments, and of
+    [0085-MADR-refuse-an-empty-typed-key.md](0085-MADR-refuse-an-empty-typed-key.md);
+  * the scopes of both sibling PLANs, read from `HEAD` with `git show`;
+  * 0082's N-5 entries;
+  * the code named in the MADR's amendment.
+* **Run:** `tools/claims.py` on both records, at their markers (exit 0) and
+  with `--rev self=HEAD` (exit 1, every row moved, none gone).
+* **Not run:** any test, gate or build. This pass is records only.
+* **Changed:** this PLAN and its MADR, by these two dated additions; no
+  other file.
+
+### Second pass (2026-11-20): the review and the owner's rulings
+
+*(Added the same day, after an independent review of this amendment and the
+owner's rulings on its open rows. The MADR's amendment carries the rulings,
+quoted by label, and the rows; this section carries the build.)*
+
+**Scope gains:**
+
+* `internal/signinflow/paste.go`: the retry of a schemeless paste (MADR D11,
+  ST76 to ST82), with its test file. If the owner's answer to ST84 says so,
+  `parseOAuthCallback` in `llmprovider/auth/oauth_loopback.go` too.
+* `llmprovider/auth/oauth_loopback.go`: the advice for a bind failure other
+  than "in use" (ST30, ST32), beside D8's.
+* `wizard/auth.go`: `pastePrompt.input` (ST38); `drain` (ST51, ST69); the
+  question asked through `choose` (ST73), right before `browserSignIn` in
+  the plan path (ST18).
+* `llmprovider/auth/oauth_idtoken_test.go`: `keysServer` and a helper beneath
+  it that takes the listener (ST65).
+* `llmprovider/x/signin/`: NT22's test.
+* *(fourth pass)* `internal/signinflow/signinflow.go`, `askPaste`: where a
+  paste passes the check, it returns the address with `http://` in front
+  (`:603` to `:605` return the raw `answer.Paste` at `24756a6`). The
+  corrected address comes from a second unexported function beside `check`
+  in `paste.go`, which returns the text to hand on. `check` keeps its
+  signature and its single return of a reason, so
+  `TestEngine_PasteChecks_0074` (`internal/signinflow/signinflow_0074_test.go:230`,
+  `:244`) is unchanged and the stop on existing tests is not met. A changed
+  return of `check` would change that test; that design is not taken.
+* *(fourth pass)* the drain's cause. `drain` takes no input
+  (`wizard/auth.go:1018`; the renderer's field is `func()`,
+  `wizard/driver.go:59`), and the renderer calls it before it reads the
+  login's result (`wizard/driver.go:151` to `:156`). In scope, then:
+  * the field's type, at `wizard/driver.go:59`, becomes a `drain` that
+    takes the cause;
+  * `stepRenderer.run` reads `end`, the login's result, before it calls
+    `drain`, then waits on its goroutines as now;
+  * `browserFlowOptionsFor`'s return (`wizard/auth.go:880`), and
+    `pastePrompt.drain`, take the cause.
+
+  The cause gives the notice:
+  * the run's context ended (a cancel, or the run's deadline, which
+    0081-MADR D4 counts as a cancel): "Sign-in cancelled; press Enter to
+    continue";
+  * otherwise, the login's error matching `context.DeadlineExceeded` (its
+    own limit): "Sign-in timed out; press Enter to continue";
+  * otherwise, a finished sign-in or any other end: "Browser sign-in
+    finished; press Enter to continue", as today, since no ruling changes
+    it.
+
+  Step R.3 confirms at the base that `run.Steps()` closes only once the
+  login has returned, so that reading `end` first cannot wait on a paste
+  that `drain` alone would end. If it does not, that is a stop.
+* No exported name is added; everything above is unexported.
+
+**Step 7's docs gain:**
+
+* `Options.Driver`'s doc: no question about the browser is asked under a
+  `Driver` (N3; the review's case 3); and `StepDriver`'s doc, if it says what
+  the wizard asks.
+* `CHANGELOG.md` "Changed":
+  * a pasted redirect address without `http://` is read as the address,
+    for every caller of the engine, `x/signin`'s included (D11);
+  * a bind failure other than a port in use advises the sign-in with no
+    listener (ST30, ST32);
+  * with no listener, a paste answered empty at once ends the sign-in
+    (ST38);
+  * the notice after a cancel or a timeout no longer says "finished" (ST51,
+    ST69).
+
+**The stop on error texts** ("an error text changes other than D8's advice")
+also admits ST70's, ST71's and ST72's words, once the owner approves them.
+*(Fourth pass.)* It also admits ST85's re-ask, "That is not a usable
+address", which the owner's ruling of the third pass gives.
+
+**Phase 2's plants** gain NT12 to NT22's, in `PLANTS.json`.
+
+**The test map, second pass.** These rows were decided in this pass, or had
+tests that could not go red:
+
+| Row | Test | Plant that turns it red | Phase |
+| :--- | :--- | :--- | :--- |
+| ST10, ST11 | NT12 | `spec.NoLoopback` set true when a `Driver` is set | 1 |
+| ST18 | NT14 | the question asked right after the method menu | 1 |
+| ST27 | NT15 | the browser's old text restored | 1 |
+| ST30, ST32 | NT16 | the in-use advice given for every failure | 1 |
+| ST38 | NT17 | the wait for the login's end kept under no listener | 1 |
+| ST48 | NT8, revised above | as NT8's row | 1 |
+| ST50 | NT9 | as NT9's row | 1 |
+| ST51 | NT18, NT19 | the old "finished" words kept after a cancel; after a timeout | 1 |
+| ST65 | NT10, revised above | the helper's clearing removed (a test helper) | 1 |
+| ST67 | `TestQuestionOncePerRun_0083`, re-scoped: the kept session's offer, the refusal's notice, the method menu, the question once, then the login | the question asked when the kept session is offered | 1 |
+| ST69 | NT18 | *(fourth pass)* no notice shown after a cancel: `drain` returns silently. (The second pass's plant, `drain` returning without waiting for the pending read, could not turn NT18 red: `stepRenderer.run` still waits on the paste goroutine, `wizard/driver.go:155`, which stays in `Input`, `:282` to `:290`.) | 1 |
+| ST73 | NT20 | the question's raw `Select` read directly, any index but 0 taken as "On another device" | 1 |
+| ST76 | NT21, NT22 | the retry removed | 1 |
+| ST77 | NT21 | the retry made only where the step takes a code or a URL | 1 |
+| ST78 | NT21 | the retry skipped where the step takes a code only | 1 |
+| ST79 | NT21 | the state check skipped after the retry | 1 |
+| ST80 | NT21 | the prefix tested before the paste is trimmed | 1 |
+| ST81 | NT21 | `https://` tried first | 1 |
+| ST82 | NT21 | *(fourth pass)* the retry made, and its result kept, for any paste that the first parse does not read as a URL with a scheme: the host-and-port check removed, so `12:34/x` and `abc/def` are read as addresses and refused for their state. (The second pass's plant left ST83's equality check in place, which still rejects them.) | 1 |
+
+`TestQuestionOncePerRun_0083` as first written (a second sign-in in one run,
+asked once) could not go red, since no run reaches a second sign-in; it now
+pins ST67, and ST15 waits on step R.
+
+**Proposed tests of the second pass** (dated addition to Phase 1, in
+`wizard/browser_question_0083_test.go` unless the row says otherwise):
+
+| Id | Rows | Test | Asserts |
+| :--- | :--- | :--- | :--- |
+| NT12 | ST10, ST11 | assertions in `TestQuestionNotAskedWhereItMustNot_0083` | the login's `NoLoopback` under each setting: false under `NoBrowserQuestion`, `NoPastePrompt` and a `Driver`; true under `NoLoopback` |
+| NT13 | ST15 | `TestQuestionReusedInOneRun_0083`, written only if step R finds a path to a second browser sign-in in one run | the question asked once; both logins get the first answer's `NoLoopback`; plant: the answer not kept for the run |
+| NT14 | ST18 | `TestQuestionAfterThePlanReads_0083` | a first plan sign-in: (a) the client record's read refused with a permission error: the run's error, and no question asked; (b) an undecodable record: the warning notice comes before the question's `Select` |
+| NT15 | ST27 | an assertion in `TestPortsAdvicePerMethod_0083` | the browser sign-in's error says "free ports P and Q, or use device-code login", with the two ports it was given |
+| NT16 | ST30, ST32 | `TestPortsAdviceOtherFailures_0083`, in `llmprovider/auth` | the listen hook refuses every bind with a permission error that is not "in use": OpenAI's browser and plan sign-ins give the prefix and ST70's advice, and do not say "free ports"; Grok's gives "oauth: listen for Grok callback:" and the same advice; no bind reaches the system |
+| NT17 | ST38 | `TestNoLoopbackQuickEmptiesEndAtOnce_0083` | `NoLoopback`; a `Prompter` whose paste answers come empty at once: the run returns ST71's error within 5 s, on a goroutine |
+| NT18 | ST51, ST69 | `TestNoLoopbackCancelWithPlainPrompter_0083` | `NoLoopback`; a `Prompter` that is not `InputerContext`, whose paste read blocks until a line is fed; the run's context cancelled. The test waits, up to 5 s, for ST72's cancel notice, "Sign-in cancelled; press Enter to continue", and fails if it does not come; only then does it feed the line *(fourth pass)*. The run has not returned before the line; once it is fed, an error matching `context.Canceled` within 5 s; nothing saved |
+| NT19 | ST51 | `TestDrainAfterTheLoginsLimit_0083` | `NoLoopback`; a `Prompter` that is not `InputerContext`; the login's stub returns the login's timeout while the paste read is pending: ST72's timeout notice, not "finished" |
+| NT20 | ST73 | `TestQuestionOutOfRangeIsAnError_0083` | the question answered with index 5: a plain error naming the choice out of range; no login called |
+| NT21 | ST76 to ST82 | `TestPasteSchemelessCallback_0083`, in `internal/signinflow` | an authorize URL whose `redirect_uri` is `http://127.0.0.1:1455/auth/callback`. First, at the base, `127.0.0.1:1455/auth/callback?code=c&state=<state>` is seen taken as a bare code (the review's inference shown). Then: it passes where the step takes a code or a URL (ST76); with a `client_id` it passes for a first plan sign-in, and without one it is refused (ST77); it is refused where the step takes a code only (ST78); another state, and none, are refused as "not from this sign-in" (ST79); the same with spaces and a line break around it passes (ST80); the retried URL's scheme is `http` (ST81); `12:34/x` and `abc/def` are taken as bare codes (ST82) |
+| NT22 | ST76 | `TestStart_SchemelessPasteCompletes_0083`, in `llmprovider/x/signin` | a browser sign-in with `NoLoopback`, the real `auth` code against the fake issuer: a schemeless paste of the redirect completes it |
+
+Each new test's plant is in the map above. The open rows' answers may add
+rows, and with them tests; those come by a dated note before Phase 1.
+
+**Execution record, second pass:**
+
+* **Read, at `24756a6`:** each of the review's cited lines; `net/url`'s
+  `getScheme` and `parse` in the Go 1.27.4 tree; `stepRenderer.run`;
+  `credentialStep`'s refusal loop.
+* **Run:** `tools/claims.py`, record lint and the identifier scan on the two
+  records (statuses in the hand-back).
+* **Not run:** any test.
+
+### Third pass (2026-11-20): the last seven rows, decided
+
+*(Added the same day, after the owner's rulings on ST68, ST70 to ST72 and
+ST83 to ST85; the MADR's amendment quotes their labels. Nothing else
+changes.)*
+
+**What the code does, decided:**
+
+* **`llmprovider/auth`, the bind failures.** When any registered port failed
+  "in use", the error keeps D8's "free ports" advice, with every reason joined
+  after it (ST68). When none did, it keeps its prefix and advises: "this host
+  does not allow the callback listener: sign in with no listener and paste the
+  address back (in the wizard, answer that the browser is on another device;
+  in code, set NoLoopback)". Grok's failure gets the same advice after
+  "oauth: listen for Grok callback:" (ST30, ST32, ST70).
+* **`wizard/auth.go`, `pastePrompt.input`.** With no listener, three empty
+  answers at once end the sign-in with "wizard: the prompter answered the
+  paste with nothing, three times at once; with no callback listener only a
+  paste can finish the sign-in", matching `llmprovider.ErrInvalidRequest`
+  (ST38, ST71).
+* **`wizard/auth.go`, `drain`, in every flow.**
+  * After a cancel: "Sign-in cancelled; press Enter to continue".
+  * After the login's limit: "Sign-in timed out; press Enter to continue".
+  * After a finished sign-in: "Browser sign-in finished; press Enter to
+    continue", as today (ST51, ST69, ST72).
+* **`internal/signinflow/paste.go`, the retry.**
+  * The engine alone retries a paste that begins with the registered
+    callback's exact host and port, with `http://` in front. It keeps the
+    result only when its host and port equal the `redirect_uri`'s.
+  * It hands `auth` the address with `http://` in front.
+  * A paste that begins so, but whose retried parse fails, is refused with
+    "That is not a usable address", asked again, and counted among the three
+    pastes.
+  * `localhost:<port>` and `[::1]:<port>` are read as today (ST83 to ST85).
+  * `auth`'s `parseOAuthCallback` is unchanged. The doc comments of
+    `LoginBrowserOAuth` and `LoginChatGPTPlan` say that a schemeless address
+    given to their `InputCode` is taken as a bare code (ST88).
+
+**Scope, for ST72's change to the existing flow's notice** (every quote of
+"Browser sign-in finished; press Enter" at `24756a6`, checked in Phase 1):
+
+* `wizard/auth.go:1037`, the notice: changed as above.
+* `wizard/auth_test.go:464` and `wizard/inputctx_0057_test.go:182` count
+  "press Enter to continue" after a loopback win. That notice is unchanged,
+  so they stay as they are.
+* `wizard/auth_test.go:494`, `wizard/inputctx_0057_test.go:71` and `:142`:
+  Prompters that react to "press Enter". The new notices hold it too, so
+  their behaviour is unchanged.
+* `wizard/remediation_test.go:88` sends the words as a notice in a race
+  test and asserts nothing of the drain; unchanged.
+* `docs/decisions/0008-MADR-repair-oauth-loopback-and-session-wiring.md:605`
+  and `docs/decisions/0057-MADR-wizard-device-code-and-paste-prompt.md`
+  (C19, C20) describe the notice after a loopback win, which stays. The
+  dated notes this PLAN already writes in 0008-MADR D3 and 0057-MADR D2 add
+  the two new notices.
+* `docs/decisions/0008-PLAN-repair-oauth-loopback-and-session-wiring.md:1006`
+  and `docs/decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md:575`
+  are execution history; not changed.
+* `README.md`, `docs/architecture.md` and `CHANGELOG.md` quote it nowhere.
+  The CHANGELOG "Changed" entry of the second pass names the two notices.
+
+**Tests, adding to the second pass's** (each plant goes in `PLANTS.json`):
+
+| Id | Rows | Test | Asserts | Plant |
+| :--- | :--- | :--- | :--- | :--- |
+| NT16, NT17, NT18, NT19 | ST70, ST71, ST72 | as the second pass wrote them | each asserts its row's words; NT17 also asserts that the error matches `llmprovider.ErrInvalidRequest` | the words changed; for NT17, the error made plain |
+| NT21 | ST83, ST84, ST85 | cases added to `TestPasteSchemelessCallback_0083` | `127.0.0.1:14550/…` and `127.0.0.1:1457/…`, with a callback on 1455, are taken as bare codes; `localhost:1455/…` is read as today; `[::1]:1455/…` is a bare code; the text handed on for a qualifying paste begins `http://`; `127.0.0.1:1455/%zz?…` is refused with "That is not a usable address" and counted | (a) the retry kept for any port on the callback's host; (b) the address handed on without `http://` (NT22 then fails too); (c) a failed retry taken as a bare code |
+| NT23 | ST68 | `TestPortsAdviceMixedFailure_0083`, in `llmprovider/auth` | the listen hook fails the first port "in use" and the second with a permission error: the error gives the "free ports" advice and holds both reasons | the other-failure advice given whenever any port failed for another reason |
+| NT24 | ST72 | `TestDrainNoticeWithAListener_0083` | "On this machine": after a loopback win, "Browser sign-in finished; press Enter to continue"; after a cancel, "Sign-in cancelled; press Enter to continue"; after the login's limit, "Sign-in timed out; press Enter to continue" | the drain's notice chosen without its cause |
+
+**Phase 4, dated note (2026-11-20):** the owner's ruling on live runs,
+"API keys from the environment only (Recommended)" (relayed by the coordinator), leaves with the owner any step that
+needs a browser sign-in, a phone or a real terminal, so Phase 4 stays the
+owner's, and optional.
+
+### Fourth pass (2026-11-20): corrections
+
+*(Added the same day, after a check of the earlier passes found five
+items. Corrections only; no row and no ruling changes.)*
+
+* **NT18's plant** (ST69) is now "no notice after a cancel", and NT18 waits
+  for the notice. The old plant could not turn the test red. **NT9's row**
+  now says that its fake's `Input` blocks.
+* **The corrected address** reaches `auth` through `askPaste` and a second
+  function beside `check`. `TestEngine_PasteChecks_0074` is unchanged (scope,
+  second pass).
+* **ST82's plant** now removes the host-and-port check.
+* **The drain's cause** reaches the notice through the renderer's `drain`
+  field, read after `end` (scope, second pass).
+* **The stop on error texts** admits ST85's re-ask.
+* **The first pass's map paragraph** is annotated.

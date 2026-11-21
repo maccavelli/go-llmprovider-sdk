@@ -1108,6 +1108,13 @@ below it. The staged tree is the first staging with the reviews' fixes.
     statement. The wizard's check skips an empty token
     (`wizard/kilo_verify.go:94`), with a comment saying why. The docs say so
     (README, CHANGELOG, architecture).
+    *(Added 2026-11-20: this gap is closed by
+    [0085-MADR-refuse-an-empty-typed-key.md](0085-MADR-refuse-an-empty-typed-key.md),
+    whose prompts ask again for a blank key. By the owner's ruling of that
+    day, relayed by the coordinator, "Reword the comment in 0085 and note it
+    in 0080's plan (Recommended)", 0085's Phase 1 rewords the comment at
+    `wizard/kilo_verify.go:95` and the three docs sentences; the skip of an
+    empty token stays. See 0085-PLAN's entry of 2026-11-20, second pass.)*
   * **A flaky test of another package,** hit once by the fourth review's race
     run: `TestStart_NoLoopback_0074/grok` failed with "something listens at
     127.0.0.1:53531; want no listener under NoLoopback"

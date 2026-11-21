@@ -420,6 +420,15 @@ filled where the provider returns the error (D4).
   accepted a root string (F5, F6, F8, F11 to F14), and the ChatGPT plan
   session and `chatcompat`, not recorded. A refusal recorded later is added
   by amendment, with its fixture, as the overflow table grows (C19).
+* *(Annotated 2026-11-20 by the owner's rulings relayed by the
+  coordinator, recorded in the second amendment of 2026-11-20: on OpenAI's
+  routes the name comes from the message's `function '<name>'` only, never
+  `param` (N2); each row applies on every route of its service whose reply
+  carries the marker, so OpenAI's ChatGPT and plan sessions and OpenCode's
+  chat and Messages routes are read where they send a read form, and
+  OpenCode Zen's Messages route is recorded (N3); the rows apply to HTTP
+  error replies only (N4); `x-should-retry: true` and the overflow row win
+  over them (N5).)*
 
 ### D4. Where the name is filled
 
@@ -433,6 +442,13 @@ filled where the provider returns the error (D4).
 * `ClassifyHTTPError` never sees the request, so it sets the kind and
   leaves `Tool` empty. `Message`, `Code`, `Status` and `Retryable()` are
   unchanged.
+* *(Annotated 2026-11-20 by the owner's rulings relayed by the
+  coordinator, recorded in the second amendment of 2026-11-20: the
+  provider finds the `*APIError` through wrapping (N6); "the list it
+  encoded" includes the tool definitions inside a `tool_search_output`
+  item of `input` and the caller's Search tool behind a native
+  `tool_search` entry (N2, and the ruling on ST10); several entries of one
+  name count as one name (N6).)*
 
 ### D5. The SDK adapts nothing and resends nothing (Q5, decided)
 
@@ -453,6 +469,10 @@ request" (C17); the rest as today. `Tool` is not printed, as `Limit` and
 * `llmprovider.ErrToolSchemaRefused`; `llmprovider.APIError.Tool`. Nothing
   else is exported; the per-route matchers stay internal, as 0062's are
   (R15). `make api-check` lists exactly these two additions.
+  *(Annotated 2026-11-20: `make api-check` lists incompatible changes
+  only (`scripts/check_api.py:85`), so it lists neither; the check is
+  `make api-check` exiting 0 and `tools/apidiff.py` from the PLAN's Phase 2
+  start commit listing exactly these two.)*
 * Call site: gobble-cli's `llm/provider` adapter, where it maps an
   `*APIError` (G4) and where it already resends once on a matched refusal
   (G5), by a gobble-cli record of its own.
@@ -522,9 +542,14 @@ holds the steps. In short:
   reworded refusal stays `ErrInvalidRequest`, per route; every other
   recorded 400 keeps its kind; a refusal on the last allowed send keeps its
   name; `llmtest.Run` passes for every provider.
-* **`make api-check`** lists exactly D7's two additions.
+* **`make api-check`** lists exactly D7's two additions. *(Annotated
+  2026-11-20: as D7's annotation of that date says.)*
 * **The owner's live steps** (the PLAN's Phase 1, O1 to O6) record the forms
-  this record could not establish, with no key displayed.
+  this record could not establish, with no key displayed. *(Annotated
+  2026-11-20: an agent runs them, with the keys in its process environment,
+  by the owner's ruling "API keys from the environment only
+  (Recommended)", relayed by the coordinator; second amendment, ST77 to
+  ST85.)*
 * **An independent review** of the change, and the gates through the
   session's heavy-run queue.
 
@@ -713,3 +738,496 @@ provider) and this record are complementary, not redundant:
 * Whether a refused request is billed: not established for any provider.
 * The ChatGPT plan session's and `chatcompat` servers' forms: not recorded.
 * Which runtime path of kilocode sends through `packages/llm` (U10).
+
+## Amendment of 2026-11-20: the state table, before any code
+
+A readiness pass, on the coordinator's brief, before Phase 1a. It changes no
+decision, no owner answer and the status: the record stays `accepted`, as
+the owner ruled. It adds the state table the owner now asks of every record
+that changes behaviour: every case the change can meet, each `decided` (with
+the place that decides it and the test that pins it), `out of scope` (with
+the reason), `open` (the owner must choose; nothing below chooses for them),
+or `open: awaits live evidence` (the owner's run in the PLAN's Phase 1b
+settles it). Under the `madr-and-plan-writing` skill a record with an open
+row would be `proposed`; the status is the owner's to change, and is not
+changed here. Read at `24756a6` on `main`, read-only.
+
+### What the PLAN's live steps are, and which are done
+
+* **O1 to O6 are not steps.** They are six of the case shapes that one
+  owner run records (the PLAN's Phase 1a step 1: `root-string`, then O1
+  root union, O2 two bad tools, O3 typed branches, O4 nested union, O5 a
+  history calling a tool no longer offered, O6 Grok's second model). The
+  steps are the PLAN's Phase 1a (an agent writes the recorder), 1b (the
+  owner runs it once), 1c (an agent turns the records into fixtures), then
+  Phase 2 (tests, code, docs).
+* **Done:** Phase 0 only: the pair placed (`a3002aa`) and accepted
+  (`8f133db`). The prerequisite of Phase 1a, 0080-PLAN Phase 3's code, is on
+  `main` (`00757ed`).
+* **Not done:** Phase 1a (no `llmprovider/*0084*` file and no
+  `testdata/toolschema-0084/` at `24756a6`), 1b, 1c and every later phase.
+
+### Facts read at `24756a6` for this table
+
+Each is a line read at `24756a6`; none is an evidence-index row, so
+`tools/claims.py` does not check them.
+
+* **H1.** A reply whose `x-should-retry` header is `true` turns any kind
+  beneath `ErrInvalidRequest` into `ErrProviderUnavailable`, retryable
+  (`llmprovider/api_error.go:306` to `:317`). Neither the 0062 fixtures nor
+  Phase 1's records keep a response header (PLAN Phase 1a step 2).
+* **H2.** A failure inside a 200 stream whose code is an HTTP status from
+  400 to 599 is classified through `classifyAPIError` with that status
+  (`api_error.go:441` to `:444`); the generateContent stream reader passes
+  Google's numeric code there (`llmprovider/internal/wire/generatecontent/generatecontent.go:307`).
+  So a D3 row in `classifyAPIError` also meets an in-stream failure on
+  OpenCode Zen's Google route.
+* **H3.** OpenCode's `Generate` sends every route under the label
+  `opencode` (`llmprovider/providers/opencode/opencode.go:322`, `:334`), and
+  `serviceOf` reduces any `opencode…/<route>` label to `opencode`
+  (`api_error.go:498` to `:504`): `classifyAPIError` cannot tell OpenCode's
+  routes apart.
+* **H4.** OpenAI's API-key, ChatGPT-session and plan-session modes all send
+  under `openai` (`llmprovider/providers/openai/openai.go:317`, `:333`).
+* **H5.** The PLAN puts the naming helper in `llmprovider/internal/wire`,
+  which can read only `APIError`'s exported fields; the envelope
+  `ClassifyHTTPError` parses is not kept on the error (`api_error.go:259` to
+  `:277`). The PLAN's `param`, "kept on the envelope, never exported"
+  (Phase 2 step 5), cannot reach that helper as written.
+* **H6.** `validate` refuses a tool with no name and a schema that does not
+  marshal, not two tools of one name (`llmprovider/contract.go:265` to
+  `:274`).
+* **H7.** `Reauth` wraps an error (`errors.Join`) only after a refused
+  credential (`llmprovider/internal/wire/reauth.go:27` to `:52`); a
+  learner's check returns the error as it came unless its matcher read it
+  (`learn.go:300` to `:324`); Grok's matcher reads only two effort messages
+  under `invalid-argument` (`responses/refusal.go:49` to `:55`). So today
+  a schema refusal reaches the provider unwrapped.
+* **H8.** No log call on the send path takes an error's text:
+  `post.go:115` logs a failed body close only.
+
+### The state table
+
+`Test` names the PLAN's test and phase, a test this amendment proposes
+(marked *proposed*; the PLAN's amendment of 2026-11-20 gives each its
+plant), or the existing test that must stay green unchanged.
+
+#### Providers and routes
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST01 | Grok Responses: 400, `invalid-argument`, `[invalid_client_tool_schema]` | decided | kind `ErrToolSchemaRefused`; `Tool` is the sent name after the tag, up to `:` | D3 row 1; Q3 "Every route with a recorded refusal (Recommended)" | `Classify`, `Names` (Phase 2) |
+| ST02 | OpenAI Responses (API key): 400, `invalid_function_parameters` | decided | the kind | D3 row 2; Q3 | `Classify`, `Names` (Phase 2) |
+| ST03 | Where OpenAI's and OpenCode Zen Responses' `Tool` comes from: `param`'s index, or the message's `function '<name>'` | open (N2) | today nothing names it; the PLAN's `param` cannot reach its helper (H5) | – | depends on N2 |
+| ST04 | OpenCode Zen Responses route: as ST02 | decided | the kind | D3 row 2; Q3 | `Classify`, `Names` (Phase 2) |
+| ST05 | Anthropic Messages: 400, `invalid_request_error`, message begins `tools.N.` and holds `input_schema` | decided | the kind; `Tool` is entry N of the list as sent, after deferral | D3 row 3; D4; Q3 | `Classify`, `Names`, `Deferral` (Phase 2) |
+| ST06 | OpenCode Zen Google route, behind the gateway's `Upstream request failed: [400]`: `INVALID_ARGUMENT` and `functionDeclaration parameters schema` | decided | the kind; `Tool` is the backticked sent name | D3 row 4; Q3 | `Classify`, `Names` (Phase 2) |
+| ST07 | Left out, own service label: Gemini Interactions, Kilo, Hugging Face, Ollama, Together, `chatcompat` | decided | unchanged: `ErrInvalidRequest`; reason: each accepted a root string (F6, F8, F11, F12, F14) or is not recorded | D3 "Not read, so unchanged" | `OthersUnchanged` (Phase 2) |
+| ST08 | Left out but sharing a read route's label: OpenAI's ChatGPT session and plan session (`openai`, H4); OpenCode's chat routes and Go Messages route (`opencode`, H3) | open (N3) | today: a D3 row placed in `classifyAPIError` matches them too, though D3 says "not read" | – | depends on N3 |
+
+#### What the refusal says
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST09 | Names exactly one tool the body held | decided | `Tool` is its name, exactly as sent | D2; Q1 "A typed error kind plus the tool's name (Recommended)" | `Names` (Phase 2) |
+| ST10 | Names a schema field only, or a name the request did not send, a deferred tool not sent, Grok's `use_tool`, an index past the list, a native `tool_search` entry, or a request that sent no tools | decided | the kind; `Tool` empty | D2; Q4 "The new kind, with the tool left empty (Recommended)" | `NeverNamesUnsent` (Phase 2), with a no-tools subcase *proposed* |
+| ST11 | The route's marker, and no tool named at all | decided | the kind; `Tool` empty | D2; Q4 | *proposed* `NamesNothing` (Phase 2) |
+| ST12 | Several tools named in one reply | decided | the kind; `Tool` empty | D2; Q4 | `SeveralNamed` if O2 records it; otherwise open (N7) |
+| ST13 | Two sent tools share one name, and the refusal names it | open (N6) | today no check refuses duplicates (H6); the PLAN's helper wants "exactly one entry" | – | depends on N6 |
+| ST14 | A reworded refusal: the route's marker gone | decided | `ErrInvalidRequest`; `Tool` empty | D3 "When a provider rewords a refusal" | `Reworded` (Phase 2) |
+
+#### How the refusal arrives
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST15 | HTTP 400, `Generate` | decided | kind from `ClassifyHTTPError`; `Tool` set after `wire.Send` returns | D3; D4 | `Classify`, `Names` (Phase 2) |
+| ST16 | HTTP 400, `Stream`, before any event | decided | the same, set where the stream yields its error | D4 | `Names`, `Stream` half (Phase 2) |
+| ST17 | A 200 with an error body, or an error event inside a 200 stream, before or after other events | open (N4) | out of scope in the PLAN, yet H2 lets the Google-route row match there | – | depends on N4 |
+| ST18 | A gateway in front of the provider: OpenCode Zen's Google route | decided | read through the gateway's wrapper | D3 row 4 | `Classify`, `Names` (Phase 2) |
+| ST19 | A caller's proxy (`WithBaseURL`) passing status and body through | decided | as the provider itself: the rows read status, code and message, not the host | D3 | `Names` (its in-process server is such a proxy) |
+| ST20 | A proxy that changes the status (502, 200) or replaces the body (HTML) | decided | no D3 row matches (each needs a 400 and its marker); the status's kind as today | D3 | *proposed* `ProxyAltered` (Phase 2; needs N7 (a)) |
+
+#### Errors that look like it
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST21 | Grok 400 `invalid-argument` naming an API key, even with the tag | decided | `ErrAuthFailure` | PLAN Phase 2 step 5 ("after the Grok key row"); C13 | `OthersUnchanged`; *proposed* `KeyRowFirst` (Phase 2) |
+| ST22 | Grok's refused effort | decided | `ErrInvalidRequest`; 0062's learner resends as today | D3; 0062-MADR D4 (R15) | `OthersUnchanged` (Phase 2) |
+| ST23 | 401, 403, 402, 429, 5xx carrying a refusal's body | decided | the status's kind as today | D3 (each row needs a 400) | *proposed* `ProxyAltered` (needs N7 (a)) |
+| ST24 | Content policy: OpenAI `invalid_prompt`, others' own codes | decided | `ErrInvalidRequest` | D3 | `Reworded`'s OpenAI case, its code changed to `invalid_prompt` (*proposed* detail) |
+| ST25 | Context overflow alone | decided | `ErrContextOverflow` | 0015-MADR (R8); D3 | `OthersUnchanged` and existing overflow tests, unchanged |
+| ST26 | A body that matches both a D3 row and the overflow table | open (N5) | the PLAN places the rows only "after the Grok key row" | – | depends on N5 |
+| ST27 | Anthropic's workspace refusals; OpenCode's `ModelError`; plan-session codes | decided | their kinds as today | 0064-MADR D3 (R11); D3 | existing 0064 and 0043 tests, unchanged (PLAN Phase 2 step 7) |
+
+#### The error's fields, wrapping and callers
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST28 | The provider gives no detail beyond its text | decided | `Status`, `Code`, `Message`, `RetryAfter`, `ResetAt`, `Limit`, `Reason` as today; `Tool` empty unless named | D4; D2 | *proposed* `FieldsUnchanged` (Phase 2) |
+| ST29 | `errors.Is` | decided | true for the kind and `ErrInvalidRequest`; `Unwrap` yields the kind only | D1; Q1 | `Classify` (Phase 2) |
+| ST30 | `errors.As`, and a caller that compares `Kind ==` | decided | `errors.As` finds the `*APIError`; its `Kind` is the new sentinel, so `Kind == ErrInvalidRequest` is now false; R25 says to test by `errors.Is`; gobble maps kinds by `errors.Is` through a list that holds no `ErrInvalidRequest`, so its mapping is unchanged (read at its `HEAD`) | D1; R1, R2 | `Classify`, with an `errors.As` assertion *proposed* |
+| ST31 | `Error()` | decided | begins `llmprovider: tool schema refused:`; `Tool` not printed; text matching "invalid request" no longer matches these | D6; Q6 | `Classify` (Phase 2) |
+| ST32 | `x-should-retry: true` on such a 400 | open (N5) | today H1 makes it `ErrProviderUnavailable`, retryable | – | depends on N5 |
+| ST33 | The kind arriving wrapped (`errors.Join`, `%w`) | open (N6) | unreachable today (H7); the PLAN's helper takes "a classified error" | – | depends on N6 |
+| ST34 | Any other error reaching the helper: another kind, a cancelled or timed-out context, a non-`*APIError` | decided | returned unchanged | D2 ("empty when ... the kind is not `ErrToolSchemaRefused`"); PLAN Phase 2 step 5 | *proposed* `PassThrough` (Phase 2) |
+| ST35 | The wizard's `describe` | decided | names "tool schema refused, HTTP 400" before "invalid request" | D8 | `TestDescribe_ToolSchemaRefused_0084` (Phase 2) |
+| ST36 | Exports | decided | exactly `ErrToolSchemaRefused` and `APIError.Tool` | D7; Q2 "Stable, in `llmprovider` (Recommended)" | `make api-check`, `tools/apidiff.py` (Phase 2) |
+
+#### Retries
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST37 | A caller's retry (`Retryable()`, `WithRetry`) | decided | not retried: `Retryable()` false | D1 | `Classify` (Phase 2) |
+| ST38 | An SDK resend, drop or rewrite on the kind | decided | none: one request reaches the server, its tools as the caller gave them | D5; Q5 "No; revisit after the live typed-branch probe (Recommended)" | *proposed* `NoAdaptation` (Phase 2) |
+| ST39 | A learner resend, then the schema refusal on the last allowed send | decided | `Tool` named | D4 (refinement of 2026-11-17) | `LastSendKeepsName` (Phase 2) |
+| ST40 | Concurrent requests on one provider, each refused for its own tool | decided | each error names its own request's tool | PLAN Phase 2 step 5 (the list "computed once" per request) | *proposed* `Concurrent` (Phase 2, under `-race` in Phase 3) |
+
+#### Logging and redaction
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST41 | A tool name whose next word redaction removes | decided | `Tool` named | D2; X1 | `RedactedNeighbour` (Phase 2) |
+| ST42 | A tool name that redaction itself removes | decided | the kind; `Tool` empty | D2 ("A parse that misreads the message yields no name") | *proposed* `RedactedName` (Phase 2) |
+| ST43 | A name beyond `Message`'s 512-byte bound, or a body over 64 KiB | decided | the kind; `Tool` empty | D2; C12 | *proposed* `NameBeyondBound` (Phase 2) |
+| ST44 | Schema or request body in the error | decided | none: `Tool` holds only a sent name; `Message` redacted and bounded as today | D2; D4; C12 | `FieldsUnchanged` (*proposed*); Phase 4 review |
+| ST45 | A log of the refusal | decided | the SDK logs nothing for it (H8) | D5 ("no warning"); PLAN Phase 4 step 1 | *proposed* `NoLog` (Phase 2) |
+| ST46 | The recorder's files | decided | no key, header or model text; bodies redacted, request ids `req_REDACTED` | PLAN Phase 1a steps 2 to 4 | `TestToolSchemaRecord_Redacts_0084` (Phase 1a) |
+| ST47 | The recorder's log lines | decided | only id, outcome and status | PLAN Phase 1a step 5 | *proposed* `TestToolSchemaRecord_LogLine_0084` (Phase 1a) |
+
+#### Other states
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST48 | A nil schema | decided | sent as an empty object (C2), as today | D5 | existing `tools` tests, unchanged |
+| ST49 | A schema that does not marshal | decided | `ErrInvalidRequest` before the network (C9), not the kind | D3 (a service's refusal only) | `TestValidate_UnmarshalableSchema`, unchanged |
+| ST50 | A body that is not JSON | decided | no D3 row matches; today's kind | D3 | *proposed* `ProxyAltered` (needs N7 (a)) |
+| ST51 | Interrupted mid-write | out of scope | nothing is written at run time; a recorder file cut short fails Phase 1c's fixture read, and the PLAN's one-case rerun applies | – | – |
+| ST52 | Platforms | out of scope | no path differs by platform; the owner's commands are for zsh and bash on this Mac (PLAN Phase 1b) | – | – |
+
+#### The owner's live run (Phase 1b)
+
+Each row is settled by what the named case records; the outcomes below
+assume N1 is ruled, so that no observation needs a further ruling.
+
+| Id | Case | State | Each possible observation, and what it means for the code | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST53 | `root-string` on the five read routes | open: awaits live evidence (Phase 1b, case `<route>-root-string`) | (1) the 0062 form again: its record joins `Classify` and `Names`, no code change; (2) refused in another status, code, marker or name position, or (3) accepted now: N1 decides (today a stop) | PLAN Phase 1b table | `Classify`, `Names`, `Reworded` |
+| ST54 | O1, the owner's shape, on every route | open: awaits live evidence (Phase 1b, `<route>-O1-root-union`) | (1) refused in the route's `root-string` form: joins `Classify` and `Names`; (2) accepted: recorded, not read, no change; (3) refused in another form, or on a route not read: N1 decides | PLAN Phase 1b table | `Classify`, `Names` |
+| ST55 | O2, two bad tools at indices 1 and 2 | open: awaits live evidence (Phase 1b, `<route>-O2-two-bad`) | (1) one tool named: `Tool` is that one (ST09), `SeveralNamed` not built, N7 decides its test, and a host pays a round trip per bad tool; (2) both named: `Tool` empty (ST12), `SeveralNamed` built from the record; (3) marker but neither named: kind, `Tool` empty (ST11); (4) another form, such as Anthropic listing two `tools.N.` paths in one message: N1 decides | D2; Q4; PLAN Phase 1b table | `Names`, `SeveralNamed` |
+| ST56 | O3, typed branches | decided | whatever is recorded, the SDK rewrites nothing; the record is evidence for gobble's normalisation and for revisiting D5 | D5; Q5 | none in this record (no SDK behaviour) |
+| ST57 | O4, a union below the root | open: awaits live evidence (Phase 1b, `<route>-O4-nested-union`) | (1) accepted: no change; (2) refused in the route's O1 form: joins `Classify` and `Names`; (3) another form: N1 decides | PLAN Phase 1b table | `Classify`, `Names` |
+| ST58 | O5, history calling a tool no longer offered | open: awaits live evidence (Phase 1b, `<route>-O5-history-dropped`) | (1) accepted: no SDK change; gobble's drop is safe on that route; (2) refused without a D3 marker: its record joins `OthersUnchanged` (keeps its kind); (3) refused with a D3 marker: N1 decides | D10; PLAN Phase 1b table | `OthersUnchanged` |
+| ST59 | O6, Grok's second model (`grok2`) | open: awaits live evidence (Phase 1b, `grok2-*`) | (1) tag, then name, then `:`: joins `Classify` and `Names`; (2) another order: the kind with `Tool` empty (ST10), and N1 decides whether that is accepted or a stop | D2; PLAN Phase 1b table | `Classify`, `Names` |
+| ST60 | A live observation unlike what the PLAN expects (ST53 to ST59's last branches) | open (N1) | the PLAN stops for a ruling per case | – | – |
+| ST61 | A route whose key is set but every case comes back `other` twice (no subscription, no credit, a refused key) | open (N8) | the PLAN re-runs `other` once and says nothing more | – | – |
+| ST62 | A decided row with no recorded body to test it (ST12 when O2 names one tool; ST20, ST23, ST50) | open (N7) | the PLAN lets a test alter a recorded body only to break its marker or rename its tool | – | – |
+
+#### Sibling records
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST63 | 0080: the shared release and docs | decided | this record's entries sit beside 0080's in `CHANGELOG.md`, `docs/architecture.md` and the standards guide; Phase 1a's prerequisite is met (`00757ed`) | D9; Q7 "All four in the next release with 0080, on my word (Recommended)"; PLAN "Relation to 0080" | Phase 2 step 1's re-read; `make changelog-check docs-check` |
+| ST64 | 0081, 0083, 0085 | decided | no Go file in common at `24756a6`: 0081's PLAN cites `api_error.go:225` as evidence only, and 0085's records cite `claude.go:214` and `opencode.go:238` as evidence only; the shared files are `CHANGELOG.md` `[Unreleased]` and `docs/architecture.md`, different sections; gates one at a time | PLAN "Relation to 0080" ("the other three drafts' PLANs ... for any file they share") | Phase 2 step 1's re-read |
+| ST65 | 0082's code (`04433ae`, `5f2c2ab`, `1545172`, `fd986c4`, `8051b00`) | decided | no overlap: since `b109cea` no file this record cites under `llmprovider/` or `wizard/describe.go` changed but an added test file (`providers/openai/held_session_0082_test.go`) | re-grounding below | Phase 2 step 1's re-read |
+
+Counts: 65 rows; 47 decided, 2 out of scope, 10 open (ST03, ST08, ST13,
+ST17, ST26, ST32, ST33, ST60, ST61, ST62), 6 open: awaits live evidence
+(ST53, ST54, ST55, ST57, ST58, ST59). ST12's outcome is decided and it is
+counted decided; only its test, when O2 names one tool, waits on N7.
+
+### Open questions for the owner (N1 to N8)
+
+None is answered here. Each names the rows it settles. The coordinator puts
+them to the owner in one prompt.
+
+* **N1 (ST53 to ST60).** When the live run records something unlike what
+  the PLAN expects, a stop and a ruling per case, or a rule now?
+* **N2 (ST03).** How OpenAI's routes name the tool, given that `param`
+  cannot reach a helper in `internal/wire` (H5).
+* **N3 (ST08).** Whether the kind applies to routes D3 does not read that
+  share a read route's service label (H3, H4).
+* **N4 (ST17).** Whether a refusal in a 200 body or inside a stream is
+  classified, given H2.
+* **N5 (ST26, ST32).** Precedence: the overflow row, and `x-should-retry:
+  true` (H1).
+* **N6 (ST13, ST33).** Two tools of one name; the kind arriving wrapped.
+* **N7 (ST62).** Whether a test may build a body no provider has sent.
+* **N8 (ST61).** A route whose key is set but whose every case fails.
+
+### Re-grounding at `24756a6`
+
+`tools/claims.py` passes every row at its pin: 85 of 85 here, 29 of 29 in
+the PLAN. With `self` at `24756a6` it fails seven rows here, each a line
+that moved with the same text; every code row (C1 to C28, F1 to F14, P1 to
+P15, P18 to P20, P24, P25) holds at `24756a6`. The rows stay pinned, as
+`tools/README.md` says pins stand; the moves are:
+
+| Row (here) | Pinned line at `b109cea` | Line at `24756a6` | Meaning |
+| :--- | :--- | :--- | :--- |
+| R1 (R24) | `docs/guides/api-standards.md:214` | `:215`, same text | unchanged; R24 now also lists `Reason` |
+| R2 (R25) | `docs/guides/api-standards.md:221` | `:222`, same text | unchanged |
+| R3 (R4) | `docs/guides/api-standards.md:77` | `:78`, same text | unchanged |
+| R4 (R45) | `docs/guides/api-standards.md:305` | `:306`, same text | unchanged |
+| R5 (R48) | `docs/guides/api-standards.md:317` | `:318`, same text | unchanged |
+| R6 (R55) | `docs/guides/api-standards.md:367` | `:368`, same text | unchanged |
+| R14 (0080 D11) | `docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md:393` | `:516`, same text | unchanged |
+
+gobble-cli has moved from `cecc892` to `b1994a0`: G1 to G5, G7 and G8 hold
+their text on other lines (G8, the pin `v1.31.0`, now on line 16); G6
+holds; M1 and M2 hold at mcp-server-magictools' `HEAD`. D10 and the PLAN's
+Phase 6 name `cecc892`; gobble's own record re-reads at its start.
+
+## Second amendment of 2026-11-20: the owner's rulings and the independent review
+
+A second records pass, the same day, read at `24756a6`. An independent
+review of the first amendment found cases it had missed and showed false
+its claim that answering N1 and N8 would leave nothing to rule on. The
+owner then ruled on every open question. Both are applied here. Nothing
+above is rewritten: D3, D4, D7 and the Confirmation carry dated
+annotations, and the rows below replace the first amendment's rows of the
+same id. The status stays `accepted`.
+
+### The review's findings, checked at the cited lines
+
+| Finding | Holds? | What was checked |
+| :--- | :--- | :--- |
+| a1, a 200 the SDK turns into an error | yes | `responses.go:438`, `generatecontent.go:240` and `:243`, `messages.go:347` and `:350` return an `*APIError` with `Status` 0 of kind `ErrIncomplete` or `ErrEmptyAnswer`; 0062's `refusalOutcome` maps `Status` 0 to `other` (`llmprovider/refusals_0062_record_test.go:372` to `:389`) |
+| a2, statuses to outcomes | yes | the PLAN's step 1a.2 names three outcomes; 0062 maps 404 to `unreachable` and 401, 403, 408, 409, 429 and a transport failure to `other`. The owner's ruling on N8 lists 401, 403, 429 and a transport failure as `unreachable` too; the ruling's list is followed where it differs from 0062's |
+| a3, `Message` and `Code` not redacted | yes | `scripts/check_fixtures.py:10` and `:11` read every field of a fixture |
+| a4, tools loaded inside `input` | yes | `InputLoading` sends them in a `tool_search_output` item (`responses.go:183` to `:189`); `withLoaded` keeps them out of `tools` (`deferral.go:345` to `:361`) |
+| a5, OpenCode Zen's Messages route | yes | `routes_snapshot.json` routes Zen's `claude-*` models to Messages; `Generate` sends under `opencode` (`opencode.go:334`). Whether Zen passes Anthropic's error body through unchanged is not shown: Zen's server source is not in the opencode checkout (`4ce137b39e`), whose client tests show Zen prefixing some upstream errors with "Upstream request failed:" (`packages/ai/test/provider-error.test.ts:125`, `:311`), as F7 shows on Zen's Google route. ST66 records it |
+| a6, the PLAN's stop lists | yes | the PLAN's Rules and Phase 1b each list stops the first amendment mapped to outcomes |
+| a7, a skipped route's index | yes | F4 is `tools.0.`, F10 `tools[0]`; the Rules allowed no change of position |
+| a8, a partial run | yes | no `-timeout` on the commands; 90 seconds a case (`llmprovider/live_gateways_test.go:96` to `:98`); 0062's writer replaces a file (`refusals_0062_record_test.go:459`) |
+| a9, error text in failure calls | yes, at other lines | `t.Fatal(err)` is at `live_0062_refusals_measure_test.go:37`, `:48`, `:52`, `:67`, `:70`, `:101`, `:115`; line 415 of the record file is the `Generate` call |
+| a `chatcompat` id beginning "opencode" | yes | `chatcompat` refuses only built-in ids; `serviceOf` maps any "opencode…" label to OpenCode (`api_error.go:500`) |
+| a caller tool named `use_tool` beside Grok's wrapper | no, as stated | the wrapper is sent only in the Dispatch form (`deferral.go:118` to `:130`), and in that form `CheckDispatch` refuses a caller tool named `use_tool` before the network (`deferral.go:142` to `:146`). Without deferral a caller's `use_tool` is an ordinary tool. The owner's rule is recorded anyway (ST72) |
+| ST10, the native `tool_search` entry | yes | the entry carries the caller's Search tool's description and schema (`tools.go:85` to `:98`) |
+| ST45, "logs nothing" | yes | D5's "no warning" is a `Warning` on a response, not a log |
+| ST36, the API check | yes | `scripts/check_api.py:85` runs apidiff with `-incompatible`; `:41` compares the whole `llmprovider` subtree, `x/` included |
+| ST37, the plant | yes | `Retryable()` is false for any child of `ErrInvalidRequest` whatever `terminal` says (`api_error.go:193` to `:205`) |
+| ST30, ST28, ST44, ST46 | yes | `Classify` calls `ClassifyHTTPError` only; `FieldsUnchanged` as placed never runs the helper; the redaction proof planted into the body only |
+| ST05 | yes | on the native form `deferral.Tools` returns `req.Tools` (`deferral.go:257` to `:258`) |
+| ST40, ST43 | yes (the reviewer's inference, accepted) | the plants as written are red only by timing, or only with a parse that returns part of a name |
+| docs and changelog content | yes | no row covered D8's docs or the changelog's text |
+
+### The owner's rulings of 2026-11-20
+
+Each label is quoted exactly as the owner's answer, relayed by the
+coordinator; what each decides is in the rows below.
+
+* **N1** (with the review's a6): "No stop: apply the matchers as written
+  (Recommended)".
+* **N2** (with a4): "From the message's `function '<name>'` only
+  (Recommended)".
+* **N3** (with a5): "By service and marker; record Zen Messages too
+  (Recommended)".
+* **N4**: "HTTP error replies only, with a guard test (Recommended)".
+* **N5**: "Existing rules win (Recommended)".
+* **N6**: "Name by string; find the error through wrapping
+  (Recommended)".
+* **N7** (with a7): "Named edits to a recorded body, each stated in a
+  comment (Recommended)".
+* **N8** (with a2): "Mark it unreachable or skipped; earlier fixtures
+  stand (Recommended)".
+* **a1**: "As accepted: the schema was not refused (Recommended)".
+* **ST10**: "Name the caller's Search tool (Recommended)".
+* **Who runs the recording**: "API keys from the environment only
+  (Recommended)". It replaces the rule that only the owner runs a live
+  step: Phase 1b is run by an agent or the coordinator, with the keys
+  already in the process environment.
+
+### Rows changed
+
+| Id | Was | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST03 | open | decided | on every OpenAI-form route (OpenAI's API key and sessions, OpenCode's Responses and chat routes), `Tool` is the sent name in `Message`'s `function '<name>'`; never taken from `param` | N2 | `Names`; `NeverNamesUnsent`'s subcase: `param` names index 1, the message an unsent tool, `Tool` empty |
+| ST05 | decided | decided, test fixed | as before | D3 row 3; D4 | `Deferral` on a Claude model in the Append form (before 4.5), so the sent list and `Request.Tools` differ |
+| ST08 | open | decided | the kind on any route of the `openai` or `opencode` service whose reply carries a read marker; the docs name the routes each form was recorded on; Anthropic's marker joins `opencode` only as ST66 (1) says | N3 | `TestToolSchemaRefusal_SharedLabel_0084` |
+| ST10 | decided | decided, corrected | as before, except: when the message names the caller's Search tool, whose native `tool_search` entry carries no name, `Tool` is that name; a tool loaded inside a `tool_search_output` item is named when the message names it | the ruling on ST10; N2; D2 | `NeverNamesUnsent` (the rest); `TestToolSchemaRefusal_SearchLoaded_0084` |
+| ST12 | decided | decided, test settled | as before | D2; Q4; N7 | `SeveralNamed`, always built: from O2's record, or from F1 and F4 given a second name or index |
+| ST13 | open | decided | `Tool` is the name when every entry it can mean shares it | N6 | `TestToolSchemaRefusal_DuplicateNames_0084` |
+| ST17 | open | decided | a failure in a 200 body or in a stream keeps today's kind; `Tool` empty | N4 | `TestToolSchemaRefusal_StreamUnchanged_0084` (a guard) |
+| ST20, ST23, ST50 | decided, test waiting on N7 | decided | as before | D3; N7 | `ProxyAltered` |
+| ST26 | open | decided | `ErrContextOverflow` | N5 | `TestToolSchemaRefusal_Precedence_0084` |
+| ST28, ST44 | decided | decided, test moved | as before, read through `Generate` and `Stream`, so the helper runs | D4; D2 | `FieldsUnchanged`, in `providers` |
+| ST30 | decided | decided, plant moved | as before | D1; R1, R2 | `Classify` and `Names` each assert `errors.As` and `Kind` |
+| ST32 | open | decided | `ErrProviderUnavailable`, `Retryable()` true, `Tool` empty | N5 | `Precedence` |
+| ST33 | open | decided | the helper finds the `*APIError` through wrapping, sets `Tool`, and returns the error it was given | N6 | `TestNameRefusedTool_Wrapped_0084` |
+| ST36 | decided | decided, check fixed | `make api-check` exits 0; `tools/apidiff.py` from Phase 2's start commit lists exactly the two names, compatible | D7; Q2 | those two commands |
+| ST37 | decided | decided, plant fixed | not retried: `Retryable()` false, except as ST32 says | D1; N5 | `Classify` |
+| ST40 | decided | decided, test fixed | as before | PLAN Phase 2 step 5 | `Concurrent`, its server holding the first request until the second arrives |
+| ST43 | decided | decided, plant fixed | as before | D2; C12 | `NameBeyondBound` |
+| ST45 | decided | decided, ground corrected | no log record holds the refusal's text or `Tool`; it rests on H8 and the PLAN's Phase 4 step 1 ("no response text reaches ... a log"), not on D5 | H8; PLAN Phase 4 | `NoLog` |
+| ST46 | decided | decided, widened | no field of a record holds a key, an account id, a UUID or an e-mail address: body, `Message` and `Code` alike | PLAN Phase 1a steps 2 to 4; the review's a3 | `TestToolSchemaRecord_Redacts_0084`, planting into `Message` and `Code` too |
+| ST47 | decided | decided, widened | each output line holds only the case, route, model, HTTP status and outcome | the ruling on who runs the recording | `TestToolSchemaRecord_LogLine_0084` |
+| ST60 | open | decided | no stop: every record is read by the matchers as written; recognised, it feeds `Classify` and `Names`; unrecognised, `ErrInvalidRequest` and `TestToolSchemaRefusal_RecordedFallback_0084`; a new form waits for a later amendment | N1 | `RecordedFallback` |
+| ST61 | open | decided | as ST67 and ST68 | N8 | `TestToolSchemaRecord_Outcome_0084` |
+| ST62 | open | decided | named edits allowed, the tool's position included, each stated in the test's comment | N7 | the tests that use them |
+
+### Rows added
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST66 | OpenCode Zen's Messages route (`claude-sonnet-5`) under the `opencode` label | open: awaits live evidence (the run, `zen-messages-*`) | see "Each live observation" below | N3; N1; N8 | `Classify`, `Names` or `RecordedFallback` |
+| ST67 | The recorder's outcome for each reply | decided | no error, or a `Status`-0 `ErrIncomplete` or `ErrEmptyAnswer`: `accepted`; 400 to 499 but 401, 403, 404, 408, 409, 429: `refused`; 404, 401, 403, 429, or any error that is not an `*APIError`: `unreachable`; 408, 409, 5xx, or another `Status`-0 failure: `other`, sent once more by the recorder, then `unreachable` if still so; a key unset or blank: `skipped` | N8; a1; N4 | `TestToolSchemaRecord_Outcome_0084` |
+| ST68 | A route with no case `refused` or `accepted` | decided | `skipped` as a whole; its 0062 fixtures stand | N8 | `Outcome` |
+| ST69 | A read route `skipped` | decided | `Classify` and `Names` use its 0062 fixture, the tool moved to index 1 by a named edit | N7; N8 | `Names` |
+| ST70 | A rerun, and a run cut short | decided | the writer never replaces a `refused` or `accepted` record, and writes `skipped` only where none exists; the command carries `-timeout 180m`, which covers every case sent twice; a run cut short is run again whole | the review's a8 | `Outcome` (the writer's rule) |
+| ST71 | The recorder's failure, skip and log calls | decided | a fixed text and at most the case id; never an error's text | the review's a9; the PLAN's Rules | the PLAN's `grep` check, seen to hit `live_0062_refusals_measure_test.go` |
+| ST72 | A caller tool named `use_tool` | decided | without deferral, an ordinary sent tool, named by string; beside Grok's wrapper, refused before the network | N6; `CheckDispatch` | `Names` (as ST09); `TestCheckDispatch_0040`, unchanged |
+| ST73 | D8's docs: the standards guide's R24 and R25, `docs/architecture.md`, the package docs (`llmprovider/provider.go`, `grok.go`, `openai.go`, `claude.go`, `opencode.go`), the wizard's `errorClasses` | decided | each names the kind and the field and says what N3 to N5 decided | D8; N3 to N5 | `grep -c ErrToolSchemaRefused` on each file, each exit 0, seen to exit 1 on a scratch copy with the entry removed; `TestDescribe_ToolSchemaRefused_0084`; Phase 4's read against this table |
+| ST74 | The changelog's **Added** entry | decided | names the kind, the field, "matched by service and marker", the routes each form was recorded on, the fall-backs (a reworded refusal, a failure in a 200 or a stream, `x-should-retry`, an overflow) and the new leading text | D8; N3 to N5 | `grep -c ErrToolSchemaRefused CHANGELOG.md`, exit 0; `make changelog-check`; Phase 4's read |
+| ST75 | A `chatcompat` id beginning "opencode" | out of scope | the caller's own name; its errors already take OpenCode's rows by `serviceOf` today, and this record changes nothing about that | – | – |
+| ST76 | Phase 1c's fixture check or identifier scan finds a value the redaction should have removed | open (N9) | ~~the PLAN stops: "a hit is a stop, never a baseline entry"~~ (struck 2026-11-20, fourth pass: decided in the third amendment; see ST76 there) | – | – |
+| ST77 | How a key reaches the run | decided | only through the process environment, read by the recorder by its `ProviderEnvVars()` name and passed to the provider; never an argument, a file, a log, output or a record | the ruling on who runs the recording | `TestToolSchemaRecord_NoLeak_0084`; the PLAN's `grep` for `os.Args`, `flag.` and `os.ReadFile` in the recorder's files, exit 1 |
+| ST78 | A key unset or blank | decided | the route is `skipped`, reason "key unset or blank"; the run goes on; nobody is asked | N8; the ruling on who runs the recording | `Outcome` (unset, empty and spaces) |
+| ST79 | What the run prints | decided | standard output and the test log carry only the case, route, model, HTTP status and outcome | the ruling on who runs the recording | `NoLeak`; `LogLine` |
+| ST80 | A key-shaped string or an `org-` id in a provider's reply | decided | neither appears in any output, log or record; a raw body or raw error text is redacted before it is written and never printed | the ruling on who runs the recording; the review's a3 | `NoLeak`, planting both into a reply's body and message |
+| ST81 | What the running agent reads | decided | the redacted records and the allowlisted summary only, after `make fixtures-check` and `tools/denyscan.py` pass on the records, and `scripts/check_fixtures.py` and `tools/denyscan.py` on the run's output file ~~(which would also catch a panic's printed value)~~ (struck 2026-11-20, fourth pass: neither looks for a key; see ST85) | the ruling on who runs the recording | those checks, in Phase 1c's order |
+| ST82 | A step needing a browser or device sign-in, a saved sign-in session, a provider account page or a person at a console | decided | none in this record: every route uses an API key from the environment; the ChatGPT and plan sessions are tested offline only (`SharedLabel`) | the ruling on who runs the recording | none: no such step |
+
+### Each live observation, and what it means for the code
+
+With the rulings above, each observation of the run maps to an outcome.
+"Recognised" means one of D3's matchers, as N3 places them, reads it.
+
+* **ST53, `root-string` on a read route.** (1) The 0062 form, or another
+  form recognised: its record joins `Classify` and `Names`. (2) A form not
+  recognised: `ErrInvalidRequest`; `RecordedFallback`. (3) Accepted: no
+  change; the 0062 fixture stands for the matcher. (4) `unreachable` or
+  `skipped`: the 0062 fixture stands, at index 1 (ST69).
+* **ST54, O1 on any route; ST57, O4.** (1) Recognised: `Classify` and
+  `Names`. (2) Accepted: no change. (3) Not recognised:
+  `RecordedFallback`. (4) `unreachable` or `skipped`: nothing recorded,
+  nothing tested from it.
+* **ST55, O2.** (1) One tool named: `Tool` is it; `SeveralNamed` from a
+  named edit. (2) Two named, by name or index: `Tool` empty;
+  `SeveralNamed` from the record. (3) The marker, no name: `Tool` empty.
+  (4) Not recognised: `RecordedFallback`. (5) Accepted, `unreachable` or
+  `skipped`: nothing.
+* **ST58, O5.** (1) Accepted: no SDK change; gobble's drop is safe there.
+  (2) Refused without a marker: `OthersUnchanged`. (3) Refused with a
+  marker: the kind with `Tool` empty, since only `noop` was sent;
+  `Classify`. (4) `unreachable` or `skipped`: nothing.
+* **ST59, O6.** (1) Tag, name, colon: `Classify` and `Names`. (2) The tag
+  in another order: the kind with `Tool` empty; `Classify` and `Names`.
+  (3) No tag: `RecordedFallback`. (4) Accepted, `unreachable` or
+  `skipped`: nothing.
+* **ST66, Zen Messages.** (1) Anthropic's body unchanged (type
+  `invalid_request_error`, message beginning `tools.N.` and holding
+  `input_schema`): Anthropic's marker joins the `opencode` service's rows,
+  so the kind on every OpenCode route that sends it, `Tool` the entry N of
+  the sent list; the record joins `Classify` and `Names`. (2) Anthropic's
+  text behind a Zen prefix, or in Zen's own envelope: not recognised;
+  `ErrInvalidRequest`; `RecordedFallback`; a later amendment may read it.
+  (3) A marker the `opencode` service already reads (OpenAI's code, the
+  Google phrase): that row applies. (4) Accepted: no change. (5)
+  `unreachable` or `skipped`: Anthropic's marker does not join `opencode`;
+  a Zen Messages refusal stays `ErrInvalidRequest`.
+* **Any case: a 200 the SDK finds cut short or empty** is `accepted`
+  (ST67).
+
+### Open question for the owner
+
+* **N9 (ST76).** A redaction hit found by Phase 1c's checks in a written
+  record. Today the PLAN stops.
+
+### Counts after both amendments
+
+82 rows: 71 decided, 3 out of scope, 1 open (ST76), 7 open: awaits live
+evidence (ST53, ST54, ST55, ST57, ST58, ST59, ST66).
+
+With these rulings every observation of the recording run maps to an
+outcome with no further ruling, except one: a value the redaction should
+have removed, found by Phase 1c's checks in a written record (ST76), stops
+the build until the owner answers N9.
+
+## Third amendment of 2026-11-20: N9 answered, and the readings recorded
+
+The third and last records pass of the day, read at `24756a6`. Nothing
+else changes.
+
+### The owner's ruling on N9
+
+* **N9** (ST76): "Treat that case as unrecorded, fix the recorder, rerun
+  (Recommended)", the owner's answer, relayed by the coordinator.
+
+### Readings of the drafter, not rulings
+
+The coordinator accepted these as consistent with the rulings they follow;
+they are the drafter's readings, not owner rulings:
+
+* **Under "By service and marker; record Zen Messages too
+  (Recommended)":** ST66 (1). Anthropic's marker joins the `opencode` rows
+  only if the run records Anthropic's body unchanged on Zen Messages.
+* **Under "Mark it unreachable or skipped; earlier fixtures stand
+  (Recommended)":** ST67. 408, 409, 5xx and other `Status`-0 failures are
+  `other`, then `unreachable` after the recorder's own second send, so the
+  run is one command.
+* **Under "Treat that case as unrecorded, fix the recorder, rerun
+  (Recommended)":** ST76's rerun. Before the rerun, the leaked case's file
+  is removed, unread, from the run's directory outside the tree. Without
+  that, the writer, which never replaces a `refused` or `accepted` record
+  (ST70), would keep the leaked file.
+
+**On a2.** The question put for N8 described 0062's recorder as recording
+401, 403, 429 and a transport failure as `unreachable`. That was the
+coordinator's wording error: 0062 records them as `other`
+(`llmprovider/refusals_0062_record_test.go:372` to `:389`). What is built
+is the ruling's own list, `unreachable` (ST67).
+
+### Rows changed and added
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST76 | Phase 1c's fixture check or identifier scan finds, in a written record, a value the redaction should have removed | decided (was open) | nothing of that case is committed; it is `unreachable` for that run; the recorder's redaction and `TestToolSchemaRecord_NoLeak_0084` are extended to the missed value in a further recorder commit; an agent reruns the recording. If the same case leaks again after one fix and one rerun, that is a deviation: the build stops and goes to the owner. A third pass is never routine | N9 | `NoLeak`, extended with the missed value's shape, seen red at the recorder before the fix |
+| ST83 | How a leak is reported | decided | the check names the file, the field and the rule that matched, never the matched text. `scripts/check_fixtures.py` prints the path, line, column, kind and a fingerprint, never the value. `tools/denyscan.py` prints the file, line and kind. ~~Each record holds one top-level field per line, so the line names the field, and the agent prints only that line's key.~~ (Corrected 2026-11-20, fourth pass: see ST83 in the fourth amendment.) Nobody reads the leaked value | N9 | the existing `test_fixtures_check_*` cases in `scripts/test_gates.py` (`assertFixtureCaught` asserts the value is not printed); `TestToolSchemaRecord_FieldPerLine_0084` (added, Phase 1a) |
+
+### Counts after all three amendments
+
+83 rows: 73 decided, 3 out of scope, 0 open, 7 open: awaits live evidence
+(ST53, ST54, ST55, ST57, ST58, ST59, ST66), each with every observation
+mapped.
+
+Every observation of the recording run now maps to an outcome with no
+further ruling. One stop is left by design: the same case leaking again
+after one fix and rerun is a deviation for the owner (ST76).
+
+## Fourth amendment of 2026-11-20: corrections from the delta check
+
+Corrections only. An independent delta check confirmed most findings
+resolved and left seven items not confirmed. Each was checked at its cited
+lines and holds. No owner ruling is added. The changes follow the rulings
+already recorded.
+
+### Rows changed
+
+| Id | Now | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- |
+| ST36 | decided, check corrected | the two commits are compared on a scratch clone: `tools/apidiff.py <base> <scratch commit>`, where the scratch commit holds Phase 2's changed files on the base. Comparing with the working tree would also list another record's uncommitted Go work, since Phase 2 has no clean-tree prerequisite | D7 | that command and `make api-check` exit 0 |
+| ST37 | decided, rationale corrected | the parent-`ErrRateLimited` plant leaves `Retryable()` false, because the D3 rows return a terminal error (`api_error.go:197` to `:199`). It is caught because `Unwrap` then also yields the legacy `ErrInvalidRequest`, and by `errors.Is(err, ErrRateLimited)` being asserted false. A second plant, `shouldRetry` set for the kind, makes `Retryable()` true and is caught | D1 | `Classify` |
+| ST60 | decided, test corrected | an unrecognised `refused` record classifies at the phase's tree to the kind it has at the base, with `Tool` empty. That kind is always beneath `ErrInvalidRequest`, by ST67 | N1 | `RecordedFallback` |
+| ST67 | decided, corrected | `refused` only for an `*APIError` of status 400 to 499, other than 401, 403, 404, 408, 409 and 429, that `errors.Is` `ErrInvalidRequest`. Any other `*APIError`, and any 3xx, is `unreachable`: Gemini's and xAI's 400 key refusals (`ErrAuthFailure`, `api_error.go:554` to `:561`), a 402 (`ErrQuotaExhausted`, `:546`), and a 400 with `x-should-retry: true`. The other rows are as before | N8 ("Mark it unreachable or skipped; earlier fixtures stand (Recommended)"); a1 | `Outcome` |
+| ST69 | decided, widened | any read route with no recognised Phase 1 record (skipped, unreachable, root string accepted, or nothing recognised) feeds `Names` and `Classify` from its 0062 fixture, the tool moved to index 1 | N7; N8 | `Names` |
+| ST71 | decided, check replaced | the recorder's files neither call nor name `SkipIfTransient`, `skipIfTransient`, `LiveModel` or `liveModel`. No call that prints takes anything but literals, constants of fixed text and the allowlisted fields. Calls that print are `t.Log`, `Logf`, `Error`, `Errorf`, `Fatal`, `Fatalf`, `Skip`, `Skipf`, `fmt.Print*`, `fmt.Fprint*` and `log.` | the PLAN's Rules; the review's a9 | `TestToolSchemaRecord_PrintCalls_0084` |
+| ST79 | decided, made to agree with the command | the output file holds only `go test -v`'s framing lines, the `t.Logf` case line and the recorder's fixed texts. The framing lines are `=== RUN`, `=== PAUSE`, `=== CONT`, `=== NAME`, `--- PASS:`, `--- FAIL:`, `--- SKIP:`, `PASS`, `FAIL`, and `ok` or `FAIL` with the package | the ruling on who runs the recording | `TestToolSchemaScan_0084` on the output; `PrintCalls` |
+| ST81 | decided, corrected | as before, with the key-shape scan (ST85) beside the two checks; the claim that those checks would catch a panic's value is struck | the ruling on who runs the recording | Phase 1b's four scans; Phase 1c's |
+| ST83 | decided, restated | every line of a record lies under exactly one top-level key, the nearest line at or above it at two spaces' indent. The body, `Message` and `Code` are each one line; nested tools and schemas span several (`internal/wiretest/wiretest.go:173` to `:183`). The agent prints only that key. A copy of a leaked record already placed in `testdata/` is removed unread, by the path the check printed | N9 | `TestToolSchemaRecord_FieldPerLine_0084`, restated; `test_fixtures_check_*` |
+
+### Rows added
+
+| Id | Case | State | Outcome a test can check | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST84 | A hit in the run's output file (`tmp/0084-run.txt`), such as a panic's stack trace, or a line outside ST79's list | decided | the agent that ran Phase 1b scans the file before reading it (`TestToolSchemaScan_0084`, `scripts/check_fixtures.py`, `tools/denyscan.py`). On a hit, the file is deleted unread and the run repeated once. The records are judged by their own scans. A second hit after the repeat is a deviation for the owner. The command's `-trimpath` keeps this Mac's paths out of a stack trace | N9, applied to the output; the ruling on who runs the recording | `TestToolSchemaScan_Plant_0084` (its output-file case) |
+| ST85 | A key-shaped value in a record or in the output | decided | found by `TestToolSchemaScan_0084`, which reports a line when `redact.Redact` changes it, printing only the file and line. It runs on the output file in Phase 1b and on the records in Phases 1b and 1c. It sees the shapes `internal/redact` knows, and each of the five providers' keys used here has one (`redact.go:90` to `:108`). A scan for the exact values of the keys in the environment is not used: the ruling forbids anyone to compare a key value | the ruling on who runs the recording; N9 | `TestToolSchemaScan_Plant_0084`, planting each provider's key shape, a `Bearer` value and an `api_key` pair |
+
+### Counts after all four amendments
+
+85 rows: 75 decided, 3 out of scope, 0 open, 7 open: awaits live evidence
+(ST53, ST54, ST55, ST57, ST58, ST59, ST66), each with every observation
+mapped.
+
+Every observation of the recording run maps to an outcome with no further
+ruling. One stop is left by design, ST76's and ST84's bound: the same leak
+found again after one fix and rerun goes to the owner as a deviation.
