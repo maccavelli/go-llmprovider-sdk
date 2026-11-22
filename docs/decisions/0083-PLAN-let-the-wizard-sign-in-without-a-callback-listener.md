@@ -1553,3 +1553,168 @@ changelog-check docs-check markdownlint links-check disclosure-check`, each; `ru
 `make tools-test`; `go vet -tags live_gateways ./...`; `tools/apidiff.py b9eb542 <scratch commit>`: exactly
 `Options.NoBrowserQuestion` and `Options.NoLoopback`, compatible. The 51 plants: 50 caught at one round, and the race plant
 caught at 20.
+
+### Phase 2, the plants and the gates (2026-11-21)
+
+*(Dated addition. Run on `main` at `e404ea7` (Phase 1's commit; its base was `b9eb542`), tree clean at the start and
+unchanged by every step below: every plant ran on a scratch clone. This Mac only, no WSL distro; every heavy run
+through `run-heavy`, one at a time. No live run, no `LLMPROVIDER_LIVE_*`, no browser, no key value read. Nothing in the
+MADR changes. This entry is the only change to the tree.)*
+
+**1. The plants.**
+
+* **The list is re-derived, not replayed.** Phase 1's own spec (its "runner of this build's own") was not kept: it is in
+  no repository file and no recorded scratch path. This phase re-grounded each anchor at `e404ea7` (each `old` text
+  occurs exactly once, checked before any run and again by `tools/plant.py`) and wrote a new `PLANTS.json`, in three
+  specs by package (`<scratch>/PLANTS_wizard.json`, `PLANTS_auth.json`, `PLANTS_signinflow.json`), each
+  `go test -count=1 -run 0083` on its packages (`signinflow` with `x/signin`). It covers every plant of Phase 1's table
+  (step 3) and the kinds the execution record names: the pass-through removed, the value inverted, the answer ignored,
+  `OpenURL` called after the answer and skipped under `NoLoopback`, the default and each label and the title changed, the
+  question asked under a `Driver`, `NoPastePrompt`, `NoBrowserQuestion` and `NoLoopback`, asked twice, asked for a device
+  sign-in, asked before the plan's reads, an error from it swallowed, D5's words and which instruction is used, the quick
+  empties not ended, `noPasteError`'s sentinel and words, the three drain notices and `endCause`, the check of D4 removed
+  in each entry point, each bind (Grok's, OpenAI's two families) passing through `net.Listen` and not the hook, each
+  method binding under `NoLoopback`, the hook not copied for either login, the plan flag dropped, the advice's prefix,
+  words, in-use decision, per-method text and port list, the key cache's clearing removed, and the schemeless retry's
+  gate, host, checks, scheme and the address handed on.
+* **Result: 63 plants in the three specs (`signinflow` 8, `auth` 19, `wizard` 36), 62 caught by a test's assertion and
+  one an equivalent mutant (below); two more plants below, caught; 64 caught in all.** Five plants were first "caught"
+  by a build failure (the plant's own fault: an unused variable or a `go vet` printf finding, none the test's doing), so
+  the three specs' first exit 0 was not a catch for them: `answer ignored`, `drain's cause ignored`, `refusal does not
+  wrap the sentinel`, `callback host never read` and `port boundary dropped`. Their text was corrected so each compiles,
+  and each re-run (`PLANTS_fix_wizard.json`, `PLANTS_fix_signinflow.json`); four are caught by the named tests, and the
+  fifth is the equivalent mutant. No test was touched. The table below is the final run of each.
+* **`port boundary dropped` is not caught on its own, and is not a test miss: it is an equivalent mutant.** D11's
+  boundary check (`rest == "" || ContainsRune("/?#", rest[0])`) and the host comparison after the retry
+  (`retried.Host == c.callback`) each refuse a longer port that begins with the callback's (`127.0.0.1:14550/...`): with
+  the boundary gone the comparison still refuses it. Phase 1's record says ST82 and ST83 need two edits; this is why. The
+  two-edit plant (one span from the boundary to the comparison, both dropped) is caught by
+  `TestPasteSchemelessCallback_0083`, on the row "a longer port that begins with the callback's". No assertion is
+  missing; a paste such as `127.0.0.1:1455x...` is the case only the boundary decides, and no decided row names it.
+* **The deadline race plant** (`fail` calls `run.Cancel()` with `stepCtx` ended, ST50, build pass 2) is held to
+  `-count=20`, as Phase 1 recorded: caught, the `deadline` subtest failing in each of four rounds seen in the output,
+  `context canceled ... want one matching context deadline exceeded only`.
+* **Not planted, as Phase 1 recorded:** ST14's "asked after the consent" (no single-line form; "asked twice" and "asked
+  before the plan's reads" cover the order), the answer "not kept for the run" (no run reaches a second sign-in, ST15), the
+  pasted-token branch of NT6, and plants that need edits in two places, which Phase 1's spec held and this one does not
+  (NT5, ST83: the one two-edit plant here is the one above).
+
+| Plant | File | Caught by | First failure line |
+| :--- | :--- | :--- | :--- |
+| schemeless retry disabled | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083`, `TestPasteSchemelessHandedOnWithScheme_0083` | `paste_schemeless_0083_test.go:51: a code or a URL: read as the address, its state checked: check = ""; want "not from this sign-in"` |
+| callback host never read | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083`, `TestPasteSchemelessHandedOnWithScheme_0083` | `paste_schemeless_0083_test.go:51: a code or a URL: read as the address, its state checked: check = ""; want "not from this sign-in"` |
+| port boundary dropped | `internal/signinflow/paste.go` | equivalent alone; see the two-edit plant | `NOT CAUGHT (exit 0): every test passed` |
+| retry's checks skipped | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083` | `paste_schemeless_0083_test.go:51: a code or a URL: read as the address, its state checked: check = ""; want "not from this sign-in"` |
+| retry address handed without a scheme | `internal/signinflow/paste.go` | `TestPasteSchemelessHandedOnWithScheme_0083`, `TestStart_SchemelessPasteCompletes_0083` | `paste_schemeless_0083_test.go:93: the login was handed "127.0.0.1:1455/auth/callback?code=c&state=state-0074"; want "http://127.0.0.1:1455/auth/callba` |
+| handed-on address dropped | `internal/signinflow/signinflow.go` | `TestPasteSchemelessHandedOnWithScheme_0083`, `TestStart_SchemelessPasteCompletes_0083` | `paste_schemeless_0083_test.go:93: the login was handed "127.0.0.1:1455/auth/callback?code=c&state=state-0074"; want "http://127.0.0.1:1455/auth/callba` |
+| unusable retry words changed | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083` | `paste_schemeless_0083_test.go:51: a retry that does not parse: check = "Not usable. Paste the URL the browser was sent to after you signed in, or the` |
+| retry host not compared | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083`, `TestPasteSchemelessHandedOnWithScheme_0083` | `paste_schemeless_0083_test.go:51: a code or a URL: read as the address, its state checked: check = ""; want "not from this sign-in"` |
+| login's hook dropped (OpenAI, Grok) | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083`, `TestPortsAdviceOtherFailures_0083` | `no_loopback_binds_0083_test.go:166: OpenAI sign-in without NoLoopback = <nil>; want the hook's refusal of its bind` |
+| login's hook dropped (plan) | `llmprovider/auth/oauth_plan.go` | `TestNoLoopback_BindsNothing_0083`, `TestPortsAdviceOtherFailures_0083`, `TestPortsAdviceMixedFailure_0083` | `no_loopback_binds_0083_test.go:166: plan sign-in without NoLoopback = <nil>; want the hook's refusal of its bind` |
+| plan flag dropped | `llmprovider/auth/oauth_plan.go` | `TestPortsAdvicePerMethod_0083` | `ports_advice_0083_test.go:26: LoginChatGPTPlan error = oauth: registered callback ports unavailable; free ports 29728 and 29150, or use device-code lo` |
+| Grok bind through net.Listen | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083`, `TestPortsAdviceOtherFailures_0083` | `no_loopback_binds_0083_test.go:166: Grok sign-in without NoLoopback = <nil>; want the hook's refusal of its bind` |
+| OpenAI v4 bind through net.Listen | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083`, `TestPortsAdviceOtherFailures_0083`, `TestPortsAdviceMixedFailure_0083` | `no_loopback_binds_0083_test.go:166: OpenAI sign-in without NoLoopback = <nil>; want the hook's refusal of its bind` |
+| OpenAI v6 bind through net.Listen | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083`, `TestPortsAdviceOtherFailures_0083`, `TestPortsAdviceMixedFailure_0083` | `no_loopback_binds_0083_test.go:166: OpenAI sign-in without NoLoopback = <nil>; want the hook's refusal of its bind` |
+| Grok binds under NoLoopback | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083` | `no_loopback_binds_0083_test.go:159: Grok sign-in with NoLoopback = OAuthSession(nil), oauth: listen for Grok callback: this host does not allow the ca` |
+| OpenAI binds under NoLoopback | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083` | `no_loopback_binds_0083_test.go:159: OpenAI sign-in with NoLoopback = OAuthSession(nil), oauth: registered callback ports unavailable; this host does n` |
+| plan binds under NoLoopback | `llmprovider/auth/oauth_loopback.go` | `TestNoLoopback_BindsNothing_0083` | `no_loopback_binds_0083_test.go:159: plan sign-in with NoLoopback = OAuthSession(nil), oauth: registered callback ports unavailable; this host does not` |
+| plan's advice is the browser's | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdvicePerMethod_0083` | `ports_advice_0083_test.go:26: LoginChatGPTPlan error = oauth: registered callback ports unavailable; free ports 25566 and 25036, or use device-code lo` |
+| prefix changed | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceOtherFailures_0083`, `TestPortsAdviceMixedFailure_0083`, `TestPortsAdvicePerMethod_0083` | `no_loopback_binds_0083_test.go:198: error = "oauth: ports unavailable; this host does not allow the callback listener: sign in with no listener and pa` |
+| no-listener advice words changed | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceOtherFailures_0083` | `no_loopback_binds_0083_test.go:198: error = "oauth: registered callback ports unavailable; this host does not allow listeners: sign in with no listene` |
+| any failure advises freeing ports | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceOtherFailures_0083` | `no_loopback_binds_0083_test.go:198: error = "oauth: registered callback ports unavailable; free ports 29551 and 27576, or use device-code login: liste` |
+| last failure decides in-use | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceMixedFailure_0083` | `no_loopback_binds_0083_test.go:230: error = "oauth: registered callback ports unavailable; this host does not allow the callback listener: sign in wit` |
+| Grok's advice dropped | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceOtherFailures_0083` | `no_loopback_binds_0083_test.go:198: error = "oauth: listen for Grok callback: listen tcp 127.0.0.1:0: bind: permission denied"; want "oauth: listen fo` |
+| ports joined by a comma | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdviceMixedFailure_0083`, `TestPortsAdvicePerMethod_0083` | `no_loopback_binds_0083_test.go:230: error = "oauth: registered callback ports unavailable; free ports 22181, 20312, or use device-code login: listen t` |
+| device-code advice dropped for the browser | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdvicePerMethod_0083` | `ports_advice_0083_test.go:42: LoginBrowserOAuth error = oauth: registered callback ports unavailable; free ports 28654 and 20627: listen tcp4 127.0.0.` |
+| device-code advice shown for the plan | `llmprovider/auth/oauth_loopback.go` | `TestPortsAdvicePerMethod_0083` | `ports_advice_0083_test.go:26: LoginChatGPTPlan error = oauth: registered callback ports unavailable; free ports 23787 and 23994, or use device-code lo` |
+| key cache not cleared for a reused URL | `llmprovider/auth/oauth_idtoken_test.go` | `TestVerifyIDToken_StaleKeysForAReusedURL_0083` | `oauth_idtoken_0083_test.go:44: oauth: id_token rejected: key "" is not an RSA key` |
+| pass-through removed | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:196: the login's NoLoopback = [false]; want one login with it set` |
+| NoLoopback value inverted | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:196: the login's NoLoopback = [false]; want one login with it set` |
+| answer ignored | `wizard/auth.go` | `TestQuestionAnswerElsewhere_0083` | `browser_question_0083_test.go:261: the login's NoLoopback = [false]; want one login with it set` |
+| OpenURL called after the answer | `wizard/auth.go` | `TestQuestionAnswerElsewhere_0083` | `browser_question_0083_test.go:270: OpenURL called 1 times after the answer; want none` |
+| OpenURL skipped under NoLoopback | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:205: OpenURL called 0 times; want once` |
+| default set to 1 | `wizard/auth.go` | `TestNoLoopbackOffByDefault_0083`, `TestQuestionForm_0083`, `TestQuestionEndedInputIsThisMachine_0083` | `browser_question_0083_test.go:241: the login's NoLoopback = [true] after an empty line; want one login without it` |
+| choice label changed | `wizard/auth.go` | `TestQuestionForm_0083` | `browser_question_0083_test.go:311: the question's choices = ["Here" "On another device: I will paste the address back"]; want "On this machine" and "O` |
+| second choice label changed | `wizard/auth.go` | `TestQuestionForm_0083` | `browser_question_0083_test.go:311: the question's choices = ["On this machine" "Elsewhere"]; want "On this machine" and "On another device: I will pas` |
+| question title changed | `wizard/auth.go` | `TestNoLoopbackOffByDefault_0083`, `TestQuestionForm_0083`, `TestQuestionBeforeConsent_0083`, `TestQuestionOncePerRun_0083`, `TestQuestionEndedInputIsThisMachine_0083` | `browser_question_0083_test.go:244: the question was shown 0 times; want once` |
+| asked under a Driver | `wizard/auth.go` | `TestQuestionNotAskedWhereItMustNot_0083` | `browser_question_0083_test.go:381: the question was asked where it must not be: "Where is the browser you will sign in with?"` |
+| asked under NoPastePrompt | `wizard/auth.go` | `TestQuestionNotAskedWhereItMustNot_0083` | `browser_question_0083_test.go:381: the question was asked where it must not be: "Where is the browser you will sign in with?"` |
+| asked under NoBrowserQuestion | `wizard/auth.go` | `TestQuestionNotAskedWhereItMustNot_0083`, `TestNoBrowserQuestionKeepsToday_0083` | `browser_question_0083_test.go:381: the question was asked where it must not be: "Where is the browser you will sign in with?"` |
+| asked under NoLoopback | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:193: select where the browser is: fakePrompter: unexpected Select("Where is the browser you will sign in with?")` |
+| question asked twice | `wizard/auth.go` | `TestNoLoopbackOffByDefault_0083` | `browser_question_0083_test.go:219: select where the browser is: fakePrompter: unexpected Select("Where is the browser you will sign in with?")` |
+| ended input defaults to another device | `wizard/auth.go` | `TestNoLoopbackOffByDefault_0083` | `browser_question_0083_test.go:222: the login's NoLoopback = [true]; want one login without it` |
+| an error from the question swallowed | `wizard/auth.go` | `TestQuestionExhaustedInputEnds_0083`, `TestQuestionOutOfRangeIsAnError_0083` | `browser_question_0083_test.go:580: err = <nil>; want one matching io.EOF` |
+| question asked for a device sign-in | `wizard/auth.go` | `TestQuestionNotAskedForOtherMethods_0083` | `browser_question_0083_test.go:381: the question was asked where it must not be: "Where is the browser you will sign in with?"` |
+| question asked before the plan's reads | `wizard/auth.go` | `TestQuestionAfterThePlanReads_0083` | `browser_question_0083_test.go:381: the question was asked where it must not be: "Where is the browser you will sign in with?"` |
+| code instruction words changed | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:202: notices ["Open https://authorize.test in your browser" "This sign-in does not wait for the browser. After you sign` |
+| URL instruction words changed | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083`, `TestQuestionAnswerElsewhere_0083` | `browser_question_0083_test.go:202: notices ["Open https://authorize.test in your browser" "This sign-in does not wait for the browser. After you sign` |
+| first plan sign-in takes a code | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083`, `TestNoLoopbackOffByDefault_0083`, `TestQuestionAnswerElsewhere_0083` | `browser_question_0083_test.go:202: notices ["Open https://authorize.test in your browser" "This sign-in does not wait for the browser to come back. Af` |
+| no-listener instruction not used | `wizard/auth.go` | `TestNoLoopbackReachesTheLogin_0083` | `browser_question_0083_test.go:202: notices ["Open https://authorize.test in your browser" "If the browser does not return here, paste the redirected U` |
+| quick empties not ended | `wizard/auth.go` | `TestNoLoopbackQuickEmptiesEndAtOnce_0083` | `browser_question_0083_test.go:933: the sign-in did not finish within 5 s` |
+| noPasteError matches nothing | `wizard/auth.go` | `TestNoLoopbackQuickEmptiesEndAtOnce_0083` | `browser_question_0083_test.go:938: err = wizard: the prompter answered the paste with nothing, three times at once; with no callback listener only a p` |
+| noPasteError words changed | `wizard/auth.go` | `TestNoLoopbackQuickEmptiesEndAtOnce_0083` | `browser_question_0083_test.go:938: err = wizard: the prompter answered with nothing; with no callback listener only a paste can finish the sign-in; wa` |
+| no notice after a cancel | `wizard/auth.go` | `TestNoLoopbackCancelWithPlainPrompter_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:948: the notice Sign-in cancelled; press Enter to continue did not happen within 5 s` |
+| no notice after the limit | `wizard/auth.go` | `TestDrainAfterTheLoginsLimit_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:954: the notice Sign-in timed out; press Enter to continue did not happen within 5 s` |
+| finished notice changed | `wizard/auth.go` | `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:971: the notice Browser sign-in finished; press Enter to continue did not happen within 5 s` |
+| drain's cause ignored | `wizard/auth.go` | `TestNoLoopbackCancelWithPlainPrompter_0083`, `TestDrainAfterTheLoginsLimit_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:948: the notice Sign-in cancelled; press Enter to continue did not happen within 5 s` |
+| cancel reads as finished | `wizard/driver.go` | `TestNoLoopbackCancelWithPlainPrompter_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:948: the notice Sign-in cancelled; press Enter to continue did not happen within 5 s` |
+| limit reads as finished | `wizard/driver.go` | `TestDrainAfterTheLoginsLimit_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:954: the notice Sign-in timed out; press Enter to continue did not happen within 5 s` |
+| cause never told | `wizard/driver.go` | `TestNoLoopbackCancelWithPlainPrompter_0083`, `TestDrainAfterTheLoginsLimit_0083`, `TestDrainNoticeWithAListener_0083` | `browser_question_0083_test.go:948: the notice Sign-in cancelled; press Enter to continue did not happen within 5 s` |
+| NoLoopback with NoPastePrompt accepted | `wizard/configure.go` | `TestNoLoopbackWithNoPastePromptRefused_0083` | `browser_question_0083_test.go:597: ConfigureLLM error = select provider: fakePrompter: unexpected Select("Choose an LLM provider:"); want one matching` |
+| ConfigureLLM's check removed | `wizard/configure.go` | `TestNoLoopbackWithNoPastePromptRefused_0083` | `browser_question_0083_test.go:597: ConfigureLLM error = select provider: fakePrompter: unexpected Select("Choose an LLM provider:"); want one matching` |
+| ResolveCredential's check removed | `wizard/configure.go` | `TestNoLoopbackWithNoPastePromptRefused_0083` | `browser_question_0083_test.go:600: ResolveCredential error = select authentication method: fakePrompter: unexpected Select("Choose how to authenticate` |
+| refusal does not wrap the sentinel | `wizard/configure.go` | `TestNoLoopbackWithNoPastePromptRefused_0083` | `browser_question_0083_test.go:597: ConfigureLLM error = wizard: llmprovider: invalid request: NoLoopback with NoPastePrompt leaves nothing to complete` |
+| port boundary and host comparison both dropped (a two-edit plant, one span) | `internal/signinflow/paste.go` | `TestPasteSchemelessCallback_0083` | `paste_schemeless_0083_test.go:51: a longer port that begins with the callback's: check = "That URL is not from this sign-in (its state does not match)` |
+| fail cancels the run with the context ended (ST50 race), -count=20 | `wizard/driver.go` | `TestNoLoopbackCancelDuringPasteSavesNothing_0083` | `browser_question_0083_test.go:841: err = signinflow: sign-in canceled: context canceled with 0 saves; want one matching context deadline exceeded only` |
+
+**2. `tools/redgreen.py`.**
+
+* `--expect fail --rev b9eb542` (`<scratch>/RED.json`: the 32 new tests of the six new test files, copied onto the base):
+  exit 1, as expected. `./wizard/` and `./llmprovider/auth/` do not build at the base, by the undefined names
+  (`unknown field NoLoopback in struct literal of type Options`, `o.NoBrowserQuestion undefined`; `undefined: listenFunc`,
+  `unknown field listen in struct literal of type OAuthFlowOptions`): exits 1 by build failure, as expected; the
+  assertion-level red is Phase 1's stub run (build pass 1, section 5: 29 of 32 fail on their assertion). The other two
+  packages build and fail on their assertions: `./internal/signinflow/` (`TestPasteSchemelessCallback_0083`,
+  `TestPasteSchemelessHandedOnWithScheme_0083`: `check = ""; want "not from this sign-in"`) and `./llmprovider/x/signin/`
+  (`TestStart_SchemelessPasteCompletes_0083`: `the token request carried the codes ["127.0.0.1:1455/auth/callback?code=code-0083..."]`).
+  The tool reported "3 of 32 fail as expected" (the three it could read), the 29 others "did not build".
+* `--expect pass` on the tree (`<scratch>/RED_tree.json`, the same tests without `files`): exit 0,
+  "redgreen: 32 of 32 pass as expected". A first run of it exited 2, "`files` and `drop` need --rev": the spec carried
+  `files`, a spec error, not a test result; the spec without them was run once.
+
+**3. The held-ports check.** Ports 1455 and 1457 were checked free first (`lsof`, nothing listening). `heldports_sdk.py` (kept
+under the drafting's scratch, not in the repository) held both on 127.0.0.1 and ::1, four listeners, for the whole run.
+**This step binds the real ports on purpose.** `./wizard/`: exit 0, PASS 991, FAIL 0, SKIP 0; `./internal/signinflow/`:
+exit 0, PASS 75, FAIL 0, SKIP 0; `./llmprovider/x/signin/`: exit 0, PASS 100, FAIL 0, SKIP 0; no line of any log names
+1455, 1457 or "registered callback ports". The ports were released at the end.
+
+**4 to 9. The runs and the gates** (this Mac, each status captured before any filter).
+
+| Step | Command | Exit | Decisive line |
+| :--- | :--- | :--- | :--- |
+| 4 | `run-heavy -- go test -race -count=1 -timeout 20m ./wizard/... ./internal/signinflow/... ./llmprovider/x/signin/... ./llmprovider/auth/...` | 0 | `ok` on all four; `wizard` 23.9 s |
+| 5 | `run-heavy -- go test -race -count=20 -timeout 30m -run '0083' ./wizard/ ./llmprovider/auth/` | 0 | `ok` on both |
+| 6 | the amendment: `run-heavy -- python3 -B <scratch>/hold1024.py go test -race -count=50 -timeout 20m -run 'TestStart_NoLoopback_0074$\|TestNoLoopback_BindsNothing_0083$' ./llmprovider/x/signin/ ./llmprovider/auth/` | 0 | "held 1024 loopback listeners in 49177..65528", `ok` on both packages, "released 1024 listeners" |
+| 7 | `run-heavy -- python3 -B tools/gate.py --timeout 5400` | 0 | "gate: 30 of 30 passed", 657 s |
+| 8 | `run-heavy -- make lint` | 0 | "0 issues." |
+| 8 | `run-heavy -- make vuln` | 0 | "No vulnerabilities found." |
+| 8 | `go vet -tags live_gateways ./...` | 0 | no output |
+| 9 | `make parity-check`, `dep-check`, `api-check`, `contract-check`, `generate-check`, `records-check`, `tables-check`, `fixtures-check`, `changelog-check`, `docs-check`, `markdownlint`, `links-check`, `disclosure-check`, each separately | 0 each | `api-check`: "against v1.31.0, 0 incompatible change(s) outside llmprovider/x/" |
+| 9 | `run-heavy -- make coverage-check`; `run-heavy -- make gate-selftest`; `run-heavy -- make tools-test` | 0, 0, 0 | "45 packages, 0 problem(s)"; "OK"; "OK" |
+
+Step 6's helper (`<scratch>/hold1024.py`): it raises its own open-file limit, binds 1024 loopback ports drawn at random from
+49152 to 65535 (each bind is the free check; a busy port is skipped), runs the command, and releases them. The held
+count and range are the only ports named; no other program's is. Under that hold the old dial form would fail a round
+with probability about 1024 / 16384, about 96 % over 50 rounds; the new form passed all 50.
+
+**10. The records.** `python3 -B tools/claims.py` on both: MADR 141 of 141, this PLAN 44 of 44, exit 0 (run before
+this entry). `tools/denyscan.py --changed`: 0 hits, exit 0. `tools/recordlint.py --changed`: "0 record(s); no rule rose", exit 0.
+
+**11. Findings and follow-ups.** No stop condition met: every plant caught, every command exit 0, no docs gap, no step failed twice.
+
+* The plant list is new (above). Phase 3's reviewer re-runs it on a scratch clone and adds plants of its own.
+* The equivalent mutant above: whether a decided row should name a paste that begins with the callback's host and port
+  and goes on with a character other than `/`, `?` or `#`, so that the boundary check has a test of its own, is the
+  owner's to decide; none is added here.
+* The plants' packages are the two the code changes beside `wizard`: a plant in `llmprovider/auth` is run with
+  `-run 0083` only, so `TestStart_NoLoopback_0074` (x/signin) is not in a plant run; it is in steps 4 and 6.
