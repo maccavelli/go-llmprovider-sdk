@@ -427,6 +427,9 @@ internal.
   provider.
 * **Q5 (D5). How many sends a request may make.** Answered on 2026-10-24:
   (a).
+  *(Amended for a raised request by 0088-MADR OQ6, 2026-11-21: eight sends;
+  the send that undoes a raised output limit is not counted.
+  0088-MADR-default-output-limit-from-model-facts.md ST57.)*
   * **(a)** Until the ladders run out: at most 7 (recommended). A refused
     send costs one round trip and carries no usage.
   * **(b)** One resend, as 0034 allows. A second refusal is returned, and the

@@ -356,6 +356,9 @@ Chosen option: **"A. A live menu ordered by facts"**, because:
   configured default (8192), cut to the model's `MaxOutputTokens` when that
   is smaller. A thinking budget's raise of `max_tokens` never passes it. The
   default is never raised (Q3).
+  *(For a request that names no limit, reversed by 0088-MADR OQ1,
+  2026-11-21: 0088-MADR-default-output-limit-from-model-facts.md. The cut
+  stays.)*
 * **Reasoning replay on Chat Completions.** `interleaved.field` names the
   field reasoning is replayed under, for every adapter on that wire, as
   OpenCode does now (E26). Kilo keeps `reasoning_details` (E25).
@@ -1111,6 +1114,8 @@ All answered by the owner on 2026-10-13, who then accepted this record:
   the two fixes, "small" from cost and the full family as the group, when the
   first ranking put `o3-pro` in OpenAI's utility six.
 * **Q3. The default output limit:** cut only (D2).
+  *(For a request that names no limit, reversed by 0088-MADR OQ1,
+  2026-11-21: 0088-MADR-default-output-limit-from-model-facts.md.)*
 * **Q4. Cache-aware cost:** a new profile (D5). Its members are
   `ProfileCapable`'s six, and the cached-turn price only orders them. The
   owner confirmed this: "yes, keep the 6 models reorder them".
