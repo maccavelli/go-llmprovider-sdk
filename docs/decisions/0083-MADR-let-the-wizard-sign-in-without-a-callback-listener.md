@@ -1310,7 +1310,7 @@ Inferred from the source, not run; NT21 shows it at the base first.
 | ST76 | A paste that starts with the callback's host and port (those of the `redirect_uri` the authorize URL names), with this sign-in's state and a code, where the step takes a code or a URL | decided | the parse is retried with `http://` in front; the result is read as the address, its state checked, and the sign-in completes. The same in every flow on the engine: the wizard with a listener or without, and `x/signin` | the owner's "Accept it: retry the parse with `http://` in front (Recommended)", relayed by the coordinator (2026-11-20); D11 | NT21 (`internal/signinflow`), NT22 (`x/signin`, the real `auth` code) (1) |
 | ST77 | The same, for a first plan sign-in (a step that takes a URL only) | decided | read as the address, as ST76; a `client_id` is still required (C32) | as ST76 | NT21 (1) |
 | ST78 | The same, for a step that takes a code only (no built-in method does) | decided | read as the address, and so refused as a URL is there: "That is a URL, not a code" | as ST76: the ruling reads such a paste "as the address" | NT21 (1) |
-| ST79 | The same, with another sign-in's state, or none | decided | "That URL is not from this sign-in"; asked again, counted among the three pastes | as ST76: "the state check still applies" | NT21 (1) |
+| ST79 | The same, with another sign-in's state, or none | decided | "That URL is not from this sign-in"; asked again, counted among the three pastes | as ST76: "the state check still applies" | NT21 (1) *(Annotated 2026-11-21, Phase 3: a paste of the callback's host and port alone, with or without a trailing `/`, is ST89's, not this row's.)* |
 | ST80 | The same, with whitespace before or after it | decided | trimmed first, then as ST76 | as ST76: the retry is of the parse, which reads the trimmed paste (`internal/signinflow/paste.go:49`) | NT21 (1) |
 | ST81 | The prefix tried | decided | `http://` only; never `https://` or any other | as ST76, its words | NT21 (1) |
 | ST82 | A bare code that does not start with the callback's host and port, one with a colon or a slash among them | decided | as today: taken as a bare code where the step takes one | as ST76: only a paste that starts with the callback's host and port is retried | NT21 (1) |
@@ -1564,3 +1564,18 @@ Relayed by the coordinator. Each label is quoted as the owner chose it.
 
 Rows changed in place: ST68, ST70 to ST72, ST83 to ST85. Rows added: ST87,
 ST88. Every row is now decided or out of scope.
+
+## Amendment of 2026-11-21: a cut-short paste, after the independent review
+
+*(Added 2026-11-21, Phase 3. No decision, status or earlier row changes but ST79's test cell, annotated above.)*
+
+The review found that a paste of only the callback's host and port, `127.0.0.1:1455` or `127.0.0.1:1455/`, is read as the
+address (D11) and then refused as "That URL is not from this sign-in (its state does not match)", which misleads a person
+whose address bar showed the address cut short. The owner ruled "Change it in this record".
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST89 | A paste that is the callback's exact host and port alone, or with a trailing `/` and nothing after it (spaces around it trimmed first) | decided | refused with its own words, "That address is cut short: paste the whole address the browser ended on." and the step's prompt; asked again and counted among the three pastes, as ST79's are; nothing reaches `auth` or the issuer. Any other paste is as before | the owner's "Change it in this record", relayed by the coordinator (2026-11-21) | `TestPasteSchemelessCallback_0083` and `TestPasteCutShortAskedAgain_0083` (`internal/signinflow`) (1) |
+
+One case is added to ST83's: `127.0.0.1:1455x/auth/callback?code=c&state=other`, a port that begins with the callback's and
+then is not a port, is read as a bare code (the owner's "Add the one test case (Recommended)"); it pins the boundary check.

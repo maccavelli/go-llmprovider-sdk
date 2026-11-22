@@ -37,6 +37,12 @@ func TestPasteSchemelessCallback_0083(t *testing.T) {
 		{"spaces and a line break around it", authcontract.PasteURLOrCode, "  " + callback + "?code=c&state=other \n", "not from this sign-in"},
 		{"a denial is passed on", authcontract.PasteURLOrCode, callback + "?error=access_denied&state=" + testState, ""},
 		{"a retry that does not parse", authcontract.PasteURLOrCode, "127.0.0.1:1455/%zz?code=c&state=" + testState, "not a usable address"},
+		{"a port that begins with the callback's and is none", authcontract.PasteURLOrCode, "127.0.0.1:1455x/auth/callback?code=c&state=other", ""},
+		{"the host and port alone", authcontract.PasteURLOrCode, "127.0.0.1:1455", "cut short"},
+		{"the host and port and a slash", authcontract.PasteURLOrCode, "127.0.0.1:1455/", "cut short"},
+		{"the host and port alone, a first plan sign-in", authcontract.PasteURLOnly, "127.0.0.1:1455", "cut short"},
+		{"the host and port alone, a code only", authcontract.PasteCode, "127.0.0.1:1455/", "cut short"},
+		{"the host and port alone, with spaces", authcontract.PasteURLOrCode, "  127.0.0.1:1455/ \n", "cut short"},
 		{"a longer port that begins with the callback's", authcontract.PasteURLOrCode, "127.0.0.1:14550/auth/callback?code=c&state=other", ""},
 		{"another port", authcontract.PasteURLOrCode, "127.0.0.1:1457/auth/callback?code=c&state=other", ""},
 		{"the callback's host with no port", authcontract.PasteURLOrCode, "127.0.0.1/auth/callback?code=c&state=other", ""},
@@ -93,5 +99,52 @@ func TestPasteSchemelessHandedOnWithScheme_0083(t *testing.T) {
 				t.Errorf("the login was handed %q; want %q", text, c.want)
 			}
 		})
+	}
+}
+
+// TestPasteCutShortAskedAgain_0083 (ST89): a paste of the callback's host and
+// port alone, with or without a trailing slash, is refused with its own words
+// and asked again, counted among the three; nothing reaches the login until a
+// whole address does.
+func TestPasteCutShortAskedAgain_0083(t *testing.T) {
+	const callback = "127.0.0.1:1455/auth/callback"
+	authorize := "https://issuer.test/authorize?redirect_uri=" + url.QueryEscape("http://"+callback) + "&state=" + testState
+	got := make(chan string, 2)
+	logins := Logins{Browser: func(ctx context.Context, provider llmprovider.ProviderID, o auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
+		_ = o.OpenURL(authorize)
+		text, err := o.InputCode(ctx)
+		got <- text
+		return &auth.OAuthSession{Provider: provider, Access: "access-0123456789"}, err
+	}}
+	run, err := Start(background(), Spec{Provider: llmprovider.ProviderOpenAI, Method: pastable(), Mode: ModeBrowser,
+		NoLoopback: true, Logins: logins})
+	if err != nil {
+		t.Fatalf("Start = %v", err)
+	}
+	next(t, run) // open_url
+	ask := next(t, run)
+	for _, cut := range []string{"127.0.0.1:1455", "127.0.0.1:1455/"} {
+		if err := run.Answer(background(), authcontract.Answer{Seq: ask.Seq, Paste: cut}); err != nil {
+			t.Fatalf("Answer = %v", err)
+		}
+		ask = next(t, run)
+		if ask.Kind != authcontract.StepPaste || !strings.Contains(ask.Text, "cut short") || strings.Contains(ask.Text, "state does not match") {
+			t.Fatalf("after %q the next step is %v %q; want a paste step that says the address is cut short", cut, ask.Kind, ask.Text)
+		}
+	}
+	select {
+	case text := <-got:
+		t.Fatalf("the login was handed %q before a whole address was pasted", text)
+	default:
+	}
+	whole := callback + "?code=c&state=" + testState
+	if err := run.Answer(background(), authcontract.Answer{Seq: ask.Seq, Paste: whole}); err != nil {
+		t.Fatalf("Answer = %v", err)
+	}
+	if _, err := run.Wait(bounded(t)); err != nil {
+		t.Fatalf("Wait = %v", err)
+	}
+	if text := <-got; text != "http://"+whole {
+		t.Errorf("the login was handed %q; want the whole address with http:// in front", text)
 	}
 }

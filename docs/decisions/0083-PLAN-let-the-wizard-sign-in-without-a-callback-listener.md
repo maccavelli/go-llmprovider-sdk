@@ -1071,7 +1071,7 @@ single production change that must turn the test red, on a scratch clone.
 | NT2 | ST5, ST17, ST21 | cases in `TestQuestionAnswerElsewhere_0083` | the answer "On another device" through `ConfigureLLM` and through `ResolveCredential`, for OpenAI's and Grok's `browser_oauth`, a first plan sign-in (D5's URL-only words) and a plan sign-in again (the code-or-URL words) | (a) the first plan sign-in given the code-or-URL words after the answer; (b) the question skipped when the step is entered from `ResolveCredential` |
 | NT3 | ST9 | a case in `TestQuestionNotAskedWhereItMustNot_0083` | `NoLoopback` with `NoBrowserQuestion`: no question, and `NoLoopback` true at the login | `spec.NoLoopback = o.NoLoopback && !o.NoBrowserQuestion` |
 | NT4 | ST12 | `TestDriverWithNoLoopback_0083` | a `Driver` and `NoLoopback`: no `Select` with the question's title; `NoLoopback` true at the login; the `Driver`'s paste completes the sign-in | `NoLoopback` not set on the spec when a `Driver` is set |
-| NT5 | ST16 | `TestQuestionAskedAgainNextRun_0083` | two `ConfigureLLM` runs with one `Options` value and one store, each answered "On another device": the question asked once in each run, `NoLoopback` true at each login | the answer kept in a package-level variable |
+| NT5 | ST16 | `TestQuestionAskedAgainNextRun_0083` | two `ConfigureLLM` runs with one `Options` value and one store *(corrected 2026-11-21, Phase 3: the test, `TestQuestionAskedAgainNextRun_0083`, runs `ResolveCredential` twice; the answer is held on the run's copy of `Options` by both entry points)*, each answered "On another device": the question asked once in each run, `NoLoopback` true at each login | the answer kept in a package-level variable |
 | NT6 | ST23, ST24 | cases in `TestQuestionNotAskedForOtherMethods_0083` | Kilo's device sign-in, with and without `KiloDeviceKey`; the pasted ChatGPT token; a kept session: no question. With `NoLoopback` set, Grok's device sign-in runs its device login as without it | the question asked in the `token_stdin` branch |
 | NT7 | ST29 | `TestPortsBusyEndsTheRun_0083` | the browser login's stub returns an error starting "oauth: registered callback ports unavailable;" after "On this machine": the run returns it; the question was asked once; no further `Select`, `Confirm` or `Input`; no notice naming the other answer | the question asked again when the login returns that error |
 | NT8 | ST48 | `TestQuestionThenCancelledRunSavesNothing_0083` | *(second pass)* Grok's `browser_oauth` through the login seam, which has no consent step: a `Prompter` whose question `Select` cancels the run's context and then answers "On another device": the run returns an error matching `context.Canceled`; the store saved nothing; the login's stub, if called, saw an ended context | `signinflow.Start` given `context.WithoutCancel(ctx)` in `stepRenderer.run` (`wizard/driver.go:70`) |
@@ -1718,3 +1718,57 @@ this entry). `tools/denyscan.py --changed`: 0 hits, exit 0. `tools/recordlint.py
   owner's to decide; none is added here.
 * The plants' packages are the two the code changes beside `wizard`: a plant in `llmprovider/auth` is run with
   `-run 0083` only, so `TestStart_NoLoopback_0074` (x/signin) is not in a plant run; it is in steps 4 and 6.
+
+### Phase 3, the independent review and its fixes (2026-11-21)
+
+*(Dated addition, on `55a5dca`, with the tree clean but for two untracked records of another number. The reviewer's files
+were read, not changed. Fixes are in Phase 1's files, as step 6 says, uncommitted, each with its plant.)*
+
+**Verdicts of the review.**
+
+* One blocker, B1 below. No other blocker.
+* The boundary and host-comparison mutants of D11's retry are equivalent: no input tells them from the code.
+* The audit of the 40 changed tests is clean: each is one scripted `0` or `NoBrowserQuestion`, in its group, with no assertion changed.
+* What a caller reads is right for gobble-cli's terminal path and for prepare-commit-msg's `TextPrompter`.
+
+**B1 (blocker): ST69's run-deadline half had no test.** Swapping `endCause`'s two cases (`wizard/driver.go`: the ended
+run context first, then the login's `DeadlineExceeded`) passed every test, since `plainEnd0083` only cancels and the
+deadline case of `TestNoLoopbackCancelDuringPasteSavesNothing_0083` uses an `InputerContext`. Added
+`TestRunDeadlineNoticeIsCancelled_0083` (`wizard/browser_question_0083_test.go`, from the reviewer's case): a 300 ms deadline,
+`NoLoopback`, the plain `pasteReader0083`, a login that returns `ctx.Err()`; it waits for "Sign-in cancelled; press Enter to
+continue", releases the read, and expects `context.DeadlineExceeded` and no save. Plant R1 (the two cases swapped) fails it,
+in each of three runs. No code change.
+
+**The edge case (the owner: "Add the one test case (Recommended)").** `TestPasteSchemelessCallback_0083` gains
+`127.0.0.1:1455x/auth/callback?code=c&state=other`, expecting a bare code (ST83). Plant: the boundary check dropped: caught.
+
+**The wording (the owner: "Change it in this record").** MADR ST89, by dated amendment: a paste of the callback's host and
+port alone, with or without a trailing `/`, is "That address is cut short: paste the whole address the browser ended on."
+with the step's prompt, asked again and counted; ST79 is annotated. Code: `internal/signinflow/paste.go`, `pasteCheck.read`
+(a file already in scope, D11). Tests, red first (they failed on the state-mismatch message): cases in
+`TestPasteSchemelessCallback_0083` and `TestPasteCutShortAskedAgain_0083`, which asks again twice and shows the login was
+handed nothing until the whole address came. Plant: the branch removed: caught by both. The CHANGELOG entry says so.
+
+**Corrected:** NT5's row said "two `ConfigureLLM` runs"; the test runs `ResolveCredential` twice (annotated in place).
+
+**Follow-ups, not blockers, not done here.**
+
+* The CHANGELOG's and `ConfigureLLM`'s doc's "an input that has ended is 'On this machine'" is true only at the first read at
+  the end (ST4); a read after it is an error.
+* The no-listener advice ("in the wizard, answer that the browser is on another device") mentions the question even where
+  `NoBrowserQuestion` or a `Driver` means it is never asked.
+* D5's paste prompt under no listener is the listener's ("Paste ... if the browser does not return"), which D5 left as it was.
+
+**Gate** (this Mac, each target separate, heavy ones through `run-heavy`; every exit 0): the four packages; `go test ./...`;
+`pre-add-check`; every CI target; `go vet -tags live_gateways`; `apidiff` from `b9eb542`: exactly `Options.NoBrowserQuestion`
+and `Options.NoLoopback`; claims, recordlint, denyscan.
+
+*(Coordinator's note, 2026-11-21.)* The gate line above is the executor's; in the working tree `make records-check`
+exited 1 and `make gate-selftest` exited 2, each on one cause only: the two untracked records of another number, not yet
+indexed. The coordinator re-ran the gate on a scratch clone of `55a5dca` holding only this phase's six files: every CI
+target exited 0 (`records-check`: 182 records, 0 problems; `gate-selftest` 0), with `go test ./...` and `pre-add-check`
+through `run-heavy`, `go vet -tags live_gateways`, recordlint and denyscan; claims, which read sibling checkouts, ran in
+the working tree: 141 of 141 and 44 of 44. Every plant of this record was then re-run on a scratch clone of the tree with
+this phase's change, through `run-heavy`: 54 of 54 caught (the 51 earlier plants and R1, the boundary check dropped, the
+cut-short branch removed), each on a failing test, none on a build failure. The race plant (ST50) was caught at
+`-count=1` in this run; its 20-round record from build pass 2 stands.

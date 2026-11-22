@@ -80,7 +80,8 @@ func (c pasteCheck) schemeless(paste string) bool {
 // trimmed, with http:// in front, which auth then reads as the address it is.
 // The retry is of the parse only: the state, the code and a client_id are
 // checked as for any address, a step that takes a code only refuses it, and a
-// retry that does not parse is refused (0083-MADR D11, ST76 to ST85).
+// retry that does not parse is refused; a paste of the host and port alone is
+// refused as cut short (0083-MADR D11, ST76 to ST85, ST89).
 func (c pasteCheck) read(paste string) (reason, address string) {
 	paste = strings.TrimSpace(paste)
 	if paste == "" {
@@ -89,6 +90,11 @@ func (c pasteCheck) read(paste string) (reason, address string) {
 	parsed, err := url.Parse(paste)
 	if err != nil || parsed.Scheme == "" {
 		if c.schemeless(paste) {
+			if rest := paste[len(c.callback):]; rest == "" || rest == "/" {
+				// The address bar showed only the host and port: the paste is
+				// cut short, which a state mismatch would misname (ST89).
+				return "That address is cut short: paste the whole address the browser ended on. " + promptFor(c.accepts), ""
+			}
 			retried, retryErr := url.Parse("http://" + paste)
 			switch {
 			case retryErr != nil:

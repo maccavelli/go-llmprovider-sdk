@@ -1069,3 +1069,42 @@ func (p *outOfRange0083) Select(title string, choices []Choice, defaultIdx int) 
 	}
 	return p.fakePrompter.Select(title, choices, defaultIdx)
 }
+
+// TestRunDeadlineNoticeIsCancelled_0083 (ST69, the run's deadline half): with
+// NoLoopback and a plain Prompter, the run's own deadline passing while the
+// paste is awaited shows "Sign-in cancelled; press Enter to continue", not the
+// login's-limit notice, and the run then ends with an error matching
+// context.DeadlineExceeded, saving nothing.
+func TestRunDeadlineNoticeIsCancelled_0083(t *testing.T) {
+	p := newPasteReader0083(t, grokBrowserIdx)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	stubBrowserLogin(t, func(c context.Context, _ llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
+		_ = opts.OpenURL(authorizeURL0083)
+		go func() { _, _ = opts.InputCode(c) }()
+		<-c.Done()
+		return nil, c.Err()
+	})
+	s := scenarios0083[0]
+	o := s.options(Options{NoLoopback: true})
+	store, _ := o.TokenStore.(*memoryTokenStore)
+	var err error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, err = ResolveCredential(ctx, p, o, s.provider)
+	}()
+	waitFor0083(t, "the notice "+cancelledNotice0083, func() bool { return p.sawNotice(cancelledNotice0083) })
+	if p.sawNotice(timedOutNotice0083) {
+		t.Errorf("the run's deadline gave the login's-limit notice %q", timedOutNotice0083)
+	}
+	p.releaseRead()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run did not return within 5 s of the Enter")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || store.saves != 0 {
+		t.Errorf("err = %v with %d saves; want one matching context.DeadlineExceeded and no save", err, store.saves)
+	}
+}

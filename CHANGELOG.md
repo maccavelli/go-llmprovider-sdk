@@ -78,8 +78,9 @@ tag and its commit without notes; its notes are its section here.
 - A pasted redirect address that begins with the callback's host and port and
   has no `http://`, as the address bar shows it, is read as the address, with
   every check an address meets, for every caller of the sign-in engine,
-  `x/signin`'s included; one that does not parse is refused and asked again
-  (0083-MADR D11).
+  `x/signin`'s included; one that does not parse is refused and asked again,
+  and one that is the host and port alone is refused as cut short and asked
+  again (0083-MADR D11, ST89).
 - With no callback listener, a `Prompter` that answers the paste with nothing,
   three times at once, ends the sign-in with an error matching
   `ErrInvalidRequest`. The notice that asks for an Enter after a sign-in's end
