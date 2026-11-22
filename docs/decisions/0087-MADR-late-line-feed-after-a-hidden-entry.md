@@ -474,8 +474,8 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST17 | Exported API | decided | no exported name added or changed against `v1.31.0` | A6 (OR1) | `tools/apidiff.py v1.31.0` and `make api-check` (checks; their plant is the gate self-test's) |
 | ST18 | Dependencies | decided | `golang.org/x/sys` direct in `go.mod`; nothing else | A6 (OR1); AGENTS.md "Dependencies"; C28 | `make dep-check` and `go mod tidy -diff` (checks; their plant is the gate self-test's) |
 | ST19 | Ctrl-C, Ctrl-U, Backspace and escape sequences during the entry | out of scope | unchanged; the settle runs only after a CR has ended the entry | | |
-| ST20 | Windows console in raw mode: the bytes of an Enter and of a pasted CR+LF, and whether they split across reads | open: awaits live evidence | each observation is mapped to its outcome under "Windows: the probe and what each observation decides" | OR3 (the probe and the mapping) | Phase 1's probe, P1, P2, R1, R2 |
-| ST21 | Windows console: a line-mode answer followed by a hidden entry | open: awaits live evidence | mapped as ST20 is | OR3 | Phase 1's probe, P3, R3 |
+| ST20 | Windows console in raw mode: the bytes of an Enter and of a pasted CR+LF, and whether they split across reads | ~~open: awaits live evidence~~ decided (2026-11-22, A-4) | *(2026-11-22: P1 split in a pseudo console, the mapping's first row: "seen"; Windows gets the 50 ms wait by the Windows mechanism, with ST31 and ST32; R1 and R2 never split on a real console)* each observation is mapped to its outcome under "Windows: the probe and what each observation decides" | OR3 (the probe and the mapping) | Phase 1's probe, P1, P2, R1, R2 |
+| ST21 | Windows console: a line-mode answer followed by a hidden entry | ~~open: awaits live evidence~~ decided (2026-11-22, A-4) | *(2026-11-22: R3 began with the letters on both real consoles, the fifth row; P3 began with an LF, the sixth row; both: this record changes nothing)* mapped as ST20 is | OR3 | Phase 1's probe, P3, R3 |
 | ST22 | What the Windows build does | decided | no wait until Phase 1 has run; then "seen": the Windows mechanism with W = 50 ms; "not seen": no wait and the doc sentence | OR3; A7; the mapping's second row (third pass) | "seen" in a pseudo console: `TestSecret_LateLineFeedDropped_Windows_0087` (plant: `readMasked` no longer calls the settle on Windows); "seen" on a real console only: `TestLive_SettleOnConsole_0087`, run by the owner in that console, red at the base and green on the fixed build, the base itself standing as its plant, since a pseudo console cannot make it red; "not seen": `TestSecret_SettleIsBounded_0087` run on Windows (plant: the Windows build waits 5 s) |
 | ST23 | The length of W | decided | 50 ms | OR2 | a `tools/claims.py` row on the constant, added at Phase 2 (plant: the row's text changed, by `tools/claims.py --plants`) |
 | ST24 | CR then NUL (a telnet client's Enter), the NUL late | decided | the NUL is not dropped: it stays in the reader and reaches the next line-mode prompt untrimmed, as today | OR4; A1 | `TestSecret_LateNulKept_0087`; plant: the settle drops a NUL as well as an LF |
@@ -499,7 +499,9 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST42 | Where the probe lives, and its switch | decided | `llmprovider/live_raw_enter_0087_windows_test.go`, standard library only; `AGENTS.md` names `LLMPROVIDER_LIVE_0087` | OR9; OR12 | ~~`make tables-check` (plant: `AGENTS.md`'s name of the variable removed: "a live test reads it, and AGENTS.md does not name it")~~ *(amended 2026-11-22, OR12: that plant is not caught, since `tables-check` admits a variable its own record names; see A-1)* `make tables-check` (plant: the probe reads a variable no document names); `AGENTS.md`'s name of `LLMPROVIDER_LIVE_0087` pinned by the claims row C47now (plant: its text changed, by `tools/claims.py --plants`); `make dep-check` unchanged |
 
 Counts *(third pass)*: 29 decided, 11 out of scope, 0 open, 2 open awaiting
-live evidence (ST20, ST21).
+live evidence (ST20, ST21). *(2026-11-22, A-4: 31 decided, 11 out of scope,
+0 open; Phase 1 mapped to "seen", in a pseudo console, so ST31 and ST32
+arise.)*
 
 ## Pros and Cons of the Options
 
@@ -756,4 +758,86 @@ followed began with an `0a`, before the letters (`-`) and their `0d`.
 
 Not yet mapped: the PLAN's step 5 maps the observations when the owner's two
 console files (step 4) are in, so ST20 and ST21 stay open here and the
-Windows branch of Phase 2 is not yet fixed.
+Windows branch of Phase 2 is not yet fixed. *(Annotated 2026-11-22: mapped
+in A-4.)*
+
+**A-4. The owner's console runs, and the mapping (PLAN Phase 1 steps 4 and
+5, 2026-11-22).** The owner ran the probe's `console` mode on the Windows
+laptop, at the commit that carries Phase 1 (`751e970`), with a runner the
+coordinator scripted: a classic console window with `WT_SESSION` cleared,
+then a Windows Terminal PowerShell tab, the clipboard holding `one`, CR, LF,
+`two`, CR, LF, pasted with Ctrl+V. The coordinator read the two files over
+ssh and relayed them verbatim.
+
+A first run is superseded and maps nothing: its inputs were wrong, by the
+owner's own account ("i goofed those tests passed"). The second run's
+files, written at 13:04:07 (`conhost.txt`) and 13:05:08 (`terminal.txt`):
+
+```text
+--- conhost.txt
+mode=console console=conhost case=enter result=cr-only reads=0d
+mode=console console=conhost case=paste result=cr-only reads=0d0d
+mode=console console=conhost case=cooked-then-raw result=letters-first cooked=0d0a reads=-
+--- terminal.txt
+mode=console console=terminal case=enter result=cr-only reads=0d
+mode=console console=terminal case=paste result=cr-only reads=-,0d0d
+mode=console console=terminal case=cooked-then-raw result=letters-first cooked=0d0a reads=-
+```
+
+What each line says, by the probe's code (`rawEnterRun0087`,
+`rawEnterLine0087`, `rawEnterResult0087`): each comma-separated group in
+`reads=` is one read of the console, and holds that read's CR and LF bytes
+in order; `-` is a read that held other bytes and no CR or LF; a case ends
+1.5 s after its last read.
+
+* conhost, R1 (`reads=0d`): one Enter reached the reader as one read of one
+  CR. No LF.
+* conhost, R2 (`reads=0d0d`): the two-line paste reached the reader in one
+  read whose only line-ending bytes were two CRs: each CR+LF arrived as a
+  CR. No LF, so no split.
+* conhost and terminal, R3 (`cooked=0d0a reads=-`): the line-mode read
+  returned its line through CR, LF; the raw read that followed began with the
+  letter typed (`letters-first`) and held no CR. The owner's report, "the
+  last step, type 1 letter then hit enter, when i type the letter the
+  terminal ends, i do not have to press enter", fits: the case ended 1.5 s
+  after the letter's read, before any Enter. The request's words ("type one
+  letter and press Enter") do not match the probe's window; a follow-up for
+  the probe's request and the owner's steps, which changes no mapping, since
+  R3's row reads only what the raw read begins with.
+* terminal, R1 (`reads=0d`): as conhost's R1.
+* terminal, R2 (`reads=-,0d0d`): the paste reached the reader in two reads:
+  the first held no CR or LF, the second two CRs. No LF in either: Windows
+  Terminal also turned each CR+LF into a CR. No split, since "split" needs a
+  read that begins with `0a`.
+
+**The mapping,** with the pty run of A-3, by the table under "Windows: the
+probe and what each observation decides":
+
+* P1 (`crlf-one-write result=split reads=0d,0a`) is split: the table's first
+  row, "Late line feed seen on Windows, in a pseudo console". ST20 is decided:
+  Windows gets the same 50 ms wait by "The Windows mechanism, if seen", with
+  ST31 and ST32, and the pseudo-console tests of the PLAN's Phase 2 table.
+  The first row turns on P1 alone; R1 and R2 never split (a lone `0d`, and
+  CR-only pastes with no `0a`), which would decide "not seen" only with P1
+  not split (the third row), so it does not apply. P2 shows an `0a` reaching
+  the reader, so the fourth row does not apply.
+* R3 on both consoles begins with the letters: the fifth row, "the line read
+  took its whole line, and nothing changes".
+* P3 (`cooked-then-raw result=lf-first cooked=0d0a reads=0a,-,0d`) begins
+  with an `0a`: the sixth row, "what the raw read meets is type-ahead, as on
+  POSIX; an LF there ends the entry empty, and `Secret` warns and asks again
+  (C14), visibly; this record changes nothing for it". The bytes quoted here,
+  as that row asks: the line read returned `0d0a`, and the raw read began
+  with the `0a` of the probe's one write of `y`, CR, LF, after the console
+  had ended the line on the CR; then the letters (`-`) and their `0d`.
+* ST21 is decided: the fifth and sixth rows give the same outcome, that this
+  record changes nothing for a line-mode answer followed by a hidden entry on
+  Windows. On the two real consoles a line-mode Enter left nothing behind;
+  in a pseudo console an LF written after the CR stays as type-ahead, which
+  `Secret` meets visibly.
+* Phase 2's Windows branch is fixed: **"seen", in a pseudo console**.
+  `wizard/settle_windows.go` and `wizard/late_lf_0087_windows_test.go`
+  (`TestSecret_LateLineFeedDropped_Windows_0087`,
+  `TestSecret_SettleIsBounded_Windows_0087`) are built; the real-console-only
+  branch (`TestLive_SettleOnConsole_0087`) does not arise, and the "not seen"
+  doc sentence is not written.

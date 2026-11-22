@@ -42,6 +42,8 @@ starts before the owner says `proceed`, `execute the plan` or `do phase N`.
 * `wizard/settle_other.go` (new, `//go:build !unix`): no wait, until Phase
   1 maps to "seen"; then `wizard/settle_windows.go` (new, `//go:build
   windows`) takes Windows and `settle_other.go` becomes `!unix && !windows`.
+  *(2026-11-22: Phase 1 mapped to "seen", in a pseudo console, MADR A-4:
+  `wizard/settle_windows.go` is built.)*
 * `wizard/prompter.go`: one sentence in `Prompter.Secret`'s doc comment (MADR
   A6, OR5).
 * `go.mod`: `golang.org/x/sys` from indirect to direct; `go.sum` as
@@ -223,13 +225,15 @@ Starts on the commit that carries 0081's, 0085's and 0083's code (the base).
    | `TestConfigure_SearchAfterLateLineFeed_0087` (Unix) | ST15 | `ConfigureLLM` over a `TextPrompter` on a pipe under `rawSeam0059`, the line-end hook writing an LF; a provider that requires a key and has a static catalog, `Discover` off; the answers: the provider's number, the method if one is asked, a key and a CR, then a search for a static model that is not the first recommended, and `1`. `Result.Model` is that model. The provider and the model are chosen at the base and named in the execution record. | red: the blank search shows the recommended menu, the query is refused as a number, and `1` picks the first recommended | `readMasked` no longer calls the settle |
 
    If Phase 1 mapped to "seen", add in `wizard/late_lf_0087_windows_test.go`:
+   *(2026-11-22: it did, in a pseudo console, MADR A-4; this table applies.)*
 
    | Test | Row | What it does | At the base | Plant (on the fixed code) |
    | :--- | :--- | :--- | :--- | :--- |
    | `TestSecret_LateLineFeedDropped_Windows_0087` | ST22 ("seen") | On a pseudo console, as Phase 1's probe starts its child: a key and a CR, then an LF 10 ms later, then `my-model` and a CR; the child's `Input` returns `my-model`. | red | `readMasked` no longer calls the settle on Windows |
    | `TestSecret_SettleIsBounded_Windows_0087` | ST32 | On a pseudo console: a key and a CR only (so only the CR's key release is pending); `Secret` returns within 1 s, waited for at most 5 s. | green | any pending console event treated as a character, so the peek blocks |
 
-   If Phase 1 mapped to "seen" on a real console only (the MADR's second
+   *(2026-11-22: does not arise; Phase 1 mapped by the first row, MADR
+   A-4.)* If Phase 1 mapped to "seen" on a real console only (the MADR's second
    mapping row), the Windows tests cannot be red in a pseudo console. In
    their place, `TestLive_SettleOnConsole_0087` in
    `wizard/live_settle_0087_windows_test.go` (`live_gateways`, the same
@@ -652,3 +656,46 @@ files' three lines each). Step 5 waits for those two files.
 another record's 0088 files are unindexed, so they ran on a clone of
 `18e8e72` holding only `AGENTS.md`, `docs/README.md`, the two 0087 records
 and the two new test files.
+
+### 2026-11-22: Phase 1, pass 1, steps 4 and 5 (Phase 1 done)
+
+The Phase 1 files were committed by the owner as `751e970`; the tree's
+`HEAD` is `8181e8b`, which changes no 0087 file.
+
+**Step 4.** The owner ran both console steps on the Windows laptop at
+`751e970`, with a runner the coordinator scripted (a classic console window
+with `WT_SESSION` cleared, then a Windows Terminal PowerShell tab; the
+clipboard set to `one`, CR, LF, `two`, CR, LF; pasted with Ctrl+V). The
+coordinator read the files over ssh and relayed them verbatim; the agent
+quotes them in the MADR, "Amendments of 2026-11-22", A-4.
+
+* **The first run is superseded,** and nothing is mapped from it: by the
+  owner's own account, "i goofed those tests passed" (the probe passed, the
+  inputs were wrong). Its lines are not recorded.
+* **The second run** (`conhost.txt` 13:04:07, `terminal.txt` 13:05:08):
+  R1 a lone `0d` on both consoles; R2 one read `0d0d` (conhost) and two
+  reads `-,0d0d` (terminal), no `0a` on either; R3 `letters-first` on both.
+
+**Step 5, the mapping** (MADR A-4, by its table): P1 split in a pseudo
+console, the first row: **"seen", in a pseudo console**. ST20 decided
+(Windows gets the 50 ms wait by the Windows mechanism; ST31 and ST32 arise);
+ST21 decided (R3 the fifth row, P3 the sixth; both: nothing changes). Every
+observation is named by a row; no stop. Phase 2's Windows branch: the
+pseudo-console table (`wizard/settle_windows.go`,
+`TestSecret_LateLineFeedDropped_Windows_0087`,
+`TestSecret_SettleIsBounded_Windows_0087`); the real-console-only branch
+does not arise. Annotated in Scope and in Phase 2 step 2.
+
+Phase 1's exit criterion: no blocker; every row it owns tested (ST42 by
+`tables-check` and C47now, ST20 and ST21 by the probe's lines); its plants
+caught (the twin's, `tables-check`'s, C47's). Phase 1 is done in one pass.
+
+#### Follow-up, 2026-11-22: the R3 request's words (not done in this phase)
+
+The probe's R3 second-half request says "type one letter and press Enter",
+and `OWNER-STEPS.txt` says the same; the case ends 1.5 s after its last
+read, so it ends after the letter whatever follows. The owner saw it ("when
+i type the letter the terminal ends, i do not have to press enter"). The
+request and the steps' words are to say "type one letter" only. No code was
+changed in this step; the mapping does not depend on it (R3's row reads the
+raw read's first byte).
