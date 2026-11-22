@@ -101,7 +101,7 @@ func TestPaste_EmptyAskedAgain_0057(t *testing.T) {
 		}
 		return testOAuthSession(provider), nil
 	})
-	f := newFake(t, fakePrompter{selects: []int{grokBrowserIdx}, inputs: []string{"", "code-0057"}})
+	f := newFake(t, fakePrompter{selects: []int{grokBrowserIdx, 0}, inputs: []string{"", "code-0057"}})
 	if _, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), NoEndpointPrompt: true},
 		llmprovider.ProviderGrok); err != nil {
 		t.Fatal(err)

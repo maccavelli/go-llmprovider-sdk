@@ -1255,11 +1255,34 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   **`Options.NoPastePrompt`**, for a
   caller with no terminal, starts no paste prompt in a browser sign-in: the
   URL is shown and opened, and the loopback alone completes it, the ChatGPT
-  plan's included (0057-MADR D2).
+  plan's included (0057-MADR D2). **`Options.NoLoopback`** binds no listener in a
+  browser sign-in, the plan's included, and asks no question: only a pasted
+  code or address completes it, in words that do not say the browser may
+  return, and `OpenURL` is still called. With `NoPastePrompt` it is an error
+  matching `llmprovider.ErrInvalidRequest`, before any question (0083-MADR D1,
+  D4).
+- **Where the browser is.** A browser sign-in whose paste the wizard renders
+  itself asks once per run, through `Prompter.Select`, after the method is
+  chosen and, for the plan, after the reads of its saved session and client
+  and before its consent: "On this machine", the default, which keeps the
+  listener and the paste race, or "On another device", which runs the
+  sign-in with no listener and does not call `OpenURL`. By caller setting:
+  nothing set, the question, then the listener or none by the answer;
+  `NoLoopback`, no question and no listener; **`NoBrowserQuestion`**, no
+  question and the listener; `NoPastePrompt`, no question and the listener;
+  a `Driver`, no question and the listener, or none with `NoLoopback`, the
+  `Driver`'s paste completing it. The answer is held by the run and stored
+  nowhere. Without a listener, a `Prompter` that answers the paste with nothing
+  three times at once ends the sign-in with an `ErrInvalidRequest` error, since
+  only a paste could finish it; a pasted address that begins with the
+  callback's host and port and no scheme is read as that address
+  (0083-MADR D3, D5, D6, D7, D11, ST38).
 - **The paste prompt.** A browser sign-in otherwise races the loopback
   against a paste prompt. An empty paste is asked again; when the loopback
   wins, a read still waiting is finished by one Enter, which the wizard asks
-  for, before any other prompt (0008-MADR's amendment; 0057-MADR D4). A
+  for, before any other prompt, in words that say how the sign-in ended: it
+  finished, it was cancelled or it timed out (0008-MADR's amendment;
+  0057-MADR D4; 0083-MADR ST72). A
   `Prompter` that answers at once with nothing is asked three times, each
   answer within 50 ms; then a notice says so, and the wizard waits for the
   browser or the sign-in's limit, while a person's slower Enter is still
@@ -1375,7 +1398,14 @@ caller saves, as the wizard does after its listing.
   a code, and a `client_id` where only a URL is accepted. A bad paste is
   asked again with a reason that never holds it, and the third bad one ends
   the sign-in as `invalid_request`. A pasted URL with this sign-in's state
-  and an `error` passes to `auth`, which ends it as `denied`.
+  and an `error` passes to `auth`, which ends it as `denied`. An address
+  pasted with no scheme, as the address bar shows it until it is tapped, is
+  read as the address when it begins with the callback's exact host and port
+  (`127.0.0.1:1455/auth/callback?...`): the engine hands `auth` the text with
+  `http://` in front and every check above applies; one that does not parse is
+  refused and asked again, and a paste with any other beginning is read as it
+  was. `auth` itself reads a schemeless text as a bare code, for a caller of
+  its own logins (0083-MADR D11).
 - **`NoLoopback`.** `OAuthFlowOptions.NoLoopback` and
   `ChatGPTPlanOptions.NoLoopback` bind no callback listener, so a paste
   alone completes a browser sign-in. A sign-in with it and no `InputCode` is

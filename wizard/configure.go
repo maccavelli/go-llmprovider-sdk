@@ -169,7 +169,12 @@ type Options struct {
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through
 	// Prompter. An error from it is shown as a warning notice and the
-	// sign-in goes on, since the URL is on screen (0074-MADR D4).
+	// sign-in goes on, since the URL is on screen (0074-MADR D4). It is not
+	// called after the person answers that the browser is on another device
+	// (see NoLoopback), where opening one here would open it on a screen
+	// nobody watches; under Options.NoLoopback, which the caller chose, it is
+	// called as before, since it may be how the caller delivers the URL
+	// (0083-MADR D6).
 	OpenURL func(string) error
 	// AgentName is the consumer's own app name, which OpenAI's Sign in with
 	// ChatGPT for agents shows the user and registers the app under
@@ -215,7 +220,10 @@ type Options struct {
 	// Prompter is not used for the sign-in's notices, prompts and paste, and
 	// ShowDeviceCode and OpenURL are not called: the steps replace them.
 	// NoPastePrompt still decides whether a paste is asked, and the menus,
-	// confirmations and every other question still use the Prompter. An
+	// confirmations and every other question still use the Prompter, but for
+	// the question where the browser is, which a Driver never gets: the
+	// callback listener binds unless NoLoopback is set, which the Driver's
+	// paste then completes (0083-MADR D3, D7). An
 	// error from the Driver ends the sign-in and is returned as it is. It
 	// speaks the contract's types only; see StepDriver (0074-MADR D6).
 	Driver StepDriver
@@ -247,8 +255,25 @@ type Options struct {
 	// with no terminal: no paste instruction is shown and the Prompter is not
 	// read. The authorize URL is still shown and given to OpenURL, and the
 	// browser's return to the loopback alone completes the sign-in, the
-	// ChatGPT plan's included (0057-MADR D2).
+	// ChatGPT plan's included (0057-MADR D2). It asks no question about where
+	// the browser is, since with no paste only the loopback can complete the
+	// sign-in, and NoLoopback with it is an error (0083-MADR D4).
 	NoPastePrompt bool
+	// NoLoopback binds no callback listener in a browser sign-in, the ChatGPT
+	// plan's included, and asks the person no question about it: the redirect
+	// URI names OpenAI's first registered port, or for Grok a port nothing
+	// listens on, and only a pasted callback URL or code completes the sign-in
+	// (auth.OAuthFlowOptions.NoLoopback; 0074-MADR D4). It suits a caller that
+	// knows the browser is elsewhere, a host whose ports 1455 and 1457 must stay
+	// free, and a test that binds no port. A device sign-in ignores it. With
+	// NoPastePrompt it is an error matching llmprovider.ErrInvalidRequest,
+	// before any question (0083-MADR).
+	NoLoopback bool
+	// NoBrowserQuestion asks the person no question about where the browser
+	// is: a browser sign-in binds its callback listener, as before
+	// 0083-MADR, unless NoLoopback is set. For a caller that knows the
+	// browser is on this machine, or whose tests script every question.
+	NoBrowserQuestion bool
 	// LocalServers adds to the provider menu, after the Registry's, each
 	// Chat Completions server running on this machine that
 	// chatcompat.Discover finds, with HTTPClient only: id local-<port>, its
@@ -265,6 +290,23 @@ type Options struct {
 	// llmprovider.WithBaseURL(res.BaseURL)), adding
 	// llmprovider.WithAPIKey(res.APIKey) when res.Kind is CredAPIKey.
 	LocalServers bool
+
+	// browser holds the person's answer to the question where the browser is
+	// for one run: ConfigureLLM and ResolveCredential set it on their own copy
+	// of Options, so a later run with the same Options asks again and nothing
+	// is stored (0083-MADR D3).
+	browser *browserAnswer
+}
+
+// checkNoLoopback refuses Options.NoLoopback with NoPastePrompt, before any
+// question: with no listener and no paste nothing could complete a browser
+// sign-in, which the engine would refuse at the sign-in, after the person had
+// answered the menus (0083-MADR D4).
+func (o Options) checkNoLoopback() error {
+	if o.NoLoopback && o.NoPastePrompt {
+		return fmt.Errorf(noListenerNoPasteText, llmprovider.ErrInvalidRequest)
+	}
+	return nil
 }
 
 // lookupEnv is the run's environment reader: the caller's, else one that
@@ -325,6 +367,17 @@ func (o Options) lookupEnv() func(string) string {
 // first says that the organizations could not be read and the personal
 // account is used.
 //
+// Before a browser sign-in, OpenAI's, Grok's or the ChatGPT plan's, the person
+// is asked once per run where the browser is, through p's Select, unless
+// Options.NoLoopback, NoBrowserQuestion, NoPastePrompt or Driver is set; after
+// the method menu and, in a plan sign-in, after the reads of the saved session
+// and client and before the plan's consent. "On this machine", an empty line and
+// an input that has ended keep the callback listener and the paste race;
+// "On another device" runs the sign-in with no listener, which only a pasted
+// address or code completes, and does not call Options.OpenURL. Options.NoLoopback
+// with Options.NoPastePrompt is an error matching llmprovider.ErrInvalidRequest,
+// returned before any question (0083-MADR D3, D4, D7).
+//
 // A typed or pasted key that is empty once trimmed, for any provider, is not
 // returned as a key: the person is asked again, up to three asks in all for
 // each prompt, and the third blank is a plain error that matches no sentinel,
@@ -353,6 +406,10 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, fmt.Errorf("wizard: %w", err)
 	}
+	if err := o.checkNoLoopback(); err != nil {
+		return Result{}, err
+	}
+	o.browser = &browserAnswer{}
 	if o.LocalServers {
 		var err error
 		if o, err = withLocalServers(ctx, o); err != nil {
@@ -470,6 +527,11 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // and, under Options.NoEndpointPrompt, an endpoint refused, not reached, or
 // missing for a provider with no default.
 //
+// Before a browser sign-in the person is asked where the browser is, once, and
+// Options.NoLoopback with Options.NoPastePrompt is an error matching
+// llmprovider.ErrInvalidRequest, returned before any question, as ConfigureLLM's
+// doc says (0083-MADR D3, D4).
+//
 // A typed or pasted key that is empty once trimmed is asked for again, up to
 // three asks in all for each prompt, and the third blank is a plain error
 // that matches no sentinel, not llmprovider.ErrAuthFailure, even after a key
@@ -479,6 +541,10 @@ func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovide
 	if err := ctx.Err(); err != nil {
 		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
 	}
+	if err := o.checkNoLoopback(); err != nil {
+		return Result{}, catalog.Catalog{}, err
+	}
+	o.browser = &browserAnswer{}
 	if _, known := o.registry().Descriptor(id); o.LocalServers && (id == "" || !known) {
 		var err error
 		if o, err = withLocalServers(ctx, o); err != nil {

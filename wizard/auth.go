@@ -248,7 +248,7 @@ func signIn(
 			Method: authcontract.Method{ID: string(method), Paste: authcontract.PasteURLOrCode,
 				Yields: authcontract.YieldsOAuthSession},
 			Mode: signinflow.ModeBrowser,
-		}, pasteCodeInstruction, pasteCodePrompt)
+		}, pasteCode)
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
@@ -321,11 +321,11 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 	if previous != nil && (unreadable || !signsInAgainTo(previous, issued)) {
 		previous = nil
 	}
-	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
+	text := pasteCode
 	if previous == nil {
 		// A first sign-in learns the app's client from the callback URL, so
 		// a bare code cannot complete it (0043-MADR A3).
-		instruction, prompt = pasteURLInstruction, pasteURLPrompt
+		text = pasteURL
 	}
 	session, loginErr := browserSignIn(ctx, p, llmprovider.ProviderOpenAI, o, signinflow.Spec{
 		Method: planMethod(d),
@@ -336,7 +336,7 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 		ConsentText: o.ConsentText,
 		ClientStore: clients,
 		Client:      read,
-	}, instruction, prompt)
+	}, text)
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
 	}
@@ -852,6 +852,81 @@ const (
 	pasteURLPrompt       = "Paste the redirected URL if the browser does not return"
 )
 
+// pasteText is the words of a browser sign-in's paste: the instruction shown
+// with the URL and the prompt that asks for it, and the instruction with no
+// callback listener, which does not say the browser may return
+// (0083-MADR D5).
+type pasteText struct {
+	instruction, prompt, noListener string
+}
+
+var (
+	// pasteCode takes the code or the whole address.
+	pasteCode = pasteText{pasteCodeInstruction, pasteCodePrompt, noListenerCodeInstruction}
+	// pasteURL takes the whole address only: a first plan sign-in's.
+	pasteURL = pasteText{pasteURLInstruction, pasteURLPrompt, noListenerURLInstruction}
+)
+
+// The instructions of a sign-in with no callback listener (0083-MADR D5).
+const (
+	noListenerCodeInstruction = "This sign-in does not wait for the browser to come back. After you sign in, paste here the code the page shows or, " +
+		"if the browser is sent to a page it cannot open, the whole address from its address bar"
+	noListenerURLInstruction = "This sign-in does not wait for the browser to come back. After you sign in, the browser cannot open the page it is sent to: " +
+		"copy the whole address from its address bar and paste it here"
+)
+
+// The question where the browser is, and its two choices (0083-MADR D3).
+const (
+	browserQuestion       = "Where is the browser you will sign in with?"
+	browserHere           = "On this machine"
+	browserElsewhere      = "On another device: I will paste the address back"
+	noListenerNoPasteText = "wizard: %w: NoLoopback with NoPastePrompt leaves nothing to complete a browser sign-in"
+)
+
+// browserAnswer is the person's answer to the question, held for one run: the
+// run's own copy of Options carries it, so that it is asked once per run and
+// stored nowhere (0083-MADR D3, N5; the security properties' last bullet).
+type browserAnswer struct {
+	asked     bool
+	elsewhere bool
+}
+
+// browserFlow is how a browser sign-in is run: with no callback listener, and
+// whether the person said so (which leaves Options.OpenURL uncalled).
+type browserFlow struct {
+	noListener bool
+	elsewhere  bool
+}
+
+// askBrowserFlow decides how the browser sign-in about to start is run. With
+// Options.NoLoopback the caller has said: no listener and no question. Where
+// the wizard renders the paste itself, that is with none of Options.NoLoopback,
+// NoBrowserQuestion, NoPastePrompt or Driver, the person is asked once per run
+// where the browser is; "On another device" is no listener, with the paste
+// alone to complete it. Anywhere else the listener binds, as it always has
+// (0083-MADR D3, D7). A Prompter's error ends the run, and an answer outside
+// the choices is a plain error (ST73).
+func (o Options) askBrowserFlow(p Prompter) (browserFlow, error) {
+	if o.NoLoopback {
+		return browserFlow{noListener: true}, nil
+	}
+	if o.NoBrowserQuestion || o.NoPastePrompt || o.Driver != nil {
+		return browserFlow{}, nil
+	}
+	held := o.browser
+	if held == nil {
+		held = &browserAnswer{}
+	}
+	if !held.asked {
+		idx, err := choose(p, browserQuestion, []Choice{{Label: browserHere}, {Label: browserElsewhere}}, 0)
+		if err != nil {
+			return browserFlow{}, fmt.Errorf("select where the browser is: %w", err)
+		}
+		held.asked, held.elsewhere = true, idx == 1
+	}
+	return browserFlow{noListener: held.elsewhere, elsewhere: held.elsewhere}, nil
+}
+
 // browserFlowOptions adds MADR 0008 D3's paste-code race to oauthFlowOptions.
 // The authorize URL and the paste instruction are shown even when the consumer
 // opens the browser itself. The returned drain must run once the login
@@ -865,29 +940,44 @@ func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 // browserFlowOptionsFor is browserFlowOptions with the paste instruction and
 // prompt given.
 func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (auth.OAuthFlowOptions, func()) {
-	flow := oauthFlowOptions(o)
+	flow, drain, _ := browserFlowWith(p, o, pasteText{instruction: instruction, prompt: prompt}, browserFlow{})
+	return flow, drain
+}
+
+// browserFlowWith is browserFlowOptionsFor for a sign-in run as how says: with
+// no listener, the paste's words are text.noListener and an empty answer
+// given at once ends the sign-in, since only a paste can finish it; after the
+// person's answer that the browser is elsewhere, Options.OpenURL is not
+// called (0083-MADR D5, D6, ST38). cause is told how the sign-in ended before
+// drain runs, which words its notice (ST51, ST72).
+func browserFlowWith(p Prompter, o Options, text pasteText, how browserFlow) (flow auth.OAuthFlowOptions, drain func(), cause func(drainCause)) {
+	flow = oauthFlowOptions(o)
+	instruction := text.instruction
+	if how.noListener {
+		instruction = text.noListener
+	}
+	openURL := func(authorizeURL string) error {
+		if o.OpenURL == nil || how.elsewhere {
+			return nil
+		}
+		return o.OpenURL(authorizeURL)
+	}
 	if o.NoPastePrompt {
 		// No InputCode: nothing reads the Prompter, so nothing is drained
 		// (0057-MADR D2).
 		flow.OpenURL = func(authorizeURL string) error {
 			p.Notify(LevelInfo, "Open %s in your browser", authorizeURL)
-			if o.OpenURL == nil {
-				return nil
-			}
-			return o.OpenURL(authorizeURL)
+			return openURL(authorizeURL)
 		}
-		return flow, func() {}
+		return flow, func() {}, func(drainCause) {}
 	}
-	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: prompt}
+	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: text.prompt, noListener: how.noListener}
 	flow.OpenURL = func(authorizeURL string) error {
 		paste.show(authorizeURL)
-		if o.OpenURL == nil {
-			return nil
-		}
-		return o.OpenURL(authorizeURL)
+		return openURL(authorizeURL)
 	}
 	flow.InputCode = paste.input
-	return flow, paste.drain
+	return flow, paste.drain, paste.endedBy
 }
 
 // browserSignIn runs a browser or plan sign-in on the step engine, given the
@@ -895,21 +985,30 @@ func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (a
 // steps: through Options.Driver, or with the notices and prompts of
 // browserFlowOptionsFor. The paste step exists unless Options.NoPastePrompt
 // is set. The login's options are the caller's; the engine sets OpenURL,
-// InputCode and NoLoopback itself (0074-MADR D6).
+// InputCode and NoLoopback itself (0074-MADR D6). Before it starts, it decides
+// whether the sign-in binds a listener: Options.NoLoopback says none, and
+// where the wizard renders the paste itself the person is asked, once per run,
+// where the browser is (askBrowserFlow; 0083-MADR D3). In a plan sign-in that
+// is after the plan's reads and before its consent, which the engine asks.
 func browserSignIn(
 	ctx context.Context,
 	p Prompter,
 	provider llmprovider.ProviderID,
 	o Options,
 	spec signinflow.Spec,
-	instruction, prompt string,
+	text pasteText,
 ) (*auth.OAuthSession, error) {
-	flow, drain := browserFlowOptionsFor(p, o, instruction, prompt)
+	how, err := o.askBrowserFlow(p)
+	if err != nil {
+		return nil, err
+	}
+	flow, drain, cause := browserFlowWith(p, o, text, how)
 	spec.Provider = provider
 	spec.Flow = oauthFlowOptions(o)
 	spec.NoPaste = o.NoPastePrompt
+	spec.NoLoopback = how.noListener
 	spec.Logins = signinflow.Logins{Browser: loginBrowserOAuth, Plan: loginChatGPTPlan}
-	r := &stepRenderer{p: p, o: o, provider: provider, open: flow.OpenURL, input: flow.InputCode, drain: drain}
+	r := &stepRenderer{p: p, o: o, provider: provider, open: flow.OpenURL, input: flow.InputCode, drain: drain, cause: cause}
 	result, err := r.run(ctx, spec)
 	if err != nil {
 		return nil, err
@@ -930,12 +1029,60 @@ type pastePrompt struct {
 	shown chan struct{} // closed once the URL and instruction are shown
 	// instruction is shown with the URL; prompt asks for the paste.
 	instruction, prompt string
+	// noListener is a sign-in that binds no listener: only a paste can finish
+	// it, so a prompter that answers it with nothing at once ends it (ST38).
+	noListener bool
 
 	mu      sync.Mutex
 	done    bool               // drain ran: nothing further may use the prompter
 	pending chan struct{}      // closed when the started read returns
 	cancel  context.CancelFunc // ends the started read's context
+	ended   drainCause         // how the sign-in ended, for drain's notice
 }
+
+// drainCause is how a browser sign-in ended, which words drain's notice: the
+// loopback or a paste finished it, the run's context ended, or the login's
+// own limit passed (0083-MADR ST51, ST72).
+type drainCause int
+
+const (
+	endedFinished drainCause = iota
+	endedCancelled
+	endedTimedOut
+)
+
+// endedBy records how the sign-in ended; drain, which follows, reads it.
+func (s *pastePrompt) endedBy(c drainCause) {
+	s.mu.Lock()
+	s.ended = c
+	s.mu.Unlock()
+}
+
+// drainNotice is the notice drain gives when a read is still pending: after a
+// cancel and after the login's limit it says so, and after a sign-in that
+// finished, as it always has, that it finished.
+func drainNotice(c drainCause) string {
+	switch c {
+	case endedCancelled:
+		return "Sign-in cancelled; press Enter to continue"
+	case endedTimedOut:
+		return "Sign-in timed out; press Enter to continue"
+	default:
+		return "Browser sign-in finished; press Enter to continue"
+	}
+}
+
+// noPasteError ends a sign-in with no callback listener whose prompter answers
+// the paste with nothing, at once, and again: nothing else can finish it. It
+// matches llmprovider.ErrInvalidRequest, as the third bad paste does
+// (0083-MADR ST38, ST71).
+type noPasteError struct{}
+
+func (noPasteError) Error() string {
+	return "wizard: the prompter answered the paste with nothing, three times at once; with no callback listener only a paste can finish the sign-in"
+}
+
+func (noPasteError) Is(target error) bool { return target == llmprovider.ErrInvalidRequest }
 
 // drainGrace is how long drain waits, silently, for an InputerContext read
 // to give up before it asks for the Enter (0057-MADR D3).
@@ -966,8 +1113,10 @@ func (s *pastePrompt) show(authorizeURL string) {
 // drain has run, no read is started, so the Enter drain asks for ends it.
 // After pasteQuickEmpties empty answers, each within pasteQuick, the prompter
 // is not asked again: input says so and waits for ctx, which the loopback or
-// the login's limit ends. A slower empty answer is a person's Enter, and
-// starts the count again (0059-MADR W5).
+// the login's limit ends, or, with no callback listener, which nothing but a
+// paste could end, it ends the sign-in at once with noPasteError. A slower
+// empty answer is a person's Enter, and starts the count again (0059-MADR W5;
+// 0083-MADR ST38).
 func (s *pastePrompt) input(ctx context.Context) (string, error) {
 	select {
 	case <-s.shown:
@@ -988,6 +1137,9 @@ func (s *pastePrompt) input(ctx context.Context) (string, error) {
 		quick++
 		if quick < pasteQuickEmpties {
 			continue
+		}
+		if s.noListener {
+			return "", noPasteError{}
 		}
 		s.mu.Lock()
 		if !s.done {
@@ -1028,7 +1180,7 @@ func (s *pastePrompt) read(ctx context.Context) (string, error) {
 func (s *pastePrompt) drain() {
 	s.mu.Lock()
 	s.done = true
-	pending, cancel := s.pending, s.cancel
+	pending, cancel, ended := s.pending, s.cancel, s.ended
 	s.mu.Unlock()
 	if pending == nil {
 		return
@@ -1044,7 +1196,7 @@ func (s *pastePrompt) drain() {
 	select {
 	case <-pending:
 	default:
-		s.p.Notify(LevelInfo, "Browser sign-in finished; press Enter to continue")
+		s.p.Notify(LevelInfo, "%s", drainNotice(ended))
 		<-pending
 	}
 }

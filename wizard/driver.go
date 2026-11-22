@@ -55,8 +55,10 @@ type stepRenderer struct {
 	open func(authorizeURL string) error
 	// input reads the paste, the paste prompt of browserFlowOptionsFor.
 	input func(ctx context.Context) (string, error)
-	// drain finishes a paste read the loopback overtook.
+	// drain finishes a paste read the loopback overtook. cause is told first
+	// how the sign-in ended, which words drain's notice (0083-MADR ST72).
 	drain func()
+	cause func(drainCause)
 	// verdict, for a device sign-in, carries the result of showing the code
 	// to the login that waits to hear it, so that an error from it ends the
 	// sign-in before any poll (0057-MADR D1).
@@ -93,13 +95,19 @@ func (r *stepRenderer) run(ctx context.Context, spec signinflow.Spec) (signinflo
 		wg     sync.WaitGroup
 	)
 	// fail ends the sign-in with err, the first one given, unless the
-	// sign-in has ended already: an error then is ctx's, not a failure.
+	// sign-in has ended already: an error then is ctx's, not a failure, and
+	// asks nothing of the run, whose own error is the one to report: a read
+	// that ends with the run's deadline must not turn it into a cancel
+	// (0083-MADR ST50).
 	fail := func(err error) {
 		mu.Lock()
 		if failed == nil && stepCtx.Err() == nil {
 			failed = err
 		}
 		mu.Unlock()
+		if stepCtx.Err() != nil {
+			return
+		}
 		run.Cancel()
 	}
 	pastes := 0
@@ -149,17 +157,36 @@ func (r *stepRenderer) run(ctx context.Context, spec signinflow.Spec) (signinflo
 		}
 	}
 	stop()
+	// The login has returned: the steps close only once it has, so its result
+	// is read here, before drain, which needs how the sign-in ended.
+	finished := <-end
 	if r.drain != nil {
+		if r.cause != nil {
+			r.cause(endCause(ctx, finished.err))
+		}
 		r.drain()
 	}
 	wg.Wait()
-	finished := <-end
 	mu.Lock()
 	defer mu.Unlock()
 	if failed != nil {
 		return signinflow.Result{}, failed
 	}
 	return finished.result, finished.err
+}
+
+// endCause is how a sign-in ended: ctx's end, a cancel or the run's deadline,
+// first; else the login's own limit, an error matching
+// context.DeadlineExceeded; else a sign-in that finished or failed any other
+// way (0083-MADR ST51, ST72).
+func endCause(ctx context.Context, loginErr error) drainCause {
+	switch {
+	case ctx.Err() != nil:
+		return endedCancelled
+	case errors.Is(loginErr, context.DeadlineExceeded):
+		return endedTimedOut
+	}
+	return endedFinished
 }
 
 // lastStepLimit is how long the Driver has for the sign-in's last step

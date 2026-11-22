@@ -346,6 +346,7 @@ func TestCancelDuringListingSavesNothing_0081(t *testing.T) {
 				store := newCountStore0081()
 				o := opts0081(t, store, cancellingClient0081(cancel))
 				o.AgentName = planTestApp
+				o.NoBrowserQuestion = true
 				selects := []int{methodIdx0081(t, tc.provider, tc.method, o)}
 				if tc.plan {
 					selects = append(selects, 0)
@@ -414,6 +415,7 @@ func TestCancelAfterIssueSavesNothing_0081(t *testing.T) {
 					store := newCountStore0081()
 					o := opts0081(t, store, cancellingClient0081(cancel))
 					o.Discover = discover
+					o.NoBrowserQuestion = true
 					var d *recordingDriver0074
 					if driver {
 						d = &recordingDriver0074{}
@@ -746,6 +748,7 @@ func TestCancelDuringRefreshSavesNothing_0081(t *testing.T) {
 			store := newCountStore0081()
 			o := opts0081(t, store, issuer)
 			o.DiscoverLimit = 50 * time.Millisecond
+			o.NoBrowserQuestion = true
 			f := fakePrompter{selects: []int{methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o)}}
 			if entry == entryConfigure0081 {
 				f.selects, f.inputs = append(f.selects, 0), []string{""}
@@ -1019,6 +1022,7 @@ func TestCancelWithKeptSessionReturnsNoResult_0081(t *testing.T) {
 		})}
 		o := opts0081(t, store, client)
 		o.Existing = existing
+		o.NoBrowserQuestion = true
 		f := newFake(t, fakePrompter{confirms: []bool{true}, inputs: []string{""},
 			selects: []int{providerIdx(t, llmprovider.ProviderGrok), methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o), 0}})
 		res, err := ConfigureLLM(ctx, newStage0081(f, "model:", cancel, store), o)
@@ -1126,6 +1130,7 @@ func TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081(t *testing.T) {
 			return answer0059(r, http.StatusServiceUnavailable, `{"error":{"message":"down"}}`), nil
 		})}
 		o := opts0081(t, cancelOnSave0081{counts, cancel}, down)
+		o.NoBrowserQuestion = true
 		f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpenAI),
 			methodIdx0081(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth, o)}, inputs: []string{"my-model"}})
 		res, err := ConfigureLLM(ctx, f, o)
@@ -1172,6 +1177,7 @@ func TestCancelBeforeIssueSavesNothing_0081(t *testing.T) {
 			}
 			store := newCountStore0081()
 			o := opts0081(t, store, nil)
+			o.NoBrowserQuestion = true
 			f := fakePrompter{selects: []int{methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o)}}
 			res, fp, err := run0081(t, ctx, entry, llmprovider.ProviderGrok, o, f, nil)
 			check(t, res, fp, err, store, context.Canceled)
@@ -1242,6 +1248,7 @@ func TestCancelBeforeIssueSavesNothing_0081(t *testing.T) {
 			t.Cleanup(func() { loginBrowserOAuth = auth.LoginBrowserOAuth })
 			store := newCountStore0081()
 			o := opts0081(t, store, issuer.client())
+			o.NoBrowserQuestion = true
 			f := fakePrompter{selects: []int{methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o)}}
 			res, fp, err := run0081(t, ctx, entry, llmprovider.ProviderGrok, o, f, nil)
 			check(t, res, fp, err, store, context.Canceled)
@@ -1258,6 +1265,7 @@ func TestCancelBeforeIssueSavesNothing_0081(t *testing.T) {
 			}
 			store := newCountStore0081()
 			o := opts0081(t, store, nil)
+			o.NoBrowserQuestion = true
 			f := fakePrompter{selects: []int{methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o)}}
 			res, fp, err := run0081(t, ctx, entry, llmprovider.ProviderGrok, o, f, nil)
 			check(t, res, fp, err, store, context.DeadlineExceeded)
@@ -1302,6 +1310,7 @@ func listingSites0081() []listingSite0081 {
 		{"no static catalog, a listing that failed (:948)", func(t *testing.T, e ender0081, ended bool, store *countStore0081) (Options, llmprovider.ProviderID, fakePrompter) {
 			stubSessions0081(t, nil)
 			o := opts0081(t, store, transport(e, ended))
+			o.NoBrowserQuestion = true
 			return o, llmprovider.ProviderOpenAI, fakePrompter{selects: []int{methodIdx0081(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth, o)}}
 		}},
 		{"a static catalog, a listing that failed (:951)", func(t *testing.T, e ender0081, ended bool, _ *countStore0081) (Options, llmprovider.ProviderID, fakePrompter) {

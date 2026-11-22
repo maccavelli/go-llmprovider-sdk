@@ -13,6 +13,13 @@ tag and its commit without notes; its notes are its section here.
 
 ### Added
 
+- `wizard.Options.NoLoopback`: a browser sign-in, OpenAI's, Grok's or the
+  ChatGPT plan's, binds no callback listener and asks no question, and a
+  pasted callback address or code completes it, in words that say so;
+  `Options.OpenURL` is still called. With `Options.NoPastePrompt` it is an
+  error matching `llmprovider.ErrInvalidRequest`, before any question. And
+  `wizard.Options.NoBrowserQuestion`: no question about where the browser is,
+  and the listener binds, as it did (0083-MADR).
 - `llmprovider.ErrToolSchemaRefused`, beneath `ErrInvalidRequest`, for a
   service's refusal of a tool's schema, and `APIError.Tool`, the refused
   tool's name when the service named exactly one tool the request sent,
@@ -50,6 +57,35 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- Every browser sign-in the wizard runs, OpenAI's and Grok's and the ChatGPT
+  plan's, first asks once per run where the browser is, with one
+  `Prompter.Select` after the method menu and, for the plan, before its
+  consent, unless the caller sets `Options.NoLoopback`,
+  `Options.NoBrowserQuestion`, `Options.NoPastePrompt` or `Options.Driver`. A
+  caller whose scripted `Prompter` refuses an unexpected `Select` scripts the
+  answer (index 0, "On this machine") or sets `NoBrowserQuestion`. "On another
+  device" runs the sign-in with no callback listener, to be completed by a
+  paste, and does not call `Options.OpenURL`; an empty line and an input that
+  has ended are "On this machine". `Options.NoLoopback` with
+  `Options.NoPastePrompt` is an error matching `ErrInvalidRequest` before any
+  question (0083-MADR).
+- When ports 1455 and 1457 are both taken, the error keeps its prefix, "oauth:
+  registered callback ports unavailable", and advises freeing the two ports,
+  and for the browser sign-in the device-code login, but no longer a
+  device-code login for the ChatGPT plan, which has none. A bind that fails
+  for another reason, and Grok's, advise the sign-in with no listener
+  (0083-MADR D8).
+- A pasted redirect address that begins with the callback's host and port and
+  has no `http://`, as the address bar shows it, is read as the address, with
+  every check an address meets, for every caller of the sign-in engine,
+  `x/signin`'s included; one that does not parse is refused and asked again
+  (0083-MADR D11).
+- With no callback listener, a `Prompter` that answers the paste with nothing,
+  three times at once, ends the sign-in with an error matching
+  `ErrInvalidRequest`. The notice that asks for an Enter after a sign-in's end
+  says "Sign-in cancelled" after a cancel and "Sign-in timed out" after the
+  login's limit, in every flow, where it said "Browser sign-in finished"
+  (0083-MADR ST38, ST72).
 - `llmprovider.NewStaticToken`, and so `WithAPIKey`, store a key that is
   empty once trimmed (spaces, a tab, a line break, a non-breaking space) as
   `""`. Each provider then does what it does with an empty key: Claude,

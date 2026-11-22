@@ -565,6 +565,8 @@ type Credential interface {
   `Options.OpenURL` is shown as a warning notice and the sign-in goes on,
   since the URL is already on screen; a `Driver`'s error ends it.
 
+*(Note, 2026-11-21: `NoLoopback` reaches the wizard too, by the caller's `wizard.Options.NoLoopback` or by the person's answer that the browser is on another device; see [0083-MADR](0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) D1 and D3.)*
+
 ### D5. An explicit, persisted session kind
 
 * **`OAuthSession.Kind`,** of the new type `auth.SessionKind`, with
@@ -704,6 +706,8 @@ type Credential interface {
     caller's own ctx (`context.WithoutCancel`), which the sentence above
     says "still ends it"; the code never did, and this note does not change
     that.
+
+*(Note, 2026-11-21: the wizard now sets the step engine's `Spec.NoLoopback` itself, in `browserSignIn`, from `Options.NoLoopback` or the person's answer; see [0083-MADR](0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) D1 and D3.)*
 
 ### D7. What is deprecated, and what is not
 

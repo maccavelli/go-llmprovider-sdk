@@ -219,6 +219,8 @@ cannot reach the loopback fails every browser sign-in alike, by the login's
 time limit. *(Q1's answer, "hide it", was given on 2026-10-22 on the
 assessment's wrong summary, and is kept below as given.)*
 
+*(Note, 2026-11-21: `NoPastePrompt` also asks no question about where the browser is, and `Options.NoLoopback` with it is an error matching `llmprovider.ErrInvalidRequest`, returned before any question; see [0083-MADR](0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) D4.)*
+
 ### D3. `wizard.InputerContext`
 
 ```go

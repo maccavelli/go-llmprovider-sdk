@@ -1354,3 +1354,202 @@ items. Corrections only; no row and no ruling changes.)*
   field, read after `end` (scope, second pass).
 * **The stop on error texts** admits ST85's re-ask.
 * **The first pass's map paragraph** is annotated.
+
+### Phase 1, build pass 1 (2026-11-21)
+
+*(Dated addition. Built on `b9eb542`, `main`, tree clean at the start; the work is left in the tree, unstaged, for the
+owner to commit. Single-package runs on this Mac; every heavy run through `run-heavy`. No live run, no key value read.
+Nothing in the MADR changes.)*
+
+**1. Step R: the re-read at `b9eb542`.**
+
+* `git diff --stat 24756a6 b9eb542` on the PLAN's paths: `wizard/auth.go` 64, `wizard/configure.go` 246,
+  `wizard/prompter.go` 7, `wizard/kilo_verify.go` 17 (it did change), `llmprovider/x/signin/signin.go` 4, `README.md`,
+  `docs/architecture.md`, `CHANGELOG.md` and `docs/guides/adding-a-provider.md`; new `wizard/*_test.go`:
+  `cancel_save_0081_test.go`, `save_at_end_0081_test.go`, `empty_key_0085_test.go`, `empty_key_routes_0085_test.go`,
+  `blank_key_agree_0085_test.go`, `describe_0084_test.go`. 0084 changed `llmprovider/` and `wizard/describe.go` only; no
+  line this PLAN cites.
+* `python3 -B tools/claims.py --rev self=b9eb542` on both records: MADR 108 of 141 pass, PLAN 32 of 44, exit 1 (the same
+  counts as at `24756a6`). Every failing row's text was found on another line; none is gone. The `wizard/` rows now sit
+  at `auth.go:248` (C40), `:910` (C41, P4), `:849` (C42), `:959` (C51), `:883` (C64), `:898` (P3), `:851` (P5), `:877` and
+  `:887` (P6), `:226` (C67, P7); `configure.go:221` (C43), `:173` (C44), `:251` (C45), `:217` (C62), `:170` (C63), `:305`
+  (C66), `:296` (C68), `:246` (P2); `prompter.go:72` to `:125` (C55 to C58), `:78` (P1); `internal/signinflow/signinflow.go`
+  `:146`, `:35`, `:274`, `:475` and `:506`, `:446`, `:525`; `README.md:450` (P20), `:592` (P21); `docs/architecture.md:390`
+  and `:1134` (P22), `:1255` (P23); `CHANGELOG.md:326` (C69). No row's meaning changed: the sites read are the browser
+  and plan sign-ins' call of `browserSignIn`, `spec.NoPaste` set there and `NoLoopback` not, the paste constants, the
+  open path, `Options` from `OpenURL` to `NoPastePrompt`, the first checks of `ConfigureLLM` and `ResolveCredential`,
+  `unsavedStep` (0081 moved the refused kept session's second `signIn` there from `credentialStep`), `commitCredential`,
+  `resolveChatGPTPlan`'s reads, 0085's `secretKey` and `resolveTokenStdin`, and the `[Unreleased]` sections.
+* **ST15 stays out of scope.** After a refused kept session `unsavedStep` calls `signIn` again with no offer of the kept
+  session; the new credential is not `kept`, so a refusal of it ends the run (`refusalError`), and no other path makes a
+  second browser sign-in. NT13 is not written. `run.Steps()` closes only after the login has returned (`finish` closes
+  the steps, then `done`), so reading the login's result before the drain cannot wait on a paste.
+
+**2. The census at the base** (the PLAN's scripts, on a scratch extraction of `b9eb542`). Without the prototype: exit 0,
+393 top-level PASS. With it: exit 1, 353 PASS and **40 FAIL**, each on the fake's scripted `Select`. They are step 5's 30
+and 10 more, all of 0081's (`cancel_save_0081_test.go`: `TestCancelAfterIssueSavesNothing_0081`,
+`TestCancelBeforeIssueSavesNothing_0081`, `TestCancelDuringListingSavesNothing_0081`,
+`TestCancelDuringRefreshSavesNothing_0081`, `TestCancelWithKeptSessionReturnsNoResult_0081`,
+`TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081`, `TestNoListingWarningOnAnEndedRun_0081`;
+`save_at_end_0081_test.go`: `TestCancelAtManualModelSavesNothing_0081`, `TestModelStageErrorSavesNothing_0081`,
+`TestRotationDuringQuestionsSavedAtEnd_0081`). None of 0085's or 0084's tests, and none of 0082's, is listed. After the
+build the same 40 fail with the real design and nothing else.
+
+* **Deviation 1 (ST59): the 10 are placed by the rule, without doubt.** The save, the listing and the cancel are their
+  subject, and none counts or indexes the recorded `Select`s (`classify.py`); ST59 names them. Each sets
+  `NoBrowserQuestion: true` in its `Options`, at the test and not in `opts0081`, which tests that ask no question share.
+
+**3. The code** (no exported name but the two fields; `tools/apidiff.py b9eb542 <scratch commit>`: "Compatible changes:
+`wizard.Options.NoBrowserQuestion`: added, `wizard.Options.NoLoopback`: added", exit 0).
+
+* `wizard/configure.go`: the two fields, their docs, `Options.OpenURL`'s, `Driver`'s and `NoPastePrompt`'s; an unexported
+  `Options.browser`, which `ConfigureLLM` and `ResolveCredential` set on their own copy, so the answer is held by the run
+  and a later run asks again (ST16); `checkNoLoopback`, D4's error, after the context check and before any question.
+* `wizard/auth.go`: `askBrowserFlow` (the question, through `choose`, once per run; a Prompter error wrapped "select where
+  the browser is"); `browserSignIn` sets `spec.NoLoopback`; `pasteText` and D5's two instructions; `browserFlowWith`
+  (D6: `Options.OpenURL` is not called after the answer, and is under `NoLoopback`); `pastePrompt.input` ends a sign-in
+  with no listener whose Prompter answers the paste empty three times at once with `noPasteError` (ST38, ST71);
+  `drain` words its notice by how the sign-in ended (ST51, ST69, ST72).
+* `wizard/driver.go`: `stepRenderer.run` reads the login's result before the drain and tells the paste prompt how the sign-in
+  ended (`endCause`).
+* `internal/signinflow/paste.go`, `signinflow.go`: D11's retry (`pasteCheck.read` and `schemeless`; `check` keeps its
+  signature and its one return), and `askPaste` hands `auth` the address with `http://` in front.
+* `llmprovider/auth`: an unexported `listen` hook on `OAuthFlowOptions` and `ChatGPTPlanOptions`, copied to the config,
+  through which every bind passes; `listenOpenAILoopbackWith`, `portsAdvice`, `noListenerAdvice` (D8, ST30, ST32, ST68,
+  ST70); the docs of `LoginBrowserOAuth` and `LoginChatGPTPlan` (the advice, `NoLoopback`, ST88).
+* Docs: `CHANGELOG.md`, `README.md`, `docs/architecture.md`, `Prompter.Select`'s, `ConfigureLLM`'s and `ResolveCredential`'s
+  docs, and dated notes in 0074-MADR D4 and D6, 0057-MADR D2 and 0008-MADR D3.
+
+* **Deviation 2: helper signatures kept.** Step 6 said `listenOpenAILoopback(ports, advice)`; the three `…With`
+  variants are new and the old names keep their signatures (the 2026-11-17 amendment's rule), so
+  `TestListenOpenAILoopback_ErrorsWhenAllBusy` and the other tests that call them are unchanged.
+* **Deviation 3: `drain` keeps its type.** The fourth pass made the renderer's `drain` take the cause. Two existing tests
+  outside step 5's table call `browserFlowOptionsFor` and `browserFlowOptions` and then `drain()`
+  (`plan_0043_test.go:135`, `paste_0057_test.go:119`), so those two keep their signatures and the cause reaches the paste
+  prompt through a second function, `browserFlowWith`, and a `cause` field of `stepRenderer`, told before `drain` runs.
+* **Deviation 4: `Options.browser`.** The run-held answer is an unexported field of `Options`, set on the run's copy; the
+  PLAN left its home open ("held by the run"). `apidiff` lists nothing for it.
+
+**4. The 40 existing tests**, each as step 5's rule says and no assertion touched: 13 script one more `0` after the method
+(`TestConfigureLLM_BrowserOAuthSetsInputCode`, `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`,
+`TestConfigureLLM_BrowserAndDevicePersistSessions` for its browser row only, the four `TestInputerContext_*_0057`
+through their one helper `grokBrowserScript0057`, `TestPaste_EmptyAskedAgain_0057`, the two `_0049` login-error tests, and
+`TestPlan_NoticeDeclined_0043`, `TestPlan_ReSignIn_0043`, `TestPlan_ReplacesCodexSession_0043`); 27 set
+`NoBrowserQuestion`: the 17 of the table, of which the eight users of the helper `grok0059` (the six of
+`session_0059_test.go`, `TestSession_SaveBindsStoreWhileUsed_0074` and `TestSave_StoreFails_0066`'s Grok row) take it from
+the helper, whose every user is in the group, and the 10 of Deviation 1. Where a test is a table, the extra `0`
+is scripted for the browser row only (`TestConfigureLLM_BrowserAndDevicePersistSessions`'s device row asks no question).
+The other repairs are `TestStart_NoLoopback_0074`'s dial removed and its helper renamed `assertRedirectShape`
+(the 2026-11-17 amendment), and `keysServer` through `keysServerOn` (ST65).
+
+**5. The new tests: 32, in six files and four packages** (`wizard/browser_question_0083_test.go`;
+`llmprovider/auth/no_loopback_binds_0083_test.go`, `ports_advice_0083_test.go`, `oauth_idtoken_0083_test.go`;
+`internal/signinflow/paste_schemeless_0083_test.go`; `llmprovider/x/signin/start_schemeless_0083_test.go`). Red at the base is
+the base with only the field declarations (`Options.NoLoopback`, `NoBrowserQuestion`, the unexported `listen` fields and
+`listenFunc`), on a scratch repository whose commit it is, with `tools/redgreen.py --root <scratch> --rev <that commit>
+--expect fail`: **29 of 32 fail on their assertion**, each for the reason its row names (the login's `NoLoopback` false,
+the question shown 0 times, today's words, the old advice, a schemeless code sent to the issuer whole, and so on). Three
+are green at the base by construction, guards whose red is their plant: `TestQuestionNotAskedForOtherMethods_0083`,
+`TestNoBrowserQuestionKeepsToday_0083` and `TestVerifyIDToken_StaleKeysForAReusedURL_0083` (NT10's red is its helper's
+clearing removed, the ruling allowing no production change). `--expect pass` on the tree: 32 of 32.
+`TestQuestionNoLoopbackStillOpens_0083`, `TestQuestionEndedInputIsThisMachine_0083`,
+`TestNoLoopbackCancelDuringPasteSavesNothing_0083` and `TestStart_SchemelessPasteCompletes_0083` assert one more thing
+than their row names (the login's `NoLoopback`; the question shown once; the code the issuer received), so that they fail at the base.
+
+**6. Planted breaks: 50, each on a scratch clone of the tree, each caught** (a runner of this build's own, a list of edits
+per plant, since NT5, ST82 and ST83 need two, the command `go test -count=1 -run 0083` on the plant's packages).
+Each was seen failing, by test: for example "the pass-through removed" fails `TestNoLoopbackReachesTheLogin_0083`;
+"asked under a Driver" fails `TestQuestionNotAskedWhereItMustNot_0083`; "no notice after a cancel" fails
+`TestNoLoopbackCancelWithPlainPrompter_0083`, `TestDrainAfterTheLoginsLimit_0083` and `TestDrainNoticeWithAListener_0083`;
+"the key cache's clearing removed" fails `TestVerifyIDToken_StaleKeysForAReusedURL_0083`; "a bind through `net.Listen`, not
+the hook" fails `TestNoLoopback_BindsNothing_0083`. Five plants were first not caught for a plant's own fault (it did not
+compile, or its anchor missed) and were corrected, not the tests. No plant exists for: ST14's "asked after the consent"
+(no single-line form; "asked twice" and NT14's "asked before the reads" cover the order), the answer "not kept for the run"
+(no run reaches a second sign-in: ST15), and the pasted-token branch of NT6 (the guard's plant is the device one).
+
+**7. A finding: ST50's deadline case is a race in the base's renderer (not changed).** With no listener and an
+`InputerContext` Prompter, a run whose deadline passes during the paste returns, by a race, an error matching
+`context.Canceled` ("signinflow: sign-in canceled") in about 29 of 30 runs and `context.DeadlineExceeded` in the rest:
+the paste read's own ended context asks the run to cancel (`fail` calls `run.Cancel`), and `finish` then reports the
+cancel. A cancel is always `context.Canceled`. NT9's row says "then `context.DeadlineExceeded`"; the test asserts ST50's
+words as written, an error matching `Canceled` or `DeadlineExceeded` for the deadline, nothing saved, within 5 s. Whether
+the deadline should return `DeadlineExceeded` every time, as `ConfigureLLM`'s doc says ("an error matching ctx's"), is the
+owner's to decide; the resolution would be in `stepRenderer.run` and is not taken here.
+
+**8. The gate** (this Mac; each target separate, its status taken before any filter; heavy ones through `run-heavy`).
+
+| Command | Exit |
+| :--- | :--- |
+| `go test -count=1` on `wizard`, `llmprovider/auth`, `llmprovider/x/signin`, `internal/signinflow` | 0 |
+| `run-heavy -- go test -count=1 ./...` | 0 |
+| `run-heavy -- make pre-add-check FILES=<the 30 changed Go files>` | 2 first (three findings in the new test file: two `errorlint`, one unused field), fixed, 0 |
+| `make parity-check dep-check coverage-check api-check contract-check generate-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check`, each | 0 |
+| `run-heavy -- make gate-selftest`, `run-heavy -- make tools-test` | 0, 0 |
+| `go vet -tags live_gateways ./...` | 0 |
+| `tools/apidiff.py b9eb542 <scratch commit>` | 0: the two fields, compatible, nothing else |
+| `python3 -B tools/claims.py` on both records | 0 (141 of 141, 44 of 44) |
+| `make records-check`, `tools/recordlint.py --changed`, `tools/denyscan.py --changed` | 0, 0, 0 |
+
+**9. Not run, by the brief:** the held-ports check, the `-race` runs, the 20 and 50 round runs, `tools/gate.py` (Phase 2),
+the independent review (Phase 3), any live run.
+
+### Phase 1, build pass 2 (2026-11-21)
+
+*(Dated addition, after the owner's rulings of the same day, relayed by the coordinator. The tree is still uncommitted.)*
+
+**Rulings.**
+
+* **Finding A, ST50: "Fix it: report the deadline (Recommended)".**
+* **The four choices of build pass 1: "Accept all four, as dated deviations (Recommended)".**
+
+**Dated deviations, accepted by those rulings (build pass 1's four, no code change for them).**
+
+* **Deviation 1 (2026-11-21), the census of 40, not 30.** At `b9eb542` the census lists the 30 of step 5's table and 10 of
+  0081's tests, placed by ST59's rule: `NoBrowserQuestion`, set at the test and not in `opts0081`. They are
+  `TestCancelAfterIssueSavesNothing_0081`, `TestCancelBeforeIssueSavesNothing_0081`,
+  `TestCancelDuringListingSavesNothing_0081`, `TestCancelDuringRefreshSavesNothing_0081`,
+  `TestCancelWithKeptSessionReturnsNoResult_0081`, `TestConfigureReturnsTheResultWhenCancelledInTheWrite_0081`,
+  `TestNoListingWarningOnAnEndedRun_0081`, `TestCancelAtManualModelSavesNothing_0081`,
+  `TestModelStageErrorSavesNothing_0081` and `TestRotationDuringQuestionsSavedAtEnd_0081`. The MADR's ST59 and ST61 test
+  cells are annotated.
+* **Deviation 2 (2026-11-21), the loopback helpers keep their signatures.** `listenOpenAILoopback`, `listenLoopbackBothFamilies`
+  and `browserListener` keep theirs; `listenOpenAILoopbackWith`, `listenLoopbackBothFamiliesWith` and `browserListenerWith` carry
+  the advice and the hook, so the tests that call the old names are unchanged.
+* **Deviation 3 (2026-11-21), `drain` keeps its type.** `browserFlowOptionsFor` and `browserFlowOptions` still return `drain` as
+  a `func()` (two existing tests outside step 5's table call it); the cause is a `cause` field of `stepRenderer` and
+  `pastePrompt.endedBy`, told before `drain` runs, through `browserFlowWith`.
+* **Deviation 4 (2026-11-21), `Options.browser`.** The run-held answer is an unexported field of `Options`, set on the run's
+  own copy; `tools/apidiff.py` lists nothing for it.
+* **Deviation 5 (2026-11-21), `wizard/driver.go` is in Phase 1's scope for ST50** (it already was, for the drain's cause).
+  `stepRenderer.run`'s `fail` no longer calls `run.Cancel` when `stepCtx` has ended: the sign-in's end, or the run's context's, has
+  happened, and a paste read that ends with that context is not a failure that ends the sign-in. Before, the read's own error,
+  which is the context's, asked the run to cancel while the login returned its own, and `finish` then reported a cancel, so a
+  deadline came back as `context.Canceled` in about 29 runs of 30 (build pass 1, section 7). Now the login's error stands: a
+  deadline is `context.DeadlineExceeded`, and a user's cancel is `context.Canceled`. `ConfigureLLM`'s doc, "an error matching
+  ctx's", is true for the paste read.
+
+**Finding A fixed (ST50, Deviation 5).**
+
+* **The change:** `wizard/driver.go`, `stepRenderer.run`'s `fail`: after recording its error, it returns without `run.Cancel()`
+  when `stepCtx` has ended. Nothing else changed in the code. No other decided row's behaviour moved: the whole `wizard`
+  package, with the 40 tests of build pass 1, passes.
+* **The test:** `TestNoLoopbackCancelDuringPasteSavesNothing_0083`'s deadline case asserts `context.DeadlineExceeded` and not
+  `context.Canceled`, nothing saved, within 5 s; its cancel case asserts `context.Canceled` and not `DeadlineExceeded`, which
+  pins that a user's cancel still reports a cancel.
+* **Proof it is not timing-lucky.**
+  * Red at the base: `tools/redgreen.py --root <scratch> --rev <base with the field declarations> --expect fail` fails it, on
+    its assertions (the login's `NoLoopback` false; the base has no fix).
+  * `run-heavy -- go test -count=50 -run TestNoLoopbackCancelDuringPasteSavesNothing_0083 ./wizard/`: exit 0.
+  * `run-heavy -- go test -race -count=1 -run TestNoLoopbackCancelDuringPasteSavesNothing_0083 ./wizard/`: exit 0.
+  * The plant that restores the race (the `fail` that calls `run.Cancel()` with `stepCtx` ended) fails the test: caught
+    in each of three runs of the plant at `-count=20`. It is a race, so one round does not always catch it (one plant run
+    at `-count=1` in three did), and the plant is held to 20 rounds.
+* **`ConfigureLLM`'s doc** ("an error matching ctx's") is now true of the paste read; the MADR's ST50 cell is annotated.
+
+**Gate, build pass 2** (this Mac, each target separate, heavy ones through `run-heavy`; every exit 0): `go test -count=1` on
+the four changed packages; `run-heavy -- go test -count=1 ./...`; `run-heavy -- make pre-add-check FILES=<the 30 Go files>`;
+`make parity-check dep-check coverage-check api-check contract-check generate-check tables-check fixtures-check
+changelog-check docs-check markdownlint links-check disclosure-check`, each; `run-heavy -- make gate-selftest` and
+`make tools-test`; `go vet -tags live_gateways ./...`; `tools/apidiff.py b9eb542 <scratch commit>`: exactly
+`Options.NoBrowserQuestion` and `Options.NoLoopback`, compatible. The 51 plants: 50 caught at one round, and the race plant
+caught at 20.

@@ -50,6 +50,7 @@ func methodIdx0059(t *testing.T, o Options, id llmprovider.ProviderID, method ll
 func TestKept_UnusableNotOffered_0059(t *testing.T) {
 	store := newMemoryTokenStore()
 	o := savedOpenAI0059(t, store, "", true)
+	o.NoBrowserQuestion = true
 	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, _ auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		return testOAuthSession(provider), nil
 	})

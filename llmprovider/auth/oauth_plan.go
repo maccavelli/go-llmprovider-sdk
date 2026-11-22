@@ -85,6 +85,9 @@ type ChatGPTPlanOptions struct {
 	// issuer is a test's fake issuer; empty is DefaultOpenAIIssuer.
 	issuer string
 	now    func() time.Time
+	// listen binds a callback listener in place of net.Listen: a test's seam
+	// (0083-PLAN).
+	listen listenFunc
 }
 
 // LoginChatGPTPlan signs a user in with their ChatGPT plan, under the app's
@@ -99,6 +102,16 @@ type ChatGPTPlanOptions struct {
 // discovery document and must be on its origin. The ID token is verified,
 // and a grant without plan usage (chatgpt.tokens.use.direct) is refused,
 // matching llmprovider.ErrNotPermitted. There is no device flow.
+//
+// The sign-in binds one of OpenAI's two registered ports, 1455 and 1457. When
+// neither can be bound the error begins "oauth: registered callback ports
+// unavailable": it advises freeing the two ports and trying again, when a port
+// was in use, and otherwise the sign-in with no listener; it names no
+// device-code login, which the plan does not have. Setting opts.NoLoopback is
+// the caller's way past busy ports: it binds none and the callback URL
+// InputCode returns completes the sign-in. An address that InputCode returns
+// with no scheme is taken as a bare code, not as an address (0083-MADR D8,
+// ST88).
 //
 // What OpenAI's terms ask of the app itself, the SDK cannot do for it:
 // requests from the user's own runtime, consent before any background use,
@@ -197,6 +210,8 @@ func resolvePlanConfig(opts ChatGPTPlanOptions) (oauthFlowConfig, error) {
 		now:          now,
 		identity:     opts.Identity,
 		noLoopback:   opts.NoLoopback,
+		plan:         true,
+		listen:       opts.listen,
 	}, nil
 }
 

@@ -253,6 +253,8 @@ as the headless path, not as a Windows consolation prize.
    does not return" even when `OpenURL` is non-nil. `OpenURL` failure remains
    non-fatal.
 
+   *(Note, 2026-11-21: with no listener, which `Options.NoLoopback` or the person's answer that the browser is on another device gives, the race is not run and the paste alone completes the sign-in; the notice that asks for the Enter after the sign-in's end says cancelled or timed out as well as finished. See [0083-MADR](0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) D3 and ST72.)*
+
 4. **D4 — `OpenURL` must not own the login wait.** Launch the browser without
    waiting on redirected stdio (`Start` / equivalent). The 10-minute timeout
    select starts immediately. CombinedOutput is forbidden for this helper.

@@ -30,7 +30,7 @@ func TestConfigureLLM_BrowserLoginErrorBare_0049(t *testing.T) {
 		return nil, errLogin0049
 	}
 	// Grok, then its browser method.
-	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1}})
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
 	_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore()})
 	asGiven0049(t, "browser", err)
 }
@@ -42,7 +42,7 @@ func TestConfigureLLM_PlanLoginErrorBare_0049(t *testing.T) {
 		return nil, errLogin0049
 	})
 	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0, 0},
 	})
 	_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), AgentName: planTestApp})
 	if *calls != 1 {

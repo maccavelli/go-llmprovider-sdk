@@ -70,7 +70,13 @@ type OAuthFlowOptions struct {
 
 	now   func() time.Time
 	sleep func(context.Context, time.Duration) error
+	// listen binds a callback listener, in place of net.Listen: a test's seam,
+	// through which every bind of a browser sign-in passes (0083-PLAN).
+	listen listenFunc
 }
+
+// listenFunc binds a listener, as net.Listen does.
+type listenFunc func(network, address string) (net.Listener, error)
 
 type oauthFlowConfig struct {
 	provider   llmprovider.ProviderID
@@ -91,6 +97,11 @@ type oauthFlowConfig struct {
 	// noLoopback is a browser sign-in's NoLoopback; a device sign-in does
 	// not read it (0074-MADR D4).
 	noLoopback bool
+	// plan is set by the ChatGPT plan sign-in, which has no device flow: the
+	// advice for busy ports then names none (0083-MADR D8).
+	plan bool
+	// listen binds every listener of the sign-in; nil is net.Listen.
+	listen listenFunc
 }
 
 type oauthEndpoints struct {
@@ -129,6 +140,16 @@ type oauthCallbackResult struct {
 // and an error from opts.InputCode ends the login, matching that error. With
 // opts.NoLoopback, a login without an InputCode, Grok's or OpenAI's, gives an
 // error matching llmprovider.ErrInvalidRequest, before any request.
+//
+// OpenAI's sign-in binds one of two registered ports, 1455 and 1457. When
+// neither can be bound the error begins "oauth: registered callback ports
+// unavailable": it advises freeing the two ports, or the device-code login,
+// when a port was in use, and otherwise the sign-in with no listener. Setting
+// opts.NoLoopback is the caller's way past busy ports: it binds none and a
+// pasted value completes the sign-in. A callback address that InputCode
+// returns with no scheme, such as 127.0.0.1:1455/auth/callback?code=...,
+// is taken as a bare code, not as an address; a caller that needs it read as
+// one adds http:// itself (0083-MADR ST88).
 func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
 	if err != nil {
@@ -201,7 +222,7 @@ type browserLogin struct {
 // (0074-MADR D4).
 func runBrowserLogin(ctx context.Context, login browserLogin) (*OAuthSession, error) {
 	config := login.config
-	listeners, redirectURI, callbackPath, err := browserEndpoint(config.provider, config.noLoopback)
+	listeners, redirectURI, callbackPath, err := browserEndpoint(config)
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +349,7 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		sleep:        sleep,
 		identity:     opts.Identity,
 		noLoopback:   opts.NoLoopback,
+		listen:       opts.listen,
 	}, nil
 }
 
@@ -450,9 +472,9 @@ func grokNoLoopbackPort() (int, error) {
 // completes the sign-in (0074-MADR D4). OpenAI's names its first registered
 // port and path; Grok's names its own form, http://127.0.0.1:<port>/callback,
 // with a port drawn at random from 49152 to 65535 and never bound.
-func browserEndpoint(provider llmprovider.ProviderID, noLoopback bool) ([]net.Listener, string, string, error) {
-	if noLoopback {
-		if provider == llmprovider.ProviderGrok {
+func browserEndpoint(config oauthFlowConfig) ([]net.Listener, string, string, error) {
+	if config.noLoopback {
+		if config.provider == llmprovider.ProviderGrok {
 			port, err := grokNoLoopbackPort()
 			if err != nil {
 				return nil, "", "", err
@@ -461,12 +483,21 @@ func browserEndpoint(provider llmprovider.ProviderID, noLoopback bool) ([]net.Li
 		}
 		return nil, fmt.Sprintf("http://127.0.0.1:%d%s", openaiLoopbackPorts[0], openAICallbackPath), openAICallbackPath, nil
 	}
-	return browserListener(provider)
+	return browserListenerWith(config.provider, config.plan, config.listen)
 }
 
 func browserListener(provider llmprovider.ProviderID) ([]net.Listener, string, string, error) {
+	return browserListenerWith(provider, false, nil)
+}
+
+// browserListenerWith binds the sign-in's listeners through listen, nil being
+// net.Listen. plan names the sign-in the ports advice is for (0083-MADR D8).
+func browserListenerWith(provider llmprovider.ProviderID, plan bool, listen listenFunc) ([]net.Listener, string, string, error) {
+	if listen == nil {
+		listen = net.Listen
+	}
 	if provider == llmprovider.ProviderOpenAI {
-		listeners, port, err := listenOpenAILoopback(openaiLoopbackPorts)
+		listeners, port, err := listenOpenAILoopbackWith(openaiLoopbackPorts, plan, listen)
 		if err != nil {
 			return nil, "", "", err
 		}
@@ -474,9 +505,9 @@ func browserListener(provider llmprovider.ProviderID) ([]net.Listener, string, s
 		// 4b97832cfb (login/src/server.rs:193); MADR 0012 §5.3.
 		return listeners, fmt.Sprintf("http://127.0.0.1:%d%s", port, openAICallbackPath), openAICallbackPath, nil
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, "", "", fmt.Errorf("oauth: listen for Grok callback: %w", err)
+		return nil, "", "", fmt.Errorf("oauth: listen for Grok callback: %s: %w", noListenerAdvice, err)
 	}
 	address, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
@@ -487,22 +518,67 @@ func browserListener(provider llmprovider.ProviderID) ([]net.Listener, string, s
 	return []net.Listener{listener}, fmt.Sprintf("http://127.0.0.1:%d/callback", port), "/callback", nil
 }
 
+// noListenerAdvice is what a bind that failed for a reason other than a port
+// in use points the person to: the sign-in with no listener (0083-MADR ST30,
+// ST32, ST70).
+const noListenerAdvice = "this host does not allow the callback listener: sign in with no listener and paste the address back " +
+	"(in the wizard, answer that the browser is on another device; in code, set NoLoopback)"
+
 func listenOpenAILoopback(ports []int) ([]net.Listener, int, error) {
+	return listenOpenAILoopbackWith(ports, false, net.Listen)
+}
+
+// listenOpenAILoopbackWith tries each registered port in order. When none
+// binds, the error keeps its prefix, "oauth: registered callback ports
+// unavailable", and advises by what failed: with any port in use, to free the
+// ports it was given, for the browser sign-in or the device-code login too,
+// for the plan, which has no device flow, to try again; when no port was in
+// use, the sign-in with no listener. Every bind's error follows (0083-MADR D8,
+// ST30, ST68).
+func listenOpenAILoopbackWith(ports []int, plan bool, listen listenFunc) ([]net.Listener, int, error) {
 	var failures []error
+	inUse := false
 	for _, port := range ports {
-		listeners, err := listenLoopbackBothFamilies(port)
+		listeners, err := listenLoopbackBothFamiliesWith(port, listen)
 		if err == nil {
 			return listeners, port, nil
 		}
 		failures = append(failures, err)
+		inUse = inUse || isAddrInUse(err)
 	}
-	return nil, 0, fmt.Errorf("oauth: registered callback ports unavailable; use device-code login: %w", errors.Join(failures...))
+	return nil, 0, fmt.Errorf("oauth: registered callback ports unavailable; %s: %w", portsAdvice(ports, plan, inUse), errors.Join(failures...))
+}
+
+// portsAdvice is the advice after "registered callback ports unavailable;".
+func portsAdvice(ports []int, plan, inUse bool) string {
+	if !inUse {
+		return noListenerAdvice
+	}
+	names := make([]string, len(ports))
+	for i, port := range ports {
+		names[i] = fmt.Sprintf("%d", port)
+	}
+	list := "ports " + strings.Join(names, " and ")
+	switch {
+	case len(names) == 1:
+		list = "port " + names[0]
+	case len(names) > 2:
+		list = "ports " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+	}
+	if plan {
+		return "free " + list + " and try again"
+	}
+	return "free " + list + ", or use device-code login"
 }
 
 func listenLoopbackBothFamilies(port int) ([]net.Listener, error) {
+	return listenLoopbackBothFamiliesWith(port, net.Listen)
+}
+
+func listenLoopbackBothFamiliesWith(port int, listen listenFunc) ([]net.Listener, error) {
 	portText := fmt.Sprintf("%d", port)
-	v4, err4 := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", portText))
-	v6, err6 := net.Listen("tcp6", net.JoinHostPort("::1", portText))
+	v4, err4 := listen("tcp4", net.JoinHostPort("127.0.0.1", portText))
+	v6, err6 := listen("tcp6", net.JoinHostPort("::1", portText))
 	if err4 != nil && err6 != nil {
 		return nil, errors.Join(err4, err6)
 	}

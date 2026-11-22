@@ -74,7 +74,7 @@ func TestResolveCredential_ChatGPTPlan_0056(t *testing.T) {
 	})
 	store := newMemoryTokenStore()
 	f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t), 0}})
-	res, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp},
+	res, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, NoBrowserQuestion: true},
 		llmprovider.ProviderOpenAI)
 	if err != nil {
 		t.Fatal(err)

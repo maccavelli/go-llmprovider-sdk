@@ -116,10 +116,10 @@ func runBounded0057(t *testing.T, p Prompter, o Options) (Result, error) {
 	}
 }
 
-// grokBrowserScript0057 chooses Grok, its browser sign-in, and the first
-// recommended model.
+// grokBrowserScript0057 chooses Grok, its browser sign-in, "On this machine"
+// for where the browser is (0083-MADR D3), and the first recommended model.
 func grokBrowserScript0057(t *testing.T) fakePrompter {
-	return fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), grokBrowserIdx, 0}}
+	return fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), grokBrowserIdx, 0, 0}}
 }
 
 // TestInputerContext_LoopbackWinNoEnter_0057 (0057-MADR D3, issue 8): when

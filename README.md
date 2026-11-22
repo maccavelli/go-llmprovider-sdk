@@ -418,7 +418,11 @@ go func() {
 credential, err := run.Wait(ctx)
 ```
 
-`signin.Options.NoLoopback` passes through to the two `auth` fields.
+`signin.Options.NoLoopback` passes through to the two `auth` fields. A
+pasted redirect address with no `http://`, as the address bar shows it,
+such as `127.0.0.1:1455/auth/callback?code=...&state=...`, is read as the
+address when it begins with the callback's host and port; `auth`'s own logins
+still read such text as a bare code.
 `signin.ErrorKindOf` names an error in the contract's failure kinds.
 
 `signin.VerifyKilo(ctx, key, organization, opts...)` checks a Kilo key, or a
@@ -524,6 +528,22 @@ key.
   `Options.OpenURL` are not called. It is given the last step, `done` or
   `failed`, once, unless its own error ended the sign-in. An `Options.OpenURL`
   error is shown as a warning, and the sign-in goes on.
+- A browser sign-in, OpenAI's, Grok's or the ChatGPT plan's, first asks where
+  the browser is, once per run, with one `Prompter.Select`: "On this machine"
+  (the default) keeps the callback listener and the paste race, and "On
+  another device" runs the sign-in with no listener, completed by pasting
+  the code the page shows or the address the browser was sent to, with or
+  without its `http://`, and does not call `Options.OpenURL`.
+  `Options.NoLoopback` decides that without asking, and calls `OpenURL`;
+  `Options.NoBrowserQuestion` asks nothing and keeps the listener; the question
+  is not asked under `Options.NoPastePrompt` or `Options.Driver` either, and
+  `NoLoopback` with `NoPastePrompt` is an error matching
+  `llmprovider.ErrInvalidRequest`. A caller whose scripted `Prompter` refuses
+  an unexpected `Select` scripts the answer (index 0) or sets
+  `NoBrowserQuestion`. When ports 1455 and 1457 are both taken the error says
+  to free them and, for the browser sign-in, that the device-code login
+  is another way; a host that refuses the bind is pointed to the sign-in with
+  no listener.
 - A vendor CLI's login is found by default under the home directory, which
   the wizard reads only through `Options.LookupEnv` (`HOME`, or
   `USERPROFILE` on Windows). Pass `LookupEnv: os.Getenv` to find it there.
@@ -590,7 +610,8 @@ key.
   recommend is offered after the recommendations, marked "saved" and
   preselected. Scripts that
   drive the wizard answer one extra, blank, line before each model and
-  fallback selection.
+  fallback selection, and before a browser sign-in, where a blank line is
+  "On this machine".
 - The menu is `Options.Registry`, every built-in provider when nil, so a
   provider of your own is offered once it is registered
   ([adding-a-provider.md](docs/guides/adding-a-provider.md)).

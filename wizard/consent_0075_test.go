@@ -37,7 +37,7 @@ func TestWizardPlanConsentSelect_0075(t *testing.T) {
 				inputs:  []string{"gpt-6.1-sol"},
 			})
 			f.allowLeftover = c.choice == 2
-			_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp})
+			_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, NoBrowserQuestion: true})
 			if len(f.seenSelect) < 3 {
 				t.Fatalf("Select titles = %q; want the consent third", f.seenSelect)
 			}
@@ -71,7 +71,7 @@ func TestWizardPlanConsentSelect_0075(t *testing.T) {
 		})
 		f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t), 0}})
 		_, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), AgentName: planTestApp,
-			ConsentText: map[string]string{consent0075: "Let My App work on its own?"}}, llmprovider.ProviderOpenAI)
+			ConsentText: map[string]string{consent0075: "Let My App work on its own?"}, NoBrowserQuestion: true}, llmprovider.ProviderOpenAI)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestWizardReSignInWithoutAnswerAsks_0075(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
 		inputs:  []string{"gpt-6.1-sol"},
 	})
-	if _, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp}); err != nil {
+	if _, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, NoBrowserQuestion: true}); err != nil {
 		t.Fatal(err)
 	}
 	if *calls != 1 || len(f.seenSelect) != 3 || !strings.Contains(f.seenSelect[2], "You're using your ChatGPT plan") {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,9 +17,28 @@ import (
 // keysServer serves a testIssuer's /jwks, and a 500 at /broken.
 func keysServer(t *testing.T) (*httptest.Server, *testIssuer) {
 	t.Helper()
+	return keysServerOn(t, nil)
+}
+
+// keysServerOn is keysServer on listener, or on a listener of its own when it
+// is nil. Before it returns it removes the key-cache entry under its own JWKS
+// URL: an earlier server that held the same port may have left one, which is
+// that server's, not this one's (0083-MADR ST65).
+func keysServerOn(t *testing.T, listener net.Listener) (*httptest.Server, *testIssuer) {
+	t.Helper()
 	mux := http.NewServeMux()
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewUnstartedServer(mux)
+	if listener != nil {
+		if err := srv.Listener.Close(); err != nil {
+			t.Fatal(err)
+		}
+		srv.Listener = listener
+	}
+	srv.Start()
 	t.Cleanup(srv.Close)
+	jwksCache.Lock()
+	delete(jwksCache.entries, srv.URL+"/jwks")
+	jwksCache.Unlock()
 	ti := newTestIssuer(mux, srv.URL)
 	mux.HandleFunc("/broken", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) })
 	return srv, ti

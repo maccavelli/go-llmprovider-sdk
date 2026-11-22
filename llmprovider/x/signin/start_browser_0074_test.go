@@ -2,13 +2,11 @@ package signin
 
 import (
 	"errors"
-	"net"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -274,7 +272,7 @@ func TestStart_NoLoopback_0074(t *testing.T) {
 				t.Fatalf("open_url's URL = %q: %v", open.URL, err)
 			}
 			query := authorize.Query()
-			assertNothingListens(t, p, query.Get("redirect_uri"))
+			assertRedirectShape(t, p, query.Get("redirect_uri"))
 			fake.setNonce(open.URL)
 			pasted := "http://127.0.0.1:1455/callback?code=code-0074&state=" + url.QueryEscape(query.Get("state"))
 			if err := run.Answer(background(), authcontract.Answer{Seq: ask.Seq, Paste: pasted}); err != nil {
@@ -308,10 +306,14 @@ func TestStart_NoLoopback_0074(t *testing.T) {
 	})
 }
 
-// assertNothingListens fails t when the redirect URI of Grok's no-listener
-// sign-in has a listener behind it. OpenAI's names a registered port that
-// another process may hold, so only its shape is checked.
-func assertNothingListens(t *testing.T, p llmprovider.ProviderID, redirect string) {
+// assertRedirectShape fails t when the redirect URI of a no-listener sign-in
+// is not of the shape the provider's is: Grok's names a port in 49152 to
+// 65535 and /callback; OpenAI's names a registered port that another process
+// may hold, so only its form is checked. That the sign-in binds nothing is
+// not shown here, by a dial another program's listener could answer: it is
+// shown in llmprovider/auth, through the hook every bind passes through
+// (TestNoLoopback_BindsNothing_0083).
+func assertRedirectShape(t *testing.T, p llmprovider.ProviderID, redirect string) {
 	t.Helper()
 	target, err := url.Parse(redirect)
 	if err != nil || target.Host == "" {
@@ -323,11 +325,6 @@ func assertNothingListens(t *testing.T, p llmprovider.ProviderID, redirect strin
 	port, err := strconv.Atoi(target.Port())
 	if err != nil || port < 49152 || port > 65535 || target.Path != "/callback" {
 		t.Fatalf("Grok's redirect_uri = %q; want a port in 49152 to 65535 and /callback", redirect)
-	}
-	conn, err := net.DialTimeout("tcp", target.Host, time.Second)
-	if err == nil {
-		_ = conn.Close()
-		t.Errorf("something listens at %s; want no listener under NoLoopback", target.Host)
 	}
 }
 

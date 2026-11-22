@@ -76,7 +76,14 @@ type Choice struct {
 // ConfigureLLM may call Notify while an Input still waits for the pasted code.
 type Prompter interface {
 	// Select asks the user to choose one option, returning its index.
-	// defaultIdx is chosen when the user accepts the default.
+	// defaultIdx is chosen when the user accepts the default. Besides its
+	// menus, the wizard asks with Select, before a browser sign-in, where the
+	// browser is: "Where is the browser you will sign in with?", with two
+	// choices, "On this machine", at index 0 and the default, and "On another
+	// device: I will paste the address back". The default is the answer to give
+	// when nobody can choose: a Prompter that cannot ask returns it. The
+	// question is not asked under Options.NoLoopback, NoBrowserQuestion,
+	// NoPastePrompt or Driver (0083-MADR D3). The interface itself is unchanged.
 	Select(title string, choices []Choice, defaultIdx int) (int, error)
 
 	// MultiSelect asks the user to choose zero or more options, returning

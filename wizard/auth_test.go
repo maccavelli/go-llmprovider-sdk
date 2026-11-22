@@ -216,13 +216,17 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		authIdx int
+		// selects is the scripted answers: the browser sign-in is asked where
+		// the browser is, "On this machine", before it; the device one is not.
+		selects []int
 	}{
-		{name: "browser", authIdx: 1},
-		{name: "device", authIdx: 2},
+		{name: "browser", authIdx: 1, selects: []int{0, 0}},
+		{name: "device", authIdx: 2, selects: []int{0}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
-			f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx, 0}})
+			f := newFake(t, fakePrompter{blankSearches: true,
+				selects: append([]int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx}, test.selects...)})
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
@@ -412,7 +416,7 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 		return testOAuthSession(provider), nil
 	})
 	opened := 0
-	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0, 0}})
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		TokenStore: newMemoryTokenStore(),
 		OpenURL:    func(string) error { opened++; return nil },
@@ -441,7 +445,7 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 func TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt(t *testing.T) {
 	p := &drainPrompter{
 		// The paste read is answered by Enter, as the notice asks.
-		fakePrompter: newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0},
+		fakePrompter: newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0, 0},
 			inputs: []string{""}}),
 		inputStarted: make(chan struct{}),
 		release:      make(chan struct{}),

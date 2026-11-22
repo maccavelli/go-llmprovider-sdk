@@ -583,7 +583,9 @@ func putConsents(ctx context.Context, provider llmprovider.ProviderID, session *
 
 // askPaste asks for the callback until one passes the checks of D4 or the
 // third bad one ends the sign-in. It returns the pasted text, for auth's own
-// parsing, and an error that matches llmprovider.ErrInvalidRequest after the
+// parsing, with http:// in front of a paste that began with the callback's
+// host and port and no scheme (0083-MADR D11), and an error that matches
+// llmprovider.ErrInvalidRequest after the
 // third bad paste. A pasted denial passes: auth ends the sign-in with it.
 func (r *Run) askPaste(ctx context.Context, authorizeURL string, accepts authcontract.Paste) (string, error) {
 	want := newPasteCheck(authorizeURL, accepts)
@@ -600,8 +602,13 @@ func (r *Run) askPaste(ctx context.Context, authorizeURL string, accepts authcon
 		case <-ctx.Done():
 			return "", ctx.Err()
 		}
-		reason := want.check(answer.Paste)
+		reason, address := want.read(answer.Paste)
 		if reason == "" {
+			if address != "" {
+				// A paste that began with the callback's host and port and no
+				// scheme is handed on as the address it is (0083-MADR D11).
+				return address, nil
+			}
 			return answer.Paste, nil
 		}
 		if tries >= maxPastes {

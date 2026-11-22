@@ -55,7 +55,7 @@ func TestConfigureLLM_StoredSessionLeavesNoTokenInResult(t *testing.T) {
 	})
 	store := newMemoryTokenStore()
 	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
-	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
+	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, NoBrowserQuestion: true})
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
@@ -112,8 +112,9 @@ func TestConfigureLLM_NoStoredSessionSignsIn(t *testing.T) {
 	})
 	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{
-		Existing:   Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
-		TokenStore: newMemoryTokenStore(),
+		Existing:          Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
+		TokenStore:        newMemoryTokenStore(),
+		NoBrowserQuestion: true,
 	}); err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}

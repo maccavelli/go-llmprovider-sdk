@@ -206,6 +206,7 @@ func assertKeptRefused0066(t *testing.T, f *fakePrompter, label string) {
 func TestKept_RefusedLeadsToSignIn_0066(t *testing.T) {
 	client := accepting0066("oauth-access")
 	store, o := keptGrok0066(t, client)
+	o.NoBrowserQuestion = true
 	signedIn := browserGrok0059(t, client, false)
 	f := newFake(t, fakePrompter{blankSearches: true, confirms: []bool{true},
 		selects: []int{0, methodIdx0059(t, o, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth), 0}})
@@ -227,6 +228,7 @@ func TestKept_RefusedLeadsToSignIn_0066(t *testing.T) {
 func TestKept_RefusedThenNewRefused_0066(t *testing.T) {
 	client := accepting0066("")
 	store, o := keptGrok0066(t, client)
+	o.NoBrowserQuestion = true
 	browserGrok0059(t, client, false)
 	f := newFake(t, fakePrompter{confirms: []bool{true},
 		selects: []int{methodIdx0059(t, o, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth)}})

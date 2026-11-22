@@ -137,6 +137,7 @@ func TestCancelAtManualModelSavesNothing_0081(t *testing.T) {
 		return answer0059(r, http.StatusServiceUnavailable, `{"error":{"message":"down"}}`), nil
 	})}
 	o := opts0081(t, store, down)
+	o.NoBrowserQuestion = true
 	method := methodIdx0081(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth, o)
 	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), method},
 		inputs: []string{"my-model"}})
@@ -193,6 +194,7 @@ func TestModelStageErrorSavesNothing_0081(t *testing.T) {
 			return answer0059(r, http.StatusServiceUnavailable, `{"error":{"message":"down"}}`), nil
 		})}
 		o := opts0081(t, store, down)
+		o.NoBrowserQuestion = true
 		method := methodIdx0081(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth, o)
 		f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), method}, inputs: []string{"  "}})
 		_, err := ConfigureLLM(context.Background(), f, o)
@@ -247,7 +249,7 @@ func TestRotationDuringQuestionsSavedAtEnd_0081(t *testing.T) {
 	client := client0059(http.StatusOK, http.StatusOK, release)
 	session := browserGrok0059(t, client, true)
 	o := Options{TokenStore: store, Discover: true, DiscoverLimit: 100 * time.Millisecond, HTTPClient: client,
-		NoEndpointPrompt: true, ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
+		NoEndpointPrompt: true, NoBrowserQuestion: true, ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
 	method := methodIdx0081(t, llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth, o)
 	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderGrok), method, 0}, inputs: []string{""}})
 	p := newStage0081(f, "", nil, store)

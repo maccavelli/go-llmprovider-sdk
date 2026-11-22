@@ -113,7 +113,7 @@ func grok0059(t *testing.T, store auth.TokenStore, client *http.Client, discover
 	t.Helper()
 	f := newFake(t, fakePrompter{selects: []int{1}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, Discover: discover,
-		DiscoverLimit: limit, HTTPClient: client,
+		DiscoverLimit: limit, HTTPClient: client, NoBrowserQuestion: true,
 		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}, llmprovider.ProviderGrok)
 	return f, err
 }

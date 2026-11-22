@@ -107,7 +107,7 @@ func TestPlan_FirstSignIn_0043(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
 		inputs:  []string{"gpt-6.1-sol"},
 	})
-	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, HTTPClient: client})
+	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, HTTPClient: client, NoBrowserQuestion: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestPlan_NoticeDeclined_0043(t *testing.T) {
 	})
 	store := newMemoryTokenStore()
 	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 2},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0, 2},
 	})
 	_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp})
 	if err == nil || !strings.Contains(err.Error(), "declined") || *calls != 0 || store.saves != 0 {
@@ -176,7 +176,7 @@ func TestPlan_ReSignIn_0043(t *testing.T) {
 	previous.Consents = "chatgpt_plan.background_use=granted"
 	store.sessions[llmprovider.ProviderOpenAI] = previous
 	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t)},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
 		inputs:  []string{"gpt-6.1-sol"},
 	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp}); err != nil {
@@ -203,7 +203,7 @@ func TestPlan_ReplacesCodexSession_0043(t *testing.T) {
 	store := newMemoryTokenStore()
 	store.sessions[llmprovider.ProviderOpenAI] = testOAuthSession(llmprovider.ProviderOpenAI)
 	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0, 0},
 		inputs:  []string{"gpt-6.1-sol"},
 	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp}); err != nil {
