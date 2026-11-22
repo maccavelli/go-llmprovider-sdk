@@ -281,7 +281,16 @@ while Kilo's user code goes to the terminal alone, and what each verdict
 decides, are in
 `docs/decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md`, Phase 1b,
 as amended on 2026-11-18 and 2026-11-19 (the amendment's "The commands" replaces
-the numbered steps' commands, which are not to be run). The login tests need a person to sign in. Each keeps its
+the numbered steps' commands, which are not to be run).
+0087's Windows probe, `TestLive_RawEnterBytes_0087`, is switched on by
+`LLMPROVIDER_LIVE_0087`: `pty` is an agent's run, on pseudo consoles the test
+makes, through `run-on-host --need windows`; `console` is the owner's, in a
+classic console window and then a Windows Terminal tab, with no
+redirection. It reads no key and reaches no network, and writes only
+allowlisted lines (mode, console kind, case, result word, line-ending bytes)
+to `tmp/live-0087/`; the commands are in
+`docs/decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md`, Phase 1.
+The login tests need a person to sign in. Each keeps its
 checks after the sign-in in a function in `llmprovider/live_checks_test.go`,
 which an offline twin in `llmprovider/live_twins_test.go` runs against a fake.
 A planted break of one of those checks runs on its twin (0046-MADR D3). CI only

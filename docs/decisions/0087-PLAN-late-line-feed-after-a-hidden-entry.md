@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-20
+status: in-progress
+date: 2026-11-22
 associated-madr: "0087-MADR-late-line-feed-after-a-hidden-entry.md"
 decision-makers: repository owner
 ---
@@ -23,6 +23,8 @@ name changes; and the docs say so.
 The MADR is `accepted` (option A, the owner's rulings OR1 to OR7). This PLAN
 is `proposed`: it awaits the owner's approval to execute. Nothing below
 starts before the owner says `proceed`, `execute the plan` or `do phase N`.
+*(Annotated 2026-11-22: the owner approved this PLAN and the start of Phase
+1; it is `in-progress`. See the execution record's entry of that date.)*
 
 ## Scope
 
@@ -150,7 +152,12 @@ It changes no production file, so it may run before the siblings are built.
    console kind, the case name, the result word and line-ending bytes are
    printed; its plant (the formatter prints a letter it read) must turn it
    red. `AGENTS.md` "Live tests" names `LLMPROVIDER_LIVE_0087`; `make
-   tables-check` passes, and fails with that name removed (MADR ST42).
+   tables-check` passes, ~~and fails with that name removed~~ *(annotated
+   2026-11-22, OR12: that plant is not caught, since `tables-check` admits a
+   variable its own record names; `make tables-check` fails when the probe
+   reads a variable no document names, and the MADR's claims row C47now,
+   planted false by `tools/claims.py --plants`, pins `AGENTS.md`'s name;
+   MADR "Amendments of 2026-11-22", A-1)* (MADR ST42).
    `GOOS=windows go vet -tags live_gateways ./llmprovider` is clean, and
    `make dep-check` is unchanged.
 3. **Run it** (an agent):
@@ -368,7 +375,8 @@ Exit criterion: no blocker, every row tested, plants caught.
 
 ## Execution Record
 
-No phase has run: the PLAN awaits the owner's approval.
+No phase has run: the PLAN awaits the owner's approval. *(Annotated
+2026-11-22: approved; Phase 0 step 2 and Phase 1 are recorded below.)*
 
 ### 2026-11-20: records pass 4, the delta confirmation's four corrections
 
@@ -399,3 +407,248 @@ By the approach the owner chose for 0084 ("Apply the checker's fixes
 exactly; the build proves them (Recommended)", the owner, relayed by the
 coordinator), there is no further review round: the red run and the plants
 at build time prove these corrections.
+
+### 2026-11-22: Phase 0 step 2, the owner's approval
+
+The owner, relayed by the coordinator, approved this PLAN and the start of
+Phase 1, by the label "Approve; start Phase 1 now (Recommended)". The status
+went to `in-progress` by
+`python3 -B tools/records.py status docs/decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md in-progress --date 2026-11-22`,
+which wrote the front matter and the index row and exited 1 on the
+records-check it runs after writing. Its output, whole:
+
+```text
+docs/README.md: says 182 records; there are 185
+docs/decisions/0088-MADR-default-output-limit-from-model-facts.md: not indexed in docs/README.md
+docs/decisions/0088-PLAN-default-output-limit-from-model-facts.md: not indexed in docs/README.md
+docs/reports/0088-REPORT-output-limits-across-agents-and-vendors.md: not indexed in docs/README.md
+records: written; records-check: 4 problem(s)
+```
+
+The four problems are another record's uncommitted, unindexed files, not
+this change; the tool's own write landed (`status: in-progress`,
+`date: 2026-11-22`, and the index row `in-progress`), so nothing was changed
+by hand.
+
+### 2026-11-22: Phase 1, pass 1 (stopped at step 2 on ST42's plant)
+
+Start commit `18e8e72`, on `main`. Steps 1 and 2 were built; step 2's
+`tables-check` plant was not caught, which is the stop condition "a row's
+outcome cannot be met as written" (ST42), so step 3 (the pty run) and step 4
+(the owner's two steps) have not run, and no MADR amendment quotes a probe.
+
+**Step 1, re-grounding** (the module cache and `GOROOT` of Go 1.27.4, at the
+versions `go.mod` names: `golang.org/x/term` v0.43.0, `golang.org/x/sys`
+v0.47.0). Every fact holds:
+
+* `golang.org/x/term@v0.43.0/term_windows.go:25` `makeRaw`: clears
+  `ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT` (`:30`) and
+  sets `ENABLE_VIRTUAL_TERMINAL_INPUT` (`:31`). Holds.
+* Go's `src/internal/poll/fd_windows.go:653` `readConsole`: reads at most
+  `len(b)` UTF-16 units into a 10000-unit buffer, hands over up to `len(b)`
+  bytes, and ends a read before a Ctrl-Z (`0x1A`). Holds.
+* `golang.org/x/sys@v0.47.0/windows`: `CreatePseudoConsole`
+  (`syscall_windows.go:1871`), `WaitForSingleObject`
+  (`zsyscall_windows.go:3640`), `NewLazySystemDLL` (`dll_windows.go:249`).
+  Holds.
+* `PeekConsoleInputW` is still unwrapped: a search of the whole
+  `golang.org/x/sys@v0.47.0` tree for `PeekConsoleInput` exits 1. Holds.
+
+**Step 2, what was written.**
+
+* `llmprovider/live_raw_enter_0087_windows_test.go` (`live_gateways`,
+  Windows by its name): `TestLive_RawEnterBytes_0087`, switched on by
+  `LLMPROVIDER_LIVE_0087` (`pty` or `console`; `child:<console kind>:<case>`
+  is the value the probe gives its own child). Standard library only,
+  kernel32 through `syscall.NewLazyDLL`.
+* `llmprovider/raw_enter_format_0087_test.go` (no tags): the case runner
+  `rawEnterRun0087`, the line formatter `rawEnterLine0087`, the allowlist
+  `rawEnterAllowed0087`, and the twin `TestRawEnterBytesFormat_0087`.
+* `AGENTS.md` "Live tests": a paragraph naming `LLMPROVIDER_LIVE_0087`, its
+  two values and who runs each.
+
+Verification of step 2 (exit statuses captured directly):
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| `go test ./llmprovider -run '^TestRawEnterBytesFormat_0087$' -count=1 -v` | this Mac | 0 (10 subtests pass) |
+| `tools/plant.py` on the twin, plant "the formatter prints a letter it read" | this Mac, scratch clone | 0 (caught) |
+| `GOOS=windows go vet -tags live_gateways ./llmprovider` | this Mac | 0, no output |
+| `make dep-check` | this Mac | 0 (`GOOS=host: 46 packages, 0 problem(s)`; `GOOS=windows: 46 packages, 0 problem(s)`): unchanged |
+| `make api-check` | this Mac | 0 (`against v1.31.0, 0 incompatible change(s)`) |
+| `make tables-check` | this Mac | 0 (`49 packages, 0 problem(s)`) |
+| `tools/plant.py`, `make tables-check` with `AGENTS.md`'s name of the variable removed | this Mac, scratch clone | 1: **NOT CAUGHT** (`make tables-check` exit 0) |
+
+The twin's plant (one change, in `rawEnterLine0087`:
+`groups = append(groups, rawEnterEndings0087(r)+string(r))`), its failing
+lines as `tools/plant.py` printed them:
+
+```text
+== the formatter prints a letter it read: caught (exit 1)
+   --- FAIL: TestRawEnterBytesFormat_0087/split (0.00s)
+   raw_enter_format_0087_test.go:271: line = "mode=pty console=pty case=lf-after-cr result=split reads=0dsk-0087-SECRETzq\r,0a\n", want "mode=pty console=pty case=lf-after-cr result=split reads=0d,0a"
+   raw_enter_format_0087_test.go:274: line "mode=pty console=pty case=lf-after-cr result=split reads=0dsk-0087-SECRETzq\r,0a\n" is not allowlisted
+   raw_enter_format_0087_test.go:277: line "mode=pty console=pty case=lf-after-cr result=split reads=0dsk-0087-SECRETzq\r,0a\n" prints a letter it read
+plant: all 1 plant(s) caught
+```
+
+#### Deviation, 2026-11-22: ST42's `tables-check` plant cannot be caught as written (open, with the owner)
+
+*(Annotated 2026-11-22: ruled, OR12; see "Phase 1, pass 1, continued" below.)*
+
+* **Found.** `scripts/check_tables.py` `check_live_variables` admits a
+  variable that `AGENTS.md` does not name when it matches
+  `^LLMPROVIDER_LIVE_(\d{4})` and a record of that number names it (lines
+  198 to 205; `SWITCH` at line 52), as `AGENTS.md` "Live tests" says ("A
+  record's own measurement test is switched on by `LLMPROVIDER_LIVE_<NNNN>`
+  ... as that record says"). `0087-MADR` names `LLMPROVIDER_LIVE_0087` (its
+  lines 317, 348, 359, 360, 374, 375 and 494, before this date's MADR
+  amendments moved them), so the plant ST42 and step 2 name,
+  "`AGENTS.md`'s name of the variable removed", leaves `tables-check` at exit
+  0. The check behaves as written and documented; the PLAN's plant assumed
+  it did not admit a record's own variable.
+* **Seen, for the owner's choice (scratch clone, nothing in the tree):** a
+  plant that makes the probe read its variable's name with a suffix that
+  neither `AGENTS.md` nor a 0087 record names *(reworded 2026-11-22: the
+  planted name is kept out of the 0087 records, since a record of the
+  number that names it admits it; see pass 1's continuation)*, is caught (`make tables-check`
+  exit 2 under `tools/plant.py`, "plant: all 1 plant(s) caught").
+* **Not done, pending the ruling:** step 3 (the pty run), step 4 (the
+  owner's steps file), the MADR amendment, and the heavy gates
+  (`make pre-add-check`, `go test ./...`, the scratch-clone `records-check`
+  and `gate-selftest`).
+
+#### Notes on the probe as built, 2026-11-22 (for the review of this pass)
+
+*(Annotated 2026-11-22: accepted as deviations, OR13; see "Phase 1, pass 1, continued" below.)*
+
+* **One child per case, in both modes.** Each case runs in a fresh child of
+  the test binary, which exits after writing its line, so a console read
+  still waiting at the end of a case is ended with its process and cannot
+  take the next case's bytes. In `pty` mode each child has a pseudo console
+  of its own (as the MADR says); in `console` mode the children share the
+  owner's console (the MADR's "the test opens its own `CONIN$` and
+  `CONOUT$`" holds for each child).
+* **Two kernel32 calls beyond the MADR's list:** `FlushConsoleInputBuffer`
+  (console mode only, before each request, so keys pressed between two
+  requests are not the next case's) and `DeleteProcThreadAttributeList`
+  (cleanup). Standard library only still holds.
+* **Reading `pty.txt` back.** `run-on-host` deletes its work root when the
+  command exits 0, so the file cannot be read after the run. The probe reads
+  `tmp/live-0087/pty.txt` back itself after writing it and logs each line as
+  `tmp/live-0087/pty.txt: <line>`, so the exact command of step 3 returns
+  both the run's lines and the file's.
+* **Waits.** A pty child waits 15 s for its first read and ends after 1 s
+  with no read; the parent writes 200 ms after the child is ready, and P2's
+  LF 10 ms after its CR. A console child waits 120 s for the person and ends
+  after 1.5 s with no read; each console child is bounded at 270 s, inside
+  `go test`'s default 10 m.
+
+### 2026-11-22: Phase 1, pass 1, continued (steps 2 to 4; step 5 waits on the owner)
+
+**The owner's rulings,** relayed by the coordinator, by their exact labels:
+
+* OR12, on the stop at ST42's plant: "Amend the plant + claims row
+  (Recommended)". Recorded in the MADR (ST42's row, the rulings table, and
+  "Amendments of 2026-11-22", A-1) and in step 2's annotation above.
+* OR13, on the four notes on the probe as built: "Accept all four as
+  deviations (Recommended)". Recorded below, one dated deviation each, and
+  in the MADR for the two kernel32 calls (A-2).
+
+#### Deviations, 2026-11-22 (OR13)
+
+1. **One child per case, in both modes.** Each case runs in a fresh child of
+   the test binary, which exits after writing its line, so a console read
+   still waiting at a case's end ends with its process and cannot take the
+   next case's bytes. `pty`: a pseudo console per child, as the MADR says.
+   `console`: the children share the owner's console, each opening `CONIN$`
+   and `CONOUT$` itself.
+2. **Two kernel32 calls beyond the MADR's list:** `FlushConsoleInputBuffer`
+   (console mode, before each request) and `DeleteProcThreadAttributeList`
+   (cleanup). MADR A-2.
+3. **Where the formatter lives.** The case runner `rawEnterRun0087`, the
+   formatter `rawEnterLine0087` and the allowlist live in the untagged twin
+   file, `llmprovider/raw_enter_format_0087_test.go`, since the twin must
+   build on every platform with no tag and the PLAN names only the two
+   files; the twin's plant is made there.
+4. **Reading `pty.txt` back.** `run-on-host` deletes its work root after a
+   run that exits 0, so the probe reads `tmp/live-0087/<console kind>.txt`
+   back itself and logs each line as `tmp/live-0087/<kind>.txt: <line>`;
+   step 3's exact command then returns both.
+
+#### Deviation, 2026-11-22: the planted variable's name kept out of the records
+
+Re-running the new `tables-check` plant on the tree after the MADR's
+amendment A-1 was first written: **not caught** (`tools/plant.py` exit 1,
+`make tables-check` exit 0), because A-1 then quoted the planted name, and a
+0087 record that names a `LLMPROVIDER_LIVE_0087…` variable admits it. A-1
+and the pass's earlier "Seen" bullet were reworded to describe the name
+without writing it (annotated where it changed). Re-run on the final tree:
+caught, exit 2, "check-tables: AGENTS.md: <the planted name>: a live test
+reads it, and AGENTS.md does not name it". The planted name lives only in
+the plant's spec, outside the tree.
+
+#### Step 2, the new pins of ST42 (OR12)
+
+* `tools/plant.py`, `make tables-check`, plant "the probe reads a variable
+  no document names", on a scratch clone of the final tree: "caught (exit
+  2)", "plant: all 1 plant(s) caught", exit 0.
+* The MADR's row C47now (`AGENTS.md:286`), checked with a plain id on a
+  scratch commit of the working tree: "1 of 1 pass"; `tools/claims.py
+  --plants`, two plants (its text changed; its line moved), "claims: all 2
+  plant(s) caught", exit 0. Quoted in the MADR, A-1.
+
+#### Step 3, the pty run
+
+The PLAN's exact command, from this Mac, ran on the Windows laptop: exit 0,
+`--- PASS: TestLive_RawEnterBytes_0087 (3.95s)`. Its three lines, and the
+same three read back from `tmp/live-0087/pty.txt`, are quoted whole in the
+MADR, "Amendments of 2026-11-22", A-3:
+
+```text
+mode=pty console=pty case=crlf-one-write result=split reads=0d,0a
+mode=pty console=pty case=lf-after-cr result=split reads=0d,0a
+mode=pty console=pty case=cooked-then-raw result=lf-first cooked=0d0a reads=0a,-,0d
+```
+
+It yielded lines on the first run, so no fix and rerun was needed. The
+mapping (step 5) is not made here.
+
+#### Step 4, the owner's two steps
+
+Not run by the agent. The instructions were written for the owner, outside
+the tree, in the session's scratch directory as `sdk-0087/OWNER-STEPS.txt`:
+how to put the probe on the Windows laptop, a two-line CR+LF text to paste
+(Notepad), the classic console window (`conhost.exe cmd.exe` from Win+R, so
+Windows Terminal is not used even where it is the default), then a Windows
+Terminal tab, each with `LLMPROVIDER_LIVE_0087=console` and the MADR's `go
+test` command with no redirection; the three requests R1 to R3 as the probe
+shows them; the files it writes (`tmp/live-0087/conhost.txt`,
+`tmp/live-0087/terminal.txt`); and what to tell the coordinator (both
+files' three lines each). Step 5 waits for those two files.
+
+#### Checks of the pass (exit statuses captured directly)
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| the pty probe, step 3's exact command | the Windows laptop, through `run-on-host --need windows` | 0 |
+| `run-heavy -- make pre-add-check FILES="llmprovider/live_raw_enter_0087_windows_test.go llmprovider/raw_enter_format_0087_test.go"` | this Mac | 0 ("2 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)") |
+| `run-heavy -- go test ./...` | this Mac | 0 (44 packages `ok`, none failed) |
+| `GOOS=windows go vet -tags live_gateways ./llmprovider` | this Mac | 0, no output |
+| `make dep-check` | this Mac | 0, unchanged (host and `GOOS=windows`: 46 packages, 0 problems) |
+| `make api-check` | this Mac | 0 (against `v1.31.0`, 0 incompatible changes) |
+| `make tables-check` | this Mac | 0 (49 packages, 0 problems) |
+| `tools/plant.py`, the twin's plant | this Mac, scratch clone | 0 (caught) |
+| `tools/plant.py`, ST42's new `tables-check` plant | this Mac, scratch clone | 0 (caught; `make tables-check` exit 2) |
+| `tools/claims.py --plants`, C47 (plain id, scratch commit) | this Mac, scratch record | 0 (2 of 2 caught) |
+| `tools/claims.py` on 0087-MADR | this Mac | 0 (46 of 46) |
+| `tools/claims.py` on this PLAN | this Mac | 1: "0 of 0 pass (no evidence rows)"; this PLAN has no evidence index |
+| `tools/recordlint.py --changed` | this Mac | 0 (both 0087 records: no new findings) |
+| `tools/denyscan.py --changed`, and on `OWNER-STEPS.txt` | this Mac | 0, 0 hits each |
+| `make records-check`, scratch clone of `18e8e72` with only this pass's files | this Mac | 0 ("182 records, 0 problem(s)") |
+| `make gate-selftest`, the same clone, through `run-heavy` | this Mac | 0 ("Ran 70 tests", "OK") |
+
+`make records-check` and `make gate-selftest` fail in the working tree while
+another record's 0088 files are unindexed, so they ran on a clone of
+`18e8e72` holding only `AGENTS.md`, `docs/README.md`, the two 0087 records
+and the two new test files.

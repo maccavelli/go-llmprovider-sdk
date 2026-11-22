@@ -223,6 +223,8 @@ label. The state table cites them by row.
 | OR9 | where the probe lives (finding 3) | "Put the probe under `llmprovider/` as a `live_*_test.go` (Recommended)" | ST42; the Windows section below |
 | OR10 | a CR inside the 50 ms window (finding 6) | "Accept it as a stated loss, like Ctrl-J (Recommended)" | ST6, ST37 |
 | OR11 | bytes read ahead that no later prompt reads; Ctrl-C or Ctrl-Z inside the window; a second reader of the terminal (findings 7 and 10) | "Out of scope, stated in the record and docs (Recommended)" | ST38, ST39, ST40 |
+| OR12 | ST42's plant, not caught by `tables-check` (Phase 1, 2026-11-22) | "Amend the plant + claims row (Recommended)" | ST42; "Amendments of 2026-11-22", A-1 |
+| OR13 | the probe as built: four implementation notes (Phase 1, 2026-11-22) | "Accept all four as deviations (Recommended)" | "Amendments of 2026-11-22", A-2; the PLAN's deviations of that date |
 
 ### What option A is
 
@@ -323,7 +325,10 @@ imports only the standard library: it calls kernel32's `SetConsoleMode`,
 `CreateProcessW` through `syscall.NewLazyDLL`, and sets raw mode with the
 bits `golang.org/x/term`'s `makeRaw` sets (clears `ENABLE_ECHO_INPUT`,
 `ENABLE_PROCESSED_INPUT` and `ENABLE_LINE_INPUT`, sets
-`ENABLE_VIRTUAL_TERMINAL_INPUT`). So `llmprovider` gains no dependency, and
+`ENABLE_VIRTUAL_TERMINAL_INPUT`). *(Amended 2026-11-22: it also calls
+`FlushConsoleInputBuffer` and `DeleteProcThreadAttributeList`, through the
+same `syscall.NewLazyDLL`; see "Amendments of 2026-11-22", A-2.)* So
+`llmprovider` gains no dependency, and
 R2's rows are unchanged by the probe; `dep-check` reads untagged builds only
 (C38), and the probe does not lean on that. It uses no provider key, no
 sign-in, no browser and no network.
@@ -491,7 +496,7 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST39 | Ctrl-C or Ctrl-Z typed within the 50 ms window | out of scope | arrives as a plain byte for the next prompt, since raw mode turns signals off; stated in the doc (OR11) | | |
 | ST40 | A second reader of the same terminal takes the byte between the check and the peek | out of scope | the peek waits for the next byte; beside ST27; stated in the doc (OR11) | | |
 | ST41 | The doc and table lines the new import makes false (A6a) | decided | each line A6a names is edited in the same change | A6a; the review's finding 2 | `make tables-check` (plant: `docs/architecture.md`'s `wizard` row left without `golang.org/x/sys`: "imports ..., which its row does not name"); `make docs-check` and Phase 2's review for the prose lines |
-| ST42 | Where the probe lives, and its switch | decided | `llmprovider/live_raw_enter_0087_windows_test.go`, standard library only; `AGENTS.md` names `LLMPROVIDER_LIVE_0087` | OR9 | `make tables-check` (plant: `AGENTS.md`'s name of the variable removed: "a live test reads it, and AGENTS.md does not name it"); `make dep-check` unchanged |
+| ST42 | Where the probe lives, and its switch | decided | `llmprovider/live_raw_enter_0087_windows_test.go`, standard library only; `AGENTS.md` names `LLMPROVIDER_LIVE_0087` | OR9; OR12 | ~~`make tables-check` (plant: `AGENTS.md`'s name of the variable removed: "a live test reads it, and AGENTS.md does not name it")~~ *(amended 2026-11-22, OR12: that plant is not caught, since `tables-check` admits a variable its own record names; see A-1)* `make tables-check` (plant: the probe reads a variable no document names); `AGENTS.md`'s name of `LLMPROVIDER_LIVE_0087` pinned by the claims row C47now (plant: its text changed, by `tools/claims.py --plants`); `make dep-check` unchanged |
 
 Counts *(third pass)*: 29 decided, 11 out of scope, 0 open, 2 open awaiting
 live evidence (ST20, ST21).
@@ -653,3 +658,102 @@ take its default.
   (ST29).
 * gobble-cli's own record on its terminal input fixes gobble-cli's layer, not
   this one.
+
+### Amendments of 2026-11-22 (Phase 1, pass 1)
+
+Each ruling is the owner's, relayed by the coordinator, by its exact label.
+
+**A-1. ST42's plant (OR12, "Amend the plant + claims row (Recommended)").**
+Found in Phase 1 step 2: `scripts/check_tables.py`'s `check_live_variables`
+admits a variable `AGENTS.md` does not name when it matches
+`^LLMPROVIDER_LIVE_(\d{4})` and a record of that number names it, as
+`AGENTS.md` "Live tests" says. This record names `LLMPROVIDER_LIVE_0087`, so
+ST42's plant ("`AGENTS.md`'s name of the variable removed") left
+`make tables-check` at exit 0 under `tools/plant.py`: not caught. ST42 now
+has two pins:
+
+* `make tables-check`, with the plant "the probe reads a variable no
+  document names" (the probe's `os.Getenv("LLMPROVIDER_LIVE_0087")` given
+  a suffix that no document holds; the plant's spec names it, and no 0087
+  record may, since a record of the number that names a variable admits
+  it), which proves the check reads the probe's file;
+* the claims row below, which proves `AGENTS.md` names the variable.
+
+The row's id ends in "now", so that `tools/claims.py` does not read it
+against this record's `self=24756a6`, where `AGENTS.md` does not hold it
+(the convention of 0085-MADR's re-pointed rows). It is checked with a plain
+id on a scratch commit of the working tree; Phase 2's re-grounding checks it
+again at its base.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| C47now | AGENTS.md names the probe's switch | `AGENTS.md:286` | `` `LLMPROVIDER_LIVE_0087`: `pty` is an agent's run `` |
+
+Seen on 2026-11-22: `tools/claims.py` on a scratch record holding this row
+with the plain id C47 and `self=` a scratch commit of the working tree
+(`--repo self=<scratch clone>`): "1 of 1 pass", exit 0. `tools/claims.py
+--plants` on it, exit 0, both caught:
+
+```text
+== C47's text changed: caught (FAIL C47 AGENTS.md:286: line 286 is "`LLMPROVIDER_LIVE_0087`: `pty` is an agent's run, on pseudo consoles the test")
+== C47's line moved: caught (FAIL C47 AGENTS.md:285: line 285 is "0087's Windows probe, `TestLive_RawEnterBytes_0087`, is switched on by")
+claims: all 2 plant(s) caught
+```
+
+The `tables-check` plant, on a scratch clone of the final tree of pass 1 by
+`tools/plant.py`: caught, `make tables-check` exit 2, with the line
+"check-tables: AGENTS.md: <the planted name>: a live test reads it, and
+AGENTS.md does not name it" (the name elided here, for the reason above).
+
+**A-2. Two kernel32 calls beyond the list (OR13, "Accept all four as
+deviations (Recommended)").** The probe also calls `FlushConsoleInputBuffer`,
+in `console` mode only, before each request, so keys pressed between two
+requests are not counted in the next case; and `DeleteProcThreadAttributeList`,
+to free the attribute list after each pseudo console's child is started.
+Both go through the same `syscall.NewLazyDLL("kernel32.dll")`: the standard
+library only, and no dependency, still hold. The PLAN's deviation entries of
+this date record the other notes the same ruling accepts.
+
+**A-3. Phase 1's pty probe (PLAN Phase 1 step 3).** Run by an agent, on
+the Windows laptop, with the PLAN's exact command, from this Mac:
+
+```text
+~/.agents/skills/available-dev-hosts/scripts/run-on-host --need windows -- sh -c 'LLMPROVIDER_LIVE_0087=pty go test -tags live_gateways ./llmprovider -run "^TestLive_RawEnterBytes_0087$" -count=1 -v'
+```
+
+Exit 0. The test's output, whole (the host tooling's own lines left out: the
+host's probe and claim, the copy, and the queue):
+
+```text
+=== RUN   TestLive_RawEnterBytes_0087
+    live_raw_enter_0087_windows_test.go:365: mode=pty console=pty case=crlf-one-write result=split reads=0d,0a
+    live_raw_enter_0087_windows_test.go:365: mode=pty console=pty case=lf-after-cr result=split reads=0d,0a
+    live_raw_enter_0087_windows_test.go:365: mode=pty console=pty case=cooked-then-raw result=lf-first cooked=0d0a reads=0a,-,0d
+    live_raw_enter_0087_windows_test.go:365: tmp/live-0087/pty.txt: mode=pty console=pty case=crlf-one-write result=split reads=0d,0a
+    live_raw_enter_0087_windows_test.go:365: tmp/live-0087/pty.txt: mode=pty console=pty case=lf-after-cr result=split reads=0d,0a
+    live_raw_enter_0087_windows_test.go:365: tmp/live-0087/pty.txt: mode=pty console=pty case=cooked-then-raw result=lf-first cooked=0d0a reads=0a,-,0d
+--- PASS: TestLive_RawEnterBytes_0087 (3.95s)
+PASS
+ok  	github.com/maccavelli/go-llmprovider-sdk/llmprovider	3.972s
+```
+
+`tmp/live-0087/pty.txt`, as the probe read it back (the host tooling
+removes its work root after a run that exits 0, so the file is read back
+into the log by the probe itself; PLAN deviation of 2026-11-22):
+
+```text
+mode=pty console=pty case=crlf-one-write result=split reads=0d,0a
+mode=pty console=pty case=lf-after-cr result=split reads=0d,0a
+mode=pty console=pty case=cooked-then-raw result=lf-first cooked=0d0a reads=0a,-,0d
+```
+
+What the lines say, read by the definitions of "What it prints" and "The
+mapping" above, and nothing more: P1, a CR and an LF written in one write,
+reached the reader as two reads, `0d` then `0a` ("split"); P2, the LF
+written 10 ms after the CR, did too, so an LF can reach the reader as a
+byte; P3's line read returned its line through `0d0a`, and the raw read that
+followed began with an `0a`, before the letters (`-`) and their `0d`.
+
+Not yet mapped: the PLAN's step 5 maps the observations when the owner's two
+console files (step 4) are in, so ST20 and ST21 stay open here and the
+Windows branch of Phase 2 is not yet fixed.
