@@ -553,6 +553,11 @@ key.
   prompt's default; every later prompt fails, so a script that runs out of
   answers ends instead of looping. In a hidden entry, Ctrl-U clears what was
   typed and Ctrl-C cancels.
+  A hidden entry ended by Enter on a terminal waits up to 50 ms for the rest
+  of that Enter, so a terminal or a paste that sends CR and LF in two reads
+  no longer answers the next question with its default. Within those 50 ms a
+  second Enter or a Ctrl-J is not an answer of its own, Ctrl-C and Ctrl-Z
+  arrive as plain bytes, and anything read ahead stays with the prompter.
 - A base URL needs `http://` or `https://` and a host, and no user name,
   query or fragment. Plain `http` to a remote host asks first, or, under
   `Options.NoEndpointPrompt`, is used with a warning. A pasted

@@ -104,7 +104,9 @@ type Prompter interface {
 	// notice and asks again, up to three asks in all for each prompt, and the
 	// third blank ends the run with an error. An implementation signals a
 	// cancel with an error, not with an empty value, which is asked for again
-	// (0085-MADR D3).
+	// (0085-MADR D3). An implementation that reads the entry in raw mode,
+	// where Enter can arrive as CR then LF, must not leave that LF for the
+	// next prompt (0087-MADR A6).
 	Secret(prompt string) (string, error)
 
 	// Notify reports progress or a problem. It must not be used to display a

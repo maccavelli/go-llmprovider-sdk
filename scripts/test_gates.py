@@ -334,12 +334,15 @@ class GateSelfTest(unittest.TestCase):
 
     def test_tables_check_architecture_stale(self) -> None:
         """An architecture row names a package its package does not import
-        (0046-MADR D4)."""
-        replace_once(self.tree / "docs/architecture.md",
-                     "`providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, "
-                     "`golang.org/x/term` |",
-                     "`providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, "
-                     "`internal/transport`, `golang.org/x/term` |")
+        (0046-MADR D4). The `wizard` row is found by its first cell, so the
+        plant holds however its import list reads (0087-PLAN, deviation of
+        2026-11-22)."""
+        path = self.tree / "docs/architecture.md"
+        rows = [line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("| `wizard` |")]
+        self.assertEqual(len(rows), 1, "architecture.md: want one `wizard` row")
+        row = rows[0]
+        self.assertTrue(row.endswith(" |"), f"architecture.md: the `wizard` row does not end its last cell: {row!r}")
+        replace_once(path, row, row[: -len(" |")] + ", `internal/transport` |")
         self.assertFails("tables-check", "docs/architecture.md: wizard")
 
     def test_tables_check_r2_disallowed(self) -> None:

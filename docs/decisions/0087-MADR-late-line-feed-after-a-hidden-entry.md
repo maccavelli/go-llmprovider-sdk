@@ -225,6 +225,9 @@ label. The state table cites them by row.
 | OR11 | bytes read ahead that no later prompt reads; Ctrl-C or Ctrl-Z inside the window; a second reader of the terminal (findings 7 and 10) | "Out of scope, stated in the record and docs (Recommended)" | ST38, ST39, ST40 |
 | OR12 | ST42's plant, not caught by `tables-check` (Phase 1, 2026-11-22) | "Amend the plant + claims row (Recommended)" | ST42; "Amendments of 2026-11-22", A-1 |
 | OR13 | the probe as built: four implementation notes (Phase 1, 2026-11-22) | "Accept all four as deviations (Recommended)" | "Amendments of 2026-11-22", A-2; the PLAN's deviations of that date |
+| OR14 | ST22's pseudo-console test, green at the base (Phase 2, 2026-11-22) | "Retarget the Windows test (Recommended)" | ST22; "Amendments of 2026-11-22", A-6 |
+| OR15 | ST32's plant, not caught on a pseudo console (Phase 2, 2026-11-22) | "Unit-test the event filter (Recommended)" | ST32; "Amendments of 2026-11-22", A-7 |
+| OR16 | the gate self-test anchored on the `wizard` row's old text (Phase 2, 2026-11-22) | "Make the anchor robust" | A6a's amendment of this date; ST41 |
 
 ### What option A is
 
@@ -303,7 +306,11 @@ label. The state table cites them by row.
   table rows (architecture's `wizard` row, C39, and api-standards' `wizard`
   row, C36) name `golang.org/x/sys/unix`, plus `golang.org/x/sys/windows`
   on the Windows "seen" branch. The prose lines may still say
-  `golang.org/x/sys`.
+  `golang.org/x/sys`. *(Amended 2026-11-22, OR16, "Make the anchor robust": one more
+  text the edit of architecture's `wizard` row breaks is the gate self-test
+  `test_tables_check_architecture_stale` in `scripts/test_gates.py`, which
+  found that row by its whole old text; it now finds the row by its first
+  cell, with its assertion unchanged; PLAN deviation of this date.)*
 * **A7. Windows (OR3).** The Windows build does no wait until Phase 1's
   probe has run. Its outcome then follows the mapping below with no further
   ruling.
@@ -476,8 +483,8 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST19 | Ctrl-C, Ctrl-U, Backspace and escape sequences during the entry | out of scope | unchanged; the settle runs only after a CR has ended the entry | | |
 | ST20 | Windows console in raw mode: the bytes of an Enter and of a pasted CR+LF, and whether they split across reads | ~~open: awaits live evidence~~ decided (2026-11-22, A-4) | *(2026-11-22: P1 split in a pseudo console, the mapping's first row: "seen"; Windows gets the 50 ms wait by the Windows mechanism, with ST31 and ST32; R1 and R2 never split on a real console)* each observation is mapped to its outcome under "Windows: the probe and what each observation decides" | OR3 (the probe and the mapping) | Phase 1's probe, P1, P2, R1, R2 |
 | ST21 | Windows console: a line-mode answer followed by a hidden entry | ~~open: awaits live evidence~~ decided (2026-11-22, A-4) | *(2026-11-22: R3 began with the letters on both real consoles, the fifth row; P3 began with an LF, the sixth row; both: this record changes nothing)* mapped as ST20 is | OR3 | Phase 1's probe, P3, R3 |
-| ST22 | What the Windows build does | decided | no wait until Phase 1 has run; then "seen": the Windows mechanism with W = 50 ms; "not seen": no wait and the doc sentence | OR3; A7; the mapping's second row (third pass) | "seen" in a pseudo console: `TestSecret_LateLineFeedDropped_Windows_0087` (plant: `readMasked` no longer calls the settle on Windows); "seen" on a real console only: `TestLive_SettleOnConsole_0087`, run by the owner in that console, red at the base and green on the fixed build, the base itself standing as its plant, since a pseudo console cannot make it red; "not seen": `TestSecret_SettleIsBounded_0087` run on Windows (plant: the Windows build waits 5 s) |
-| ST23 | The length of W | decided | 50 ms | OR2 | a `tools/claims.py` row on the constant, added at Phase 2 (plant: the row's text changed, by `tools/claims.py --plants`) |
+| ST22 | What the Windows build does | decided | no wait until Phase 1 has run; then "seen": the Windows mechanism with W = 50 ms; "not seen": no wait and the doc sentence | OR3; A7; the mapping's second row (third pass) | "seen" in a pseudo console: `TestSecret_LateLineFeedDropped_Windows_0087` (plant: `readMasked` no longer calls the settle on Windows; *retargeted 2026-11-22, OR14, A-6: a second hidden entry after the late LF returns `key2` with no "empty value" warning, and `TestSecret_LineModeUnaffected_Windows_0087` guards that a line-mode question is unaffected*); "seen" on a real console only: `TestLive_SettleOnConsole_0087`, run by the owner in that console, red at the base and green on the fixed build, the base itself standing as its plant, since a pseudo console cannot make it red; "not seen": `TestSecret_SettleIsBounded_0087` run on Windows (plant: the Windows build waits 5 s) |
+| ST23 | The length of W | decided | 50 ms | OR2 | a `tools/claims.py` row on the constant, added at Phase 2 (plant: the row's text changed, by `tools/claims.py --plants`) *(2026-11-22: C48now, A-7)* |
 | ST24 | CR then NUL (a telnet client's Enter), the NUL late | decided | the NUL is not dropped: it stays in the reader and reaches the next line-mode prompt untrimmed, as today | OR4; A1 | `TestSecret_LateNulKept_0087`; plant: the settle drops a NUL as well as an LF |
 | ST25 | CR-only line endings on a pipe | out of scope | not a line ending in line mode today; this record changes line reads in no way (option C would) | | |
 | ST26 | Typing ahead before raw mode begins (the terminal echoes it in line mode) | out of scope | not a line-ending case; noted, not examined further | | |
@@ -486,10 +493,10 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST29 | 0081's save-last change | out of scope | changes no prompt and no read | | |
 | ST30 | mcplib's own `TextPrompter` | out of scope | another repository's copy | | |
 | ST31 | Windows, "seen" branch: the settle on a handle that is not a console's (a pipe under `rawSeam0059`) | decided | `PeekConsoleInputW` fails: nothing pending, the entry returned within W | A3 (OR1); OR3 | `TestSecret_SettleIsBounded_0087` run on Windows; plant: a failed `PeekConsoleInputW` treated as an LF pending, so the peek blocks |
-| ST32 | Windows, "seen" branch: only events without a character pending during the wait (the CR's key release, focus, mouse, resize) | decided | no read; the wait goes on to 50 ms and returns | the Windows mechanism (OR3) | `TestSecret_SettleIsBounded_Windows_0087`, on a pseudo console with only the CR written; plant: any pending event treated as a character, so the peek blocks |
+| ST32 | Windows, "seen" branch: only events without a character pending during the wait (the CR's key release, focus, mouse, resize) | decided | no read; the wait goes on to 50 ms and returns | the Windows mechanism (OR3) | `TestSecret_SettleIsBounded_Windows_0087`, on a pseudo console with only the CR written; plant: any pending event treated as a character, so the peek blocks *(amended 2026-11-22, OR15, A-7: the plant is caught by `TestSettle_CharPending_Windows_0087`, over built console records; the pseudo-console test stays as a green bound check, since a pseudo console leaves no event without a character pending)* |
 | ST33 | A paste longer than the reader's 4096-byte buffer whose CR is the last byte of one fill, the LF in the next | decided | on Unix the LF is in the descriptor, `select` sees it, and it is dropped | A1 (OR1) | `TestSecret_LongPasteSplitAtCR_0087`; plant: `readMasked` no longer calls the settle |
 | ST34 | The same on Windows, "seen" branch, where Go's console reader can hold the LF in its own buffer (`readConsole` reads up to 4096 UTF-16 units and hands over 4096 bytes) | out of scope | `PeekConsoleInputW` cannot see Go's buffer, so the LF is kept, as ST4's residual; no test can fill Go's internal buffer at that boundary | | |
-| ST35 | `Prompter.Secret`'s doc comment | decided | one sentence added (A6), after 0085's edit to the same comment | OR5; OR6 | a `tools/claims.py` row on the sentence, added at Phase 2; plant: the sentence removed, by `tools/claims.py --plants` |
+| ST35 | `Prompter.Secret`'s doc comment | decided | one sentence added (A6), after 0085's edit to the same comment | OR5; OR6 | a `tools/claims.py` row on the sentence, added at Phase 2; plant: the sentence removed, by `tools/claims.py --plants` *(2026-11-22: C49now, A-7)* |
 | ST36 | How the settle reaches the terminal, and `readMasked`'s callers | decided | `readMasked(prompt)` is unchanged, and its ten direct test calls compile and pass unchanged; the settle runs only while `secretOnce` holds its raw-mode file in `rawIn`, which it clears before the restore | OR8; A1a | the ten existing direct callers, unchanged (a compile check); `TestSecret_RawFieldCleared_0087` (Unix): a hidden entry on a pipe under `rawSeam0059`, then `readMasked` called directly on the same prompter, ended by a CR while the line-end hook, armed again, writes an LF, then `ans` and an LF follow: the LF is not dropped, since no raw read is running, and `Input` returns its default (plant: `secretOnce` does not clear `rawIn`, so `Input` returns `ans`) |
 | ST37 | A CR within the 50 ms window before a line-mode question (a second Enter, a double tap, a bounced key) | decided | kept; the question does not end on it and waits for one more line: a stated loss | OR10; A4a | `TestSecret_SecondLineEndKept_0087`, subtest `CR then CR` (plant: `readLine` ends a line on a CR) |
 | ST38 | Bytes the settle's peek reads ahead that no later prompt of this `TextPrompter` reads (a hidden entry as the last prompt; `ResolveCredential` returning to a caller that reads the terminal itself) | out of scope | lost to that caller; stated in `TextPrompter`'s doc (OR11) | | |
@@ -841,3 +848,86 @@ probe and what each observation decides":
   `TestSecret_SettleIsBounded_Windows_0087`) are built; the real-console-only
   branch (`TestLive_SettleOnConsole_0087`) does not arise, and the "not seen"
   doc sentence is not written.
+
+**A-5. The evidence index re-grounded at Phase 2's base, `1e3ea5d`
+(2026-11-22).** `python3 -B tools/claims.py
+docs/decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md --rev
+self=1e3ea5d`: 36 of 46 pass, exit 1. The ten rows that moved, and one new
+(C21bnow), each at its line at `1e3ea5d`. The ids end in "now" so that `tools/claims.py` does not
+read them against this record's `self=24756a6`; with plain ids and
+`self=1e3ea5d`, on a scratch copy, 11 of 11 pass, exit 0.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C17now | `InputerContext` leaves no read running | line | `wizard/prompter.go:122` | `with an error, and leaves no read running that could take the user's next` |
+| C21now | the typed API key is a hidden entry, through 0085 D2's `secretKey` | text | `wizard/configure.go:1018` | `key, err := secretKey(ctx, p, d, fmt.Sprintf("Enter your %s API key", d.Label), "enter API key")` |
+| C21bnow | `secretKey` is the one caller of `Secret` | new | `wizard/configure.go:1051` | `value, err := p.Secret(prompt)` |
+| C22now | the pasted credential is a hidden entry, through `secretKey` | text | `wizard/auth.go:617` | `value, err := secretKey(ctx, p, d, fmt.Sprintf("Paste your %s credential", d.Label), "enter credential")` |
+| C24now | the workspace question, with a default | line | `wizard/configure.go:647` | `workspace, wsErr := p.Input(workspacePrompt, workspaceDefault(o, d, workspaces))` |
+| C25now | the model id question when nothing is listed | line | `wizard/configure.go:436` | `manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, d.ID))` |
+| C26now | a refused typed key is asked for again | text (ctx added) | `wizard/configure.go:688` | `key, keyErr := promptAPIKey(ctx, p, d, o)` |
+| C31now | the paste prompt's 50 ms precedent | line | `wizard/auth.go:1096` | `50 * time.Millisecond` |
+| C36now | api-standards R2's `wizard` row names only x/term | line | `docs/guides/api-standards.md:67` | `` `internal/redact`, `golang.org/x/term` `` |
+| C42now | architecture's package graph names only x/term | line | `docs/architecture.md:200` | `` only `wizard` uses anything else, `golang.org/x/term` `` |
+| C43now | architecture's dependency rule | line | `docs/architecture.md:1495` | `` The standard library and `golang.org/x/term` only `` |
+
+The re-checks of "Relation to Sibling Records" and ST28, at `1e3ea5d`:
+`Prompter.Secret` is called only from `secretKey` (`wizard/configure.go:1051`,
+the one non-test call), and `secretKey` only from the two places C21 and C22
+named (`wizard/configure.go:1018`, `wizard/auth.go:617`); 0083's question
+(`askBrowserFlow`, `wizard/auth.go:921`) is asked before a browser sign-in,
+which neither hidden entry precedes. The `TextPrompter` doc comment
+(`wizard/text_prompter.go:32` to `:46`), `secretOnce` (`:414` to `:442`),
+`readMasked`'s CR case (`:484` to `:496`) and `Prompter.Secret`'s doc comment
+as 0085 left it (`wizard/prompter.go:101` to `:108`) hold the text this
+record's change starts from; every `wizard/text_prompter.go` claim (C1 to
+C16, C45) passes unmoved.
+
+**A-6. Where a late LF shows on Windows, and ST22's test retargeted (OR14,
+"Retarget the Windows test (Recommended)", 2026-11-22).** Found at Phase 2's red run: on a
+pseudo console at `1e3ea5d`, after `Secret` ends on the CR, an LF that
+arrives 10 ms later, or in the same write as the CR (P1's shape), does not
+answer the line-mode question that follows: `Input` returned the answer
+written after it, `my-model`, not its default. A line-mode (cooked) console
+read takes a leading LF without ending a line on it. The same late LF before
+a second hidden entry is read by that raw read as an empty entry, and
+`Secret` warns "empty value" once (C14). Both were seen on the Windows
+laptop, on scratch copies, never in the tree ("EXP one write: key=...
+input=my-model"; "EXP second secret: k1ok=true k2=key2 warnings=1"). So on
+Windows the late LF is not silent: its effect is the visible warning of a
+second hidden entry, which a typed key refused and asked for again meets
+(C26). The mapping's outcome (A-4) stands: Windows gets the settle,
+`wizard/settle_windows.go`, which drops the LF before the second entry.
+
+ST22's pseudo-console test is retargeted, by the owner's ruling:
+`TestSecret_LateLineFeedDropped_Windows_0087` writes a key and a CR, an LF
+10 ms later, then a second hidden entry, `key2` and a CR, and wants `key2`
+and no "empty value" warning (red at the base, on the Windows laptop:
+`child: "key=sk-late-lf-0087-keyAA key2=key2 warnings=1"; want "...
+warnings=0"`). The former `Input` form is kept as a guard,
+`TestSecret_LineModeUnaffected_Windows_0087`, green at the base and after,
+that a line-mode question is unaffected on Windows.
+
+**A-7. ST32 pinned by a unit test of the event filter (OR15, "Unit-test the event filter (Recommended)",
+2026-11-22), and the Phase 2 claims rows.** Found at Phase 2's plants: with the
+plant "any pending event treated as a character",
+`TestSecret_SettleIsBounded_Windows_0087` stayed green on the Windows laptop:
+after the raw read takes the CR, a pseudo console leaves no event without a
+character pending, even when the CR is written as a win32-input-mode key-down
+and key-up (a scratch experiment, never in the tree). By the owner's ruling,
+the filter is an unexported pure function of `wizard/settle_windows.go`,
+`charPending`, and `TestSettle_CharPending_Windows_0087` runs it over built
+console records: a key release with its character, a key-down with none, and
+focus, mouse, menu and resize events are false; a key-down with an LF, or
+with a letter after a release, is true. The plant turns it red. The
+pseudo-console test stays, green, as the bound check of ST32's outcome.
+
+The claims rows of ST23 and ST35. The ids end in "now", so that
+`tools/claims.py` does not read them against this record's `self=24756a6`;
+each is checked with a plain id on a scratch commit of the working tree, and
+planted false by `tools/claims.py --plants` ("2 of 2 pass", exit 0; both plants, W changed and the sentence removed, caught, exit 0).
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| C48now | W is 50 ms (ST23, OR2) | `wizard/text_prompter.go:98` | `var settleWait = 50 * time.Millisecond` |
+| C49now | `Prompter.Secret`'s doc names the late LF (ST35, OR5) | `wizard/prompter.go:108` | `where Enter can arrive as CR then LF, must not leave that LF for the` |

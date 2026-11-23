@@ -29,7 +29,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   (0015 D2, and its amendment for 0073)
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
-  `golang.org/x/term`; `wizard`, `llmprovider/x/signin` and
+  `golang.org/x/term` and `golang.org/x/sys` (0087-MADR A6a); `wizard`, `llmprovider/x/signin` and
   `internal/signinflow` may also import the nested module `authcontract`,
   which is itself standard library only (0073-MADR D1). (0015 D2, D13; the table's `internal/wire` rows, 0026
   F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2;
@@ -64,7 +64,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
   | `llmprovider/x/signin` | experimental: one sign-in handle (`Start`), a descriptor's methods in the contract's words (`Methods`), `Credential`, `ErrorKindOf` (0074 D2, D3, D8) and `VerifyKilo`, a Kilo key's check against Kilo's profile (0080 D10) | `llmprovider`, `auth`, `authcontract`, `internal/signinflow`, `internal/redact` |
   | `internal/signinflow` | the step engine under `llmprovider/x/signin` and `wizard` (0074 D3, D4, D6), and Kilo's profile check they share (0080 D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint` |
-  | `wizard` | the configuration flow, over a `Registry` | the above, `authcontract`, `internal/redact`, `golang.org/x/term` |
+  | `wizard` | the configuration flow, over a `Registry` | the above, `authcontract`, `internal/redact`, `golang.org/x/term`, `golang.org/x/sys/unix`, `golang.org/x/sys/windows` |
   | `internal/redact` | redaction | the standard library |
   | `internal/recorderr` | the marker of a client record file over its size bound, shared by `auth` and `internal/signinflow`, in an internal package so that no store of another module can return it (0082 sixth amendment) | the standard library |
   | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |

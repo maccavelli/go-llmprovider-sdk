@@ -205,6 +205,22 @@ tag and its commit without notes; its notes are its section here.
   entry
   ([0085-MADR](docs/decisions/0085-MADR-refuse-an-empty-typed-key.md)
   D1 to D5, D8, D10).
+- `TextPrompter` let the LF of an Enter that reached it as CR then LF, in two
+  reads, answer the question after a hidden entry: the model search was
+  answered blank, a workspace or model question took its default, and a typed
+  key asked again warned of an empty entry. A reviewer of 0085 found it. A
+  hidden entry ended by a CR on a terminal now waits up to 50 ms, still in raw
+  mode, and drops an LF that arrives in that time; the person's next Enter at
+  the next question still answers it with its default (0020-MADR F17). The
+  wait is `select(2)` on Unix and the console's pending key events on
+  Windows, where the LF showed as a second hidden entry's empty-entry
+  warning. `golang.org/x/sys` is now a direct requirement. Consumers:
+  prepare-commit-msg takes the fix by bumping from `v1.29.0`, with no code
+  change; gobble-cli and magic-cli-remote do not use `TextPrompter`; a caller
+  that implements `Prompter` over a raw terminal reads the new
+  `Prompter.Secret` sentence; mcplib's copy is unchanged
+  ([0087-MADR](docs/decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md)
+  A1 to A7).
 
 ### Security
 

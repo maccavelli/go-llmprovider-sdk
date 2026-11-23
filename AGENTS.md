@@ -29,8 +29,8 @@ its MADR.
 
 ## Dependencies
 
-The standard library and `golang.org/x/term` (with its indirect
-`golang.org/x/sys`) only. Any other module needs a MADR in this repository
+The standard library, `golang.org/x/term` and `golang.org/x/sys` (direct since
+0087-MADR, for `wizard`'s settle) only. Any other module needs a MADR in this repository
 first. Never import `github.com/maccavelli/mcplib` or the MCP go-sdk: this
 module exists so that callers can use the providers without either.
 The nested module `authcontract` (0073-MADR) requires nothing; the root

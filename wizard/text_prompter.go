@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/term"
@@ -29,8 +30,8 @@ const revealTail = 4
 // credential's length as it grows.
 const maskGlyphs = 8
 
-// TextPrompter is the zero-toolkit Prompter: stdlib plus golang.org/x/term,
-// which this module already requires. Consumers with
+// TextPrompter is the zero-toolkit Prompter: stdlib plus golang.org/x/term
+// and golang.org/x/sys, which this module already requires. Consumers with
 // a UI toolkit implement Prompter over it instead. It is not safe for
 // concurrent use: two goroutines reading at once race on its reader. Notify
 // may be called while another goroutine waits in a read, as a sign-in does.
@@ -44,6 +45,17 @@ const maskGlyphs = 8
 // It does not implement InputerContext: a read of stdin cannot be given up,
 // so after a browser sign-in that the loopback finished, the wizard asks for
 // the Enter that ends the paste prompt (0057-MADR D3).
+//
+// On a terminal, a hidden entry ended by a CR waits up to 50 ms, still in raw
+// mode, and drops an LF that arrives in that time, so a terminal or a paste
+// that sends CR+LF for one Enter, the LF in a later read, does not answer the
+// next question; a later LF, such as the person's next Enter, answers it as
+// before. A CR or a Ctrl-J typed within the 50 ms is not an Enter of its own;
+// a Ctrl-C or Ctrl-Z typed within it arrives as a plain byte; bytes read
+// ahead belong to the prompter, so a caller that reads the terminal itself
+// afterwards does not see them; and a second reader of the same terminal is
+// not supported. On Windows the wait is on the console's pending key events
+// (0087-MADR A1 to A7).
 type TextPrompter struct {
 	// In is the input source. When it is an *os.File attached to a terminal,
 	// Secret uses raw mode for live masking; otherwise it degrades to a plain
@@ -69,7 +81,21 @@ type TextPrompter struct {
 	// answers its prompt's default, which scripts rely on; a read after it is
 	// errExhausted, so a loop that asks again ends (0020-MADR F6).
 	eof bool
+
+	// rawIn is the terminal secretOnce holds in raw mode, set only while its
+	// raw read runs, so that only that read settles its Enter (0087-MADR A1a).
+	rawIn *os.File
+
+	// peekErr is a read error the settle's peek met. bufio.Reader hands an
+	// error over once, so it is kept here and returned by the next read
+	// (0087-MADR A3).
+	peekErr error
 }
+
+// settleWait is how long a hidden entry ended by a CR waits, in raw mode, for
+// the LF of the same Enter (0087-MADR A1, OR2). A variable, so a test can
+// lengthen it.
+var settleWait = 50 * time.Millisecond
 
 // errExhausted is a read after the input ended. It wraps io.EOF.
 var errExhausted = fmt.Errorf("wizard: input exhausted: %w", io.EOF)
@@ -152,6 +178,12 @@ func (p *TextPrompter) readLine() (string, error) {
 	if p.eof {
 		return "", errExhausted
 	}
+	if err := p.takePeekErr(); err != nil {
+		if errors.Is(err, io.EOF) {
+			p.eof = true
+		}
+		return "", err
+	}
 	line, err := p.bufReader().ReadString('\n')
 	trimmed := strings.TrimSpace(line)
 	if errors.Is(err, io.EOF) {
@@ -162,6 +194,13 @@ func (p *TextPrompter) readLine() (string, error) {
 		return "", err
 	}
 	return trimmed, nil
+}
+
+// takePeekErr returns and clears the error the settle's peek kept.
+func (p *TextPrompter) takePeekErr() error {
+	err := p.peekErr
+	p.peekErr = nil
+	return err
 }
 
 // readFailed reports whether a readLine error ends the prompt: every error
@@ -436,6 +475,10 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 			p.Notify(LevelError, "failed to restore terminal mode: %v", rErr)
 		}
 	}()
+	// Only this raw read settles its Enter; rawIn is cleared before the
+	// restore above runs (0087-MADR A1a).
+	p.rawIn = f
+	defer func() { p.rawIn = nil }()
 
 	p.printf("%s: ", prompt)
 	return p.readMasked(prompt)
@@ -457,6 +500,9 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 func (p *TextPrompter) readMasked(prompt string) (string, error) {
 	if p.eof {
 		return "", errExhausted
+	}
+	if err := p.takePeekErr(); err != nil {
+		return p.endMasked(err)
 	}
 	r := p.bufReader()
 	var entered []rune
@@ -484,15 +530,24 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 		case c == '\r' || c == '\n':
 			// Enter sends \r. A paste may follow it with a \n, read with
 			// it: drop that, or it answers the next prompt. A \n not yet
-			// read is not waited for: it is the user's next Enter.
-			if c == '\r' && r.Buffered() > 0 {
-				if next, err := r.Peek(1); err == nil && next[0] == '\n' {
-					if _, err := r.Discard(1); err != nil {
-						return p.endMasked(err)
+			// read is waited for briefly, in raw mode, by settle; one that
+			// comes later is the user's next Enter (0087-MADR A1, A2).
+			settle := false
+			if c == '\r' {
+				if r.Buffered() > 0 {
+					if next, err := r.Peek(1); err == nil && next[0] == '\n' {
+						if _, err := r.Discard(1); err != nil {
+							return p.endMasked(err)
+						}
 					}
+				} else {
+					settle = true
 				}
 			}
 			p.printf("\r\n")
+			if settle {
+				p.settle(r)
+			}
 			return strings.TrimSpace(string(entered)), nil
 		case c == 3: // Ctrl-C
 			p.printf("\r\n")
@@ -518,6 +573,32 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 		// once the reader has caught up.
 		if r.Buffered() == 0 {
 			redraw()
+		}
+	}
+}
+
+// settle runs after a raw entry ended on a CR with nothing read after it:
+// while secretOnce holds the terminal in raw mode, it waits up to settleWait
+// for the input to become readable, and then peeks one byte, dropping it if
+// it is an LF, the rest of the same Enter; any other byte stays for the next
+// prompt. A check that fails or cannot be made is nothing pending, and an
+// error the peek meets is kept for the next read (0087-MADR A1 to A5).
+func (p *TextPrompter) settle(r *bufio.Reader) {
+	if p.rawIn == nil {
+		return
+	}
+	ready, err := pendingWithin(p.rawIn, settleWait)
+	if err != nil || !ready {
+		return
+	}
+	next, err := r.Peek(1)
+	if err != nil {
+		p.peekErr = err
+		return
+	}
+	if next[0] == '\n' {
+		if _, err := r.Discard(1); err != nil {
+			p.peekErr = err
 		}
 	}
 }

@@ -229,7 +229,8 @@ Starts on the commit that carries 0081's, 0085's and 0083's code (the base).
 
    | Test | Row | What it does | At the base | Plant (on the fixed code) |
    | :--- | :--- | :--- | :--- | :--- |
-   | `TestSecret_LateLineFeedDropped_Windows_0087` | ST22 ("seen") | On a pseudo console, as Phase 1's probe starts its child: a key and a CR, then an LF 10 ms later, then `my-model` and a CR; the child's `Input` returns `my-model`. | red | `readMasked` no longer calls the settle on Windows |
+   | `TestSecret_LateLineFeedDropped_Windows_0087` | ST22 ("seen") | ~~On a pseudo console, as Phase 1's probe starts its child: a key and a CR, then an LF 10 ms later, then `my-model` and a CR; the child's `Input` returns `my-model`.~~ *(Retargeted 2026-11-22, OR14, MADR A-6.)* On a pseudo console, as Phase 1's probe starts its child: a key and a CR, then an LF 10 ms later, then a second hidden entry, `key2` and a CR; the child's second `Secret` returns `key2`, and no "empty value" warning is printed. | red | `readMasked` no longer calls the settle on Windows |
+   | `TestSecret_LineModeUnaffected_Windows_0087` | ST22 (a guard; added 2026-11-22, OR14) | The former form: a key and a CR, an LF 10 ms later, then `my-model` and a CR at a line-mode question with a default; the child's `Input` returns `my-model`. | green | none: it pins that a line-mode read takes a leading LF on Windows, at the base and after |
    | `TestSecret_SettleIsBounded_Windows_0087` | ST32 | On a pseudo console: a key and a CR only (so only the CR's key release is pending); `Secret` returns within 1 s, waited for at most 5 s. | green | any pending console event treated as a character, so the peek blocks |
 
    *(2026-11-22: does not arise; Phase 1 mapped by the first row, MADR
@@ -699,3 +700,270 @@ i type the letter the terminal ends, i do not have to press enter"). The
 request and the steps' words are to say "type one letter" only. No code was
 changed in this step; the mapping does not depend on it (R3's row reads the
 raw read's first byte).
+
+### 2026-11-22: Phase 2, pass 1 (stopped at step 3: a Windows red that cannot be red at the base)
+
+Base: `1e3ea5d` (it carries 0081's, 0085's and 0083's code, and Phase 1).
+Steps 1 to 3 ran; step 3's Windows red run hit the stop condition "a red
+test cannot be red at the base without a production change". No production
+file was changed: steps 4 to 8 have not run.
+
+**Step 1, re-grounding.** `tools/claims.py` on the MADR with
+`--rev self=1e3ea5d`: 36 of 46 pass; the ten rows that moved are re-pointed
+in the MADR, "Amendments of 2026-11-22", A-5 (11 of 11 pass with plain ids
+on a scratch copy). Every `wizard/text_prompter.go` row holds unmoved; C21,
+C22 and C26 moved with changed text (0085's `secretKey`, and `ctx`); the
+rest moved lines only. ST28's and C46's re-checks hold (A-5).
+
+**Step 2, the tests written** (no production file changed):
+`wizard/late_lf_0087_test.go` (every platform), `wizard/late_lf_0087_unix_test.go`
+(`//go:build unix`), `wizard/late_lf_0087_linux_test.go` and
+`wizard/late_lf_0087_darwin_test.go` (ST14's request per GOOS, each holding
+`TestSecret_NoReadLeftBehind_0087`, which calls the Unix file's
+`noReadLeftBehind0087`), `wizard/late_lf_0087_windows_test.go` (the two
+pseudo-console tests). ST15's provider and model, chosen at the base: Claude
+(`providerIdx` + 1), and `claude-opus-4-8`, the last of
+`catalog.Static(ProviderClaude)`; the first recommended is
+`claude-haiku-5-5`.
+
+**Step 3, the red run at the base** (this Mac, `tools/redgreen.py --rev
+1e3ea5d`, the five files, the two `settleWait` tests dropped):
+
+* `--expect fail`, "4 of 4 fail as expected", exit 0, each on its assertion:
+
+  ```text
+  late_lf_0087_unix_test.go:38: Input after a late LF = "saved-model", <nil>; want my-model: the late LF answered with the default
+  late_lf_0087_unix_test.go:51: Select after a late LF = 0, <nil>; want 2
+  late_lf_0087_unix_test.go:63: Confirm after a late LF = true, <nil>; want false
+  late_lf_0087_unix_test.go:78: the late LF was read as an empty entry: "Key: \r\nKey: \r\nwarning: empty value; please try again\nKey: \r\n"
+  late_lf_0087_unix_test.go:144: second Input = "saved-model", <nil>; want ans
+  late_lf_0087_unix_test.go:253: Input after a paste split at its CR = "saved-model", <nil>; want my-model
+  late_lf_0087_unix_test.go:317: Model = "claude-haiku-5-5"; want "claude-opus-4-8", the model searched for: the late LF answered the search blank
+  ```
+
+* `--expect pass` on the eleven new guards and the four existing tests
+  (`TestTextPrompter_MaskedEntry`, `TestTextPrompter_EnterAfterMaskedEntryIsKept`,
+  `TestSecret_RawMode_0059`, `TestTextPrompterRefusesBlank_0085`): "15 of 15
+  pass as expected", exit 0.
+* **Windows, the Windows laptop through `run-on-host --need windows`**, a
+  scratch clone of `1e3ea5d` with the five test files: exit 0, and every
+  test passed, `TestSecret_LateLineFeedDropped_Windows_0087` included
+  (`--- PASS ... (0.44s)`), which the PLAN marks red.
+
+#### Deviation, 2026-11-22: ST22's pseudo-console test cannot be red at the base (open, with the owner)
+
+*(Annotated 2026-11-22: ruled, OR14, "Retarget the Windows test (Recommended)"; see "Phase 2, pass 1, continued" below.)*
+
+* **Found.** On a pseudo console at `1e3ea5d`, the child's `Secret` ends on
+  the CR and the LF written 10 ms later does not answer the line-mode
+  question after it: `Input` returned `my-model`, the answer, not its
+  default. The test is green at the base, so its plant ("`readMasked` no
+  longer calls the settle on Windows") could not be caught by it either.
+* **Scratch experiments, on the same clone with one extra test file, never
+  in the tree** (the Windows laptop, exit 0):
+  * the key's CR and LF in one write (P1's shape), then `my-model` and a
+    CR: "EXP one write: key=... input=my-model": the line-mode question is
+    not answered by the LF either;
+  * a CR, an LF 10 ms later, then a second hidden entry, `key2` and a CR:
+    "EXP second secret: k1ok=true k2=key2 warnings=1": the late LF is read
+    by the second raw read as an empty entry, and `Secret` warns "empty
+    value" once (ST3's `Secret` subtest, visible, C14).
+* **What it means for the MADR's mapping.** P1's split is real, but on a
+  pseudo console a line-mode (cooked) read takes a leading LF without ending
+  a line on it, so the silent defect (a question answered with its default)
+  does not occur on Windows; only a second hidden entry's visible warning
+  does. The mapping's first row assumed the pseudo-console test of ST22
+  would be red at the base.
+* **Not done, pending the ruling:** steps 4 to 8 (the code, green and plants,
+  docs, checks). The tree holds the five test files only; nothing staged.
+
+### 2026-11-22: Phase 2, pass 1, continued (stopped at step 5: ST32's plant not caught)
+
+**The ruling.** OR14, the owner, relayed by the coordinator: "Retarget the
+Windows test (Recommended)". Recorded in the MADR (OR14, ST22's row, A-6)
+and in step 2's Windows table above.
+
+**Step 3, the retargeted test red at the base** (the Windows laptop, a
+scratch clone of `1e3ea5d` with the test files), exit 1:
+
+```text
+late_lf_0087_windows_test.go:252: child: "key=sk-late-lf-0087-keyAA key2=key2 warnings=1"; want "key=sk-late-lf-0087-keyAA key2=key2 warnings=0": the late LF was read as an empty second entry
+--- FAIL: TestSecret_LateLineFeedDropped_Windows_0087 (0.54s)
+--- PASS: TestSecret_LineModeUnaffected_Windows_0087 (0.44s)
+--- PASS: TestSecret_SettleIsBounded_Windows_0087 (0.23s)
+```
+
+**Step 4, the code:** `wizard/text_prompter.go` (`rawIn`, `peekErr`,
+`settleWait`, `settle`, the CR case, `takePeekErr` in `readLine` and
+`readMasked`, the `TextPrompter` doc comment), `wizard/settle_unix.go`,
+`wizard/settle_other.go` (`!unix && !windows`), `wizard/settle_windows.go`
+(PeekConsoleInputW, waits in 5 ms slices), `go.mod` (`golang.org/x/sys`
+direct; `go.sum` unchanged). `GOOS=darwin`, `linux`, `freebsd` and
+`windows` `go vet ./wizard`: exit 0 each (`CGO_ENABLED=0` for the two
+cross builds).
+
+**Step 5, green and plants.**
+
+* `tools/redgreen.py --expect pass` on the working tree, every test of the
+  table, the two dropped ones and the four existing guards: "21 of 21 pass
+  as expected", exit 0.
+* The Windows laptop, `go test ./wizard -count=1 -v -run "_0087$"` then
+  `go test ./wizard -count=1`: exit 0; the three Windows tests pass.
+* Plants, each one change on a scratch clone by `tools/plant.py`, each
+  caught by its test failing (21 on this Mac, all caught; 3 on the Windows
+  laptop, 2 caught):
+
+  | Plant | Test that failed | Its line |
+  | :--- | :--- | :--- |
+  | `readMasked` no longer calls the settle | `LateLineFeedDropped_0087`, `LongPasteSplitAtCR_0087`, `Configure_SearchAfterLateLineFeed_0087` | `Input after a late LF = "saved-model" ...` |
+  | the check made once with no wait | `LateLineFeedDuringWait_0087` | `Input after an LF 10 ms into the wait = "saved-model"` |
+  | the settle runs whatever the reader holds | `NoWaitWhenNotNeeded_0087/CR+LF_together` | `Secret took 5.004757667s; want under 2 s` |
+  | the settle runs after an LF | `NoWaitWhenNotNeeded_0087/LF-ended` | `Secret took 5.002025834s` |
+  | option B's rule | `NextEnterKept_0087`, `TestTextPrompter_EnterAfterMaskedEntryIsKept` | `Input after a later Enter = "ans"` |
+  | the settle discards whatever byte it peeks | `TypeAheadKept_0087` | `Select after typed-ahead 3 = 0` |
+  | a blocking `Peek` in place of the bounded wait | `SettleIsBounded_0087` | `Secret did not return within 5 s` |
+  | the settle on a goroutine with no bound | `NoReadLeftBehind_0087` | `the pipe holds 0 byte(s) 200 ms after a write` |
+  | `secretOnce` does not clear `rawIn` | `RawFieldCleared_0087` | `Input = "ans" ...; want its default` |
+  | the settle drops every CR and LF it finds | `SecondLineEndKept_0087` | `first Input = "ans"`; `0 empty-value warnings; want 1` |
+  | `readLine` ends a line on a CR | `SecondLineEndKept_0087` | `Input = "saved-model" ...; want ans` |
+  | the settle also runs after an LF and drops a CR | `LineFeedEndedEntry_0087/raw_mode` | `0 empty-value warnings; want 1` |
+  | the settle marks the input ended | `EndOfInputWhileSettling_0087` | `Input at the end = "", wizard: input exhausted: EOF` |
+  | the settle returns its check's error as `Secret`'s | `SettleCheckFails_0087/closed` and `/descriptor_1100` | `wizard: descriptor out of select's range` |
+  | the `FD_SETSIZE` check removed | `SettleCheckFails_0087/descriptor_1100` | a panic in the test (`FdSet` index) |
+  | `readLine` stops trimming | `PipeCRLF_0087` | `Secret = "sk-late-lf-0087-keyAA\r\n"` |
+  | `readLine` unreads the LF it read | `AfterLineAnswer_0087` | `an empty-value warning after a line answer` |
+  | the settle drops a NUL as well as an LF | `LateNulKept_0087` | `Input = "ans" ...; want the NUL and ans` |
+  | the buffered-LF discard removed | `TestTextPrompter_MaskedEntry` | `Select after a CRLF entry = 0` |
+  | the refused path's line read not trimmed | `TestSecret_RawMode_0059/raw_mode_refused` | `secretOnce = "sk-raw-0059-keyAA\n"` |
+  | `Secret` returns an empty entry | `TestTextPrompterRefusesBlank_0085` | `warnings 0` |
+  | the Windows settle never sees a pending character (Windows) | `LateLineFeedDropped_Windows_0087` | `warnings=1; want ... warnings=0` |
+  | a failed `PeekConsoleInputW` treated as an LF pending (Windows) | `SettleIsBounded_0087` | `Secret did not return within 5 s` |
+  | any pending console event treated as a character (Windows) | `SettleIsBounded_Windows_0087` | **NOT CAUGHT (exit 0)** |
+
+* **Test fixed within the pass.** The first run of the plant "the settle drops
+  every CR and LF it finds" was caught only by `go test`'s 10-minute timeout:
+  its second `Input` waited for a line that never came. The subtest
+  `CR+LF then CR+LF` now closes the pipe's writer after `Secret`, so a
+  prompt that would wait meets the end. Seen again: green on the tree, red
+  at the base (`late_lf_0087_unix_test.go:149: second Input = "saved-model",
+  <nil>; want ans`), and the plant caught at once.
+
+#### Deviation, 2026-11-22: ST32's plant is not caught on a pseudo console (open, with the owner)
+
+*(Annotated 2026-11-22: ruled, OR15, "Unit-test the event filter (Recommended)"; see "Phase 2, pass 1, finished" below.)*
+
+* **Found.** `TestSecret_SettleIsBounded_Windows_0087` stays green with the
+  plant "any pending console event treated as a character": after the
+  child's raw read takes the CR, no event without a character is left
+  pending, so the plant's filter never meets one. The test's premise, "only
+  the CR's key release is pending", does not hold on a pseudo console.
+* **Scratch experiment** (two scratch clones of the working tree, the
+  Windows laptop, never in the tree): the CR written as win32-input-mode key
+  records, a key-down then a key-up (`ESC [13;28;13;1;0;1_` and
+  `ESC [13;28;13;0;0;1_`): the plain clone passes (the key-down reached the
+  reader as the CR), and the planted clone passes too: the key release is
+  not left pending either.
+* **State of the tree.** The code and every other test are in place and
+  green on this Mac and the Windows laptop; the Markdown docs of step 6 are
+  edited (`docs/architecture.md`, `docs/guides/api-standards.md`, `AGENTS.md`,
+  `README.md`, `CHANGELOG.md`); not done, pending the ruling: the
+  `Prompter.Secret` sentence, the claims rows of ST23 and ST35, ST41's plant,
+  the Linux and `-race` runs, `make pre-add-check`, `go test ./...`, and the
+  docs gates. Light gates now: `make dep-check`, `make api-check`
+  (0 incompatible), `make tables-check`, `go mod tidy -diff`, and
+  `GOOS=windows go vet -tags live_gateways ./...`, exit 0 each.
+
+### 2026-11-22: Phase 2, pass 1, finished (the settle built and checked)
+
+**The ruling.** OR15, the owner, relayed by the coordinator: "Unit-test the
+event filter (Recommended)". The deviation of ST32 above is closed by it:
+`charPending`, an unexported pure function of `wizard/settle_windows.go`,
+holds the filter, and `TestSettle_CharPending_Windows_0087` (in
+`wizard/late_lf_0087_windows_test.go`) runs it over built console records;
+`TestSecret_SettleIsBounded_Windows_0087` stays as ST32's green bound check.
+Recorded in the MADR (OR15, ST32's row, A-7).
+
+**ST32's plant on the final tree** (the Windows laptop, `tools/plant.py`):
+"any pending console event treated as a character", caught (exit 1):
+
+```text
+late_lf_0087_windows_test.go:349: key-up with a character: charPending = true; want false
+late_lf_0087_windows_test.go:349: key-down with no character: charPending = true; want false
+late_lf_0087_windows_test.go:349: focus: charPending = true; want false
+--- FAIL: TestSettle_CharPending_Windows_0087 (0.00s)
+plant: all 1 plant(s) caught
+```
+
+The other two Windows plants, re-run on the final tree since the refactor
+touched their file: ST22's caught (`warnings=1; want ... warnings=0`), ST31's
+caught (`Secret did not return within 5 s`). The 21 plants on this Mac are
+unaffected (no file they change moved) and stand as quoted above.
+
+**Docs (step 6), done:** `TextPrompter`'s doc comment (its first line names
+`golang.org/x/sys`; the settle and its stated losses); `Prompter.Secret`'s
+A6 sentence, after 0085's; `docs/architecture.md` (line 11, the `wizard` row,
+which names `golang.org/x/sys/unix` and `golang.org/x/sys/windows`, the
+package graph's line, the dependency rule, and the `TextPrompter` bullet);
+`docs/guides/api-standards.md` (R2's text and the `wizard` row); `AGENTS.md`
+"Dependencies"; `README.md`'s `TextPrompter` bullet; `CHANGELOG.md`
+`[Unreleased]` **Fixed**, with the consumer note. ST23's and ST35's claims
+rows are the MADR's C48now and C49now (A-7): "2 of 2 pass" with plain ids on
+a scratch commit, and both plants caught. ST41's plant, on a scratch clone:
+caught, `make tables-check` exit 2, "check-tables: docs/architecture.md:
+wizard: imports golang.org/x/sys/unix, which its row does not name".
+`docs/guides/migrating-from-mcplib.md`: unchanged, as planned.
+
+**A lint fix within the pass.** The first `make pre-add-check` failed on
+gosec G103 at the `PeekConsoleInputW` call in `wizard/settle_windows.go`
+(two `unsafe.Pointer` arguments). The call now carries one specific
+`//nolint:gosec` with its reason, as `llmprovider/command_token.go` and
+others do; the second run passed.
+
+**Checks** (exit statuses captured directly):
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the ten Go files>"` | this Mac | 2, then 0 after the G103 fix ("10 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)") |
+| `run-heavy -- go test ./...` | this Mac | 0 |
+| `run-on-host --need windows -- sh -c 'go test ./wizard -count=1 -v -run "_0087$" && go test ./wizard -count=1'` | the Windows laptop | 0 (eleven 0087 tests pass), run on the final tree |
+| `run-on-host --need linux --race -- sh -c 'go test -race ./wizard -count=1 && go test ./wizard -count=1 -v -run "_0087$"'` | the Linux machine (not WSL) | 0 |
+| `tools/redgreen.py green.json --expect pass` | this Mac | 0 (21 of 21) |
+| `GOOS=darwin`, `linux`, `freebsd`, `windows` `go vet ./wizard` | this Mac | 0 each |
+| `GOOS=windows go vet -tags live_gateways ./...` | this Mac | 0 |
+| `make dep-check`, `tables-check`, `api-check`, `docs-check`, `links-check`, `markdownlint`, `changelog-check`, `disclosure-check` | this Mac | 0 each |
+| `go mod tidy -diff` | this Mac | 0 |
+| `tools/apidiff.py v1.31.0` | this Mac | 0; lists only the siblings' additions (0080's `VerifyKilo`, 0084's two, 0083's two) |
+| `tools/apidiff.py 1e3ea5d` | this Mac | 0, nothing listed |
+| `make records-check` | this Mac | 0 |
+| `tools/claims.py` on 0087-MADR | this Mac | 0 (46 of 46) |
+| `tools/recordlint.py --changed`, `tools/denyscan.py --changed` | this Mac | 0 each |
+
+Exit criterion: no blocker; every decided row tested (each row's test green,
+the red ones seen red at the base); every plant caught. Phase 2 is done in
+one pass. Not done here: the commit (the owner's); Phase 3 (the release).
+The follow-up of 2026-11-22 (the R3 request's words in the probe and the
+owner's steps) stays open: the probe file is not in Phase 2's file list.
+
+#### Deviation, 2026-11-22: the gate self-test anchored on the `wizard` row's old text (OR16)
+
+* **Found** by the coordinator's full-CI gate on this pass's tree: `make
+  gate-selftest` failed in `scripts/test_gates.py`
+  `test_tables_check_architecture_stale`, which planted its break by
+  replacing the `wizard` row's whole old import list: "architecture.md:
+  '`providers/openai`, `authcontract`, `internal/signinflow`,
+  `internal/redact`, `golang.org/x/term` |' found 0 times". This pass's
+  correct edit of that row (A6a) removed the text it anchored on.
+  `gate-selftest` was not in this pass's gate list.
+* **Ruled** by the owner, relayed by the coordinator, "Make the anchor robust":
+  the self-test finds the `wizard` row by its first cell and plants its break
+  (a stale `internal/transport` appended to the row's last cell) however the
+  import list reads; its assertion, `tables-check` failing with
+  "docs/architecture.md: wizard", is unchanged. `scripts/test_gates.py` is a
+  gate script another record owns (0046-MADR D4's self-test); this is the one
+  change made to it. Noted in the MADR (OR16, A6a's amendment).
+* **Seen:** the rewritten test alone passes (`python3 -B -m unittest
+  scripts/test_gates.py -k test_tables_check_architecture_stale`, exit 0,
+  "OK"); with `scripts/check_tables.py`'s stale report disabled on a scratch
+  clone (`if stale:` made `if stale and False:`, by `tools/plant.py`), it
+  fails: "AssertionError: 0 != 1 : tables-check exit 0, want 1", caught.
+  `run-heavy -- make gate-selftest`: exit 0, "Ran 70 tests", "OK".

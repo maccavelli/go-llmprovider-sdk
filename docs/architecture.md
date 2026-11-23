@@ -8,8 +8,8 @@ argument, and [README.md](README.md) indexes them.
 
 The Go module `github.com/maccavelli/go-llmprovider-sdk`: a library for calling
 LLM providers and authenticating to them. It has no binary. It requires Go
-1.27.4, `golang.org/x/term` and, indirectly, `golang.org/x/sys`, and its own
-nested module `authcontract` (below).
+1.27.4, `golang.org/x/term` and `golang.org/x/sys`, and its own nested module
+`authcontract` (below).
 
 The code came from `mcplib` `v1.6.0` with its history. Its API is the v1 API
 that [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
@@ -151,7 +151,7 @@ standard library is left out.
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8); a session's consent answers (`OAuthSession.Consents`, `Consent`, `StoredConsent`, `SetConsent`) and the issued-client record (`ClientRecord`, `ClientStore`, `ChatGPTPlanOptions.ClientID`) (0075-MADR D2, D3, D5, D7) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/recorderr`, `internal/ownerperm`, `internal/filelock` |
 | `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; `VerifyKilo`, one read of Kilo's profile that checks a Kilo key, which a caller of its own sign-in uses where the wizard does (0080-MADR D10); its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
 | `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure`; `VerifyKilo`, `KiloVerdict`, `Refused`, `CheckKiloOptions` and `DefaultCheckLimit`, Kilo's profile check, the refusal rule and the limit the wizard's checks and `signin.VerifyKilo` share (0080-MADR D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint` |
-| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term` |
+| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term`, `golang.org/x/sys/unix`, `golang.org/x/sys/windows` |
 | `internal/recorderr` | `Oversize`, the error type that marks a client record file over its size bound as corrupt: `auth`'s `FileTokenStore.LoadClient` returns it and `internal/signinflow`'s `Undecodable` matches it with `errors.As`; it is in an internal package so that no store of another module can return it (0082-MADR sixth amendment, F-1) | the standard library |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -197,7 +197,8 @@ standard library is left out.
 ## Package graph
 
 Each package imports only packages on a lower row. Every package may also use
-the standard library; only `wizard` uses anything else, `golang.org/x/term`, and
+the standard library; only `wizard` uses anything else, `golang.org/x/term` and
+`golang.org/x/sys`, and
 `wizard`, `llmprovider/x/signin` and `internal/signinflow` may also import the
 nested module `authcontract`.
 
@@ -1364,7 +1365,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   than erasing the line, ignores a lone Escape, clears on Ctrl-U, and
   cancels on Ctrl-C with an error matching `context.Canceled`. A cursor or
   function key, or a paste's bracket marker, adds nothing, even when its
-  escape sequence is split across reads (0059-MADR W4).
+  escape sequence is split across reads (0059-MADR W4). A hidden entry ended
+  by a CR, on a terminal, waits up to 50 ms in raw mode for the LF of the
+  same Enter and drops it, so a CR+LF Enter or paste whose LF comes in a
+  later read does not answer the next question; a later LF, such as the
+  next Enter, still does. The wait is `select(2)` on Unix and the console's
+  pending key events on Windows, and it reads nothing after `Secret`
+  returns (0087-MADR A1 to A7).
 - **Fallbacks.** The fallback round preselects the saved fallbacks it
   offers. A saved one that the menu does not recommend is offered too,
   after the recommendations, marked "saved", so a blank answer keeps it
@@ -1492,8 +1499,8 @@ its logout with `Options.Identity`, which a `WithClientInfo` in
 
 ## The dependency rule
 
-The standard library and `golang.org/x/term` only, and the nested module
-`authcontract`, which is standard library only; any other module needs a
+The standard library, `golang.org/x/term` and `golang.org/x/sys` only, and the
+nested module `authcontract`, which is standard library only; any other module needs a
 MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 ## Tooling
