@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-16
+status: complete
+date: 2026-11-23
 associated-madr: "0080-MADR-verify-a-kilo-credential-through-its-profile.md"
 decision-makers: repository owner
 ---
@@ -1679,3 +1679,9 @@ below it. The staged tree is the first staging with the reviews' fixes.
 ### The release preparation (2026-11-22)
 
 `CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This is the release phase: the tag carries this record's entry with 0081 to 0085 and 0087 (the owner's ruling "Five now; 0088+0089 next"); 0088 and 0089 are not in it.
+
+### The release completed (2026-11-23)
+
+Tag `v1.32.0` (annotated, the owner's) on `f86933c`, pushed 2026-11-23. Tag CI run 45195957872: completed, success. `python3 -B tools/consumer.py v1.32.0`: exit 0, "consumer: 17 packages linked", "consumer: every step passed". `python3 -B tools/offline.py v1.32.0`: exit 0, "caught: no caller layer", "offline: every step passed". The GitHub Release `v1.32.0` was published 2026-11-23T14:46:16Z by the release workflow, not a draft, not a prerelease, its body the `v1.32.0` changelog section (verified by the coordinator, 2026-11-23). Not complete: the PLAN's Phase 5 step 4 also asks for the R53 step, the deletion of the Release that falls to seventh, "as `v1.31.0`'s was". At this note `gh release list` shows seven Releases (`v1.32.0` down to `v1.26.1`), so `v1.26.1`'s Release is not yet deleted (the tag and its changelog section stay). That deletion is destructive and waits for the owner's word. Status stays `in-progress`; it goes to `complete` once that Release is deleted and recorded here.
+
+*(R53 step done (2026-11-23), by the owner's word, relayed by the coordinator: "Yes, I'll run it (Recommended)".)* The owner ran `gh release delete v1.26.1 --repo maccavelli/go-llmprovider-sdk --yes` (no `--cleanup-tag`). `gh release list` then showed six Releases, `v1.32.0` to `v1.27.0`, and `git ls-remote --tags origin v1.26.1` still listed the tag, so the module version stays reachable. With this, every step of Phase 5 is done and this PLAN is complete.

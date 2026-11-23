@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-17
+status: complete
+date: 2026-11-23
 associated-madr: "0085-MADR-refuse-an-empty-typed-key.md"
 decision-makers: repository owner
 ---
@@ -1729,3 +1729,7 @@ late line feed, ST69).
 ### The release preparation (2026-11-22)
 
 `CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Changed` and `Fixed`.
+
+### The release completed (2026-11-23)
+
+Tag `v1.32.0` (annotated, the owner's) on `f86933c`, pushed 2026-11-23. Tag CI run 45195957872: completed, success. `python3 -B tools/consumer.py v1.32.0`: exit 0, "consumer: 17 packages linked", "consumer: every step passed". `python3 -B tools/offline.py v1.32.0`: exit 0, "caught: no caller layer", "offline: every step passed". The GitHub Release `v1.32.0` was published 2026-11-23T14:46:16Z by the release workflow, not a draft, not a prerelease, its body the `v1.32.0` changelog section (verified by the coordinator, 2026-11-23). Release phase complete. This PLAN's status is set to `complete` (`tools/records.py status`, 2026-11-23). 0088 and 0089 are not in this release.

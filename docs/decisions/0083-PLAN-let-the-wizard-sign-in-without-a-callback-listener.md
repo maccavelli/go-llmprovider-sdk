@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-17
+status: complete
+date: 2026-11-23
 associated-madr: "0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md"
 decision-makers: repository owner
 ---
@@ -1784,3 +1784,7 @@ follow-up (the "input that has ended" wording, ST3 and ST4) is done too. Done: M
 `noListenerAdvice` and `TestPortsAdviceOtherFailures_0083`'s pinned string changed together, red first by `tools/redgreen.py`
 and two plants caught; the CHANGELOG entry and the `ConfigureLLM` doc corrected. The third follow-up (D5's paste prompt) is
 dropped.
+
+### The release completed (2026-11-23)
+
+Tag `v1.32.0` (annotated, the owner's) on `f86933c`, pushed 2026-11-23. Tag CI run 45195957872: completed, success. `python3 -B tools/consumer.py v1.32.0`: exit 0, "consumer: 17 packages linked", "consumer: every step passed". `python3 -B tools/offline.py v1.32.0`: exit 0, "caught: no caller layer", "offline: every step passed". The GitHub Release `v1.32.0` was published 2026-11-23T14:46:16Z by the release workflow, not a draft, not a prerelease, its body the `v1.32.0` changelog section (verified by the coordinator, 2026-11-23). Release phase complete. This PLAN's status is set to `complete` (`tools/records.py status`, 2026-11-23). 0088 and 0089 are not in this release.

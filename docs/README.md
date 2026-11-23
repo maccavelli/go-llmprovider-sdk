@@ -177,21 +177,21 @@ documents a reader follows to do something.
 | 0079 | MADR | [Name the Consuming Application on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | accepted |
 | 0079 | PLAN | [Implement the Consuming Application's Name on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | complete |
 | 0080 | MADR | [Verify a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set, Because Kilo's Public Listing Refuses No Key](decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md) | accepted |
-| 0080 | PLAN | [Implement Verifying a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set](decisions/0080-PLAN-verify-a-kilo-credential-through-its-profile.md) | in-progress |
+| 0080 | PLAN | [Implement Verifying a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set](decisions/0080-PLAN-verify-a-kilo-credential-through-its-profile.md) | complete |
 | 0081 | MADR | [A Cancelled Sign-In Saves Nothing: the Wizard Checks the Run's Context Before It Saves, and ConfigureLLM Saves Last](decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md) | accepted |
-| 0081 | PLAN | [Implement a Cancelled Sign-In Saving Nothing, and ConfigureLLM Saving Last](decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md) | in-progress |
+| 0081 | PLAN | [Implement a Cancelled Sign-In Saving Nothing, and ConfigureLLM Saving Last](decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md) | complete |
 | 0082 | MADR | [Refuse to Adopt a Stored Session That Is Not the Same Sign-In, So a Held Session Never Becomes Another Login at Its Refresh](decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md) | accepted |
-| 0082 | PLAN | [Implement Refusing to Adopt a Stored Session That Is Not the Same Sign-In](decisions/0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md) | in-progress |
+| 0082 | PLAN | [Implement Refusing to Adopt a Stored Session That Is Not the Same Sign-In](decisions/0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md) | complete |
 | 0083 | MADR | [Let the Wizard Run a Browser Sign-In With No Callback Listener, Completed by a Paste, When the Caller Says So or the Person Says the Browser Is Elsewhere](decisions/0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) | accepted |
-| 0083 | PLAN | [Implement a Browser Sign-In With No Callback Listener: the Wizard's `NoLoopback`, Its Question to the Person, and `NoBrowserQuestion`](decisions/0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md) | in-progress |
+| 0083 | PLAN | [Implement a Browser Sign-In With No Callback Listener: the Wizard's `NoLoopback`, Its Question to the Person, and `NoBrowserQuestion`](decisions/0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md) | complete |
 | 0084 | MADR | [Classify a Provider's Refusal of a Tool's Schema as Its Own Kind, Naming the Tool It Refused, So a Host Can Drop That Tool Instead of Failing Every Turn](decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md) | accepted |
-| 0084 | PLAN | [Implement a Refused Tool Schema as Its Own Kind, Naming the Tool: ErrToolSchemaRefused and APIError.Tool](decisions/0084-PLAN-typed-error-for-a-refused-tool-schema.md) | in-progress |
+| 0084 | PLAN | [Implement a Refused Tool Schema as Its Own Kind, Naming the Tool: ErrToolSchemaRefused and APIError.Tool](decisions/0084-PLAN-typed-error-for-a-refused-tool-schema.md) | complete |
 | 0085 | MADR | [Refuse a Typed API Key That Is Empty After Trimming: the Wizard Asks Again, up to Three Times, and Then Ends the Run](decisions/0085-MADR-refuse-an-empty-typed-key.md) | accepted |
-| 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | in-progress |
+| 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | complete |
 | 0086 | MADR | [Pin golangci-lint v2.15.0, and Drop the Three nolint Directives It Makes Dead](decisions/0086-MADR-golangci-lint-v2-15-0.md) | accepted |
 | 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | in-progress |
 | 0087 | MADR | [Keep a Hidden Entry's Late Line Feed From Answering the Next Prompt: `TextPrompter` Settles Its Enter Before It Leaves Raw Mode](decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) | accepted |
-| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | in-progress |
+| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | complete |
 | 0088 | MADR | [Send the Model's Own Output Limit When a Request Names None, So Reasoning Does Not Spend the Whole 8192-Token Default](decisions/0088-MADR-default-output-limit-from-model-facts.md) | accepted |
 | 0088 | PLAN | [Implement Sending the Model's Own Output Limit When a Request Names None](decisions/0088-PLAN-default-output-limit-from-model-facts.md) | in-progress |
 | 0088 | REPORT | [Output Limits Across Agents and Vendors, Recorded for 0088](reports/0088-REPORT-output-limits-across-agents-and-vendors.md) | observation |
