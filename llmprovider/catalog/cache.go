@@ -77,6 +77,12 @@ type store struct {
 	// ollamaShows holds, under listingMu, Ollama's /api/show replies by
 	// listing and model, each with its own age and digest (0053-MADR D5).
 	ollamaShows map[listingKey]map[string]showReply
+	// listingExtras holds, under listingMu, each listing's limits beyond
+	// ModelInfo's fields, replaced with each listing fetched; limitReads the
+	// one-model, served and backend reads, which a listing refresh keeps
+	// (0089-MADR D2, DL66).
+	listingExtras map[listingKey]extrasEntry
+	limitReads    map[limitReadKey]limitRead
 	// listingFetching counts the background fetches, so tests can wait.
 	listingFetching sync.WaitGroup
 
@@ -107,6 +113,8 @@ func newStore() *store {
 		listingInFlight: map[listingFetchKey]bool{},
 		listingClaims:   map[listingKey]*listingCall{},
 		ollamaShows:     map[listingKey]map[string]showReply{},
+		listingExtras:   map[listingKey]extrasEntry{},
+		limitReads:      map[limitReadKey]limitRead{},
 		metadata:        map[string]modelMetadataCacheEntry{},
 		metadataFetches: map[string]*metadataFetch{},
 		life:            life,

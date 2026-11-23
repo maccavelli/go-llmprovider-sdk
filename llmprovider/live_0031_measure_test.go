@@ -105,7 +105,7 @@ func (r *streamRecorder) result() (int, string, []string) {
 // else the snapshot's first such "nano" model by name, else its first by name.
 func responsesModel(t *testing.T, id llmprovider.ProviderID) string {
 	t.Helper()
-	raw, err := os.ReadFile("providers/opencode/routes_snapshot.json")
+	raw, err := os.ReadFile("internal/opencoderoute/routes_snapshot.json")
 	if err != nil {
 		t.Fatal(err)
 	}

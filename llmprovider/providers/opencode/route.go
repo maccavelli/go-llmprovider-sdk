@@ -1,12 +1,11 @@
 package opencode
 
 import (
-	_ "embed" // routes_snapshot.json
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/opencoderoute"
 )
 
 // wireShapesProbedOn is the date every wire shape in this file was measured
@@ -64,23 +63,16 @@ func (r Route) valid() bool {
 	}
 }
 
-// routesSnapshot is provider.npm for every model in the "opencode" and
-// "opencode-go" sections of models.opencode.ai/api.json (retrieved
-// 2026-09-27) whose status is not "deprecated".
-//
-//go:embed routes_snapshot.json
-var routesSnapshot []byte
+// routesSnapshot is OpenCode's route snapshot, embedded in
+// internal/opencoderoute, which catalog reads too (0089-PLAN deviations 2
+// and 4).
+var routesSnapshot = opencoderoute.Snapshot
 
-// routeSections maps the snapshot's sections to their gateways.
-var routeSections = map[string]llmprovider.ProviderID{
-	"opencode":    llmprovider.ProviderOpencodeZen,
-	"opencode-go": llmprovider.ProviderOpencodeGo,
-}
-
-// routeTable maps gateway -> model id -> wire format. It is the fallback for
-// a request whose metadata is unavailable (MADR 0012 §3.1). It is built from
-// routesSnapshot, each model routed by its provider.npm (routeForNPM), so the
-// table and the snapshot cannot drift apart (0021-MADR C10).
+// routeTable maps gateway -> model id -> wire format: internal/opencoderoute's
+// table, as Routes. It is the fallback for a request whose metadata is
+// unavailable (MADR 0012 §3.1), built from routesSnapshot, each model routed
+// by its provider.npm (routeForNPM), so the table and the snapshot cannot
+// drift apart (0021-MADR C10).
 //
 // Routing is per-gateway, not per-model: the minimax-* family takes
 // chat_completions on Zen and messages on Go.
@@ -88,23 +80,17 @@ var routeTable map[llmprovider.ProviderID]map[string]Route
 
 func init() { routeTable = buildRouteTable(routesSnapshot) }
 
-// buildRouteTable routes each model of a snapshot by its provider.npm. The
-// snapshot is embedded, so a malformed one is a build defect, and panics;
+// buildRouteTable routes each model of a snapshot by its provider.npm, by
+// internal/opencoderoute's rule. The snapshot is embedded, so a malformed
+// one is a build defect, and panics;
 // TestOpencodeRouteTable_MatchesMetadataSnapshot pins it.
 func buildRouteTable(raw []byte) map[llmprovider.ProviderID]map[string]Route {
-	var snapshot map[string]map[string]string
-	if err := json.Unmarshal(raw, &snapshot); err != nil {
-		panic(fmt.Sprintf("opencode: routes_snapshot.json: %v", err))
-	}
-	table := make(map[llmprovider.ProviderID]map[string]Route, len(routeSections))
-	for section, models := range snapshot {
-		gateway, ok := routeSections[section]
-		if !ok {
-			panic(fmt.Sprintf("opencode: routes_snapshot.json: unknown section %q", section))
-		}
+	built := opencoderoute.BuildTable(raw)
+	table := make(map[llmprovider.ProviderID]map[string]Route, len(built))
+	for gateway, models := range built {
 		routes := make(map[string]Route, len(models))
-		for model, npm := range models {
-			routes[strings.ToLower(model)] = routeForNPM(npm)
+		for model, r := range models {
+			routes[model] = Route(r)
 		}
 		table[gateway] = routes
 	}
@@ -112,68 +98,18 @@ func buildRouteTable(raw []byte) map[llmprovider.ProviderID]map[string]Route {
 }
 
 // heuristicRoute infers a route from the model id prefix when the table
-// has no entry. Both gateways send gpt/grok/muse to responses. A qwen model
-// routes as the table's qwen rows do (qwenRoute). They differ on minimax (Go
-// only) and gemini/claude (Zen only). Chat Completions is the default
-// because it is the largest bucket on both.
+// has no entry, by internal/opencoderoute's heuristic: gpt/grok/muse to
+// responses on both gateways, a qwen model as the table's qwen rows are,
+// minimax to messages on Go only, gemini and claude to google and messages
+// on Zen only, and Chat Completions otherwise.
 func heuristicRoute(gateway llmprovider.ProviderID, model string) Route {
-	m := strings.ToLower(strings.TrimSpace(model))
-
-	switch {
-	case strings.HasPrefix(m, "gpt-"), strings.HasPrefix(m, "grok-"),
-		strings.HasPrefix(m, "muse-"):
-		return RouteResponses
-	case strings.HasPrefix(m, "qwen"):
-		return qwenRoute(gateway, m)
-	}
-
-	if gateway == llmprovider.ProviderOpencodeZen {
-		switch {
-		case strings.HasPrefix(m, "claude-"):
-			return RouteMessages
-		case strings.HasPrefix(m, "gemini-"):
-			return RouteGoogle
-		}
-	}
-	if gateway == llmprovider.ProviderOpencodeGo && strings.HasPrefix(m, "minimax-") {
-		return RouteMessages
-	}
-
-	return RouteChatCompletions
-}
-
-// qwenRoute is the route of a qwen model the table does not list, as the
-// table's qwen rows are: -max to chat completions and -flash to messages on
-// both gateways, and any other to messages on Zen and to chat completions on
-// Go (0020-MADR F41).
-func qwenRoute(gateway llmprovider.ProviderID, model string) Route {
-	switch {
-	case strings.HasSuffix(model, "-max"):
-		return RouteChatCompletions
-	case strings.HasSuffix(model, "-flash"):
-		return RouteMessages
-	case gateway == llmprovider.ProviderOpencodeGo:
-		return RouteChatCompletions
-	default:
-		return RouteMessages
-	}
+	return Route(opencoderoute.Heuristic(gateway, model))
 }
 
 // routeForNPM maps a model's provider.npm to its route, as OpenCode's
 // client picks an AI SDK package (provider.ts:1274-1278); any other package,
 // or none, is the openai-compatible chat route.
-func routeForNPM(npm string) Route {
-	switch npm {
-	case "@ai-sdk/openai":
-		return RouteResponses
-	case "@ai-sdk/anthropic":
-		return RouteMessages
-	case "@ai-sdk/google":
-		return RouteGoogle
-	default:
-		return RouteChatCompletions
-	}
-}
+func routeForNPM(npm string) Route { return Route(opencoderoute.ForNPM(npm)) }
 
 // resolveRoute picks the wire format for (gateway, model), honouring an
 // explicit override first, then the published table, then the prefix heuristic.

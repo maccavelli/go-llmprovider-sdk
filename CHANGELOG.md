@@ -11,6 +11,25 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `catalog.LookupLimits` and `catalog.CachedLimits`, with `catalog.Limits`,
+  `catalog.Fact` and `catalog.Evidence`: a model's output limit, window and
+  input limit, each with every source's value, time and staleness, the
+  chosen value by rank (the caller's layers, then the service, then the
+  registry), a disagreement marked conflicting, an output above the window
+  held to it, and "unknown" a state, not a number; and whether the model's
+  wire requires an output limit. `LookupLimits` reads, beside what
+  `LookupModel` reads, Claude's `GET /v1/models/{id}` for a model or alias
+  the listing does not name, the context Ollama's `/api/ps` serves a loaded
+  model (and a chatcompat server's of Ollama's dialect), the ChatGPT
+  backend's `context_window`, Together's `config.max_output_length`, Hugging
+  Face's per-provider `context_length` and Kilo's `per_request_limits`, and
+  an embedded, limits-only extract of models.dev, below the fetched
+  document, so offline a model models.dev knows still has its limits. A
+  Claude workspace is read from `catalog.WithClaudeWorkspace`. `LookupModel`,
+  `ModelInfo` and every request are unchanged (0089-MADR D1 to D3).
+
 ## [v1.32.0] - 2026-11-22
 
 ### Added

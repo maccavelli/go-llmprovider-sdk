@@ -41,6 +41,19 @@
 // and lifecycle. Each field reports whether it is known (Has) and which layer
 // set it (SourceOf) (0033-MADR D1 to D3).
 //
+// A model's limits, with every source's statement of each, are Limits:
+// LookupLimits reads every source, bounded as LookupModel is, and warms the
+// caches a request reads; CachedLimits reads what they hold, and starts no
+// fetch. Each Fact is chosen by rank: the caller's layers, then the service
+// (its listing, Claude's one-model read of a model the listing does not
+// name, the context Ollama's /api/ps serves a loaded model, the ChatGPT
+// backend's listing), then the registry (a layer named "models.dev", the
+// fetched document, then the embedded extract of models.dev's limits, dated
+// and always stale), each source's value and time kept as Evidence, a
+// disagreement marked Conflicting, the output held to the window, and a
+// stated 0 no limit. Limits.Required is true for the Messages wire, Claude's
+// and OpenCode's messages route (0089-MADR D1 to D3).
+//
 // models.dev's values are its own: the SDK corrects none of them, and some
 // were found wrong when 0033-MADR was written. Examples are Together prices
 // that differ from Together's docs, Hugging Face prices that are one

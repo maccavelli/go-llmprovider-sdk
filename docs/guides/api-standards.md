@@ -33,14 +33,14 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `internal/signinflow` may also import the nested module `authcontract`,
   which is itself standard library only (0073-MADR D1). (0015 D2, D13; the table's `internal/wire` rows, 0026
   F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2;
-  `internal/toolschema`, 0084 D3; `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `llmprovider/x/signin`, `internal/signinflow` and
+  `internal/toolschema`, 0084 D3; `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `internal/opencoderoute`, 0089 DL74; `llmprovider/x/signin`, `internal/signinflow` and
   `authcontract`, 0074 D3)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource`, `internal/toolschema` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
+  | `llmprovider/catalog` | static catalogs, model metadata, a model's limits and their evidence (`Limits`), ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute` |
   | `internal/kiloendpoint` | Kilo's endpoints, derived from a credential, and whether one has an organization; in the module's own `internal`, not `llmprovider`'s, so that `internal/signinflow` may import it (0080 D4) | the standard library |
   | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages` |
   | `llmprovider/internal/nilsource` | a typed-nil `TokenSource`'s test, for `llmprovider` and `catalog` | the standard library |
@@ -49,6 +49,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/compatid` | `chatcompat.WithID`'s value, for `catalog` and `providers/chatcompat` | the standard library |
   | `llmprovider/internal/compatdialect` | which server a Chat Completions listing is from, for `catalog` and `providers/chatcompat` | the standard library |
   | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
+  | `llmprovider/internal/opencoderoute` | OpenCode's route snapshot and table, for `providers/opencode`'s routing and `catalog`'s `Limits.Required` | `llmprovider` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
   | `llmprovider/internal/catalogtool` | the maintainer tool's proposals for the static lists | `llmprovider`, `catalog`, `internal/retired` |
   | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |

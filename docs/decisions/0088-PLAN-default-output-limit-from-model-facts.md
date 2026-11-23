@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-21
+status: in-progress
+date: 2026-11-22
 associated-madr: "0088-MADR-default-output-limit-from-model-facts.md"
 decision-makers: repository owner
 ---
@@ -26,6 +26,7 @@ The MADR is `accepted`, with no open row. This PLAN is `proposed`. Nothing
 below Phase 0 starts before the owner approves this PLAN and says
 `proceed`, `execute the plan` or `do phase N`.
 *(2026-11-22: the MADR is `proposed` again, reopened by the research amendment with six open rows; the owner's 2026-11-21 answers stand. See this PLAN's amendment of 2026-11-22.)*
+*(Annotated 2026-11-22: the owner approved this PLAN and the start; it is `in-progress`. See the fifth amendment's execution entry of that date.)*
 
 ## Prerequisites
 
@@ -681,3 +682,16 @@ this PLAN stays `proposed` until the owner approves it.
   OQ15 (1)'s and OQ16 (1)'s are; ST92's is 0089's
   `TestLimitRefusal_WindowForms_0089`.
 * **Execution record entry (2026-11-22, fifth):** records only.
+
+### Execution record entry (2026-11-22): the owner's approval and start
+
+The owner, relayed by the coordinator, approved this PLAN and 0089-PLAN and
+the start, by the label "Approve both; start now (Recommended)". The status
+went to `in-progress` by
+`python3 -B tools/records.py status docs/decisions/0088-PLAN-default-output-limit-from-model-facts.md in-progress --date 2026-11-22`,
+which wrote the front matter and the index row and exited 0
+(`records: written; records-check: 0 problem(s)`). The build order of the
+fifth amendment stands: 0089-PLAN's Phases 1 and 2 first, then its live
+measurement, then this PLAN's Phase 1b, then Phase 1 with 0089-PLAN's Phase 3
+in one commit, then Phase 1c. Nothing of this PLAN's phases is built yet; the
+v1.32.0 tag is the owner's.

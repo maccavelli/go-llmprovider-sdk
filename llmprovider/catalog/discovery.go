@@ -426,11 +426,14 @@ func fetchClaimed(ctx context.Context, id llmprovider.ProviderID, token llmprovi
 	key listingKey) (fetchedListing, map[string]ModelInfo, time.Time, error) {
 	models := map[string]ModelInfo{}
 	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
+	extras := map[string]listingExtra{}
+	cfg.extra = func(id string, x listingExtra) { extras[id] = x }
 	f, failure := fetchListing(ctx, id, token, cfg)
 	if failure != nil {
 		return fetchedListing{}, models, time.Time{}, failure
 	}
 	undatedConstant(models)
+	cfg.store.storeExtras(key, extras)
 	return f, models, cfg.store.storeFetched(key, f, models), nil
 }
 
@@ -637,6 +640,9 @@ type fetchedListing struct {
 	// default rank (0061-MADR, amendment "E2 and E4's menu, made exact
 	// before Phase 4c", X3).
 	created map[string]time.Time
+	// dialect is a chatcompat server's recorded dialect's name, or "": the
+	// served-context read follows it (0089-MADR D2).
+	dialect string
 }
 
 // fetchListing sends one provider's listing requests, Ollama's aside, and
@@ -696,6 +702,7 @@ func fetchCompat(ctx context.Context, id llmprovider.ProviderID, token llmprovid
 		}
 	}
 	if d, ok := compatdialect.Of(entries); ok && dialectDetails[d.Name] != nil {
+		f.dialect = d.Name
 		dialectDetails[d.Name](ctx, id, token, cfg, f.usable)
 	}
 	return f, nil
@@ -910,15 +917,9 @@ const headerClaudeWorkspace = "anthropic-workspace-id"
 // fetchClaudePage performs one listing request.
 func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Token, cfg config) (claudeModelsPage, error) {
 	var result claudeModelsPage
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, http.NoBody)
+	req, err := newClaudeRequest(ctx, endpoint, token, cfg)
 	if err != nil {
 		return result, err
-	}
-	cfg.setUserAgent(req)
-	token.Apply(req, "x-api-key", "")
-	req.Header.Set("anthropic-version", "2023-06-01")
-	if cfg.ClaudeWorkspace != "" {
-		req.Header.Set(headerClaudeWorkspace, cfg.ClaudeWorkspace)
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -1242,7 +1243,9 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 				OutputModalities []string `json:"output_modalities"`
 			} `json:"architecture"`
 			Providers []struct {
+				Provider            string  `json:"provider"`
 				Status              string  `json:"status"`
+				ContextLength       int     `json:"context_length"`
 				SupportsTools       bool    `json:"supports_tools"`
 				Throughput          float64 `json:"throughput"`
 				FirstTokenLatencyMs float64 `json:"first_token_latency_ms"`
@@ -1264,6 +1267,11 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 		b := newInfo(llmprovider.ProviderHuggingFace, m.ID)
 		b.released(listingDay(m.Created))
 		cfg.emit(b.done())
+		offerings := make([]hfOffering, len(m.Providers))
+		for i, pr := range m.Providers {
+			offerings[i] = hfOffering{provider: pr.Provider, status: pr.Status, window: pr.ContextLength}
+		}
+		emitHuggingFaceWindows(cfg, m.ID, offerings)
 		if !hasText(m.Architecture.InputModalities) || !onlyText(m.Architecture.OutputModalities) {
 			continue
 		}
@@ -1273,7 +1281,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 		best := scored{id: m.ID, ttft: math.MaxFloat64}
 		live := false
 		for _, pr := range m.Providers {
-			if pr.Status != "live" {
+			if pr.Status != hfStatusLive {
 				continue
 			}
 			live = true
@@ -1346,6 +1354,9 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 	for _, m := range models {
 		if m.ID != "" {
 			cfg.emit(togetherInfo(m))
+			if m.Config != nil && m.Config.MaxOutputLength != nil && *m.Config.MaxOutputLength > 0 {
+				cfg.emitExtra(m.ID, listingExtra{output: *m.Config.MaxOutputLength})
+			}
 		}
 		if m.Type == "chat" && m.ID != "" {
 			usable = append(usable, m.ID)
@@ -1386,6 +1397,12 @@ type kiloCatalogEntry struct {
 	TopProvider struct {
 		MaxCompletionTokens *int `json:"max_completion_tokens"`
 	} `json:"top_provider"`
+	// PerRequestLimits is OpenRouter's per-request caps, null in every
+	// recorded entry (0089-MADR C25); its completion_tokens bounds the
+	// output where it is set (DL4).
+	PerRequestLimits *struct {
+		CompletionTokens *int `json:"completion_tokens"`
+	} `json:"per_request_limits"`
 	ContextLength         int                `json:"context_length"`
 	ExpirationDate        string             `json:"expiration_date"`
 	PreferredIndex        *int               `json:"preferredIndex"`
@@ -1442,6 +1459,9 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	}
 	for _, e := range result.Data {
 		cfg.emit(kiloInfo(e))
+		if p := e.PerRequestLimits; p != nil && p.CompletionTokens != nil && *p.CompletionTokens > 0 {
+			cfg.emitExtra(e.ID, listingExtra{output: *p.CompletionTokens})
+		}
 	}
 	return result.Data, nil
 }

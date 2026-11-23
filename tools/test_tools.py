@@ -1173,5 +1173,43 @@ class TestCatalogCheck(unittest.TestCase):
         self.assertIn("the catalogs command failed", out)
 
 
+class TestLimitSnapshot(unittest.TestCase):
+    """0089-PLAN Phase 1, DL70: the extract keeps each model's limit, and nothing else."""
+
+    def test_limitsnapshot_keeps_limits_only(self) -> None:
+        import limitsnapshot  # pylint: disable=import-outside-toplevel
+
+        doc = {
+            "anthropic": {"name": "Anthropic", "models": {
+                "claude-x": {"name": "Claude X", "cost": {"input": 3, "output": 15},
+                             "modalities": {"input": ["text"], "output": ["text"]},
+                             "limit": {"context": 200000, "input": 180000, "output": 64000}},
+                "claude-y": {"name": "Claude Y", "limit": {"context": 1000000}}}},
+            "kilo": {"models": {"kilo/m": {"limit": {"context": 1000, "output": 10}, "tool_call": True}}},
+            "elsewhere": {"models": {"m": {"limit": {"context": 1, "output": 1}}}},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = Path(tmp) / "doc.json", Path(tmp) / "extract.json"
+            src.write_text(json.dumps(doc), encoding="utf-8")
+            rc, text = call(limitsnapshot.main, str(src), "--date", "2026-10-12", "--out", str(out))
+            self.assertEqual(rc, 0, text)
+            got = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(got, {"date": "2026-10-12", "sections": {
+            "anthropic": {"models": {
+                "claude-x": {"limit": {"context": 200000, "input": 180000, "output": 64000}},
+                "claude-y": {"limit": {"context": 1000000}}}},
+            "kilo": {"models": {"kilo/m": {"limit": {"context": 1000, "output": 10}}}},
+        }})
+
+    def test_limitsnapshot_refuses_a_bad_date(self) -> None:
+        import limitsnapshot  # pylint: disable=import-outside-toplevel
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "doc.json"
+            src.write_text("{}", encoding="utf-8")
+            rc, _ = call(limitsnapshot.main, str(src), "--date", "12/10/2026", "--out", str(Path(tmp) / "o.json"))
+        self.assertEqual(rc, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -106,7 +106,7 @@ func (c *store) storeFetched(key listingKey, f fetchedListing, models map[string
 		return now
 	}
 	e := c.listing[key]
-	e.listing, e.listedAt = &fetchedListing{usable: slices.Clone(f.usable), kilo: slices.Clone(f.kilo)}, now
+	e.listing, e.listedAt = &fetchedListing{usable: slices.Clone(f.usable), kilo: slices.Clone(f.kilo), dialect: f.dialect}, now
 	c.listing[key] = e
 	return now
 }

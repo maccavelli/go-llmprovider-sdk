@@ -81,6 +81,36 @@ type togetherModel struct {
 		Output      *float64 `json:"output"`
 		CachedInput *float64 `json:"cached_input"`
 	} `json:"pricing"`
+	// Config.MaxOutputLength is the output limit Together states for some
+	// models (0089-MADR C21, DL9).
+	Config *struct {
+		MaxOutputLength *int `json:"max_output_length"`
+	} `json:"config"`
+}
+
+// hfStatusLive is a Hugging Face provider offering's status while it serves
+// the model.
+const hfStatusLive = "live"
+
+// hfOffering is one Hugging Face provider's offering of a model: its name,
+// status and context length.
+type hfOffering struct {
+	provider, status string
+	window           int
+}
+
+// emitHuggingFaceWindows hands id's live providers' context lengths, by
+// provider, to cfg's extra, when any states one (0089-MADR D3, DL10).
+func emitHuggingFaceWindows(cfg config, id string, offerings []hfOffering) {
+	windows := map[string]int{}
+	for _, o := range offerings {
+		if o.status == hfStatusLive && o.provider != "" && o.window > 0 {
+			windows[o.provider] = o.window
+		}
+	}
+	if len(windows) > 0 {
+		cfg.emitExtra(id, listingExtra{windows: windows})
+	}
 }
 
 // listingLayer is the source name of a provider's listing.

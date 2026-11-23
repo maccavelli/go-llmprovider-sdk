@@ -68,6 +68,9 @@ type config struct {
 	// sink, when set, receives what a listing says of each model it lists
 	// (0033-MADR D2).
 	sink func(ModelInfo)
+	// extra, when set, receives what a listing states of a model's limits
+	// beyond ModelInfo's fields (0089-MADR D3).
+	extra func(id string, x listingExtra)
 	// store is WithCache's, else the process's (0048-MADR D1).
 	store *store
 	// compat reports a chatcompat provider's listing: an id no built-in has,
@@ -80,6 +83,13 @@ type config struct {
 func (c config) emit(info ModelInfo) {
 	if c.sink != nil {
 		c.sink(info)
+	}
+}
+
+// emitExtra hands one listed model's extra limits to extra, if it is set.
+func (c config) emitExtra(id string, x listingExtra) {
+	if c.extra != nil {
+		c.extra(id, x)
 	}
 }
 
