@@ -178,7 +178,8 @@ func TestNoLoopback_BindsNothing_0083(t *testing.T) {
 // Grok's keeps its own prefix and gives the same advice.
 func TestPortsAdviceOtherFailures_0083(t *testing.T) {
 	const advice = "this host does not allow the callback listener: sign in with no listener and paste the address back " +
-		"(in the wizard, answer that the browser is on another device; in code, set NoLoopback)"
+		"(in the wizard, when it asks where the browser is, answer \"On another device: I will paste the address back\"; " +
+		"in code, or where NoBrowserQuestion or a Driver means it is not asked, set NoLoopback)"
 	denied := func(network, address string) error {
 		return fmt.Errorf("listen %s %s: bind: permission denied", network, address)
 	}

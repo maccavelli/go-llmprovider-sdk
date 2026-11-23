@@ -372,7 +372,9 @@ func (o Options) lookupEnv() func(string) string {
 // Options.NoLoopback, NoBrowserQuestion, NoPastePrompt or Driver is set; after
 // the method menu and, in a plan sign-in, after the reads of the saved session
 // and client and before the plan's consent. "On this machine", an empty line and
-// an input that has ended keep the callback listener and the paste race;
+// an input that ends at the question (the first read at its end) keep the
+// callback listener and the paste race; an input already exhausted is an error
+// that ends the run (0083-MADR ST3, ST4);
 // "On another device" runs the sign-in with no listener, which only a pasted
 // address or code completes, and does not call Options.OpenURL. Options.NoLoopback
 // with Options.NoPastePrompt is an error matching llmprovider.ErrInvalidRequest,

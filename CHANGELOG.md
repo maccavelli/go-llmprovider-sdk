@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.32.0] - 2026-11-22
+
 ### Added
 
 - `wizard.Options.NoLoopback`: a browser sign-in, OpenAI's, Grok's or the
@@ -65,16 +67,21 @@ tag and its commit without notes; its notes are its section here.
   caller whose scripted `Prompter` refuses an unexpected `Select` scripts the
   answer (index 0, "On this machine") or sets `NoBrowserQuestion`. "On another
   device" runs the sign-in with no callback listener, to be completed by a
-  paste, and does not call `Options.OpenURL`; an empty line and an input that
-  has ended are "On this machine". `Options.NoLoopback` with
+  paste, and does not call `Options.OpenURL`; an empty line, and an input that
+  ends at the question (its first read at its end), are "On this machine",
+  while an input already exhausted is an error that ends the run.
+  `Options.NoLoopback` with
   `Options.NoPastePrompt` is an error matching `ErrInvalidRequest` before any
   question (0083-MADR).
 - When ports 1455 and 1457 are both taken, the error keeps its prefix, "oauth:
   registered callback ports unavailable", and advises freeing the two ports,
   and for the browser sign-in the device-code login, but no longer a
   device-code login for the ChatGPT plan, which has none. A bind that fails
-  for another reason, and Grok's, advise the sign-in with no listener
-  (0083-MADR D8).
+  for another reason, and Grok's, advise the sign-in with no listener: in the
+  wizard, to answer "On another device: I will paste the address back" when it
+  asks where the browser is; in code, or where `NoBrowserQuestion` or a
+  `Driver` means it is not asked, to set `NoLoopback` (0083-MADR D8, ST70 as
+  amended 2026-11-22).
 - A pasted redirect address that begins with the callback's host and port and
   has no `http://`, as the address bar shows it, is read as the address, with
   every check an address meets, for every caller of the sign-in engine,
@@ -1668,7 +1675,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.31.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.32.0...HEAD
+[v1.32.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.31.0...v1.32.0
 [v1.31.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...v1.31.0
 [v1.30.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...v1.30.0
 [v1.29.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.28.0...v1.29.0

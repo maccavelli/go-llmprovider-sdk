@@ -1695,3 +1695,7 @@ method route restored and of the concrete type not matched, and every earlier
 plant, each seen to fail a test on a scratch copy of the final tree under a
 sandbox that denies every outbound connection but loopback, but the equivalent
 mutants the PLAN names.
+
+## Release note (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entry is under `Security`.

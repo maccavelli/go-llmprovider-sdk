@@ -586,8 +586,9 @@ func testJWT(claims string) string {
 // TestResolveTokenStdin_ChecksTheCredential (0021-MADR Z10): a pasted OpenAI
 // credential that is another vendor's key, not a JWT, or an expired JWT is
 // refused before anything is saved; a JWT that has not expired is an
-// access-only session due to the store, which credentialStep saves once the
-// listing has not refused it (0059-MADR W2).
+// access-only session due to the store, which commitCredential saves once the
+// listing has not refused it (0059-MADR W2): at once in ResolveCredential's
+// step, and as ConfigureLLM's last act (0081-MADR D5).
 func TestResolveTokenStdin_ChecksTheCredential(t *testing.T) {
 	d := llmprovider.Descriptor{ID: llmprovider.ProviderOpenAI, Label: "OpenAI"}
 	for _, c := range []struct {

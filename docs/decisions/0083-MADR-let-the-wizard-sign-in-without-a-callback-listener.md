@@ -1579,3 +1579,26 @@ whose address bar showed the address cut short. The owner ruled "Change it in th
 
 One case is added to ST83's: `127.0.0.1:1455x/auth/callback?code=c&state=other`, a port that begins with the callback's and
 then is not a port, is read as a bare code (the owner's "Add the one test case (Recommended)"); it pins the boundary check.
+
+## Amendment of 2026-11-22: the words of the no-listener advice (ST70), at the release
+
+*(Added 2026-11-22, the release preparation. No decision, status or other row changes. The owner ruled "Amend the words
+now (Recommended)", relayed by the coordinator.)*
+
+Phase 3's follow-up found that ST70's advice names the question even where `NoBrowserQuestion` or a `Driver` means the
+wizard never asks it, and that "answer that the browser is on another device" is not the label of the choice. ST70's words
+are replaced, ST30 and ST32 pointing to them as before; the sentence keeps its shape.
+
+| Id | Case | Status | Outcome | Decided by | Test (phase) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST70 (amended) | The words of ST30's and ST32's advice | decided | after the error's prefix: "this host does not allow the callback listener: sign in with no listener and paste the address back (in the wizard, when it asks where the browser is, answer "On another device: I will paste the address back"; in code, or where NoBrowserQuestion or a Driver means it is not asked, set NoLoopback)". The quoted choice is the wizard's `browserElsewhere` label exactly. ST70's first words stand where this row does not change them | the owner's "Amend the words now (Recommended)", relayed by the coordinator (2026-11-22) | NT16 (1): `TestPortsAdviceOtherFailures_0083`'s pinned string changed with the code |
+
+Code: `noListenerAdvice` in `llmprovider/auth/oauth_loopback.go`. Test, red first: the pinned string of
+`TestPortsAdviceOtherFailures_0083` was changed alone and `tools/redgreen.py --expect fail` saw it fail on its assertion
+(OpenAI, Grok and plan sub-tests, "want ... the advice"); with the constant changed, `--expect pass` saw it pass. Plants
+(`tools/plant.py`, scratch clone): the label dropped from the advice, and the `NoBrowserQuestion` or `Driver` clause dropped:
+both caught by the test. The CHANGELOG entry for D8 names the new words' two routes.
+
+## Release note (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Added` and `Changed`. Two follow-ups of its Phase 3 are done in this preparation: the `ConfigureLLM` doc's and the CHANGELOG's "an input that has ended" now say that only an input ending at the question (the first read at its end) is "On this machine", and one already exhausted is an error (ST3, ST4); and the no-listener advice is amended (see the MADR's amendment of 2026-11-22). The paste-prompt follow-up (D5) is dropped by the owner.

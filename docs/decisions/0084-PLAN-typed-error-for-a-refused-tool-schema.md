@@ -3216,3 +3216,7 @@ know would pass both. A scan for the exact values of the keys in the
 environment is not used: the owner's ruling forbids anyone to compare a
 key's value. The keys this run uses, xAI's, OpenAI's, Anthropic's,
 Gemini's and OpenCode's, each have a shape row.
+
+### The release preparation (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Added` and `Changed`. `docs/guides/migrating-from-mcplib.md`'s `APIError.Unwrap` row now lists `ErrToolSchemaRefused` beneath `ErrInvalidRequest`.

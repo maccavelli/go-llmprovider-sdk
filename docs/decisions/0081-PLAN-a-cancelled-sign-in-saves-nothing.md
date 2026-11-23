@@ -2831,3 +2831,7 @@ remains impossible for the new files (Phase 2's entry).
 * **Windows:** `run-on-host --need windows -- go test -count=1 ./wizard/`, native Windows host, remote status 0, `ok .../wizard 21.187s`. P-16's kill and `FileTokenStore`'s write ran on Windows.
 
 **Not run / not done:** `--rev b109cea` (see above). Nothing else skipped. Phase 3's exit criterion (no blocker, every row tested, plants caught) is met; the plan's status stays `in-progress` for Phase 4.
+
+### The release preparation (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Changed` and `Fixed`. Its stale comment at `wizard/auth_test.go` (the `TestResolveTokenStdin_ChecksTheCredential` doc named `credentialStep` where `commitCredential` saves, `ConfigureLLM` as its last act) is corrected in this preparation: comment only.

@@ -520,9 +520,11 @@ func browserListenerWith(provider llmprovider.ProviderID, plan bool, listen list
 
 // noListenerAdvice is what a bind that failed for a reason other than a port
 // in use points the person to: the sign-in with no listener (0083-MADR ST30,
-// ST32, ST70).
+// ST32, ST70, as amended 2026-11-22). The choice it quotes is the wizard's
+// browserElsewhere label.
 const noListenerAdvice = "this host does not allow the callback listener: sign in with no listener and paste the address back " +
-	"(in the wizard, answer that the browser is on another device; in code, set NoLoopback)"
+	"(in the wizard, when it asks where the browser is, answer \"On another device: I will paste the address back\"; " +
+	"in code, or where NoBrowserQuestion or a Driver means it is not asked, set NoLoopback)"
 
 func listenOpenAILoopback(ports []int) ([]net.Listener, int, error) {
 	return listenOpenAILoopbackWith(ports, false, net.Listen)

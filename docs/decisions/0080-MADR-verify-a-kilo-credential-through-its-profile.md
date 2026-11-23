@@ -844,3 +844,7 @@ listing as not verified (Recommended)", relayed by the coordinator.)*
   organization's listing refuses a wrong key. The test stand-in checks the bearer
   token only (`wizard/kilo_verify_0080_test.go:117` to `:122`). So a wrong key
   with such a base URL may pass the check unrefused.
+
+## Release note (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This is the release phase: the tag carries this record's entry with 0081 to 0085 and 0087 (the owner's ruling "Five now; 0088+0089 next"); 0088 and 0089 are not in it.

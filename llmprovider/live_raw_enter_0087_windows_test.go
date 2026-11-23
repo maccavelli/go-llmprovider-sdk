@@ -156,7 +156,7 @@ var rawEnterRequests0087 = map[string]string{
 	rawEnterCasePaste0087 + "/raw": "\r\n0087 probe, R2 of 3: paste, once, the two lines you copied " +
 		"(none of the text is shown or saved). Do not press Enter.\r\n",
 	rawEnterCaseCooked0087 + "/line": "\r\n0087 probe, R3 of 3, first half: type y and press Enter.\r\n",
-	rawEnterCaseCooked0087 + "/raw":  "\r\n0087 probe, R3 of 3, second half: type one letter and press Enter.\r\n",
+	rawEnterCaseCooked0087 + "/raw":  "\r\n0087 probe, R3 of 3, second half: type one letter.\r\n",
 	rawEnterCaseCRLF0087 + "/raw":    "\r\n0087 probe, P1.\r\n",
 	rawEnterCaseLate0087 + "/raw":    "\r\n0087 probe, P2.\r\n",
 }

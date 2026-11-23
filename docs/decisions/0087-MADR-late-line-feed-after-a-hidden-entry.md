@@ -931,3 +931,7 @@ planted false by `tools/claims.py --plants` ("2 of 2 pass", exit 0; both plants,
 | :--- | :--- | :--- | :--- |
 | C48now | W is 50 ms (ST23, OR2) | `wizard/text_prompter.go:98` | `var settleWait = 50 * time.Millisecond` |
 | C49now | `Prompter.Secret`'s doc names the late LF (ST35, OR5) | `wizard/prompter.go:108` | `where Enter can arrive as CR then LF, must not leave that LF for the` |
+
+## Release note (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entry is under `Fixed`, with its consumer note kept. The probe's R3 second-half request in `llmprovider/live_raw_enter_0087_windows_test.go` says "type one letter", since the case ends on the letter; the owner-steps file is outside the repository and is the coordinator's.

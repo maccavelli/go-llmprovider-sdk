@@ -1772,3 +1772,15 @@ the working tree: 141 of 141 and 44 of 44. Every plant of this record was then r
 this phase's change, through `run-heavy`: 54 of 54 caught (the 51 earlier plants and R1, the boundary check dropped, the
 cut-short branch removed), each on a failing test, none on a build failure. The race plant (ST50) was caught at
 `-count=1` in this run; its 20-round record from build pass 2 stands.
+
+### The release preparation (2026-11-22)
+
+`CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Added` and `Changed`. Two follow-ups of its Phase 3 are done in this preparation: the `ConfigureLLM` doc's and the CHANGELOG's "an input that has ended" now say that only an input ending at the question (the first read at its end) is "On this machine", and one already exhausted is an error (ST3, ST4); and the no-listener advice is amended (see the MADR's amendment of 2026-11-22). The paste-prompt follow-up (D5) is dropped by the owner.
+
+### The release preparation, and ST70's words amended (2026-11-22)
+
+The owner ruled "Amend the words now (Recommended)" for the Phase 3 follow-up on the no-listener advice, and the other
+follow-up (the "input that has ended" wording, ST3 and ST4) is done too. Done: MADR amendment of 2026-11-22 (ST70 amended);
+`noListenerAdvice` and `TestPortsAdviceOtherFailures_0083`'s pinned string changed together, red first by `tools/redgreen.py`
+and two plants caught; the CHANGELOG entry and the `ConfigureLLM` doc corrected. The third follow-up (D5's paste prompt) is
+dropped.
