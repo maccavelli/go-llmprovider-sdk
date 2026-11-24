@@ -372,6 +372,19 @@ class GateSelfTest(unittest.TestCase):
             encoding="utf-8")
         self.assertFails("tables-check", "LLMPROVIDER_LIVE_0045_PLANTED")
 
+    def test_tables_check_test_variable_unnamed(self) -> None:
+        """A test-only variable a test file holds as a string literal, which
+        neither AGENTS.md nor a record of its number names; a record numbered
+        9999 that names it admits it (0090-MADR T13)."""
+        (self.tree / "llmprovider/zz_planted_0090_test.go").write_text(
+            'package llmprovider\n\n// zzPlanted0090 is planted.\nconst zzPlanted0090 = "FOO_TEST_9999_X"\n',
+            encoding="utf-8")
+        self.assertFails("tables-check", "FOO_TEST_9999_X")
+        (self.tree / "docs/decisions/9999-MADR-zz-planted.md").write_text(
+            "# Planted\n\nThe child reads FOO_TEST_9999_X.\n", encoding="utf-8")
+        proc = run_gate(self.tree, "tables-check")
+        self.assertEqual(proc.returncode, 0, f"tables-check exit {proc.returncode}, want 0:\n{proc.stdout}{proc.stderr}")
+
     # 0047-PLAN Phase 1 step 6: each value below is made up; none may be printed.
     PLANT_FIXTURE = "llmprovider/catalog/testdata/zz_0047_plant.json"
 

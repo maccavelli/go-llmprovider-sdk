@@ -247,3 +247,59 @@ Relayed by the coordinator; labels verbatim.
 * A cancel while `p.Input` itself is waiting is not this record's: the
   prompter returns its own error (`enter base URL: ...`), as today.
 * No exported name, dependency or provider behaviour changes in any option.
+
+### Execution notes (2026-11-24)
+
+Written by the PLAN's build, at its base `903c387`. No decision, row or
+asserted fact changes; these re-pin cited lines and add the T14 claims row.
+
+**Re-grounding at `903c387`.** `tools/claims.py` on this record: "7 of 7
+pass" (E1 to E7, at their `self=6ace750` pin). Between `6ace750` and
+`903c387` the only cited files that changed are
+`llmprovider/providers/proxy_test.go` and
+`llmprovider/providers/claude/reauth_test.go` (each gained one import), and
+`docs/architecture.md` and `AGENTS.md` (other records' text). The lines cited
+above, re-read at `903c387`:
+
+* `wizard/configure.go:806`, `:830`, `:836`, `:843`, `:855`, `:861`, `:867`
+  and `wizard/describe.go:38` to `41`: unchanged.
+* `wizard/save_at_end_0081_test.go:531`, `:558`, `:679` and `:695` (the
+  "kept" check), `wizard/late_lf_0087_windows_test.go:27`,
+  `wizard/auth_test.go:586` to `591`: unchanged.
+* `llmprovider/providers/proxy_test.go:20` is now `:21`, and
+  `llmprovider/providers/claude/reauth_test.go:21` is now `:22`: the
+  constants' text is unchanged; each line moved down by the import.
+* gobble-cli's `llm/provider/signin.go:357` reads `:358` in the sibling
+  checkout (read, not pinned); it is still inside `SignIn`, which takes only
+  a key provider (`keyProvider(id)`), so Ollama never reaches it.
+* "wizard: cannot reach" is matched by no code or test in this repository
+  but the production line itself and `wizard/options_0056_test.go:218`,
+  which matches "cannot reach" for a live run under `NoEndpointPrompt` (T6,
+  unchanged); prepare-commit-msg's own "cannot reach %s" (its `main.go:347`)
+  is its generation error, not the wizard's text, and gobble-cli has no
+  match.
+* The six `*_TEST_*` literals are the six this record names; there are no
+  others.
+
+**The T14 claims row.** Its id ends in "now", so `tools/claims.py` does not
+read it against `self=6ace750`, where the sentence does not exist (the
+convention of 0087-MADR's C47now). It was checked with the plain id E8 on a
+scratch record whose `self=` is a scratch commit of the working tree: "1 of
+1 pass"; `tools/claims.py --plants`, two plants, both caught:
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| E8now | The architecture note says an ended run is neither told nor asked | `docs/architecture.md:1268` | `A run whose context ends during the Ollama endpoint check, by a cancel or` |
+
+```text
+== E8's text changed: caught (FAIL E8 docs/architecture.md:1268: line 1268 is 'A run whose context ends during the Ollama endpoint check, by a cancel or')
+== E8's line moved: caught (FAIL E8 docs/architecture.md:1267: line 1267 is 'is used there with a warning notice, since nobody is asked (0059-MADR W9).')
+claims: all 2 plant(s) caught
+```
+
+**An observation, no row changed.** The Phase 1 tests fail the probe with a
+refused connection from their own transport, so at the base the notice they
+record for an in-flight cancel reads "(provider unavailable)", not
+"(cancelled)" as the Context says for the real transport, whose error is
+then the context's. T2 and T3 are about whether anything is shown, which
+does not depend on the wording.

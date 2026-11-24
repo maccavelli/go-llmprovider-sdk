@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -21,11 +22,28 @@ import (
 // set, it makes this test binary act as a key command.
 const keyHelperEnv = "LLMPROVIDER_TEST_CLAUDE_KEY_HELPER"
 
+// keyHelperMark is what a parent writes to the marker beside keyHelperEnv's
+// file, which proves the parent launched the helper (0090-MADR T13).
+const keyHelperMark = "launched by TestClaude_ConcurrentRefusalsRunCommandOnce"
+
+// keyHelperMarker is the marker file beside path, keyHelperEnv's file.
+func keyHelperMarker(path string) string {
+	return filepath.Join(filepath.Dir(filepath.Clean(path)), "parent-0090")
+}
+
+// keyHelperLaunched reports whether a parent marked path for the helper: a
+// value left set in a shell names no marked file, so it is ignored.
+func keyHelperLaunched(path string) bool {
+	raw, err := os.ReadFile(keyHelperMarker(path))
+	return err == nil && string(raw) == keyHelperMark
+}
+
 // TestHelperClaudeKeyCommand is not a test: run as a child with keyHelperEnv
-// set, it appends a line to that file and prints key-N for its Nth run.
+// set by a parent that marked it, it appends a line to that file and prints
+// key-N for its Nth run.
 func TestHelperClaudeKeyCommand(t *testing.T) {
 	path := os.Getenv(keyHelperEnv)
-	if path == "" {
+	if path == "" || !keyHelperLaunched(path) {
 		t.Skip("helper process only")
 	}
 	f, err := os.OpenFile(filepath.Clean(path), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -39,6 +57,26 @@ func TestHelperClaudeKeyCommand(t *testing.T) {
 	os.Exit(0)
 }
 
+// TestHelperClaudeKeyCommand_StrayValue_0090 (0090-MADR T13): keyHelperEnv
+// left set in a shell, to a file no parent marked, does not make the test
+// binary act as a key command: TestHelperClaudeKeyCommand skips, and writes
+// nothing to that file.
+func TestHelperClaudeKeyCommand_StrayValue_0090(t *testing.T) {
+	stray := filepath.Join(t.TempDir(), "runs")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperClaudeKeyCommand$", "-test.count=1", "-test.v")
+	cmd.Env = append(os.Environ(), keyHelperEnv+"="+stray)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("the test binary: %v\n%s", err, out)
+	}
+	if _, statErr := os.Stat(stray); statErr == nil {
+		t.Errorf("the stray value ran the key command: it wrote %s; output:\n%s", stray, out)
+	}
+	if !strings.Contains(string(out), "--- SKIP: TestHelperClaudeKeyCommand") {
+		t.Errorf("TestHelperClaudeKeyCommand did not skip under a stray value; output:\n%s", out)
+	}
+}
+
 // TestClaude_ConcurrentRefusalsRunCommandOnce (0021-MADR D5, T1): four
 // requests hold the CommandToken's first key and each gets a 401. The 401s
 // land one at a time, each after the previous request was resent, so every
@@ -47,6 +85,9 @@ func TestHelperClaudeKeyCommand(t *testing.T) {
 func TestClaude_ConcurrentRefusalsRunCommandOnce(t *testing.T) {
 	const requests = 4
 	path := filepath.Join(t.TempDir(), "runs")
+	if err := os.WriteFile(keyHelperMarker(path), []byte(keyHelperMark), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv(keyHelperEnv, path)
 	src := llmprovider.NewCommandToken(os.Args[0], "-test.run=^TestHelperClaudeKeyCommand$")
 

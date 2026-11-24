@@ -307,6 +307,21 @@ vets the live-tagged files (`go vet -tags live_gateways ./...`); it never runs
 them. `scripts/check_tables.py` checks that every variable a live test reads is
 named here, or is a record's.
 
+A test that runs its own binary again as a child tells the child so by a
+variable of its own, never one for a person to set: `SDK_TEST_0081_STORE`
+and `SDK_TEST_0081_SIGNAL` (`wizard/save_at_end_0081_test.go`),
+`WIZARD_TEST_PTY_CHILD_0087` and `WIZARD_TEST_PTY_DIR_0087`
+(`wizard/late_lf_0087_windows_test.go`, Windows only),
+`LLMPROVIDER_TEST_PROXY_CHILD` (`llmprovider/providers/proxy_test.go`) and
+`LLMPROVIDER_TEST_CLAUDE_KEY_HELPER`
+(`llmprovider/providers/claude/reauth_test.go`). Each child part runs only
+when its parent launched it, which the parent proves by a marker file it
+writes in its own temporary directory, so a value left set in a shell is
+ignored and the test runs as the parent (0090-MADR T13).
+`scripts/check_tables.py` checks that every string literal of the form
+`*_TEST_*` in a test file is named, as a whole word, here or by a record
+whose number the variable's name carries.
+
 ## Recorded fixtures
 
 A fixture recorded from a live service is redacted before it is committed:

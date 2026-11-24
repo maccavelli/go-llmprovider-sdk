@@ -119,6 +119,15 @@ tag and its commit without notes; its notes are its section here.
 ### Fixed
 
 - `TextPrompter` drops a late LF even when a signal interrupts its wait, which then goes on for the time left ([0087-MADR](docs/decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) A-8).
+- A wizard run whose context ends, by a cancel or its deadline, during the
+  Ollama endpoint check no longer shows "cannot reach" or asks "Try a
+  different endpoint?": it returns the context's error, as
+  `enter base URL: ...`, and under `Options.NoEndpointPrompt` as
+  `wizard: endpoint check ended: ...` instead of
+  `wizard: cannot reach <url>: ...`; the error still matches
+  `context.Canceled` or `context.DeadlineExceeded`
+  ([0090-MADR](docs/decisions/0090-MADR-a-cancelled-run-does-not-ask-about-the-endpoint.md)
+  S78).
 
 ## [v1.32.0] - 2026-11-22
 

@@ -828,6 +828,12 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			return checked, vErr
 		}
 		if vErr := catalog.ValidateOllamaURLWith(ctx, def, check...); vErr != nil {
+			// A run that ended during the check reached nothing worth naming:
+			// the run's context decides, never the check's own bound
+			// (0090-MADR S78; 0081-MADR D4).
+			if err := ctx.Err(); err != nil {
+				return "", fmt.Errorf("wizard: endpoint check ended: %w", err)
+			}
 			return "", fmt.Errorf("wizard: cannot reach %s: %w", def, vErr)
 		}
 		return def, nil
@@ -855,6 +861,13 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		vErr := catalog.ValidateOllamaURLWith(ctx, url, check...)
 		if vErr == nil {
 			return url, nil
+		}
+		// A run that ended during the check is told nothing and asked
+		// nothing, whether the check failed to connect or was answered: the
+		// run's context decides, never the check's own bound, as for the
+		// listing's warnings (0090-MADR S78; 0081-MADR D4).
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("enter base URL: %w", err)
 		}
 		// By class and status, never the server's text (0066-MADR V8;
 		// 0056-MADR D3).

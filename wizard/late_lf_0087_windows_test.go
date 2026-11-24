@@ -1,8 +1,10 @@
 package wizard
 
 import (
+	"bytes"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -27,6 +29,25 @@ const (
 	ptyChildEnv0087 = "WIZARD_TEST_PTY_CHILD_0087"
 	ptyDirEnv0087   = "WIZARD_TEST_PTY_DIR_0087"
 )
+
+// ptyMark0087 is what the parent writes to the marker in ptyDirEnv0087's
+// directory, which proves the parent launched the child (0090-MADR T13).
+const ptyMark0087 = "launched by runPty0087"
+
+// ptyMarker0087 is the marker file in dir.
+func ptyMarker0087(dir string) string { return filepath.Join(dir, "parent-0090") }
+
+// ptyLaunched0087 reports whether the parent marked ptyDirEnv0087's
+// directory: a value left set in a shell names no marked directory, so it is
+// ignored and the test runs as the parent.
+func ptyLaunched0087() bool {
+	dir := os.Getenv(ptyDirEnv0087)
+	if dir == "" {
+		return false
+	}
+	raw, err := os.ReadFile(ptyMarker0087(filepath.Clean(dir)))
+	return err == nil && string(raw) == ptyMark0087
+}
 
 var (
 	kernel32Test0087           = windows.NewLazySystemDLL("kernel32.dll")
@@ -184,6 +205,9 @@ func runPty0087(t *testing.T, role string, feed func(in *os.File, dir string, ch
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(ptyMarker0087(dir), []byte(ptyMark0087), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv(ptyChildEnv0087, role)
 	t.Setenv(ptyDirEnv0087, dir)
 	si := &windows.StartupInfoEx{ProcThreadAttributeList: attrs.List()}
@@ -229,7 +253,7 @@ func ptyWrite0087(t *testing.T, w *os.File, s string) {
 // raw read is where the late LF shows (0087-MADR, "Amendments of 2026-11-22",
 // A-6).
 func TestSecret_LateLineFeedDropped_Windows_0087(t *testing.T) {
-	if role := os.Getenv(ptyChildEnv0087); role != "" {
+	if role := os.Getenv(ptyChildEnv0087); role != "" && ptyLaunched0087() {
 		ptyChild0087(role)
 		return
 	}
@@ -259,7 +283,7 @@ func TestSecret_LateLineFeedDropped_Windows_0087(t *testing.T) {
 // my-model, as it does at the base, since a line-mode read takes a leading LF
 // without ending a line on it.
 func TestSecret_LineModeUnaffected_Windows_0087(t *testing.T) {
-	if role := os.Getenv(ptyChildEnv0087); role != "" {
+	if role := os.Getenv(ptyChildEnv0087); role != "" && ptyLaunched0087() {
 		ptyChild0087(role)
 		return
 	}
@@ -287,7 +311,7 @@ func TestSecret_LineModeUnaffected_Windows_0087(t *testing.T) {
 // and a CR only, so only events without a character (the CR's key release)
 // may be pending: Secret returns within 1 s, waited for at most 5 s.
 func TestSecret_SettleIsBounded_Windows_0087(t *testing.T) {
-	if role := os.Getenv(ptyChildEnv0087); role != "" {
+	if role := os.Getenv(ptyChildEnv0087); role != "" && ptyLaunched0087() {
 		ptyChild0087(role)
 		return
 	}
@@ -315,6 +339,56 @@ func TestSecret_SettleIsBounded_Windows_0087(t *testing.T) {
 	}
 	if want := "key=" + key0087; got != want {
 		t.Errorf("child: %q; want %q", got, want)
+	}
+}
+
+// TestPtyChild_StrayValue_Windows_0090 (0090-MADR T13): ptyChildEnv0087 and
+// ptyDirEnv0087 left set in a shell, naming a role and a directory no parent
+// marked, do not send TestSecret_SettleIsBounded_Windows_0087 down its child
+// part: it runs as the parent, on a pseudo console of its own, and passes,
+// and nothing is written to the stray directory. A child part run by mistake
+// may wait on the console, so it is stopped as soon as it writes there.
+func TestPtyChild_StrayValue_Windows_0090(t *testing.T) {
+	stray := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSecret_SettleIsBounded_Windows_0087$", "-test.count=1",
+		"-test.timeout=2m")
+	cmd.Env = append(os.Environ(), ptyChildEnv0087+"=bounded", ptyDirEnv0087+"="+stray)
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	var err error
+	ended := false
+	var written []string
+	for deadline := time.Now().Add(90 * time.Second); !ended && time.Now().Before(deadline); {
+		select {
+		case err = <-done:
+			ended = true
+		case <-time.After(20 * time.Millisecond):
+			if entries, _ := os.ReadDir(stray); len(entries) != 0 {
+				for _, e := range entries {
+					written = append(written, e.Name())
+				}
+				_ = cmd.Process.Kill()
+				err = <-done
+				ended = true
+			}
+		}
+	}
+	if !ended {
+		_ = cmd.Process.Kill()
+		<-done
+		t.Fatalf("the test binary did not end within 90 s; its output: %s", out.String())
+	}
+	if len(written) != 0 {
+		t.Fatalf("the stray value ran the child part: it wrote %q in the stray directory; its output: %s", written, out.String())
+	}
+	if err != nil {
+		t.Errorf("TestSecret_SettleIsBounded_Windows_0087 under a stray value: %v; want it to pass as the parent; its output: %s",
+			err, out.String())
 	}
 }
 

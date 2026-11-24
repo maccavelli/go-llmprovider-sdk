@@ -12,7 +12,14 @@ in 0046-PLAN Phase 1. It fails when:
   * a live test (llmprovider/**/live_*_test.go) reads an LLMPROVIDER_LIVE_
     variable that AGENTS.md does not name, unless it is LLMPROVIDER_LIVE_<NNNN>
     with any suffix and a record numbered NNNN names it as a whole word;
-  * AGENTS.md names a live variable that no live test reads.
+  * AGENTS.md names a live variable that no live test reads;
+  * a test file (*_test.go, as `git ls-files` lists it, untracked ones not
+    ignored included) holds a string literal of the form *_TEST_*, such as
+    "SDK_TEST_0081_STORE", the variable a test hands its own binary re-run as
+    a child, that AGENTS.md does not name as a whole word, unless its name
+    carries a record's number (_NNNN_ or a final _NNNN) and a record numbered
+    NNNN names it as a whole word (0090-MADR T13). The literal, not
+    os.Getenv, is read, since the tests read these through constants.
 
 The imports are `go list`'s, for the host and for GOOS=windows, merged; only
 the module's own packages and golang.org/x/ are compared. The packages of a
@@ -50,6 +57,8 @@ AGENTS = "AGENTS.md"
 TICK = re.compile(r"`([^`]+)`")
 LIVE_VAR = re.compile(r"LLMPROVIDER_LIVE_[A-Z0-9_]*[A-Z0-9]")
 SWITCH = re.compile(r"^LLMPROVIDER_LIVE_(\d{4})")
+TEST_VAR = re.compile(r'"([A-Z0-9_]*_TEST_[A-Z0-9_]*[A-Z0-9])"')
+TEST_VAR_NUMBER = re.compile(r"(?:^|_)(\d{4})(?:_|$)")
 PATTERNS = {
     "llmprovider/providers/<id>": re.compile(r"^llmprovider/providers/[^/]+$"),
     "llmprovider/internal/wire/<format>": re.compile(r"^llmprovider/internal/wire/[^/]+$"),
@@ -208,10 +217,47 @@ def check_live_variables() -> list[str]:
     return problems
 
 
+def whole_word(name: str) -> re.Pattern[str]:
+    """name as a whole word: no letter, digit or underscore on either side."""
+    return re.compile(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])")
+
+
+def go_test_files() -> list[Path]:
+    """Every *_test.go file git would commit: tracked, and untracked not ignored."""
+    proc = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z", "--", "*_test.go"],
+                          cwd=ROOT, capture_output=True, check=False)
+    if proc.returncode != 0:
+        raise ToolError(f"git ls-files failed:\n{proc.stderr.decode(errors='replace')}")
+    return sorted(ROOT / rel for rel in set(filter(None, proc.stdout.decode().split("\0"))) if (ROOT / rel).is_file())
+
+
+def check_test_variables() -> list[str]:
+    """Each *_TEST_* string literal in a test file is named by AGENTS.md, or
+    by a record of the number its name carries (0090-MADR T13)."""
+    held: dict[str, set[str]] = {}
+    for path in go_test_files():
+        for var in TEST_VAR.findall(path.read_text(encoding="utf-8")):
+            held.setdefault(var, set()).add(path.relative_to(ROOT).as_posix())
+    agents = (ROOT / AGENTS).read_text(encoding="utf-8")
+    records = sorted((ROOT / "docs/decisions").glob("*.md")) + sorted((ROOT / "docs/reports").glob("*.md"))
+    problems = []
+    for var in sorted(held):
+        word = whole_word(var)
+        if word.search(agents):
+            continue
+        numbers = set(TEST_VAR_NUMBER.findall(var))
+        if any(word.search(r.read_text(encoding="utf-8")) for r in records if r.name[:4] in numbers):
+            continue
+        problems.append(f"{AGENTS}: {var}: {', '.join(sorted(held[var]))} holds it, and neither {AGENTS} nor a "
+                        "record of its number names it")
+    return problems
+
+
 def main() -> int:
     try:
         pkgs, nested = imports()
-        problems = check_architecture(pkgs, nested) + check_standards(pkgs, nested) + check_live_variables()
+        problems = (check_architecture(pkgs, nested) + check_standards(pkgs, nested) + check_live_variables()
+                    + check_test_variables())
     except (ToolError, OSError) as err:
         print(f"check-tables: {err}", file=sys.stderr)
         return 2

@@ -37,7 +37,7 @@ scripts/check_api.py        api-check: apidiff against the latest v1 tag
 scripts/check_contract.py   contract-check: the nested module authcontract, against its own tags
 scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
-scripts/check_tables.py     tables-check: the import tables and the live variables match the code
+scripts/check_tables.py     tables-check: the import tables, the live variables and the test-only variables match the code
 scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
 scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag
 scripts/check_docs.py       docs-check: the API audit's R50-R52, the examples and the concurrency and error docs
@@ -1265,6 +1265,12 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   asks no endpoint: `Existing`'s, else the default, is checked and used, and
   a failure is returned (0056-MADR D4). A plain-`http` URL to a remote host
   is used there with a warning notice, since nobody is asked (0059-MADR W9).
+  A run whose context ends during the Ollama endpoint check, by a cancel or
+  its deadline, shows no notice and asks no question, in either mode: the
+  error is the context's, as `enter base URL: ...` when the endpoint was
+  asked for and `wizard: endpoint check ended: ...` under
+  `NoEndpointPrompt`; the check's own five-second bound, with the run alive,
+  is still told as an outage and asked about (0090-MADR S78).
   **`Options.NoPastePrompt`**, for a
   caller with no terminal, starts no paste prompt in a browser sign-in: the
   URL is shown and opened, and the loopback alone completes it, the ChatGPT

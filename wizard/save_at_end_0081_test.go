@@ -532,6 +532,25 @@ const (
 	helperSignal0081 = "SDK_TEST_0081_SIGNAL"
 )
 
+// helperMark0081 is what the parent writes to the marker beside the signal,
+// which proves the parent launched the re-run binary (0090-MADR T13).
+const helperMark0081 = "launched by TestKilledAtTheModelQuestionKeepsTheStore_0081"
+
+// helperMarker0081 is the marker file beside signal.
+func helperMarker0081(signal string) string {
+	return filepath.Join(filepath.Dir(filepath.Clean(signal)), "parent-0090")
+}
+
+// helperLaunched0081 reports whether the parent marked signal: a value left
+// set in a shell names no marked file, so it is ignored.
+func helperLaunched0081(signal string) bool {
+	if signal == "" {
+		return false
+	}
+	raw, err := os.ReadFile(helperMarker0081(signal))
+	return err == nil && string(raw) == helperMark0081
+}
+
 // blocksAtModel0081 answers like fakePrompter, but at the model question it
 // writes the signal file and never returns.
 type blocksAtModel0081 struct {
@@ -555,7 +574,7 @@ func (p blocksAtModel0081) Input(prompt, def string) (string, error) {
 // binary as the process and kills it with Process.Kill, which every platform
 // has.
 func TestKilledAtTheModelQuestionKeepsTheStore_0081(t *testing.T) {
-	if dir := os.Getenv(helperStore0081); dir != "" {
+	if dir := os.Getenv(helperStore0081); dir != "" && helperLaunched0081(os.Getenv(helperSignal0081)) {
 		// The re-run process: sign in through the stand-in and block at the
 		// model question, to be killed.
 		stubSessions0081(t, nil)
@@ -577,6 +596,9 @@ func TestKilledAtTheModelQuestionKeepsTheStore_0081(t *testing.T) {
 		t.Fatal(err)
 	}
 	signal := filepath.Join(t.TempDir(), "asked")
+	if err := os.WriteFile(helperMarker0081(signal), []byte(helperMark0081), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestKilledAtTheModelQuestionKeepsTheStore_0081$", "-test.count=1")
 	cmd.Env = append(os.Environ(), helperStore0081+"="+store.Dir, helperSignal0081+"="+signal)
 	var out bytes.Buffer
@@ -609,6 +631,57 @@ func TestKilledAtTheModelQuestionKeepsTheStore_0081(t *testing.T) {
 	got, err := store.Load(ctx, llmprovider.ProviderGrok)
 	if err != nil || got == nil || got.Access != "earlier-access-0081" || got.Refresh != "earlier-refresh-0081" {
 		t.Errorf("the store holds %+v (%v) after the kill; want the earlier session", got, err)
+	}
+}
+
+// TestKilledAtTheModelQuestion_StrayValue_0090 (0090-MADR T13):
+// helperStore0081 and helperSignal0081 left set in a shell, naming a store
+// and a signal no parent marked, do not send
+// TestKilledAtTheModelQuestionKeepsTheStore_0081 down its child part: it runs
+// as the parent, which starts a child of its own and passes, and nothing
+// writes the stray signal. A child part run by mistake blocks at the model
+// question, so it is stopped as soon as the stray signal appears.
+func TestKilledAtTheModelQuestion_StrayValue_0090(t *testing.T) {
+	dir := t.TempDir()
+	strayStore, straySignal := filepath.Join(dir, "store"), filepath.Join(dir, "asked")
+	if err := os.Mkdir(strayStore, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestKilledAtTheModelQuestionKeepsTheStore_0081$", "-test.count=1")
+	cmd.Env = append(os.Environ(), helperStore0081+"="+strayStore, helperSignal0081+"="+straySignal)
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	var err error
+	ended, childRan := false, false
+	for deadline := time.Now().Add(60 * time.Second); !ended && time.Now().Before(deadline); {
+		select {
+		case err = <-done:
+			ended = true
+		case <-time.After(20 * time.Millisecond):
+			if _, statErr := os.Stat(straySignal); statErr == nil {
+				childRan = true
+				_ = cmd.Process.Kill()
+				err = <-done
+				ended = true
+			}
+		}
+	}
+	if !ended {
+		_ = cmd.Process.Kill()
+		<-done
+		t.Fatalf("the test binary did not end within 60 s; its output: %s", out.String())
+	}
+	if childRan {
+		t.Fatalf("the stray value ran the child part: it reached the model question; its output: %s", out.String())
+	}
+	if err != nil {
+		t.Errorf("TestKilledAtTheModelQuestionKeepsTheStore_0081 under a stray value: %v; want it to pass as the parent; its output: %s",
+			err, out.String())
 	}
 }
 
@@ -692,7 +765,7 @@ func TestSaveNotesInTheArchitecture_0081(t *testing.T) {
 	for _, want := range []struct{ name, text string }{
 		{"the Kilo token does not expire", "Kilo device sign-in leaves a token that does not expire"},
 		{"the person removes it in the account's settings", "Kilo account's settings"},
-		{"the premise was measured kept", "kept"},
+		{"the premise was measured kept", "was measured kept on 2026-11-19, that is, a second sign-in did not end the first session"},
 		{"the measurement's date", "2026-11-19"},
 		{"the device sign-ins were not probed", "OpenAI and Grok device sign-ins were not probed"},
 	} {
