@@ -93,11 +93,16 @@
 // limit, leaves the request's input, estimated from its content as pi does
 // (0088-MADR ST87), until a measurement shows Kilo's own default is not
 // lower; with no fact, none is sent. A refusal of a limit the SDK chose that
-// states a cap (Anthropic's or OpenAI's form) or a window (OpenRouter's or
-// Kilo's form), validated as 0089-MADR D4 says, is sent once more at the cap
+// states a cap (Anthropic's or OpenAI's form, or Kilo's range form "The
+// max_tokens parameter is illegal.：限制数值范围[1,M]", whose lower bound must
+// be 1, DL95) or a window (OpenRouter's or Kilo's form), validated as
+// 0089-MADR D4 says, is sent once more at the cap
 // or at the room the window leaves; a cap is kept for the rest of the
 // process, in memory only, and reported in a WarningLimitLearned, unless
-// llmprovider.WithoutLimitLearning is given. The Response, and a stream's
+// llmprovider.WithoutLimitLearning is given. A caller's own limit refused
+// in a cap form is returned, not resent, and its cap kept alike; a call
+// that fails after a cap was kept carries it as its error's
+// APIError.Observed (DL78, DL80, DL86). The Response, and a stream's
 // done event, carry the limit sent in OutputLimit.
 // Its reasoning_details replay is unchanged.
 package kilo
@@ -316,10 +321,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderKilo), p.src,
 		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, limit) },
 		chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)), wire.Retries(limit.Check, effort.Check))
-	if err == nil {
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		limit.Finish(resp, p.observe(req, false))
-	}
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	err = limit.Finish(resp, err, p.observe(req, false))
 	return resp, err
 }
 

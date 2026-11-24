@@ -8,9 +8,10 @@ import (
 
 // LimitObservation is an output cap a service stated when it refused an
 // output limit, validated as 0089-MADR D4 says (D5). A provider that keeps
-// one reports it as a WarningLimitLearned's Observed; a caller that keeps it
-// passes it back with WithLimitObservations on its next start. It is a
-// value, safe for concurrent use while no goroutine changes it.
+// one reports it as a WarningLimitLearned's Observed, or, on a call that
+// fails, as its *APIError's Observed (DL78); a caller that keeps it passes it
+// back with WithLimitObservations on its next start. It is a value, safe for
+// concurrent use while no goroutine changes it.
 type LimitObservation struct {
 	// Model is the model refused, as the request named it.
 	Model string
@@ -28,7 +29,7 @@ type LimitObservation struct {
 }
 
 // WithLimitObservations passes back observations that WarningLimitLearned
-// reported (0089-MADR D5). catalog.LookupLimits and catalog.CachedLimits read
+// or APIError.Observed reported (0089-MADR D5, DL89). catalog.LookupLimits and catalog.CachedLimits read
 // each as the evidence "remembered", only where its model (matched in lower
 // case), base URL and scope are the lookup's, and only while its Seen is
 // within 24 hours; it is ranked below every caller, service and registry

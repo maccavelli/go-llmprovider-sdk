@@ -41,7 +41,10 @@ const (
 	// and that the provider keeps the cap for the rest of the process, once
 	// per model, base URL, scope and stream or plain call. Its Observed is
 	// what a caller can keep, and pass back with WithLimitObservations on its
-	// next start (0089-MADR D5).
+	// next start (0089-MADR D5). A call that fails after such a refusal, a
+	// caller's own limit refused among them, has no response to carry it: its
+	// *APIError's Observed carries the same value, on every such call
+	// (0089-MADR DL78, DL82).
 	WarningLimitLearned WarningKind = "limit_learned"
 	// WarningToolCallCut reports that the service's output limit cut a tool
 	// call before its arguments were whole, so the call was dropped: the

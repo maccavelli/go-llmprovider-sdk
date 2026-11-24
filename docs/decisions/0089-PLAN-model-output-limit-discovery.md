@@ -1182,3 +1182,119 @@ Additions only; Phases 4 to 7 stand, read as this entry says. The owner's ruling
 * **DL65, the owner's ruling (2026-11-24)**, relayed by the coordinator, quoted as given: "Run before the tag". Before the date step, an agent makes a few short live calls on Kilo, with environment keys only and allowlisted output; "OQ1 (1)'s measurement" above defines how a finish reason decides DL65, and the verdict is a dated row of the MADR. Not run under this entry; a separate agent runs it after this records commit lands.
 * **v1.33.0's remaining steps, in order (2026-11-24):** the caller-limit refusal report's phase; DL70's fetch and regenerated extract; DL65's measurement and its row; the gates again on the result; the short release review (Phase 6, with 0088-PLAN's Phase 3); the date step (`[Unreleased]` to `[v1.33.0] - <date>`, `README.md`'s release line); the tag and the GitHub Release on the owner's word.
 * **The joint gates, run (2026-11-24).** Phases 4 and 5's checks and plants ran with 0088-PLAN's Phase 2, pass 1, recorded in [0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md)'s eighteenth execution entry: 182 of 182 plants caught (9 re-grounded), DL59's 47 rows and DL60's 12 (0088-MADR's C149now to C160now) checked and planted, `apidiff` the 21 lines, every gate exit 0. Phases 6 and 7 wait, as above.
+
+### 2026-11-24: Phase 6b, a learned cap on a failed call (0089-MADR, second amendment of 2026-11-24)
+
+Runs once Phases 4 and 5 (the joint gates) have passed at `33e6f09` and Phase 6's review has reported, and before Phase 7's tag. OQ5 is answered, "On the error (Recommended)" (2026-11-24): `APIError.Observed`. Rows DL78 to DL94; the tests map to them one to one.
+
+1. **Re-ground.** `python3 -B tools/claims.py` on 0089-MADR with C161now to C172now read as plain ids against the phase's base, on a scratch clone; a moved line is re-pinned by a dated row before any code.
+2. **Red first**, on a scratch clone, each red quoted in the execution record:
+   * `TestRetry_LimitObservedCarried_0089` (DL88), in `llmprovider/providers` (it needs a provider): red at the base on its assertion, the final response holding no `WarningLimitLearned` (seen on the scratch clone: 0 warnings, `OutputLimit` basis fact, source "observed").
+   * `TestLimitRefusal_CallerReport_0089` (DL78 to DL84, DL89 to DL91) and `TestLimitRefusal_ResendFails_0089` (DL86, DL87), in `llmprovider/providers/limit_refusal_0089_test.go`: they read the new field, so their red is their plants', step 4. DL87's case and DL91's text comparison hold at the base and pin it.
+   * DL85: `TestLimitLearning_Default_0089` re-run unchanged.
+3. **Build.**
+   * `llmprovider/api_error.go`: `APIError.Observed LimitObservation`, its doc after `Tool`'s: set by a provider after the send, zero when no cap was kept, not printed by `Error()`.
+   * `llmprovider/internal/wire/limit_rule.go`: `Check` records the kept observation whenever it keeps (learning on, `reading.Keep`), apart from the once-per-key warning; `Finish` takes the call's error and returns it, setting `Observed` on the `*APIError` it finds by `errors.As` (DL78, DL80, DL86); `FinishStream` does the same to an error event (DL79).
+   * Each provider's `Generate` calls `Finish` on success and on failure: `chatcompat`, `claude`, `gemini`, `grok`, `huggingface`, `kilo`, `ollama`, `openai`, `opencode` (two sites), `together`; their `Stream`s already pass through `FinishStream`.
+   * `llmprovider/retry.go`: `Generate` and `streamRetrying.Stream` keep the `Observed` of each retried attempt's `*APIError` and give it to the final result as DL88 says.
+4. **Plants**, one production change each, by `python3 -B tools/plant.py` on a scratch clone with a spec kept in the scratch directory; every row's named plant, each caught only by its own row's test, the failing line quoted.
+5. **Docs** (DL94): R24 and R57 in `docs/guides/api-standards.md`; the doc comments of `APIError`, `WarningLimitLearned`, `LimitObservation`, `WithLimitObservations`, `WithoutLimitLearning`, `WithRetry`, `WithStreamRetry` and each provider's output-limit paragraph; `README.md`'s limit paragraph; `CHANGELOG.md` **Added**: "`APIError.Observed`: the output cap a service stated when it refused a call's limit, kept by the SDK, on the error that ends the call; `WithRetry` carries a retried attempt's to the final result (0089-MADR DL78 to DL94)", in `[Unreleased]`, which Phase 7 dates `[v1.33.0]`; a `tools/claims.py` row per new sentence, each planted false. Docs rows returned as `path:line — fixed` or `— open: <reason>`.
+6. **Gates.** `make pre-add-check FILES="..."` through `run-heavy`; `go test ./...` through `run-heavy` or `run-on-host`; `-race` on `./llmprovider/...` through `run-on-host` on the Linux machine, not WSL; `python3 -B tools/apidiff.py v1.32.0`: the 21 lines Phase 4 lists and `./llmprovider.APIError.Observed: added`, nothing else; `tools/claims.py` on 0088-MADR and 0089-MADR; `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; then Phases 4 and 5 again on this phase's commit, and `tools/gate.py` through `run-heavy`.
+7. **Review and record.** An independent review of this phase's diff, findings blockers only, as Phase 6's; this PLAN's execution entry (passes numbered, the reds, each plant's caught line, the gate table) and 0089-MADR's counts.
+
+Exit criterion: no blocker; DL78 to DL91 and DL93, DL94 tested; every plant caught. A third build pass is a stop. Rollback: the phase is one commit before the tag; reverting it restores `33e6f09`'s behaviour and the 21-line `apidiff`.
+
+### 2026-11-24: Phase 6b, executed (0089-MADR DL78 to DL94)
+
+Base `1d9dbe7`, whose code is `33e6f09`'s (`1d9dbe7` changes records only). Pass count: 2. Nothing staged or committed.
+
+**Records.** The second amendment of 2026-11-24 was appended to 0089-MADR and this phase to this PLAN as drafted, with one correction before any code: C170now's text cell was drafted as a double-backtick span with no inner spaces, which `tools/claims.py` reads with its backticks and fails; it was respaced to `` `` text `` ``, its text unchanged.
+
+**Re-ground (step 1).** C161now to C172now as plain ids at `1d9dbe7`: 12 of 12 pass, none moved; each planted false, 12 of 12 caught.
+
+**Red (step 2).** `TestRetry_LimitObservedCarried_0089` at `1d9dbe7` by `tools/redgreen.py --expect fail` (its file copied in; it reads no new field): `--- FAIL` on its assertion in the generate and stream cases, `retry_limit_0089_test.go:151: 0 WarningLimitLearned ([]); want one, with {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 ...}`; its third case, a warning for the same key already on the response, passes at the base, as it should. `TestLimitRefusal_CallerReport_0089` and `TestLimitRefusal_ResendFails_0089` read the new field, so their red is their plants'. `TestLimitLearning_Default_0089` (DL85) re-run unchanged: pass.
+
+**Build (step 3).**
+
+* `llmprovider/api_error.go`: `APIError.Observed LimitObservation`, documented after `Tool`; the type's doc names it. `Error()` is unchanged.
+* `llmprovider/internal/wire/limit_rule.go`: `Check` records the kept observation (`kept`) whenever learning is on and the reading is kept, apart from the once-per-key warning; `Finish(resp, err, observe) error` sets it on the `*APIError` the error wraps (`errors.AsType`), returning the error unchanged otherwise; `FinishStream` applies it to an error event.
+* Each provider's `Generate` calls `Finish` on failure too: `chatcompat`, `claude`, `gemini`, `grok`, `huggingface`, `kilo`, `ollama`, `openai`, `opencode` (both sites), `together`.
+* `llmprovider/retry.go`: `Generate` and `streamRetrying.Stream` keep a retried attempt's `Observed` and give it to the final result: a `WarningLimitLearned` on the response unless one for the same model, base URL and scope is there, else the final `*APIError`'s `Observed` where zero.
+* Tests: `TestLimitRefusal_CallerReport_0089` and `TestLimitRefusal_ResendFails_0089` in `llmprovider/providers/limit_refusal_0089_test.go`; `TestRetry_LimitObservedCarried_0089` in a new file, `llmprovider/providers/retry_limit_0089_test.go`, with the helpers that read no `Observed`, so that it builds at the base for its red (the PLAN named only the package). DL88's three clauses: the caller's value, not retried and returned with `Observed`, in `TestLimitRefusal_CallerReport_0089`'s "under a retry wrapper" cases; the final error in `TestLimitRefusal_ResendFails_0089`'s "every attempt failing" cases; the final response in `TestRetry_LimitObservedCarried_0089`.
+
+**Passes.** Pass 1: `make pre-add-check` exited 2 on five lint findings, each fixed without a suppression: errcheck on a discarded `Finish` result (the response half split out as `finishResponse`); revive's confusing-naming, `report` beside `Report` (renamed `markObserved`); errorlint on the test's type assertion that the Kilo error is the transport's wrapper (now a `%T` comparison); gocognit 61 over 50 in `TestLimitRefusal_CallerReport_0089` (its subtests made named functions); ST1008, `callFor`'s error not last (reordered). Pass 2: clean; the red, the tests and every plant were run again on pass 2's tree.
+
+**Plants (step 4)**, by `tools/plant.py` on scratch clones, one spec per test, each run only its row's test (`plants-caller.json`, `plants-resend.json`, `plants-retry.json`, `plants-api.json` in the session's scratch directory): 18 of 18 caught. The first failing line of each, the test server's address as `<srv>`:
+
+| Plant | Caught by (first failing line) |
+| :--- | :--- |
+| DL78 Claude's Generate does not apply the report to its error | `limit_refusal_0089_test.go:411: refused: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01` |
+| DL79 FinishStream passes an error event unchanged (the stream case) | `limit_refusal_0089_test.go:411: refused: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01` |
+| DL80 the report set only when the error itself is an *APIError | `limit_refusal_0089_test.go:485: kilo: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:anthropic/claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:` |
+| DL81 the report gated on basis request | `limit_refusal_0089_test.go:431: option refused: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:` |
+| DL82 the report gated on the memo's change | `limit_refusal_0089_test.go:501: call 2: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01-` |
+| DL83 Observed set without the memo's keep | `limit_refusal_0089_test.go:487: kilo, learning off: Observed = {Model:anthropic/claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model: BaseURL: Scope:` |
+| DL84 Observed set from reading.Cap without reading.Keep | `limit_refusal_0089_test.go:535: V6: Observed = {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 0` |
+| DL89 Scope left empty | `limit_refusal_0089_test.go:566: refused in a workspace: Observed = {Model:claude-caller-0089 BaseURL:<srv> Scope: Tokens:128000 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-caller-0089 Base` |
+| DL90 Seen left zero | `limit_refusal_0089_test.go:411: refused: Observed.Seen 0001-01-01 00:00:00 +0000 UTC; want within the call, ...` |
+| DL91 Error() prints the cap | `limit_refusal_0089_test.go:417: text "llmprovider: invalid request: claude HTTP 400 invalid_request_error: cap 128000: max_tokens: 200000 > 128000, which is the maximum allowed number of output tokens` |
+| DL86 the report applied only to the refusal's own error | `limit_refusal_0089_test.go:604: 503: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 Seen:0001-01-01 00:0` |
+| DL87 the error wrapped to carry the cap | `limit_refusal_0089_test.go:635: err *fmt.wrapError "Post \"<srv>/messages\": EOF (output cap 64000 kept)"; want the type and text learning off gives, *transport.afterReply "Post \"<srv>/messages\": EO` |
+| DL88 the carry to the final error removed from Generate | `limit_refusal_0089_test.go:672: the final error: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 Seen:000` |
+| DL88 the carry to the final error removed from Stream | `limit_refusal_0089_test.go:672: the final error: Observed = {Model: BaseURL: Scope: Tokens:0 Seen:0001-01-01 00:00:00 +0000 UTC}; want {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 Seen:000` |
+| DL88 the carry removed from Generate | `retry_limit_0089_test.go:151: 0 WarningLimitLearned ([]); want one, with {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 Seen:0001-01-01 00:00:00 +0000 UTC}` |
+| DL88 the carry removed from Stream | `retry_limit_0089_test.go:151: 0 WarningLimitLearned ([]); want one, with {Model:claude-opus-4-6 BaseURL:<srv> Scope: Tokens:64000 Seen:0001-01-01 00:00:00 +0000 UTC}` |
+| DL88 a second warning for the same key added | `retry_limit_0089_test.go:151: 2 WarningLimitLearned ([{Kind:limit_learned Model:claude-opus-4-6 Detail:the service refused max output 64000 and stated 32000 for claude-opus-4-6; kept for this process` |
+| DL93 a second exported name | `FAIL unexpected: - ./llmprovider.PlantedName0089: added` |
+
+**Docs (step 5).** R24 lists `Observed`; R57 adds "or, on a call that fails, its `*APIError`'s `Observed`". Doc comments: `APIError` and its field, `WarningLimitLearned`, `LimitObservation`, `WithLimitObservations`, `WithoutLimitLearning`, `WithRetry`, `WithStreamRetry`, and each provider's output-limit paragraph (the Chat Completions wires keep a cap in OpenAI's form; the Responses and Interactions wires read none, DL68). `README.md`'s limit paragraph; `CHANGELOG.md` **Added** under `[Unreleased]`, the PLAN's text; `docs/architecture.md`'s errors paragraph, `WithRetry` paragraph and `internal/wire` row. DL94's rows are 0089-MADR's C173now to C198now, one per new sentence (C176now the field), checked with plain ids against a scratch clone's commit of this tree, 26 of 26, and planted false there, 26 of 26 caught. Not changed: `docs/guides/migrating-from-mcplib.md`'s `APIError` row, which lists the fields up to 0072 and not 0084's `Tool` either; a follow-up.
+
+**Checks (step 6)**, each exit status taken before any filter:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the phase's 18 Go files>"` | this Mac (darwin/arm64) | 2 (pass 1, the five findings above); 0 (pass 2): `18 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 packages ok |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/... ./internal/wiretest/` | the Linux machine (linux/amd64), not WSL | 0, 38 packages ok (remote status 0 on the Linux machine; no fallback) |
+| `python3 -B tools/apidiff.py v1.32.0` | this Mac | 0: 22 lines, Phase 4's 21 and `./llmprovider.APIError.Observed: added`, compared line by line |
+| `make api-check records-check changelog-check docs-check tables-check links-check markdownlint` | this Mac | 0 each |
+| `python3 -B tools/claims.py` on 0088-MADR and 0089-MADR | this Mac | 0, 0 (140 of 140; 49 of 49) |
+| `python3 -B tools/recordlint.py --changed`; `python3 -B tools/denyscan.py --changed` | this Mac | 1 first (two MD038 in this entry's plant table, a quote cut after a space; fixed); then 0; 0 (`0 hit(s) in 24 file(s)`) |
+
+**Not run under this entry**, as the coordinator sequences them: Phases 4 and 5 again on this phase's commit, `tools/gate.py`, step 7's independent review, the date step and the tag.
+
+**A scope addition, not built (2026-11-24).** The owner, relayed by the coordinator, quoted as given: "Add it in v1.33.0 (Recommended)": a seventh limit-refusal form for Kilo, measured on `z-ai/glm-5.3-flashx` (a 400, `type` AI_APICallError, the message `The max_tokens parameter is illegal.：限制数值范围[1,131072]` for 131,073 and 200,000 alike). The form states neither the value sent (V2) nor a model (V6), so how it is validated was put to the owner as OQ6; its row, DL95, goes into 0089-MADR, and is built in this phase, once OQ6 is answered.
+
+Exit criterion: no blocker found by the builder; DL78 to DL91, DL93 and DL94 tested; every plant caught (18 of 18; 26 claims rows of 26).
+
+### 2026-11-24: Phase 6b, the scope addition built (0089-MADR DL95), within pass 2
+
+The owner answered OQ6, relayed by the coordinator, quoted as given: "Read it and keep the cap (Recommended)". DL95 and OQ6 are in 0089-MADR's third addition of 2026-11-24. Built as part of pass 2's scope, not a new pass, at the coordinator's word.
+
+* **Red.** `TestLimitRefusal_KiloRangeForm_0089` (`llmprovider/providers/kilo_range_0089_test.go`, the measured body as its fixture, `param`'s values null since only its keys were recorded) at `1d9dbe7` by `tools/redgreen.py --expect fail`: `--- FAIL` on its assertions, `kilo_range_0089_test.go:77: sent [200000], err llmprovider: invalid request: kilo HTTP 400 AI_APICallError: The max_tokens parameter is illegal.：限制数值范围[1,131072]; want [200000 131072]` and `kilo_range_0089_test.go:88: the memo holds 0; want 131072`; its two not-read cases pass at the base, as they should. The refusal is `ErrInvalidRequest` at the base, its message whole.
+* **Build.** `llmprovider/internal/wire/limit_refusal.go`: `FormKiloRange`, its pattern among the cap forms, read on `KiloLimits` only; `readCap` takes the lower bound in V2's place (it must be 1), N as the value sent, M inclusive; V3, V4 and V6 (no model named, kept) as for every cap form. `limit_rule.go`: its name, "refusal: kilo max_tokens range". Docs: `kilo`'s package doc, `CHANGELOG.md`'s resend entry, `docs/architecture.md`'s `internal/wire` row (seven forms), and the file's own doc comments.
+* **Plants** (`plants-dl95.json`), 4 of 4 caught: the form not in Kilo's forms (`:77: sent [200000] ... want [200000 131072]`); M read as exclusive (`:77: sent [200000 131071], err <nil>; want [200000 131072]`); the lower bound not checked (`:77: sent [200000 131072], err <nil>; want [200000]`); V3 not checked (`:77: sent [100000 131072], err <nil>; want [100000]`). The 18 earlier plants and `apicount.py` were run again on the final tree: all caught; 22 lines.
+* **Claims.** C199now to C204now, one per new sentence, and C192now re-pointed (its line moved two down with `kilo`'s new sentence): 32 of 32 rows C173now to C204now pass against a scratch clone's commit of the final tree, and 32 of 32 planted false are caught.
+* **Checks**, on the final tree:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<20 Go files>"` | this Mac | 0: `20 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 packages ok |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/... ./internal/wiretest/` | the Linux machine, not WSL | 0, 38 packages ok (remote status 0 on the Linux machine; no fallback) |
+| `python3 -B tools/apidiff.py v1.32.0` (`apicount.py`) | this Mac | 0: 22 lines, unchanged |
+| `make api-check records-check changelog-check docs-check tables-check links-check markdownlint` | this Mac | 0 each |
+| `tools/claims.py` on 0088-MADR and 0089-MADR; `recordlint.py --changed`; `denyscan.py --changed` | this Mac | 0 (140 of 140; 49 of 49); 0; 0 |
+
+Exit criterion, with DL95: no blocker found by the builder; DL78 to DL91, DL93 to DL95 tested; 22 of 22 plants caught; 32 claims rows of 32.
+
+### 2026-11-24: Phase 6b, the review's notes closed (pass 2 continuing)
+
+The independent review passed Phase 6b with four notes; each is closed in the tree under pass 2, not a new pass, at the coordinator's word.
+
+1. **OpenCode's package doc** said the cap is kept only for a refusal of a limit the SDK chose, in Anthropic's form, though `limitRetry` keeps on every route and `routeLimits` gives the chat route OpenAI's form and the google route Gemini's range. A sentence now names the caller's limit refused in a cap form on the messages, chat and google routes, kept alike and carried as `APIError.Observed` (`llmprovider/providers/opencode/opencode.go`). Its claims row is 0089-MADR's C205now, and C193now is re-pointed to the paragraph's changed line: 33 rows, C173now to C205now, pass against a scratch clone's commit of the tree, and 33 of 33 planted false are caught.
+2. **`TestLimitRefusal_KiloRangeForm_0089`'s caller case** now asserts `Observed` (`wantObserved`: 131,072 for the model and base URL, `Seen` within the call), and zero for the two not-read cases. A plant of Kilo's `Generate` not applying the report to its error, the caller path, is caught by it (`plants-review.json`): `kilo_range_0089_test.go:100: a caller's limit: Observed = {Model: BaseURL: Scope: Tokens:0 ...}; want {Model:z-ai/glm-5.3-flashx BaseURL:<srv> Scope: Tokens:131072 ...}`. The test's red at the base was taken before this assertion, which the base cannot build; DL95's four plants were run again: 4 of 4 caught.
+3. **`apicount.py` (annotation of this phase's two entries above).** Where they cite `apicount.py`, read `python3 -B tools/apidiff.py v1.32.0`: its output lists 22 lines, Phase 4's 21 and `./llmprovider.APIError.Observed: added`, run again on the final tree (exit 0, 22 lines). `apicount.py` was a scratch counter that compared that output with Phase 4's list, kept in the session's scratch directory and not in the repository; DL93's plant ran it as `tools/plant.py`'s command.
+4. **A follow-up, not built.** Kilo's range-form pattern reads the ASCII `[`, `,` and `]` only, as measured; a reply with the fullwidth `［`, `，` or `］` is not read, and is returned unchanged, the safe failure (DL95). A later record decides whether to read them, on a recorded reply.
+
+**Checks**, each exit status taken before any filter: `go test -run TestLimitRefusal_KiloRangeForm_0089 ./llmprovider/providers/` 0; `tools/plant.py plants-review.json` 0 (1 of 1 caught) and `plants-dl95.json` 0 (4 of 4); `run-heavy -- make pre-add-check FILES="<the changed Go files>"` 0 (`2 file(s) clean`); `tools/claims.py` on 0088-MADR and 0089-MADR 0, 0 (140 of 140; 49 of 49); `tools/recordlint.py --changed` 0; `tools/denyscan.py --changed` 0 (`0 hit(s) in 26 file(s)`).

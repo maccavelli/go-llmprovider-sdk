@@ -127,9 +127,15 @@
 //     A refusal of a limit the SDK chose, in Anthropic's form and
 //     validated as 0089-MADR D4 says, is sent once more at the stated cap,
 //     which is kept for the process unless llmprovider.WithoutLimitLearning
-//     is given. The responses, chat and google routes send none unless the
-//     caller gives one (DL47). The Response, and a stream's done event, carry
-//     the limit sent in OutputLimit.
+//     is given, and reported in a WarningLimitLearned, or, on a call that
+//     fails, as its error's APIError.Observed (DL78). A caller's own limit
+//     refused in a cap form, Anthropic's on the messages route, OpenAI's on
+//     the chat route or Gemini's range on the google route, is returned, not
+//     resent, and its cap kept alike; a call that fails after a cap was kept
+//     carries it as its error's APIError.Observed (DL78, DL86). The
+//     responses, chat and google routes send none unless the caller gives one
+//     (DL47). The Response, and a stream's done event, carry the limit sent
+//     in OutputLimit.
 //
 // A refusal of a tool's schema is an *APIError of kind
 // llmprovider.ErrToolSchemaRefused when its reply carries a marker the
@@ -388,10 +394,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		// body held it (0084-MADR D2, D4).
 		c.limit = p.limitRetry(c, false)
 		resp, err := wire.Send(ctx, "opencode", p.src, build, p.decode(c), wire.Retries(c.limit.Check, effort.Check))
-		if err == nil {
-			// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-			c.limit.Finish(resp, p.observe(c, false))
-		}
+		// The limit sent, and a cap learned, are reported: on the response, or on
+		// the error that ends the call (0089-MADR D5, D7, DL78).
+		err = c.limit.Finish(resp, err, p.observe(c, false))
 		return resp, wire.NameRefusedTool(err, c.held)
 	}
 	f := p.forcing.For(string(p.gateway), c.model)
@@ -410,9 +415,10 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	resp, err := wire.Send(ctx, "opencode", p.src, build, messages.Decode,
 		wire.Retries(c.limit.Check, retry.Check, effort.Check))
 	err = wire.NameRefusedTool(err, c.held)
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	err = c.limit.Finish(resp, err, p.observe(c, false))
 	if err == nil {
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		c.limit.Finish(resp, p.observe(c, false))
 		messages.StructuredCall(req, f, resp)
 		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning,
 			func() (llmprovider.Warning, bool) { return messages.ToolChoiceWarning(req, c.reasoning != nil, f) }} {

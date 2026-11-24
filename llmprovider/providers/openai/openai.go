@@ -111,6 +111,9 @@
 // cut to the model's stated limit, never raised; otherwise none is sent,
 // and the service's own default applies. The Response, and a stream's done
 // event, carry the limit sent in OutputLimit.
+// A refusal of a given limit is returned as it came: this wire reads no
+// stated cap, so none is kept, and the error's APIError.Observed stays
+// zero (0089-MADR DL68, DL84).
 // A ChatGPT session and a plan session send no output limit, as before.
 package openai
 
@@ -345,10 +348,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderOpenAI), p.src,
 		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, tools, limit) }, p.decode(req),
 		wire.Retries(limit.Check, effort.Check))
-	if err == nil {
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		limit.Finish(resp, p.observe(req, false))
-	}
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	err = limit.Finish(resp, err, p.observe(req, false))
 	// A refusal of a tool's schema names the tool it refused, when the body
 	// held it (0084-MADR D2, D4).
 	return resp, wire.NameRefusedTool(err, held)

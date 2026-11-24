@@ -82,6 +82,11 @@
 // cut to the model's stated limit, never raised; otherwise none is sent,
 // and the service's own default applies. The Response, and a stream's done
 // event, carry the limit sent in OutputLimit.
+// A refusal of a given limit in OpenAI's "supports at most M" form,
+// validated as 0089-MADR D4 says, is returned, not resent; M is kept for
+// the rest of the process, in memory only, and reported as the error's
+// APIError.Observed, unless llmprovider.WithoutLimitLearning is given
+// (DL78).
 // Prior reasoning is replayed under the field the model's interleaved.field
 // names, and under none when no source names one.
 package huggingface
@@ -210,10 +215,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderHuggingFace), p.src,
 		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, limit) },
 		chatcompletions.DecodeFor(string(llmprovider.ProviderHuggingFace)), wire.Retries(limit.Check, effort.Check))
-	if err == nil {
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		limit.Finish(resp, p.observe(req, false))
-	}
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	err = limit.Finish(resp, err, p.observe(req, false))
 	return resp, err
 }
 

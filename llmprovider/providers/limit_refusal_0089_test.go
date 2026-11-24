@@ -4,16 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 )
 
 // 0089-PLAN Phase 2's tests that assert the resend at a stated limit or a
@@ -299,5 +303,377 @@ func TestLimitLearning_Default_0089(t *testing.T) {
 			t.Errorf("WithoutLimitLearning: warning %+v, streamed output %+v; want nothing kept or reported", warned,
 				l.StreamedOutput)
 		}
+	}
+}
+
+// 0089-PLAN Phase 6b's tests (0089-MADR, second amendment of 2026-11-24,
+// DL78 to DL91): a cap the service stated when it refused a call's output
+// limit, which the provider kept, reaches the caller on the error that ends
+// the call, APIError.Observed; WithRetry and WithStreamRetry carry a retried
+// attempt's to the final result. Every server is the test's own.
+
+// callerModel0089 is a Claude model no source states.
+const callerModel0089 = "claude-caller-0089"
+
+// callerRefusal is Claude's refusal of sent, stating 128,000 for named.
+func callerRefusal(sent int, named string) string {
+	return messagesError(fmt.Sprintf("max_tokens: %d > 128000, which is the maximum allowed number of output "+
+		"tokens for %s", sent, named))
+}
+
+// refuseAt answers a POST whose limit is sent with a 400 carrying refusal,
+// and any other with ok.
+func refuseAt(sent int, refusal, ok string) func(int, map[string]any) (int, string) {
+	return func(_ int, body map[string]any) (int, string) {
+		if limit, _ := sentLimit(body); int(limit) == sent {
+			return http.StatusBadRequest, refusal
+		}
+		return http.StatusOK, ok
+	}
+}
+
+// limitRequest is hiRequest naming limit as its own MaxOutputTokens.
+func limitRequest(limit int) *llmprovider.Request {
+	req := hiRequest()
+	req.MaxOutputTokens = limit
+	return req
+}
+
+// wantObserved checks that err wraps an *APIError whose Observed is want,
+// its Seen between from and to, or zero when want is.
+func wantObserved(t *testing.T, label string, err error, want llmprovider.LimitObservation, from, to time.Time) {
+	t.Helper()
+	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
+	if !ok {
+		t.Errorf("%s: err %v (%T); want an *APIError", label, err, err)
+		return
+	}
+	got := apiErr.Observed
+	seen := got.Seen
+	got.Seen = time.Time{}
+	if got != want {
+		t.Errorf("%s: Observed = %+v; want %+v", label, got, want)
+	}
+	switch {
+	case want.Tokens > 0 && (seen.Before(from) || seen.After(to)):
+		t.Errorf("%s: Observed.Seen %v; want within the call, %v to %v (DL90)", label, seen, from, to)
+	case want.Tokens == 0 && !seen.IsZero():
+		t.Errorf("%s: Observed.Seen %v; want zero", label, seen)
+	}
+}
+
+// memoCap is the memo's cap for model on the Claude route at url.
+func memoCap(t *testing.T, cache *catalog.Cache, url, model string, stream bool) int {
+	t.Helper()
+	c, _ := memoIn(t, cache).Cap(limitmemo.Key{Provider: string(llmprovider.ProviderClaude), BaseURL: url, Model: model,
+		Stream: stream})
+	return c
+}
+
+// callerRefusedText0089 is the refusal's text at 33e6f09, which DL91 keeps.
+const callerRefusedText0089 = "llmprovider: invalid request: claude HTTP 400 invalid_request_error: max_tokens: 200000 > " +
+	"128000, which is the maximum allowed number of output tokens for claude-caller-0089"
+
+// callerServer is a Claude server refusing 200,000 for callerModel0089.
+func callerServer(t *testing.T) *limitServer {
+	t.Helper()
+	return newLimitServer(t, "", refuseAt(200000, callerRefusal(200000, callerModel0089), wirecase.MessagesReply))
+}
+
+// TestLimitRefusal_CallerReport_0089 (DL78 to DL84, DL88's caller case,
+// DL89 to DL91): a caller's limit refused in a cap form, validated and kept,
+// is sent once and returned, and the returned *APIError's Observed is the
+// kept cap, as a WarningLimitLearned carries it; nothing kept, nothing
+// reported; the error's text is 33e6f09's.
+func TestLimitRefusal_CallerReport_0089(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("the request's own limit, stream %t", stream), func(t *testing.T) { callerOwnLimit(t, stream) })
+		t.Run(fmt.Sprintf("WithMaxTokens, stream %t", stream), func(t *testing.T) { callerOption(t, stream) })
+		t.Run(fmt.Sprintf("under a retry wrapper, stream %t", stream), func(t *testing.T) { callerUnderRetry(t, stream) })
+	}
+	t.Run("kilo, the first payload inside a 200", callerKiloFirstPayload)
+	t.Run("the same value refused again", callerRefusedAgain)
+	t.Run("WithoutLimitLearning", callerLearningOff)
+	t.Run("a refusal naming another model (V6)", callerOtherModel)
+	t.Run("a window form", callerWindowForm)
+	t.Run("passed back, with a workspace", callerPassedBack)
+}
+
+// callerOwnLimit is DL78 (Generate) and DL79 (Stream, refused before any
+// event), with DL91's text.
+func callerOwnLimit(t *testing.T, stream bool) {
+	srv := callerServer(t)
+	cache := new(catalog.Cache)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, cache))
+	from := time.Now()
+	_, failures, err := callFor(context.Background(), p, limitRequest(200000), stream)
+	to := time.Now()
+	wantObserved(t, "refused", err, llmprovider.LimitObservation{Model: callerModel0089, BaseURL: srv.URL,
+		Tokens: 128000}, from, to)
+	if n := len(srv.posts()); n != 1 || failures != 1 || !errors.Is(err, llmprovider.ErrInvalidRequest) {
+		t.Errorf("%d send(s), %d error(s), err %v; want one send, one error, ErrInvalidRequest", n, failures, err)
+	}
+	if err == nil || err.Error() != callerRefusedText0089 {
+		t.Errorf("text %q; want %q, 33e6f09's (DL91)", fmt.Sprint(err), callerRefusedText0089)
+	}
+	if c := memoCap(t, cache, srv.URL, callerModel0089, stream); c != 128000 {
+		t.Errorf("the memo holds %d under the call's own key; want 128000", c)
+	}
+}
+
+// callerOption is DL81: WithMaxTokens' value, refused.
+func callerOption(t *testing.T, stream bool) {
+	srv := newLimitServer(t, "", refuseAt(150000, callerRefusal(150000, callerModel0089), wirecase.MessagesReply))
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, new(catalog.Cache),
+		llmprovider.WithMaxTokens(150000)))
+	from := time.Now()
+	_, _, err := callFor(context.Background(), p, hiRequest(), stream)
+	wantObserved(t, "option refused", err, llmprovider.LimitObservation{Model: callerModel0089, BaseURL: srv.URL,
+		Tokens: 128000}, from, time.Now())
+	if n := len(srv.posts()); n != 1 {
+		t.Errorf("%d send(s); want one: a caller's value is not resent", n)
+	}
+}
+
+// callerUnderRetry is DL88's caller case: a refused caller value is not
+// retried, and is returned once with Observed.
+func callerUnderRetry(t *testing.T, stream bool) {
+	srv := callerServer(t)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, new(catalog.Cache)))
+	policy := llmprovider.RetryPolicy{MaxAttempts: 3, BaseDelay: time.Millisecond}
+	if stream {
+		p = llmprovider.WithStreamRetry(p, policy, nil)
+	} else {
+		p = llmprovider.WithRetry(p, policy)
+	}
+	from := time.Now()
+	_, failures, err := callFor(context.Background(), p, limitRequest(200000), stream)
+	wantObserved(t, "refused under retry", err, llmprovider.LimitObservation{Model: callerModel0089,
+		BaseURL: srv.URL, Tokens: 128000}, from, time.Now())
+	if n := len(srv.posts()); n != 1 || failures != 1 {
+		t.Errorf("%d send(s), %d error(s); want one of each: ErrInvalidRequest is not retried", n, failures)
+	}
+}
+
+// callerKiloFirstPayload is DL80: Kilo's refusal as its stream's first
+// payload inside a 200: the *APIError is found through the transport's
+// wrapper, whose type and text stay those of the same call with learning off.
+func callerKiloFirstPayload(t *testing.T) {
+	const model = "anthropic/" + callerModel0089
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		if r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `data: {"error":{"code":400,"message":"max_tokens: 200000 > 128000, which is `+
+			`the maximum allowed number of output tokens for `+callerModel0089+`"}}`+"\n\n")
+	}))
+	t.Cleanup(srv.Close)
+	p := newOn(t, llmprovider.ProviderKilo, limitOpts(srv.URL, model, new(catalog.Cache)))
+	from := time.Now()
+	_, _, errOn := callFor(context.Background(), p, limitRequest(200000), true)
+	to := time.Now()
+	off := newOn(t, llmprovider.ProviderKilo, limitOpts(srv.URL, model, new(catalog.Cache),
+		llmprovider.WithoutLimitLearning()))
+	_, _, errOff := callFor(context.Background(), off, limitRequest(200000), true)
+	if errOn == nil || fmt.Sprintf("%T", errOn) == fmt.Sprintf("%T", &llmprovider.APIError{}) {
+		t.Fatalf("err %v (%T); want the transport's wrapper of an *APIError (0088-MADR A5)", errOn, errOn)
+	}
+	wantObserved(t, "kilo", errOn, llmprovider.LimitObservation{Model: model, BaseURL: srv.URL, Tokens: 128000},
+		from, to)
+	wantObserved(t, "kilo, learning off", errOff, llmprovider.LimitObservation{}, from, to)
+	if fmt.Sprintf("%T %v", errOn, errOn) != fmt.Sprintf("%T %v", errOff, errOff) {
+		t.Errorf("err %T %q; want the type and text learning off gives, %T %q", errOn, errOn, errOff, errOff)
+	}
+}
+
+// callerRefusedAgain is DL82: the same value refused again, the memo
+// unchanged: each refused call carries Observed.
+func callerRefusedAgain(t *testing.T) {
+	srv := callerServer(t)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, new(catalog.Cache)))
+	for i := range 2 {
+		from := time.Now()
+		_, err := p.Generate(context.Background(), limitRequest(200000))
+		wantObserved(t, fmt.Sprintf("call %d", i+1), err, llmprovider.LimitObservation{Model: callerModel0089,
+			BaseURL: srv.URL, Tokens: 128000}, from, time.Now())
+	}
+	if n := len(srv.posts()); n != 2 {
+		t.Errorf("%d send(s); want one per call", n)
+	}
+}
+
+// callerLearningOff is DL83: WithoutLimitLearning keeps nothing and reports
+// nothing; the refusal is returned as at 33e6f09.
+func callerLearningOff(t *testing.T) {
+	srv := callerServer(t)
+	cache := new(catalog.Cache)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, cache,
+		llmprovider.WithoutLimitLearning()))
+	from := time.Now()
+	_, err := p.Generate(context.Background(), limitRequest(200000))
+	wantObserved(t, "learning off", err, llmprovider.LimitObservation{}, from, time.Now())
+	if err == nil || err.Error() != callerRefusedText0089 {
+		t.Errorf("text %q; want %q", fmt.Sprint(err), callerRefusedText0089)
+	}
+	if c := memoCap(t, cache, srv.URL, callerModel0089, false); c != 0 {
+		t.Errorf("the memo holds %d; want nothing kept", c)
+	}
+}
+
+// callerOtherModel is DL84: a refusal whose named model fails V6 is not
+// kept, and reports nothing.
+func callerOtherModel(t *testing.T) {
+	srv := newLimitServer(t, "", refuseAt(200000, callerRefusal(200000, "claude-other-0089"), wirecase.MessagesReply))
+	cache := new(catalog.Cache)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, cache))
+	from := time.Now()
+	_, err := p.Generate(context.Background(), limitRequest(200000))
+	wantObserved(t, "V6", err, llmprovider.LimitObservation{}, from, time.Now())
+	if c := memoCap(t, cache, srv.URL, callerModel0089, false); c != 0 {
+		t.Errorf("the memo holds %d; want nothing kept", c)
+	}
+}
+
+// callerWindowForm is DL84: a window form keeps nothing, and reports
+// nothing.
+func callerWindowForm(t *testing.T) {
+	srv := newLimitServer(t, "", refuseFirst(chatError("This model's maximum context length is 32768 tokens. "+
+		"However, you requested 40000 tokens (23616 in the messages, 16384 in the completion). Please reduce the "+
+		"length of the messages or completion."), wirecase.ChatReply))
+	p := newOn(t, llmprovider.ProviderTogether, limitOpts(srv.URL, "openai/gpt-oss-120b", new(catalog.Cache),
+		llmprovider.WithMaxTokens(16384)))
+	from := time.Now()
+	_, err := p.Generate(context.Background(), hiRequest())
+	wantObserved(t, "window form", err, llmprovider.LimitObservation{}, from, time.Now())
+}
+
+// callerPassedBack is DL89 and DL90: Claude with a workspace: the error's
+// Observed names it, and passed back to a new provider with
+// WithLimitObservations it is taken (New refuses a zero Seen, DL42) and read
+// as "remembered" for the workspace's requests.
+func callerPassedBack(t *testing.T) {
+	const workspace = "wrkspc_0089"
+	ctx := context.Background()
+	srv := callerServer(t)
+	p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, new(catalog.Cache),
+		claude.WithWorkspace(workspace)))
+	from := time.Now()
+	_, err := p.Generate(ctx, limitRequest(200000))
+	wantObserved(t, "refused in a workspace", err, llmprovider.LimitObservation{Model: callerModel0089,
+		BaseURL: srv.URL, Scope: workspace, Tokens: 128000}, from, time.Now())
+	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
+	if !ok {
+		t.FailNow()
+	}
+	again, err := New(llmprovider.ProviderClaude, limitOpts(srv.URL, callerModel0089, new(catalog.Cache),
+		claude.WithWorkspace(workspace), llmprovider.WithLimitObservations(apiErr.Observed))...)
+	if err != nil {
+		t.Fatalf("New refused the error's Observed passed back: %v", err)
+	}
+	resp, err := again.Generate(ctx, hiRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := llmprovider.SentLimit{Tokens: 128000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "remembered"}
+	if resp.OutputLimit != want {
+		t.Errorf("OutputLimit = %+v; want %+v, the passed-back cap", resp.OutputLimit, want)
+	}
+}
+
+// TestLimitRefusal_ResendFails_0089 (DL86, DL87, and DL88's final error): the
+// SDK's own limit refused in a cap form, the cap kept, and the resend at it
+// failing: an *APIError carries Observed; any other error is returned as it
+// came, and the cap stays in the memo and bounds the next request.
+func TestLimitRefusal_ResendFails_0089(t *testing.T) {
+	ctx := context.Background()
+	refused := opusRefusal(128000, 64000)
+	t.Run("the resend answered 503", func(t *testing.T) {
+		srv := newLimitServer(t, "", func(n int, _ map[string]any) (int, string) {
+			if n == 0 {
+				return http.StatusBadRequest, refused
+			}
+			return http.StatusServiceUnavailable, overloaded0089
+		})
+		p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, opus0089, new(catalog.Cache)))
+		from := time.Now()
+		_, err := p.Generate(ctx, hiRequest())
+		wantObserved(t, "503", err, llmprovider.LimitObservation{Model: opus0089, BaseURL: srv.URL, Tokens: 64000},
+			from, time.Now())
+		if apiErr, ok := errors.AsType[*llmprovider.APIError](err); !ok || apiErr.Status != http.StatusServiceUnavailable ||
+			len(srv.posts()) != 2 {
+			t.Errorf("%d send(s), err %v; want the resend's 503", len(srv.posts()), err)
+		}
+	})
+	t.Run("the resend's connection closed", func(t *testing.T) {
+		srv := newLimitServer(t, "", func(_ int, body map[string]any) (int, string) {
+			if limit, _ := sentLimit(body); limit == 128000 {
+				return http.StatusBadRequest, refused
+			}
+			msgs, _ := body["messages"].([]any)
+			first, _ := msgs[0].(map[string]any)
+			if fmt.Sprint(first["content"]) == "cut" {
+				panic(http.ErrAbortHandler)
+			}
+			return http.StatusOK, wirecase.MessagesReply
+		})
+		cut := &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "cut"}}}
+		cache := new(catalog.Cache)
+		opts := limitOpts(srv.URL, opus0089, cache)
+		p := newOn(t, llmprovider.ProviderClaude, opts)
+		_, errOn := p.Generate(ctx, cut)
+		off := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, opus0089, new(catalog.Cache),
+			llmprovider.WithoutLimitLearning()))
+		_, errOff := off.Generate(ctx, cut)
+		if _, ok := errors.AsType[*llmprovider.APIError](errOn); ok || errOn == nil {
+			t.Fatalf("err %v (%T); want a failure that is no *APIError", errOn, errOn)
+		}
+		if fmt.Sprintf("%T %v", errOn, errOn) != fmt.Sprintf("%T %v", errOff, errOff) {
+			t.Errorf("err %T %q; want the type and text learning off gives, %T %q (R24)", errOn, errOn, errOff, errOff)
+		}
+		if c := memoCap(t, cache, srv.URL, opus0089, true); c != 64000 {
+			t.Errorf("the memo holds %d; want 64000 kept", c)
+		}
+		l := catalog.CachedLimits(ctx, llmprovider.ProviderClaude, opus0089, opts...)
+		if l.StreamedOutput.Tokens != 64000 || l.StreamedOutput.Evidence[0].Source != "observed" {
+			t.Errorf("streamed output %+v; want 64000, observed", l.StreamedOutput)
+		}
+		resp, err := p.Generate(ctx, hiRequest())
+		want := llmprovider.SentLimit{Tokens: 64000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "observed"}
+		if err != nil {
+			t.Fatalf("the next request: %v", err)
+		}
+		if resp.OutputLimit != want {
+			t.Errorf("the next request's OutputLimit = %+v; want %+v, the kept cap", resp.OutputLimit, want)
+		}
+	})
+	// DL88: every attempt failing, the final *APIError's Observed, zero on
+	// the last attempt's own error, is the one a retried attempt carried.
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("every attempt failing under a retry wrapper, stream %t", stream), func(t *testing.T) {
+			srv := newLimitServer(t, "", func(n int, _ map[string]any) (int, string) {
+				if n == 0 {
+					return http.StatusBadRequest, refused
+				}
+				return http.StatusServiceUnavailable, overloaded0089
+			})
+			p := newOn(t, llmprovider.ProviderClaude, limitOpts(srv.URL, opus0089, new(catalog.Cache)))
+			policy := llmprovider.RetryPolicy{MaxAttempts: 3, BaseDelay: time.Millisecond}
+			if stream {
+				p = llmprovider.WithStreamRetry(p, policy, nil)
+			} else {
+				p = llmprovider.WithRetry(p, policy)
+			}
+			from := time.Now()
+			_, _, err := callFor(ctx, p, hiRequest(), stream)
+			wantObserved(t, "the final error", err, llmprovider.LimitObservation{Model: opus0089, BaseURL: srv.URL,
+				Tokens: 64000}, from, time.Now())
+			if n := len(srv.posts()); n != 4 {
+				t.Errorf("%d send(s); want 4: the refusal, its resend, two retries", n)
+			}
+		})
 	}
 }

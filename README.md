@@ -250,8 +250,11 @@ functions over any provider, and `Stream` streams from every one.
   and returned whole. `Response.OutputLimit` says what was sent and why. A
   refusal that states the service's cap is resent once at it, and the cap
   is kept for the process and reported in a `WarningLimitLearned`, which
-  `WithLimitObservations` passes back on the next start;
-  `WithoutLimitLearning` keeps and reports nothing.
+  `WithLimitObservations` passes back on the next start; a call that fails
+  after a cap was kept, a caller's own limit refused among them, reports it
+  as its `*APIError`'s `Observed` instead, and `WithRetry` carries a retried
+  attempt's to the final result; `WithoutLimitLearning` keeps and reports
+  nothing.
 - **Ranking.** The recommended models of every provider but Ollama are
   ranked by use case, from each model's facts. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit

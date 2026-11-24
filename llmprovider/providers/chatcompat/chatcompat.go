@@ -94,6 +94,11 @@
 // model's stated limit, never raised; otherwise none is sent, whatever a
 // caller's layer or models.dev states. The Response, and a stream's done
 // event, carry the limit sent in OutputLimit.
+// A refusal of a given limit in OpenAI's "supports at most M" form,
+// validated as 0089-MADR D4 says, is returned, not resent; M is kept for
+// the rest of the process, in memory only, and reported as the error's
+// APIError.Observed, unless llmprovider.WithoutLimitLearning is given
+// (DL78).
 package chatcompat
 
 import (
@@ -271,10 +276,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	resp, err := wire.Send(ctx, string(p.id), p.src,
 		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, limit) },
 		chatcompletions.DecodeFor(string(p.id)), wire.Retries(limit.Check, effort.Check))
-	if err == nil {
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		limit.Finish(resp, p.observe(req, false))
-	}
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	err = limit.Finish(resp, err, p.observe(req, false))
 	return resp, err
 }
 

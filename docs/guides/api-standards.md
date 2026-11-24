@@ -250,8 +250,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
 
 - **R24. `*APIError` is the only structured error.** It carries `Provider`,
   `Status`, `Kind`, `Code`, a redacted and bounded `Message`, `RetryAfter`,
-  `ResetAt`, `Limit`, `Reason` and `Tool`, the refused tool's name when the kind
-  is `ErrToolSchemaRefused`. (0015 D7; 0072 D1, D2; 0084 D2)
+  `ResetAt`, `Limit`, `Reason`, `Tool`, the refused tool's name when the kind
+  is `ErrToolSchemaRefused`, and `Observed`, the output cap a refusal stated
+  and the provider kept, on the error that ends the call. (0015 D7; 0072 D1,
+  D2; 0084 D2; 0089 DL78, DL94)
 - **R25. Test errors by kind with `errors.Is`.** Each error unwraps to one of
   `ErrRateLimited` (with `ErrQuotaExhausted` beneath it), `ErrAuthFailure`,
   `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow`,
@@ -432,9 +434,10 @@ D9 ("0089 D*n*").
   token, 4,800 characters an image and 4,096 spare, pi's and unmeasured
   (0088 ST87). A refusal that states a cap or a
   window resends a limit the SDK chose once at the stated value; a stated
-  cap is kept for the process and reported in a `WarningLimitLearned`
-  unless `WithoutLimitLearning` is given, and a caller's own limit is never
-  resent. (0089 D4 to D6, D9; 0088 ST99)
+  cap is kept for the process and reported in a `WarningLimitLearned` or,
+  on a call that fails, its `*APIError`'s `Observed`, unless
+  `WithoutLimitLearning` is given, and a caller's own limit is never
+  resent. (0089 D4 to D6, D9, DL78, DL94; 0088 ST99)
 
 ## Checks
 

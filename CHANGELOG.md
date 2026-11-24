@@ -46,6 +46,9 @@ tag and its commit without notes; its notes are its section here.
   when it was seen, and only where no other source states the model's limit.
   `llmprovider.WithoutLimitLearning` keeps and reports nothing, and still
   resends (0089-MADR D5, DL40 to DL42, DL49, DL73).
+- `APIError.Observed`: the output cap a service stated when it refused a
+  call's limit, kept by the SDK, on the error that ends the call; `WithRetry`
+  carries a retried attempt's to the final result (0089-MADR DL78 to DL94).
 - `llmprovider.Settings.MaxTokensGiven`: whether `WithMaxTokens` gave the
   limit, so that a provider outside this module can tell a caller's value
   from the default (0088-MADR OQ5, ST35, ST36).
@@ -81,7 +84,9 @@ tag and its commit without notes; its notes are its section here.
   ST106; 0089-MADR DL56).
 - A refusal of a limit the SDK chose that states the service's cap
   (Anthropic's `max_tokens: N > M`, OpenAI's "supports at most", Gemini's
-  range, each on the wires 0089-MADR DL68 names) or a window and the tokens
+  range, each on the wires 0089-MADR DL68 names, and on Kilo its range form,
+  "The max_tokens parameter is illegal.：限制数值范围[1,M]", whose lower bound
+  must be 1, 0089-MADR DL95) or a window and the tokens
   asked (OpenRouter's and Kilo's forms on Kilo) is resent once at the stated
   value, outside the bound of seven sends, once the refusal is checked
   against the request; a stated cap is kept and bounds later requests to

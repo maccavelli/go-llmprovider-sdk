@@ -86,6 +86,7 @@ var formNames = map[LimitForms]string{
 	FormAnthropicCap:     "refusal: anthropic max_tokens",
 	FormOpenAICap:        "refusal: openai at most",
 	FormGeminiRange:      "refusal: gemini range",
+	FormKiloRange:        "refusal: kilo max_tokens range",
 	FormOpenRouterWindow: "refusal: openrouter context length",
 	FormKiloWindow:       "refusal: kilo context window",
 	FormSplitWindow:      "refusal: context split",
@@ -129,6 +130,10 @@ type LimitRetry struct {
 	resend  llmprovider.SentLimit // the resend's, once a refusal set it
 	resent  bool
 	warning *llmprovider.Warning
+	// kept is the observation of a cap this request kept, whether or not it
+	// changed the memo: the error that ends the call carries it (0089-MADR
+	// DL78, DL82).
+	kept llmprovider.LimitObservation
 }
 
 // Choose is the limit the next send carries: the resend's, once a refusal
@@ -194,7 +199,10 @@ func (r *LimitRetry) Report() llmprovider.SentLimit { return r.sent }
 // ReadLimitRefusal, keeps a kept cap (Keep), and resends once at the stated
 // cap, or the room a window form leaves, when the SDK chose the value
 // (basis fact or fallback); a caller's value is not resent (0088-MADR ST17,
-// ST18; 0089-MADR DL37). Anything else is left to the next check.
+// ST18; 0089-MADR DL37). A kept cap is reported on the error that ends the
+// call, every time (Finish; DL78 to DL82), and in a WarningLimitLearned on a
+// response only when it changed the memo, once per key (D5). Anything else
+// is left to the next check.
 func (r *LimitRetry) Check(err error) (bool, error) {
 	if r.resent || !r.sent.Sent {
 		return false, err
@@ -203,13 +211,16 @@ func (r *LimitRetry) Check(err error) (bool, error) {
 	if !ok {
 		return false, err
 	}
-	if reading.Cap > 0 && reading.Keep && r.Keep != nil && r.Keep(reading.Cap) {
+	if reading.Cap > 0 && reading.Keep && r.Keep != nil {
 		obs := r.Observed
 		obs.Tokens, obs.Seen = reading.Cap, time.Now()
-		r.warning = &llmprovider.Warning{Kind: llmprovider.WarningLimitLearned, Model: r.Model,
-			Detail: fmt.Sprintf("the service refused max output %d and stated %d for %s; kept for this process",
-				r.sent.Tokens, reading.Cap, r.Model),
-			Observed: obs}
+		r.kept = obs
+		if r.Keep(reading.Cap) {
+			r.warning = &llmprovider.Warning{Kind: llmprovider.WarningLimitLearned, Model: r.Model,
+				Detail: fmt.Sprintf("the service refused max output %d and stated %d for %s; kept for this process",
+					r.sent.Tokens, reading.Cap, r.Model),
+				Observed: obs}
+		}
 	}
 	if r.sent.Basis != llmprovider.LimitBasisFact && r.sent.Basis != llmprovider.LimitBasisFallback {
 		return false, err
@@ -236,10 +247,24 @@ func (r *LimitRetry) Warning() (llmprovider.Warning, bool) {
 	return *r.warning, true
 }
 
-// Finish reports the limit on resp (0089-MADR D7), adds the warning, and
-// hands its output tokens to observe, the memo's drop of a cap the response
-// shows wrong (D5, DL39); a nil resp or observe is skipped.
-func (r *LimitRetry) Finish(resp *llmprovider.Response, observe func(output int)) {
+// Finish ends a call: given its error, it returns that error, with the cap
+// the request kept, if any, set as the Observed of the *APIError it wraps
+// (errors.As), whose type and text stay; an error that is no *APIError is
+// returned as it came, and the cap stays in the memo (0089-MADR DL78, DL80,
+// DL86, DL87). Given none, it reports the limit on resp (D7), adds the
+// warning, and hands its output tokens to observe, the memo's drop of a cap
+// the response shows wrong (D5, DL39); a nil resp or observe is skipped.
+func (r *LimitRetry) Finish(resp *llmprovider.Response, err error, observe func(output int)) error {
+	if err != nil {
+		r.markObserved(err)
+		return err
+	}
+	r.finishResponse(resp, observe)
+	return nil
+}
+
+// finishResponse is Finish on a response.
+func (r *LimitRetry) finishResponse(resp *llmprovider.Response, observe func(output int)) {
 	if resp == nil {
 		return
 	}
@@ -252,14 +277,28 @@ func (r *LimitRetry) Finish(resp *llmprovider.Response, observe func(output int)
 	}
 }
 
+// markObserved sets the kept cap on the *APIError err wraps, if any (DL78,
+// DL80).
+func (r *LimitRetry) markObserved(err error) {
+	if r.kept.Tokens == 0 {
+		return
+	}
+	if apiErr, ok := errors.AsType[*llmprovider.APIError](err); ok {
+		apiErr.Observed = r.kept
+	}
+}
+
 // FinishStream is seq with Finish applied to its done event's Response, the
-// stream's final one (DL54).
+// stream's final one (DL54), and to an error it yields (DL79).
 func (r *LimitRetry) FinishStream(seq iter.Seq2[llmprovider.Event, error],
 	observe func(output int)) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
 		for ev, err := range seq {
-			if err == nil && ev.Type == llmprovider.EventDone {
-				r.Finish(ev.Response, observe)
+			switch {
+			case err != nil:
+				err = r.Finish(nil, err, observe)
+			case ev.Type == llmprovider.EventDone:
+				r.finishResponse(ev.Response, observe)
 			}
 			if !yield(ev, err) {
 				return

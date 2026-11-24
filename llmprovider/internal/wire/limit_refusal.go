@@ -13,7 +13,8 @@ import (
 // A refusal of an output limit as evidence (0089-MADR D4, DL68): the forms
 // that state a number, which route reads which, and the validator that
 // decides whether a refusal's number may be used. The cap forms' texts are
-// the forum copies 0089-MADR W7 names, none a recorded reply.
+// the forum copies 0089-MADR W7 names, none a recorded reply, but Kilo's
+// range form, measured by a live probe (DL95).
 
 // LimitForms is a set of refusal forms that state a limit.
 type LimitForms uint8
@@ -40,6 +41,12 @@ const (
 	// context length is W tokens ... (I in the messages, C in the
 	// completion)" (0089-MADR C27; 0088-MADR C38).
 	FormSplitWindow
+	// FormKiloRange is Kilo's range form, measured on 2026-11-24 (0089-MADR
+	// DL95): "The max_tokens parameter is illegal.：限制数值范围[L,M]", M
+	// inclusive. It states no value sent and no model, so its lower bound
+	// must be 1 in V2's place, and V3 and V4 hold as for every cap form (OQ6
+	// (1)).
+	FormKiloRange
 )
 
 // LimitWire is what one route reads of a refusal of its output limit: the
@@ -54,11 +61,13 @@ type LimitWire struct {
 // upstream's text that V6 checks; OpenAI's on the Chat Completions wires,
 // not on Responses, whose text is not established; Gemini's range on
 // generateContent (OpenCode's google route), not on Interactions; Kilo's
-// two window forms on Kilo (0088-MADR ST51, C39); the split on the Chat
-// Completions wires (C38). Responses' field takes at least 16 (W8).
+// two window forms on Kilo (0088-MADR ST51, C39), and its range form
+// (DL95); the split on the Chat Completions wires (C38). Responses' field
+// takes at least 16 (W8).
 var (
-	MessagesLimits        = LimitWire{Forms: FormAnthropicCap, Minimum: 1}
-	KiloLimits            = LimitWire{Forms: FormAnthropicCap | FormOpenAICap | FormOpenRouterWindow | FormKiloWindow, Minimum: 1}
+	MessagesLimits = LimitWire{Forms: FormAnthropicCap, Minimum: 1}
+	KiloLimits     = LimitWire{Forms: FormAnthropicCap | FormOpenAICap | FormKiloRange | FormOpenRouterWindow |
+		FormKiloWindow, Minimum: 1}
 	ChatCompletionsLimits = LimitWire{Forms: FormOpenAICap | FormSplitWindow, Minimum: 1}
 	ResponsesLimits       = LimitWire{Minimum: 16}
 	GenerateContentLimits = LimitWire{Forms: FormGeminiRange, Minimum: 1}
@@ -106,6 +115,7 @@ var (
 		{FormAnthropicCap, regexp.MustCompile(`max_tokens: (\d+) > (\d+), which is the maximum allowed number of output tokens(?: for ([^\s,;]+))?`)},
 		{FormOpenAICap, regexp.MustCompile(`supports at most (\d+) completion tokens, whereas you provided (\d+)`)},
 		{FormGeminiRange, regexp.MustCompile(`value of (\d+) but the supported range is from 1 \(inclusive\) to (\d+) \(exclusive\)`)},
+		{FormKiloRange, regexp.MustCompile(`max_tokens parameter is illegal\.\s*[：:]\s*限制数值范围\[(\d+),\s*(\d+)\]`)},
 	}
 	windowLimitForms = []limitForm{
 		{FormOpenRouterWindow, regexp.MustCompile(`maximum context length is (\d+) tokens\. However, you requested about (\d+) tokens`)},
@@ -118,7 +128,8 @@ var (
 // on a route that reads w (0089-MADR D4). err must be an *APIError of kind
 // ErrInvalidRequest. Then: (V1) a text matching a cap form and a window form
 // is rejected; a cap form never gives a window, nor a window form a cap;
-// (V2) a stated N must equal ask.Sent; (V3) a cap below N; (V4) a cap at
+// (V2) a stated N must equal ask.Sent, and where a form states none (Kilo's
+// range form) its lower bound must be 1, N being ask.Sent; (V3) a cap below N; (V4) a cap at
 // least w.Minimum; (V5) a window above the input it states; (V6) a named
 // model must be ask.Model, ask.Resolved, or share its canonical tokens with
 // either, the provider prefix dropped, for the cap to be kept. A form w does
@@ -182,6 +193,13 @@ func readCap(w LimitWire, form LimitForms, groups []string, ask LimitAsk) (Limit
 		}
 	case FormOpenAICap:
 		m, n = nums[0], nums[1]
+	case FormKiloRange:
+		// No value sent is stated: the lower bound must be 1, in V2's place
+		// (0089-MADR DL95, OQ6 (1)); M is inclusive.
+		if nums[0] != 1 {
+			return LimitReading{}, false
+		}
+		n, m = ask.Sent, nums[1]
 	default: // FormGeminiRange: M is exclusive.
 		n, m = nums[0], nums[1]-1
 	}

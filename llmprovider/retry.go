@@ -88,6 +88,13 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //   - A wait that would outlast ctx's deadline is not begun: the last error is
 //     returned at once, so the caller can reschedule. When ctx ends during a
 //     wait, the error matches both ctx.Err() and the last failure.
+//   - An output cap a provider kept on an attempt that was retried, which
+//     that attempt's *APIError carried as Observed, is given to the final
+//     result: a WarningLimitLearned with it on the response, unless one for
+//     the same model, base URL and scope is there, else the Observed of the
+//     final *APIError where that is zero (0089-MADR DL88). A caller's own
+//     limit refused is ErrInvalidRequest, never retried, and returned once
+//     with its Observed.
 //
 // The result does not stream natively, even when p does; Stream falls back to
 // its Generate. That buffers the stream so that it can be retried whole: a
@@ -153,14 +160,57 @@ func (r *retrying) Capabilities() Capabilities {
 
 func (r *retrying) Generate(ctx context.Context, req *Request) (*Response, error) {
 	retriedAfterReply := false
+	var carried LimitObservation
 	for attempt := 1; ; attempt++ {
 		resp, err := r.inner.Generate(ctx, req)
 		if err == nil {
+			carryToResponse(resp, carried)
 			return resp, nil
 		}
 		if final := r.after(ctx, attempt, err, &retriedAfterReply); final != nil {
+			carryToError(final, carried)
 			return nil, final
 		}
+		carried = observedOn(err, carried)
+	}
+}
+
+// observedOn is the Observed of the *APIError a retried attempt's err wraps,
+// else carried: the cap a provider kept on an attempt the caller never sees,
+// which the call's final result carries (0089-MADR DL88).
+func observedOn(err error, carried LimitObservation) LimitObservation {
+	if apiErr, ok := errors.AsType[*APIError](err); ok && apiErr.Observed.Tokens > 0 {
+		return apiErr.Observed
+	}
+	return carried
+}
+
+// carryToResponse adds a WarningLimitLearned with obs to resp, unless obs is
+// zero or resp has one for the same model, base URL and scope (DL88).
+func carryToResponse(resp *Response, obs LimitObservation) {
+	if resp == nil || obs.Tokens == 0 {
+		return
+	}
+	for _, w := range resp.Warnings {
+		if w.Kind == WarningLimitLearned && w.Observed.Model == obs.Model && w.Observed.BaseURL == obs.BaseURL &&
+			w.Observed.Scope == obs.Scope {
+			return
+		}
+	}
+	resp.Warnings = append(resp.Warnings, Warning{Kind: WarningLimitLearned, Model: obs.Model,
+		Detail: fmt.Sprintf("an earlier attempt's refusal stated max output %d for %s; kept for this process",
+			obs.Tokens, obs.Model),
+		Observed: obs})
+}
+
+// carryToError sets obs as the Observed of the *APIError err wraps, where
+// that is zero (DL88); err's type and text stay.
+func carryToError(err error, obs LimitObservation) {
+	if obs.Tokens == 0 {
+		return
+	}
+	if apiErr, ok := errors.AsType[*APIError](err); ok && apiErr.Observed.Tokens == 0 {
+		apiErr.Observed = obs
 	}
 }
 
@@ -224,6 +274,11 @@ func (r *retrying) after(ctx context.Context, attempt int, err error, retriedAft
 //     retried, so a caller loses the generation where WithRetry would have
 //     retried it; the events already yielded are not a response (0031-MADR
 //     D4).
+//   - An output cap a retried attempt's *APIError carried as Observed goes
+//     to the final result, as WithRetry gives it: a WarningLimitLearned on
+//     the EventDone's Response, or the Observed, where zero, of the
+//     *APIError that ends the stream, whose type and text stay (0089-MADR
+//     DL88).
 //
 // A caller that stops ranging stops the inner stream. Generate retries the
 // whole generation, as WithRetryNotify's does; Capabilities is p's,
@@ -271,6 +326,9 @@ func (r *streamRetrying) Capabilities() Capabilities { return r.inner.Capabiliti
 func (r *streamRetrying) Stream(ctx context.Context, req *Request) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
 		retriedAfterReply := false
+		// The cap a retried attempt's error carried, given to the final
+		// result (0089-MADR DL88).
+		var carried LimitObservation
 		for attempt := 1; ; attempt++ {
 			started := false
 			var failure error
@@ -280,6 +338,12 @@ func (r *streamRetrying) Stream(ctx context.Context, req *Request) iter.Seq2[Eve
 					break
 				}
 				started = true
+				switch {
+				case err != nil:
+					carryToError(err, carried)
+				case ev.Type == EventDone:
+					carryToResponse(ev.Response, carried)
+				}
 				if !yield(ev, err) {
 					return
 				}
@@ -288,9 +352,11 @@ func (r *streamRetrying) Stream(ctx context.Context, req *Request) iter.Seq2[Eve
 				return
 			}
 			if final := r.after(ctx, attempt, failure, &retriedAfterReply); final != nil {
+				carryToError(final, carried)
 				yield(Event{}, final)
 				return
 			}
+			carried = observedOn(failure, carried)
 		}
 	}
 }

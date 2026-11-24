@@ -140,7 +140,9 @@ const (
 // about it in Limit (0072-MADR D1, D2); a response the service cut short for
 // a reason other than the output limit is one of kind ErrIncomplete with its
 // Reason, and a cut answer with nothing usable one of kind ErrEmptyAnswer
-// (0088-MADR ST79, ST81). It unwraps to
+// (0088-MADR ST79, ST81); a call that fails after the service refused its
+// output limit and stated a cap the provider kept carries that cap in
+// Observed (0089-MADR DL78). It unwraps to
 // its Kind and, when that differs, to the sentinel the status alone mapped to
 // before, so every existing errors.Is check still matches (MADR 0012 §7). It
 // is safe for concurrent use only while no goroutine changes it.
@@ -184,6 +186,17 @@ type APIError struct {
 	// no text from the response reaches it. Error does not print it
 	// (0084-MADR D2, D6).
 	Tool string
+	// Observed is the output cap the service stated when it refused the
+	// call's output limit, which the provider kept for the process: the value
+	// a WarningLimitLearned carries, for a caller to keep and pass back with
+	// WithLimitObservations. A provider sets it after the send, on the error
+	// that ends a call whose refusal it kept, whoever chose the limit and
+	// whatever failure ended the call after the refusal; WithRetry and
+	// WithStreamRetry carry a retried attempt's to the final error. It is zero
+	// when no cap was kept: learning off (WithoutLimitLearning), a refusal not
+	// validated or naming another model, a window form. Error does not print
+	// it (0089-MADR DL78 to DL91).
+	Observed LimitObservation
 
 	// terminal reports that retrying cannot succeed; Retryable reads it.
 	terminal bool

@@ -816,3 +816,134 @@ DL59's rows, PLAN Phase 4's check: one per line of R6's output-limit sentences, 
 | C100now | `openai`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/openai/openai.go:109` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
 | C101now | `opencode`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/opencode/opencode.go:116` | `- The output limit (0089-MADR D6, D7): a request's own MaxOutputTokens` |
 | C102now | `together`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/together/together.go:77` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+
+## Amendment (2026-11-24, second): a learned cap reaches a caller whose call failed
+
+Additions only, except DL37, which is annotated, not rewritten. The owner's word of 2026-11-24, relayed by the coordinator, quoted as given: "scope this into v1.33.0: It also found something for the SDK release. When a service refuses a limit the caller set, the SDK learns the cap but never reports it, since that warning only travels on a successful reply." The owner then answered OQ5 below (2026-11-24, relayed by the coordinator), quoted as given: "On the error (Recommended)". So `APIError` gains `Observed LimitObservation`, and DL78 to DL94 are decided for that answer.
+
+### What `33e6f09` does (verified on a scratch clone, 2026-11-24)
+
+`wire.LimitRetry.Check` keeps a validated, kept cap for every basis (C161now) and builds the `WarningLimitLearned` there (C162now), before it decides that a caller's value is not resent (C163now); the warning reaches the caller only through `Finish`, which a provider calls on success (C164now, C166now), and `FinishStream`, which reads only `EventDone` (C165now). DL37 recorded the consequence as a decision ("no warning, since an error carries no response"); the owner's word reverses it. A scratch test on a fake server (Claude, `Request.MaxOutputTokens` 200,000, refused "max_tokens: 200000 > 128000, which is the maximum allowed number of output tokens for claude-caller-0089"):
+
+* **What the caller sees.** One send; `*llmprovider.APIError`, `Status` 400, kind `ErrInvalidRequest` (not `ErrContextOverflow`), `Code` "invalid_request_error", `Limit` nil, text `llmprovider: invalid request: claude HTTP 400 invalid_request_error: max_tokens: 200000 > 128000, which is the maximum allowed number of output tokens for claude-caller-0089`; no warning, no field holds 128,000. The same on `Stream` (the error as its one event), under `WithRetry` and under `WithStreamRetry` (one send each: the kind is not retried).
+* **The memo holds it.** 128,000 under the call's own key: plain for `Generate`, streamed for `Stream`; `catalog.CachedLimits` shows it as `Output` (or `StreamedOutput`) with the one evidence "observed" (C172now). Under `WithoutLimitLearning`, nothing.
+* **A later call.** With no limit, a `Generate` (read over the stream, 0088 ST88) after a refused plain `Generate` sent the route's fallback, 64,000, basis fallback (the cap is under the plain key); after a refused `Stream` it sent 128,000, basis fact, source "observed". The same caller value again: sent as given and refused again (0088 ST17).
+* **A first payload inside a 200 (0088 A5)**, on Kilo's `Stream`: the error is a `*transport.afterReply` wrapping an `*APIError` (`Status` 0, `Code` "400"), and the streamed key holds 128,000.
+* **The SDK's own value, its resend failed.** Claude's 128,000 refused at 64,000, the resend answered 503: the 503 `*APIError` is returned, the memo holds 64,000, nothing reports it. Under `WithRetry`, refused, then 503, then answered: three sends (128,000, 64,000, 64,000), `OutputLimit` basis fact, source "observed", and no `WarningLimitLearned` (C169now).
+* Two plants on the scratch test were caught: the cap not kept ("memo holds 0; want 128000"); a caller's value resent, which put the warning on the response ("a WarningLimitLearned reached the caller").
+
+### Owner question, answered
+
+| Question | Options (recommended first) | Cost of each | Rows | The owner's answer |
+| :--- | :--- | :--- | :--- | :--- |
+| OQ5. When a call fails after the service refused its output limit and stated a cap, how does the caller get that cap? | (1) **On the error (Recommended)**: `APIError` gains `Observed LimitObservation`, the field `Warning.Observed` already is, set by the provider after the send, as `APIError.Tool` is (0084 D2, C168now). (2) **A callback option** `WithLimitObserved(func(LimitObservation))`, called at every kept cap. (3) **No new name**: document that after an `ErrInvalidRequest` the caller reads `catalog.CachedLimits` for the evidence "observed" and builds the observation itself. | (1) one `apidiff` line; R24's field list grows by one (C170now); a failure that is not an `*APIError` after the SDK's own resend carries none (DL87). (2) one line; breaks R28 (C171now); a callback on the request's goroutine. (3) no line; the caller repeats the provider's options, cannot tell its call's refusal from another's, and the SDK's failed resend stays unreported. | DL78 to DL94; DL37 | "On the error (Recommended)" (2026-11-24): option (1) |
+
+### Rows
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| DL78 | A request's own `MaxOutputTokens` refused in a cap form, validated, kept (V6), learning on; `Generate` | decided *(2026-11-24: the owner's answer)* | sent once, the refusal returned (0088 ST17, ST18), kept under the plain key, and the returned `*APIError`'s `Observed` is the kept cap: `Model` as the request named it, `BaseURL` as `WithBaseURL` gave it (empty for the default), `Scope` (Kilo organization, Claude workspace), `Tokens`, `Seen` | the owner's word; OQ5 "On the error (Recommended)"; D5 | `TestLimitRefusal_CallerReport_0089`, case generate (Claude); plant: Claude's `Generate` does not apply the report to its error |
+| DL79 | As DL78, on `Stream`, refused before any event (a 4xx at opening) | decided *(2026-11-24: the owner's answer)* | the one error event's `*APIError` carries `Observed`; the streamed key holds the cap | OQ5 "On the error (Recommended)"; 0088 A5 | the same test, case stream; plant: `FinishStream` passes an error event unchanged |
+| DL80 | As DL79, the refusal the stream's first payload inside a 200 (0088 A5) | decided *(2026-11-24: the owner's answer)* | as DL79: the `*APIError` is found through the transport wrapper (`errors.As`), whose type and text stay | OQ5 "On the error (Recommended)"; 0088 A5, ST55 | the same test, Kilo's case; plant: the report set only when the error itself is an `*APIError` (a type assertion) |
+| DL81 | A `WithMaxTokens` value refused (basis option) | decided *(2026-11-24: the owner's answer)* | as DL78 and DL79 | OQ5; DL37's annotation of 2026-11-23 | the same test, option case; plant: the report gated on basis request |
+| DL82 | The same caller value refused again in the process (the memo unchanged) | decided *(2026-11-24: the owner's answer)* | every refused call carries `Observed`; a `WarningLimitLearned` on a response stays once per key (D5) | OQ5; an error is the call's only result | the same test, second call; plant: the report gated on the memo's change |
+| DL83 | `WithoutLimitLearning` | decided | nothing kept, `Observed` zero, the refusal returned as at `33e6f09` | DL73 | the same test, its case; plant: `Observed` set without the memo's keep |
+| DL84 | A refusal not kept: its named model fails V6; a window form (DL35); a refusal V1 to V5 reject; a wire that reads no cap form (Responses, Interactions, DL68) | decided | `Observed` zero | D4, D5; DL35, DL36, DL68 | the same test, V6 and window cases; plant: `Observed` set from `reading.Cap` without `reading.Keep` |
+| DL85 | The SDK's own value refused, resent at the cap, answered | decided | unchanged: the response's `WarningLimitLearned`, once per key | DL49, DL73 | `TestLimitLearning_Default_0089`, unchanged, re-run |
+| DL86 | The SDK's own value refused, the cap kept, the resend failing with an `*APIError` of any kind | decided *(2026-11-24: the owner's answer)* | that error carries `Observed` | OQ5, applied to every kept cap | `TestLimitRefusal_ResendFails_0089`, the 503 case; plant: the report applied only to the refusal's own error |
+| DL87 | As DL86, the resend failing with an error that is not an `*APIError` (a cut connection, ctx's error) | decided | not reported on the error, whose type and text stay (R24); the cap stays in the memo, `CachedLimits` shows it "observed", and the next response it bounds names it in `OutputLimit.Source` | R24 (C170now) | the same test, a closed connection; plant: the error wrapped to carry the cap (its text changes) |
+| DL88 | `WithRetry`, `WithStreamRetry` | decided | a refused caller value is `ErrInvalidRequest`, never retried, returned once with `Observed`; an attempt whose `*APIError` carried `Observed` and was retried gives it to the final result: a `WarningLimitLearned` with it on the final response unless one for the same model, base URL and scope is there, else the final `*APIError`'s `Observed` when zero | 0015 D8, 0051 D2; C169now | `TestRetry_LimitObservedCarried_0089`, red at the base on its assertion (0 warnings); plants: the carry removed from `Generate`; from `Stream` |
+| DL89 | Scope: model, base URL, workspace or organization, stream | decided | `Observed` is the value a `WarningLimitLearned` carries for the key, so passed back with `WithLimitObservations` it matches the same provider's lookups (DL40); stream or plain is not carried (D5's dimension stays in the memo, DL76) | D5; DL40, DL76 | `TestLimitRefusal_CallerReport_0089`, pass-back case, Claude with a workspace (`claude.WithWorkspace`, `catalog.WithClaudeWorkspace`, DL75): a new provider given the error's `Observed` shows it "remembered"; plant: `Scope` left empty (the workspace lookup misses) |
+| DL90 | `Seen` and the 24-hour pass-back window | decided | `Seen` is when the refusal was read, as the warning's; a refusal counts as seen, so a passed-back cap is used for 24 h from it (DL40) | D5; C19 | the pass-back case: `Seen` within the call's span; plant: `Seen` left zero (`New` refuses the pass-back, DL42) |
+| DL91 | The error's identity | decided | `Error()` does not print `Observed` (as `Limit`, `Tool`, `ResetAt`); kinds, `Retryable` and every existing golden unchanged | R24, R25, R35 | DL78's case compares the text with `33e6f09`'s; plant: `Error()` prints the cap |
+| DL92 | A failure after a stream's first event | out of scope | the limit's check is never consulted after an event (`StreamEventsRetry`); a refusal of the limit arrives before any output | | |
+| DL93 | The exported API | decided *(2026-11-24: the owner's answer)* | one line, `./llmprovider.APIError.Observed: added`; `tools/apidiff.py v1.32.0` lists 22 lines; call site gobble-cli 0071 V4 (R55) | OQ5 "On the error (Recommended)"; R55 | `make api-check`, `tools/apidiff.py`; plant: a second name on a scratch clone, reported |
+| DL94 | R24, R57 and the docs | decided | R24 lists `Observed`; R57's "reported in a `WarningLimitLearned`" adds "or, on a call that fails, its `*APIError`'s `Observed`"; the doc comments of `APIError`, `WarningLimitLearned`, `LimitObservation`, `WithLimitObservations`, `WithoutLimitLearning`, `WithRetry`, `WithStreamRetry` and each provider's output-limit paragraph; README's limit paragraph; one `CHANGELOG.md` entry under **Added** | D9; R43, R53 | a `tools/claims.py` row per new sentence, each planted false |
+
+*(2026-11-24, annotation of DL37: its "no warning, since an error carries no response" is superseded by DL78 to DL82, by the owner's answer "On the error (Recommended)"; the rest of the row stands.)*
+
+Counts: DL78 to DL94 add 16 decided rows and 1 out of scope (DL92); 0 open.
+
+### Evidence added (2026-11-24, second)
+
+The ids continue past the highest in use in this record (C102now) and in 0088-MADR (C160now), so that none is read as another record's. Each ends in "now", and is read at `33e6f09` with a plain id on a scratch clone, as the first amendment of this date did.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C161now | a validated cap is kept for any basis | new | `llmprovider/internal/wire/limit_rule.go:206` | `if reading.Cap > 0 && reading.Keep && r.Keep != nil && r.Keep(reading.Cap) {` |
+| C162now | the warning is built at the refusal | new | `llmprovider/internal/wire/limit_rule.go:209` | `r.warning = &llmprovider.Warning{Kind: llmprovider.WarningLimitLearned, Model: r.Model,` |
+| C163now | a caller's value is not resent | new | `llmprovider/internal/wire/limit_rule.go:214` | `if r.sent.Basis != llmprovider.LimitBasisFact && r.sent.Basis != llmprovider.LimitBasisFallback {` |
+| C164now | the warning rides a response only | new | `llmprovider/internal/wire/limit_rule.go:247` | `if w, ok := r.Warning(); ok {` |
+| C165now | a stream reports at its done event only | new | `llmprovider/internal/wire/limit_rule.go:261` | `if err == nil && ev.Type == llmprovider.EventDone {` |
+| C166now | Claude's `Generate` finishes on success only | new | `llmprovider/providers/claude/claude.go:343` | `if err == nil {` |
+| C167now | the structured error | new | `llmprovider/api_error.go:147` | `type APIError struct {` |
+| C168now | a field a provider sets after the send | new | `llmprovider/api_error.go:186` | `Tool string` |
+| C169now | `WithRetry` drops a retried attempt's error | new | `llmprovider/retry.go:161` | `if final := r.after(ctx, attempt, err, &retriedAfterReply); final != nil {` |
+| C170now | R24 | new | `docs/guides/api-standards.md:251` | `` - **R24. `*APIError` is the only structured error.** It carries `Provider`, `` |
+| C171now | R28's rule against hooks | new | `docs/guides/api-standards.md:274` | `There are no hooks inside providers.` |
+| C172now | the memo's cap shown as "observed" | new | `llmprovider/catalog/limits.go:454` | `b.add(rankObserved, sourceObserved, tokens, at, false)` |
+
+### Evidence added (2026-11-24, Phase 6b): DL94's rows
+
+One row per sentence Phase 6b wrote, as DL94 says. Each ends in "now" and was checked with a plain id against a scratch clone's commit of the phase's tree (`tools/_common.scratch_clone`), 26 of 26, and planted false there, 26 of 26 caught (0089-PLAN's Phase 6b entry). C176now is the field itself (DL93).
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C173now | R24 lists `Observed` (DL94) | new | `docs/guides/api-standards.md:254` | `` is `ErrToolSchemaRefused`, and `Observed`, the output cap a refusal stated `` |
+| C174now | R57: reported on a failed call's `*APIError` (DL94) | new | `docs/guides/api-standards.md:438` | `` on a call that fails, its `*APIError`'s `Observed`, unless `` |
+| C175now | `APIError.Observed`'s doc comment (DL94) | new | `llmprovider/api_error.go:189` | `Observed is the output cap the service stated when it refused the` |
+| C176now | the field (DL93) | new | `llmprovider/api_error.go:199` | `Observed LimitObservation` |
+| C177now | `APIError`'s doc comment (DL94) | new | `llmprovider/api_error.go:143` | `(0088-MADR ST79, ST81); a call that fails after the service refused its` |
+| C178now | `WarningLimitLearned`'s doc comment (DL94) | new | `llmprovider/warning.go:46` | `*APIError's Observed carries the same value, on every such call` |
+| C179now | `LimitObservation`'s doc comment (DL94) | new | `llmprovider/limit_observation.go:12` | `fails, as its *APIError's Observed (DL78); a caller that keeps it passes it` |
+| C180now | `WithLimitObservations`' doc comment (DL94) | new | `llmprovider/limit_observation.go:32` | `or APIError.Observed reported (0089-MADR D5, DL89). catalog.LookupLimits` |
+| C181now | `WithoutLimitLearning`'s doc comment (DL94) | new | `llmprovider/sent_limit.go:52` | `Observed (DL83), and still resends once at a validated stated cap (DL49).` |
+| C182now | `WithRetry`'s doc comment (DL94) | new | `llmprovider/retry.go:91` | `An output cap a provider kept on an attempt that was retried, which` |
+| C183now | `WithStreamRetry`'s doc comment (DL94) | new | `llmprovider/retry.go:277` | `An output cap a retried attempt's *APIError carried as Observed goes` |
+| C184now | `chatcompat`'s output-limit paragraph (DL94) | new | `llmprovider/providers/chatcompat/chatcompat.go:97` | `A refusal of a given limit in OpenAI's "supports at most M" form,` |
+| C185now | `huggingface`'s output-limit paragraph (DL94) | new | `llmprovider/providers/huggingface/huggingface.go:85` | `A refusal of a given limit in OpenAI's "supports at most M" form,` |
+| C186now | `ollama`'s output-limit paragraph (DL94) | new | `llmprovider/providers/ollama/ollama.go:91` | `A refusal of a given limit in OpenAI's "supports at most M" form,` |
+| C187now | `together`'s output-limit paragraph (DL94) | new | `llmprovider/providers/together/together.go:82` | `A refusal of a given limit in OpenAI's "supports at most M" form,` |
+| C188now | `gemini`'s output-limit paragraph (DL94) | new | `llmprovider/providers/gemini/gemini.go:83` | `A refusal of a given limit is returned as it came: this wire reads no` |
+| C189now | `grok`'s output-limit paragraph (DL94) | new | `llmprovider/providers/grok/grok.go:98` | `A refusal of a given limit is returned as it came: this wire reads no` |
+| C190now | `openai`'s output-limit paragraph (DL94) | new | `llmprovider/providers/openai/openai.go:114` | `A refusal of a given limit is returned as it came: this wire reads no` |
+| C191now | `claude`'s output-limit paragraph (DL94) | new | `llmprovider/providers/claude/claude.go:133` | `refused so is returned, not resent, and its M kept alike; a call that` |
+| C192now | `kilo`'s output-limit paragraph (DL94) | new | `llmprovider/providers/kilo/kilo.go:103` | `in a cap form is returned, not resent, and its cap kept alike; a call` |
+| C193now | `opencode`'s output-limit paragraph (DL94) | new | `llmprovider/providers/opencode/opencode.go:131` | `fails, as its error's APIError.Observed (DL78). A caller's own limit` |
+| C194now | README's limit paragraph (DL94) | new | `README.md:254` | `after a cap was kept, a caller's own limit refused among them, reports it` |
+| C195now | the changelog's **Added** entry (DL94) | new | `CHANGELOG.md:49` | `` - `APIError.Observed`: the output cap a service stated when it refused a `` |
+| C196now | architecture's errors paragraph | new | `docs/architecture.md:779` | `that fails after the service refused its output limit and stated a cap the` |
+| C197now | architecture's `WithRetry` paragraph | new | `docs/architecture.md:627` | `` A cap a retried attempt's `*APIError` carried in `Observed` goes to the `` |
+| C198now | architecture's `internal/wire` row | new | `docs/architecture.md:174` | `` and `Finish`, which sets a kept cap on the `*APIError` that ends a failed call `` |
+
+*(2026-11-24, Phase 6b built: DL78 to DL91, DL93 and DL94 tested, each plant caught; DL92 out of scope. The record's counts with this amendment: 87 decided, 6 out of scope (DL14, DL61 to DL64, DL92), 0 open, 1 awaiting live evidence (DL65); 94 rows.)*
+
+### Addition (2026-11-24, third): Kilo's range form (DL95)
+
+Additions only. The owner's word of 2026-11-24, relayed by the coordinator, quoted as given: "Add it in v1.33.0 (Recommended)": a seventh limit-refusal form, Kilo's, built in Phase 6b. Measured 2026-11-24 by a live probe (allowlisted output; two calls on Kilo, `z-ai/glm-5.3-flashx`, whose listing states 131,072): `max_tokens` 131,073 and 200,000 were each answered HTTP 400, a body of `error` only, its keys `message`, `type` ("AI_APICallError") and `param` (an object; its values not recorded), no `code`, and the message, the same for both, `The max_tokens parameter is illegal.：限制数值范围[1,131072]` (a fullwidth colon); 131,072 was answered 200, so the range is inclusive. The message states neither the value sent nor a model.
+
+| Question | Options (recommended first) | Cost of each | Rows | The owner's answer |
+| :--- | :--- | :--- | :--- | :--- |
+| OQ6. Kilo's range form states no value sent (V2) and no model (V6): how is it validated? | (1) **Read it and keep the cap (Recommended)**: V2 becomes "the stated lower bound is 1", with V3 (M below the value sent) and V4 (M at least the wire's minimum) as for every cap form; no model named is kept, as Anthropic's form naming none; then as any cap form: a limit the SDK chose resent once at M, a caller's returned, M kept and reported. (2) **Read it for the resend only**, never kept, as a cap that fails V6. (3) **Not read in v1.33.0**; the row moves to v1.34.0. | (1) nothing ties M to the request or the model, so a range another upstream states would be kept for this model, bounded by the memo's key and by DL39's drop; one internal form, the docs' "six forms" become seven. (2) one refused send per request above M, in every process; a caller's refusal carries no `Observed`. (3) a Kilo request above the upstream's range fails with `ErrInvalidRequest`, not resent. | DL95 | "Read it and keep the cap (Recommended)" (2026-11-24): option (1) |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| DL95 | Kilo refuses a limit in its range form, "The max_tokens parameter is illegal.：限制数值范围[L,M]" (400, `type` AI_APICallError, no `code`), measured 2026-11-24 | decided *(2026-11-24: the owner's answers)* | a seventh form, `FormKiloRange`, read on Kilo's wire only; M inclusive is the cap; validated as OQ6 (1) says: L must be 1, M below the value sent and at least 1, no model to check; then as any cap form: a limit the SDK chose is resent once at M (basis refusal, source "refusal: kilo max_tokens range"); a caller's limit is returned, not resent; M is kept for the process and reported in a `WarningLimitLearned`, or on a failed call in its `*APIError`'s `Observed` | the owner's word "Add it in v1.33.0 (Recommended)"; OQ6 "Read it and keep the cap (Recommended)" | `TestLimitRefusal_KiloRangeForm_0089`, red at the base on its assertion (one send, the refusal returned): a layer stating 200,000 for `z-ai/glm-5.3-flashx`, the measured body on the send at 200,000: resent at 131,072 and answered, the cap kept and reported; a caller's 200,000: one send, the cap kept; a lower bound of 2, and an M not below the value sent: one send, nothing kept; plants: the form not in Kilo's forms; M read as exclusive; the lower bound not checked; V3 not checked |
+
+Counts: DL95 adds 1 decided row; with it the record holds 88 decided, 6 out of scope, 0 open, 1 awaiting live evidence (DL65); 95 rows.
+
+### Evidence added (2026-11-24, third): DL95's rows
+
+One row per sentence DL95's build wrote, checked as DL94's rows were, with plain ids against a scratch clone's commit of the tree, 6 of 6, and planted false there, 6 of 6 caught (0089-PLAN's Phase 6b entry).
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C199now | `FormKiloRange`'s doc comment (DL95) | new | `llmprovider/internal/wire/limit_refusal.go:44` | `FormKiloRange is Kilo's range form, measured on 2026-11-24 (0089-MADR` |
+| C200now | Kilo's range form's pattern (DL95) | new | `llmprovider/internal/wire/limit_refusal.go:118` | `` {FormKiloRange, regexp.MustCompile(`max_tokens parameter is illegal `` |
+| C201now | Kilo's wire reads it (DL95) | new | `llmprovider/internal/wire/limit_refusal.go:69` | `FormOpenAICap \| FormKiloRange \| FormOpenRouterWindow` |
+| C202now | `kilo`'s output-limit paragraph (DL95) | new | `llmprovider/providers/kilo/kilo.go:96` | `states a cap (Anthropic's or OpenAI's form, or Kilo's range form "The` |
+| C203now | the changelog's resend entry (DL95) | new | `CHANGELOG.md:87` | `range, each on the wires 0089-MADR DL68 names, and on Kilo its range form,` |
+| C204now | architecture's `internal/wire` row (DL95) | new | `docs/architecture.md:174` | `its seven forms, Kilo's range form the seventh (0089-MADR DL95)` |
+| C205now | `opencode`'s caller-limit sentence, every route that reads a cap form (DL94) | new | `llmprovider/providers/opencode/opencode.go:132` | `refused in a cap form, Anthropic's on the messages route, OpenAI's on` |
+
+*(2026-11-24, at the review of Phase 6b: C205now, OpenCode's caller-limit sentence (DL94), is added to the table above at the review's note, and C193now re-pointed to that paragraph's changed line; the 33 rows C173now to C205now pass against a scratch clone's commit of the tree, and each is caught planted false.)*

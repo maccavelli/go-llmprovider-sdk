@@ -48,8 +48,8 @@ const (
 
 // WithoutLimitLearning turns off the memo and the report of output caps
 // (0089-MADR D5, DL73): a provider given it keeps no cap a refusal stated
-// and reports no WarningLimitLearned, and still resends once at a validated
-// stated cap (DL49). Without it, both run. It is a shared option
+// and reports none, neither in a WarningLimitLearned nor in an APIError's
+// Observed (DL83), and still resends once at a validated stated cap (DL49). Without it, both run. It is a shared option
 // (SharedOption): every provider's New takes it, and a provider that keeps
 // no caps ignores it.
 func WithoutLimitLearning() Option {

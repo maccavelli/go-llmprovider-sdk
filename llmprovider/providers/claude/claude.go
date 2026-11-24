@@ -129,7 +129,10 @@
 // validated as 0089-MADR D4 says, is sent once more at M, outside the bound
 // below; M is kept for the rest of the process, in memory only, and
 // reported in a WarningLimitLearned,
-// unless llmprovider.WithoutLimitLearning is given. The Response, and a
+// unless llmprovider.WithoutLimitLearning is given. A caller's own limit
+// refused so is returned, not resent, and its M kept alike; a call that
+// fails after M was kept, a resend's failure among them, carries M as its
+// error's APIError.Observed (DL78, DL86). The Response, and a
 // stream's done event, carry the limit sent in OutputLimit.
 // With no facts, the request decides the shape, and a refusal is learned
 // (0062-MADR D2, D3).
@@ -350,10 +353,10 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 				resp.Warnings = append(resp.Warnings, w)
 			}
 		}
-		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
-		limit.Finish(resp, p.observe(req, false))
 	}
-	return resp, err
+	// The limit sent, and a cap learned, are reported: on the response, or on
+	// the error that ends the call (0089-MADR D5, D7, DL78).
+	return resp, limit.Finish(resp, err, p.observe(req, false))
 }
 
 // toolChoiceWarning is the warning req's tool choice earns, if any.
