@@ -238,10 +238,9 @@ func (raw reply) response() (*llmprovider.Response, error) {
 	if len(raw.Candidates[0].Content.Parts) == 0 {
 		return nil, wire.EmptyAnswer("generatecontent", finish)
 	}
-	if finish == llmprovider.FinishLength && hasCall {
-		// A call cut by the token limit has unusable arguments (0020-MADR F3).
-		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
-	}
+	// A reply MAX_TOKENS cut keeps its text and its calls: a functionCall
+	// part arrives whole, so none is cut (0088-MADR ST76, ST78, which replace
+	// 0020-MADR F3's error for a cut call).
 
 	result := &llmprovider.Response{Model: raw.ModelVersion, FinishReason: finish}
 	if raw.Usage != nil {
@@ -275,8 +274,11 @@ func (raw reply) response() (*llmprovider.Response, error) {
 		}
 	}
 	// An answer cut while it was still thinking has nothing usable
-	// (0026-MADR F7); a cut text answer keeps its text.
-	if len(result.Output) == 0 || finish == llmprovider.FinishLength && result.OutputText() == "" {
+	// (0026-MADR F7; 0088-MADR ST79); a cut answer keeps its text and calls.
+	if finish == llmprovider.FinishLength {
+		return wire.CutAnswer("generatecontent", result, finish)
+	}
+	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("generatecontent", finish)
 	}
 	return result, nil

@@ -338,6 +338,12 @@ reference client's `User-Agent` or `originator` value.
 A text response truncated by `length` still returns its text, and exposes the
 reason through the new field `Response.FinishReason`.
 
+*(2026-11-23: an answer the output limit cut is no longer an error on any
+wire: it is a response finishing `length` with its text and whole calls, the
+cut call dropped and named in `WarningToolCallCut`, or `ErrEmptyAnswer` with
+nothing usable; another `incomplete` reason stays an error. See
+0088-MADR-default-output-limit-from-model-facts.md, ST75 to ST84, OQ11.)*
+
 **1.6 Probes spend no generations on metered or quota-limited services.**
 `DiscoverModels` for Kilo, OpenCode Zen/Go, Hugging Face and ChatGPT returns
 the curated listing (0007's `Recommended`) without `probeGenerateHealth`.

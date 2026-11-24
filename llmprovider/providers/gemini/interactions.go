@@ -122,9 +122,12 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 // decodeInteraction maps an Interaction to a Response: a thought step's
 // summary becomes a ReasoningItem and its signature the Signature of the
 // calls after it; model_output text becomes a MessageItem; function_call a
-// FunctionCallItem. incomplete is an *APIError of kind ErrIncomplete (MADR
-// 0012 §1.5, 0015-MADR D7);
-// failed and cancelled are retryable failures.
+// FunctionCallItem. incomplete is an answer the output limit cut, the one
+// cause measured: its usable steps finish FinishLength, a call whose
+// arguments are not whole is dropped and named in a WarningToolCallCut, and
+// with nothing usable it is ErrEmptyAnswer with the reason "incomplete"
+// (0088-MADR ST93, which replaces MADR 0012 §1.5's error for it); failed and
+// cancelled are retryable failures.
 func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	var raw interaction
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
@@ -161,11 +164,12 @@ type stepText struct {
 
 // response is raw as a Response, or the error its status makes it.
 func (raw interaction) response() (*llmprovider.Response, error) {
+	cut := false
 	switch raw.Status {
 	case "completed", "requires_action":
 	case statusIncomplete:
 		// An Interaction gives no reason (measured at max_output_tokens).
-		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: statusIncomplete}
+		cut = true
 	default:
 		return nil, fmt.Errorf("%w: gemini interaction %s", llmprovider.ErrProviderUnavailable, raw.Status)
 	}
@@ -194,14 +198,23 @@ func (raw interaction) response() (*llmprovider.Response, error) {
 					llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: sb.String()})
 			}
 		case interactionStepFunctionCall:
-			// Compact, as the generateContent decoder returns arguments.
+			// Compact, as the generateContent decoder returns arguments. A
+			// streamed call's fragments the limit cut do not parse: it is
+			// dropped and named (0088-MADR ST77).
 			args, err := wire.CompactArguments(step.Arguments)
+			if err != nil && cut {
+				result.Warnings = append(result.Warnings, wire.ToolCallCut(raw.Model, step.Name, step.ID))
+				continue
+			}
 			if err != nil {
 				return nil, fmt.Errorf("gemini: function_call arguments: %w", err)
 			}
 			result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: step.ID, Name: step.Name,
 				Arguments: args, Signature: signature})
 		}
+	}
+	if cut {
+		return wire.CutAnswer("gemini interaction", result, statusIncomplete)
 	}
 	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("gemini interaction", "")

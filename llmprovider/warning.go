@@ -43,6 +43,12 @@ const (
 	// what a caller can keep, and pass back with WithLimitObservations on its
 	// next start (0089-MADR D5).
 	WarningLimitLearned WarningKind = "limit_learned"
+	// WarningToolCallCut reports that the service's output limit cut a tool
+	// call before its arguments were whole, so the call was dropped: the
+	// response finishes FinishLength with what was usable, its text and its
+	// whole calls. Its Detail names the cut call, by its tool's name and its
+	// call id where the service gave them (0088-MADR ST77, OQ16).
+	WarningToolCallCut WarningKind = "tool_call_cut"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but

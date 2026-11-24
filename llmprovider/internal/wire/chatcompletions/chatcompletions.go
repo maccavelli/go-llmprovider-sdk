@@ -529,20 +529,11 @@ func (raw chatReply) response(provider string) (*llmprovider.Response, error) {
 
 	msg := raw.Choices[0].Message
 	finish := wire.Finish(raw.Choices[0].FinishReason, nil, len(msg.ToolCalls) > 0)
-	// A tool call cut by the token limit has unusable arguments (MADR 0012 §1.5).
-	if finish == llmprovider.FinishLength && len(msg.ToolCalls) > 0 {
-		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
-	}
 	// A refusal is the answer's text, flagged content_filter, as on the
 	// Responses wire (0021-MADR W4; 0026-MADR F29).
 	text := string(msg.Content)
 	if text == "" && msg.Refusal != "" {
 		text, finish = msg.Refusal, llmprovider.FinishContentFilter
-	}
-	// An answer cut while it was still reasoning has nothing usable
-	// (0026-MADR F7).
-	if finish == llmprovider.FinishLength && text == "" {
-		return nil, wire.EmptyAnswer("chat completions", finish)
 	}
 	// The response id is not a resumable conversation handle on any gateway
 	// that speaks this format, so it is carried for logging only.
@@ -578,6 +569,12 @@ func (raw chatReply) response(provider string) (*llmprovider.Response, error) {
 		})
 	}
 
+	// A reply the output limit cut keeps its text and its whole calls; with
+	// nothing usable, only reasoning or only a cut call, it is an empty
+	// answer (0026-MADR F7; 0088-MADR ST75 to ST79, ST94).
+	if finish == llmprovider.FinishLength {
+		return wire.CutAnswer("chat completions", result, finish)
+	}
 	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("chat completions", finish)
 	}

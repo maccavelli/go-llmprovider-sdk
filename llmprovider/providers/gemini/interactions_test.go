@@ -151,15 +151,16 @@ func TestGeminiInteractions_PlainCallSendsNoExtras(t *testing.T) {
 	}
 }
 
-// TestGeminiInteractions_Status: incomplete is an *APIError of kind
-// ErrIncomplete (as at max_output_tokens), failed is retryable.
+// TestGeminiInteractions_Status: incomplete, measured at max_output_tokens,
+// is an answer the output limit cut, returned finishing length with its text
+// (0088-MADR ST93, which replaces the ErrIncomplete this test pinned); failed
+// is retryable.
 func TestGeminiInteractions_Status(t *testing.T) {
 	srv, _ := interactionServer(t, `{"id":"v1_x","status":"incomplete","steps":[{"type":"model_output","content":[{"type":"text","text":"1, 2, "}]}]}`)
 	p := build(t, apiKey(srv.URL, "gemini-3.7-flash")...)
-	_, err := p.Generate(context.Background(), text("count"))
-	var inc *llmprovider.APIError
-	if !errors.As(err, &inc) || !errors.Is(inc.Kind, llmprovider.ErrIncomplete) || inc.Reason != "incomplete" {
-		t.Errorf("incomplete: err = %v, want an *APIError of kind ErrIncomplete", err)
+	resp, err := p.Generate(context.Background(), text("count"))
+	if err != nil || resp == nil || resp.FinishReason != llmprovider.FinishLength || resp.OutputText() != "1, 2, " {
+		t.Errorf("incomplete: %+v, %v; want a response finishing length with its text", resp, err)
 	}
 	srv2, _ := interactionServer(t, `{"id":"v1_y","status":"failed","steps":[]}`)
 	p2 := build(t, apiKey(srv2.URL, "gemini-3.7-flash")...)

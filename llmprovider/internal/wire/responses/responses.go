@@ -403,13 +403,14 @@ func decodeAs(body io.Reader, provider string, d Decoder) (*llmprovider.Response
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
-	switch raw.Status {
-	case statusFailed:
+	switch {
+	case raw.Status == statusFailed:
 		// The status is read first, as ReadStream reads response.failed.
 		return nil, failed(provider, raw.Error)
-	case statusIncomplete:
-		// A truncated answer is an error, never an empty success (MADR 0012
-		// §1.5).
+	case raw.Status == statusIncomplete && raw.IncompleteDetails.Reason != reasonOutputLimit:
+		// An answer incomplete for another reason, such as a content
+		// filter, is an error, never an empty success (MADR 0012 §1.5;
+		// 0088-MADR ST81).
 		return nil, incomplete(raw.IncompleteDetails.Reason)
 	}
 
@@ -418,8 +419,20 @@ func decodeAs(body io.Reader, provider string, d Decoder) (*llmprovider.Response
 	for _, out := range raw.Output {
 		refused = appendOutput(result, out, d) || refused
 	}
+	if raw.Status == statusIncomplete {
+		return wire.CutAnswer("responses", result, reasonOutputLimit)
+	}
 	return completed(result, refused)
 }
+
+// reasonOutputLimit is the incomplete reason of an answer the output limit
+// cut, which is returned with what is usable (0088-MADR ST75 to ST79).
+const reasonOutputLimit = "max_output_tokens"
+
+// statusCut is an output item's status when the answer was cut inside it: a
+// call of that status was cut before its arguments were whole (0088-MADR
+// ST78).
+const statusCut = "incomplete"
 
 // completed finishes a completed answer: an answer with nothing in it is
 // ErrIncomplete, never an empty success, as every other wire has it
@@ -433,8 +446,9 @@ func completed(r *llmprovider.Response, refused bool) (*llmprovider.Response, er
 }
 
 // finishReason is a completed answer's: content_filter when it refused,
-// tool_calls when it calls a tool, else stop (0020-MADR F11; 0021-MADR W4). An
-// incomplete one is an error, never a Response.
+// tool_calls when it calls a tool, else stop (0020-MADR F11; 0021-MADR W4).
+// One the output limit cut finishes length (CutAnswer); one incomplete for
+// another reason is an error, never a Response.
 func finishReason(r *llmprovider.Response, refused bool) llmprovider.FinishReason {
 	if refused {
 		return llmprovider.FinishContentFilter
@@ -447,9 +461,9 @@ func finishReason(r *llmprovider.Response, refused bool) llmprovider.FinishReaso
 	return llmprovider.FinishStop
 }
 
-// incomplete is the MADR 0012 §1.5 error for an incomplete Responses answer.
-// The reason is the service's text, so it is stripped and bounded (0026-MADR
-// F18).
+// incomplete is the MADR 0012 §1.5 error for a Responses answer incomplete
+// for a reason other than the output limit (0088-MADR ST81). The reason is
+// the service's text, so it is stripped and bounded (0026-MADR F18).
 func incomplete(reason string) error {
 	reason = redact.Field(reason)
 	if reason == "" {
@@ -470,8 +484,12 @@ type outputItem struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"summary"`
+	// ID is the item's own id, which a stream's events name it by.
+	ID     string `json:"id"`
 	CallID string `json:"call_id"`
 	Name   string `json:"name"`
+	// Status is the item's: "incomplete" when the answer was cut inside it.
+	Status string `json:"status"`
 	// Arguments is a function_call's JSON text, as a string, or a
 	// tool_search_call's object (0040-MADR D3).
 	Arguments        json.RawMessage `json:"arguments"`
@@ -506,6 +524,12 @@ func argumentsText(raw json.RawMessage) string {
 // answer's text (0021-MADR W4). It was the method Response.appendOutput
 // (0015-PLAN S7b step 5).
 func appendOutput(r *llmprovider.Response, out outputItem, d Decoder) (refused bool) {
+	// A call the output limit cut is dropped and named (0088-MADR ST77,
+	// ST78).
+	if out.Status == statusCut && (out.Type == itemTypeFunctionCall || out.Type == itemTypeToolSearchCall) {
+		r.Warnings = append(r.Warnings, wire.ToolCallCut(r.Model, out.Name, out.CallID))
+		return false
+	}
 	switch out.Type {
 	case itemTypeMessage:
 		var sb strings.Builder
@@ -607,7 +631,10 @@ type streamEvent struct {
 		IncompleteDetails struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
-		Usage usage `json:"usage"`
+		// Output is the terminal response's items, read on a cut (0088-MADR
+		// ST104).
+		Output []outputItem `json:"output"`
+		Usage  usage        `json:"usage"`
 	} `json:"response"`
 }
 
@@ -645,8 +672,11 @@ func failed(provider string, e *responseError) error {
 // ReadStream reads a Responses API event stream into a Response, as Codex
 // does (codex-api/src/sse/responses.rs:343-450): each
 // response.output_item.done adds its item, and response.created and
-// response.completed carry the id. response.failed maps onto MADR 0012 §1.1,
-// response.incomplete onto MADR 0012 §1.5, and a stream that ends before
+// response.completed carry the id. response.failed maps onto MADR 0012 §1.1;
+// response.incomplete for the output limit is the answer it cut, finishing
+// length with the items that arrived and those its response carries that no
+// output_item.done delivered (0088-MADR ST75 to ST80, ST104), and for
+// another reason MADR 0012 §1.5's error; and a stream that ends before
 // response.completed is retryable, once (MADR 0012 §4.1; 0021-MADR D1). Each
 // event is bounded, not the stream (0021-MADR W2). It does not rely on
 // Content-Type, which the ChatGPT backend does not send. It collects Events,
@@ -658,9 +688,12 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 // Events reads a Responses API event stream and yields its events as they
 // arrive (0031-MADR D2): a text delta as EventTextDelta, a reasoning summary
 // delta, the one measured, as EventReasoningDelta (0031-PLAN Phase 1), each
-// response.output_item.done's item as EventItem, and response.completed as
-// EventDone, carrying the Response ReadStream returns. A call-argument delta
-// and every other event yield nothing (0031-MADR Q4). It returns nil once
+// response.output_item.done's item as EventItem, and response.completed, or
+// response.incomplete for the output limit, as EventDone, carrying the
+// Response ReadStream returns. A call whose arguments are {} or not whole is
+// held until a later item or the end (wire.HeldCalls), so a call the limit
+// cut is never yielded (0088-MADR ST80). A call-argument delta and every
+// other event yield nothing (0031-MADR Q4). It returns nil once
 // EventDone is yielded or yield returns false, and otherwise the error that
 // ended the stream, as ReadStream's; what it yielded before an error is not a
 // response (0031-MADR D4).
@@ -670,8 +703,8 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 
 // readEvents is Events, decoding only the event types in handled.
 func readEvents(provider string, body io.Reader, handled map[string]bool, d Decoder, yield func(llmprovider.Event) bool) error {
-	result := &llmprovider.Response{}
-	refused := false
+	s := &streamState{result: &llmprovider.Response{}, d: d}
+	result := s.result
 	// dispatch handles one event; stop ends the stream without an error,
 	// after EventDone or when the caller stops.
 	dispatch := func(payload []byte) (stop bool, err error) {
@@ -697,36 +730,128 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, d Deco
 		case "error":
 			// The stream's own error event, not a response's (0020-MADR F39).
 			return false, llmprovider.ClassifyStreamFailureBody(provider, event.Code, "", event.Message, payload)
-		case "response.output_item.done":
-			n := len(result.Output)
-			refused = appendOutput(result, event.Item, d) || refused
-			if len(result.Output) > n {
-				return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: result.Output[n]}), nil
+		case "response.output_item.added":
+			if event.Item.Type == itemTypeFunctionCall || event.Item.Type == itemTypeToolSearchCall {
+				s.open = append(s.open, event.Item)
 			}
+		case "response.output_item.done":
+			return s.itemDone(event.Item, yield), nil
 		case "response.failed":
 			return false, failed(provider, event.Response.Error)
 		case "response.incomplete":
-			return false, incomplete(event.Response.IncompleteDetails.Reason)
+			if event.Response.IncompleteDetails.Reason != reasonOutputLimit {
+				return false, incomplete(event.Response.IncompleteDetails.Reason)
+			}
+			return s.end(event, true, yield)
 		case "response.completed":
-			if event.Response.ID != "" {
-				result.ID = event.Response.ID
-			}
-			if event.Response.Model != "" {
-				result.Model = event.Response.Model
-			}
-			result.Usage = event.Response.Usage.counts()
-			resp, err := completed(result, refused)
-			if err != nil {
-				return false, err
-			}
-			yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
-			return true, nil
+			return s.end(event, false, yield)
 		}
 		return false, nil
 	}
 	// The framing, the per-event bound and the early end are the shared
 	// reader's (0031-MADR E2).
 	return wire.ReadEvents(provider, body, "response.completed", dispatch)
+}
+
+// streamState is a Responses stream's answer as its events arrive.
+type streamState struct {
+	result  *llmprovider.Response
+	d       Decoder
+	refused bool
+	// open are the calls added and not yet done: at an output limit's cut,
+	// each is a call the limit cut (0088-MADR ST77). done are the ids of the
+	// items an output_item.done delivered, in order (ST104). held are the
+	// done calls a cut could drop, not yet yielded (ST80).
+	open []outputItem
+	done []string
+	held wire.HeldCalls
+}
+
+// itemDone adds the item an output_item.done delivers, and yields it unless
+// it is held. It reports true when yield stopped the stream.
+func (s *streamState) itemDone(item outputItem, yield func(llmprovider.Event) bool) bool {
+	s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return o.CallID == item.CallID })
+	s.done = append(s.done, item.ID)
+	if !s.held.Later(yield) {
+		return true
+	}
+	n := len(s.result.Output)
+	s.refused = appendOutput(s.result, item, s.d) || s.refused
+	if len(s.result.Output) > n && !s.held.Hold(s.result.Output[n]) {
+		return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: s.result.Output[n]})
+	}
+	return false
+}
+
+// delivered reports whether an output_item.done delivered the terminal
+// response's item at index: by its id, or, for an item with none, by its
+// place among the delivered items.
+func (s *streamState) delivered(item outputItem, index int) bool {
+	if item.ID != "" {
+		return slices.Contains(s.done, item.ID)
+	}
+	return index < len(s.done)
+}
+
+// takeTerminal adds, on a cut, each item the terminal response carries that
+// no output_item.done delivered (0088-MADR ST104): a service such as xAI
+// ends a cut stream with response.incomplete and no .done events. A call it
+// names is no longer an open one; the cut rules then apply to it as to any
+// other. It returns the items it added.
+func (s *streamState) takeTerminal(output []outputItem) []llmprovider.Item {
+	n := len(s.result.Output)
+	for i, item := range output {
+		if s.delivered(item, i) {
+			continue
+		}
+		s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return item.CallID != "" && o.CallID == item.CallID })
+		s.refused = appendOutput(s.result, item, s.d) || s.refused
+	}
+	return slices.Clone(s.result.Output[n:])
+}
+
+// end finishes the stream at its last event, response.completed, or
+// response.incomplete for the output limit when cut: the result takes the
+// event's id, model and usage; a cut answer takes the terminal response's
+// undelivered items (ST104), names each call added and never done as the
+// call the limit cut, and is finished by CutAnswer, a completed one by
+// completed; then the held calls and the taken items the response kept are
+// yielded, and EventDone (0088-MADR ST77, ST80). Its results are a stream
+// dispatch's.
+func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Event) bool) (bool, error) {
+	result := s.result
+	if event.Response.ID != "" {
+		result.ID = event.Response.ID
+	}
+	if event.Response.Model != "" {
+		result.Model = event.Response.Model
+	}
+	result.Usage = event.Response.Usage.counts()
+	var resp *llmprovider.Response
+	var taken []llmprovider.Item
+	var err error
+	if cut {
+		taken = s.takeTerminal(event.Response.Output)
+		for _, o := range s.open {
+			result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))
+		}
+		resp, err = wire.CutAnswer("responses", result, reasonOutputLimit)
+	} else {
+		resp, err = completed(result, s.refused)
+	}
+	if err != nil {
+		return false, err
+	}
+	if !s.held.Done(resp, yield) {
+		return true, nil
+	}
+	for _, item := range taken {
+		if slices.Contains(resp.Output, item) && !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}) {
+			return true, nil
+		}
+	}
+	yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+	return true, nil
 }
 
 // finished is a stream's outcome: the response once it completed, or the
@@ -741,8 +866,8 @@ func finished(result *llmprovider.Response, err error) (*llmprovider.Response, e
 
 // handledEvents are the event types ReadStream acts on.
 var handledEvents = map[string]bool{
-	"response.created": true, "response.output_item.done": true, "response.failed": true,
-	"response.incomplete": true, "response.completed": true,
+	"response.created": true, "response.output_item.added": true, "response.output_item.done": true,
+	"response.failed": true, "response.incomplete": true, "response.completed": true,
 }
 
 // deltaEvents are the delta event types Events yields, and the Event type of

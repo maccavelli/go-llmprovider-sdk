@@ -75,17 +75,24 @@ var (
 	// request named: not a valid workspace ID, or one that does not exist or
 	// the key may not use. It also matches ErrInvalidRequest (0064-MADR D3).
 	ErrWorkspaceNotFound error = &sentinelError{msg: "llmprovider: workspace not found", parent: ErrInvalidRequest}
-	// ErrIncomplete marks a response the service cut short, or one without
-	// the tool call the request forced (0015-MADR D7). Retrying it unchanged
-	// cannot help, so it also matches ErrInvalidRequest (MADR 0012 §1.5;
-	// 0015-MADR D7, amendment of 2026-10-01).
+	// ErrIncomplete marks a response the service cut short for a reason
+	// other than the output limit, such as a Responses answer a content
+	// filter stopped, a reply that could not be read whole, or one without
+	// the tool call the request forced (0015-MADR D7). An answer the output
+	// limit cut is not this error: it is a Response finishing FinishLength
+	// with what is usable, or ErrEmptyAnswer when nothing is (0088-MADR ST75
+	// to ST81). Retrying it unchanged cannot help, so it also matches
+	// ErrInvalidRequest (MADR 0012 §1.5; 0015-MADR D7, amendment of
+	// 2026-10-01).
 	ErrIncomplete error = &sentinelError{msg: "llmprovider: incomplete response", parent: ErrInvalidRequest}
 	// ErrEmptyAnswer marks an answer with nothing usable in it. It also
 	// matches ErrIncomplete, and so ErrInvalidRequest: retrying it unchanged
 	// cannot help. A refusal or a safety stop is this kind too, and so is an
-	// answer cut while the model was still reasoning; the APIError's Reason,
-	// the service's finish reason (content_filter, length, …), tells them
-	// apart (0061-MADR D1).
+	// answer the output limit cut with nothing usable, only reasoning or only
+	// a cut tool call; the APIError's Reason, the service's finish reason
+	// (content_filter, length, max_output_tokens on the Responses wire,
+	// incomplete on Gemini's, …), tells them apart (0061-MADR D1; 0088-MADR
+	// ST79, ST93).
 	ErrEmptyAnswer error = &sentinelError{msg: "llmprovider: empty answer", parent: ErrIncomplete}
 	// ErrOffline marks a request that could not be sent for want of a
 	// network: the host's name did not resolve, or the dial timed out or
@@ -130,8 +137,10 @@ const (
 // (MADR 0012 §1.1, 0015-MADR D7). It is the only structured error: a rate
 // limit is one of kind ErrRateLimited with its RetryAfter, the instant the
 // service named for it to lift in ResetAt, and what the service stated
-// about it in Limit (0072-MADR D1, D2); a response the service cut short is
-// one of kind ErrIncomplete with its Reason. It unwraps to
+// about it in Limit (0072-MADR D1, D2); a response the service cut short for
+// a reason other than the output limit is one of kind ErrIncomplete with its
+// Reason, and a cut answer with nothing usable one of kind ErrEmptyAnswer
+// (0088-MADR ST79, ST81). It unwraps to
 // its Kind and, when that differs, to the sentinel the status alone mapped to
 // before, so every existing errors.Is check still matches (MADR 0012 §7). It
 // is safe for concurrent use only while no goroutine changes it.

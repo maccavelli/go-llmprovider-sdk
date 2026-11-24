@@ -116,11 +116,17 @@ functions over any provider, and `Stream` streams from every one.
   any other form stays `ErrInvalidRequest`, and the SDK never rewrites,
   drops or resends a tool.
 
-  A truncated answer is an error of kind `ErrIncomplete`. A text answer cut
-  by the token limit keeps its text and sets `Response.FinishReason`; one
-  cut while the model was still reasoning, with no text, is `ErrIncomplete`.
-  An empty answer is `ErrIncomplete` too, with the service's reason, such
-  as a refusal's `content_filter`, in `APIError.Reason`.
+  An answer the output limit cut is reported one way on every wire: a
+  response whose `FinishReason` is `FinishLength`, with its text and its
+  whole tool calls; a call the limit cut is dropped and named in a
+  `Warning` of kind `WarningToolCallCut`. A cut answer with nothing usable,
+  only reasoning or only a cut call, is `ErrEmptyAnswer`, beneath
+  `ErrIncomplete`, with the service's reason (`length`, `max_output_tokens`
+  on the Responses wire, `incomplete` on Gemini's) in `APIError.Reason`
+  (0088-MADR ST75 to ST81). An empty answer is `ErrEmptyAnswer` too, with
+  the service's reason, such as a refusal's `content_filter`. A Responses
+  answer incomplete for another reason, such as a content filter, is
+  `ErrIncomplete` with that reason.
   `WithRetry(p, RetryPolicy{…})` retries only what can succeed later,
   honouring `Retry-After` with a little jitter, and keeps `p`'s
   `ListModels`. A reply lost while it was being read, which may have been

@@ -49,6 +49,9 @@ tag and its commit without notes; its notes are its section here.
 - `llmprovider.Settings.MaxTokensGiven`: whether `WithMaxTokens` gave the
   limit, so that a provider outside this module can tell a caller's value
   from the default (0088-MADR OQ5, ST35, ST36).
+- `llmprovider.WarningToolCallCut`: the output limit cut a tool call before
+  its arguments were whole, so the response dropped it; its `Detail` names
+  the call (0088-MADR ST77, OQ16).
 
 ### Changed
 
@@ -94,6 +97,17 @@ tag and its commit without notes; its notes are its section here.
 - Kilo's documented window refusal ("exceeds the model's context window of
   N tokens") is `ErrContextOverflow`, beneath `ErrInvalidRequest`, where it
   was `ErrInvalidRequest` alone (0088-MADR ST51).
+- An answer the output limit cut is a response finishing `length` on every
+  wire, by `Generate` and at a stream's `EventDone`, with its text and its
+  whole tool calls, where a cut tool call, on Chat Completions, Messages and
+  generateContent, and every cut Responses or Gemini Interactions answer
+  was `ErrIncomplete`. A call the limit cut is dropped, never yielded, and
+  named in a `WarningToolCallCut`; on Messages a `tool_use` that is the
+  last block is that call. A cut answer with nothing usable, only reasoning
+  or only a cut call, is `ErrEmptyAnswer`, which still matches
+  `ErrIncomplete`, with the service's reason (`length`, `max_output_tokens`,
+  `incomplete`). A Responses answer incomplete for another reason is
+  `ErrIncomplete` as before (0088-MADR ST75 to ST81, ST93, ST94, ST103).
 
 ### Fixed
 

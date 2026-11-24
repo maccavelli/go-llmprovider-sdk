@@ -12,6 +12,7 @@ import (
 	"io"
 	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -305,8 +306,10 @@ func encodeItems(items []llmprovider.Item, loading bool) []Message {
 }
 
 // Decode decodes a Messages API response. The API is stateless, so the
-// Response has no ID. stop_reason becomes FinishReason, and a tool call cut
-// by max_tokens is ErrIncomplete (0020-MADR F3; MADR 0012 §1.5).
+// Response has no ID. stop_reason becomes FinishReason. A reply max_tokens
+// cut keeps its text and its whole calls, finishing FinishLength; a call it
+// cut is dropped and named in a WarningToolCallCut (0088-MADR ST75 to ST79,
+// which replace 0020-MADR F3's error for a cut call).
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var m message
 	if err := json.NewDecoder(body).Decode(&m); err != nil {
@@ -333,6 +336,9 @@ type block struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name"`
 	Input     json.RawMessage `json:"input"`
+	// open is a streamed block's, from its content_block_start to its
+	// content_block_stop.
+	open bool
 }
 
 // response is m as a Response, or the error its stop reason and content
@@ -346,14 +352,20 @@ func (m message) response() (*llmprovider.Response, error) {
 	if len(m.Content) == 0 {
 		return nil, wire.EmptyAnswer("messages", finish)
 	}
-	if finish == llmprovider.FinishLength && hasCall {
-		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
-	}
 
 	// The Messages API is stateless: no ID.
 	res := &llmprovider.Response{Model: m.Model, FinishReason: finish, Usage: m.Usage.counts()}
-	for _, b := range m.Content {
+	for i, b := range m.Content {
 		item, ok, err := b.item()
+		// A reply the limit cut keeps its whole calls: a tool_use block that
+		// is the last content block, where the limit fell, one never closed,
+		// or one whose input does not parse is the call it cut, dropped and
+		// named; CutAnswer drops the rest it cut (0088-MADR ST76 to ST78,
+		// ST94, ST103).
+		if finish == llmprovider.FinishLength && b.Type == blockToolUse && (i == len(m.Content)-1 || b.open || err != nil) {
+			res.Warnings = append(res.Warnings, wire.ToolCallCut(m.Model, b.Name, b.ID))
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -362,9 +374,13 @@ func (m message) response() (*llmprovider.Response, error) {
 		}
 	}
 
-	// An answer cut while it was still thinking has nothing usable
-	// (0026-MADR F7); a cut text answer keeps its text.
-	if len(res.Output) == 0 || finish == llmprovider.FinishLength && res.OutputText() == "" {
+	// An answer cut while it was still thinking, or with only a cut call, has
+	// nothing usable (0026-MADR F7; 0088-MADR ST79); a cut text answer keeps
+	// its text.
+	if finish == llmprovider.FinishLength {
+		return wire.CutAnswer("messages", res, finish)
+	}
+	if len(res.Output) == 0 {
 		return nil, wire.EmptyAnswer("messages", finish)
 	}
 
@@ -433,13 +449,18 @@ type blockText struct {
 // EventReasoningDelta, each content block as EventItem when it stops, and
 // message_stop as EventDone, carrying the Response Decode returns for the
 // same answer. Signatures, a call's input_json_delta and a redacted block are
-// assembled into their items, not yielded. The stream's error event is
-// classified by its type. It returns nil once EventDone is yielded or yield
-// returns false, and otherwise the error that ended the stream; what it
-// yielded before an error is not a response (0031-MADR D4).
+// assembled into their items, not yielded. A tool_use block's item is held
+// until a later block starts, since the last block is the call a cut at the
+// limit cut (0088-MADR ST103), and one whose input is not a whole object is
+// then held until the message stops (wire.HeldCalls), so a call the limit
+// cut is never yielded (ST80). The stream's error event is classified by its
+// type. It returns nil once EventDone is yielded or yield returns false, and
+// otherwise the error that ended the stream; what it yielded before an error
+// is not a response (0031-MADR D4).
 func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
 	var m message
 	var texts []*blockText
+	var hold callHold
 	// at is the block a content_block event's index names. The index is the
 	// service's: checked before it grows the blocks (0053-MADR D2).
 	at := func(i int) (*block, *blockText, error) {
@@ -466,6 +487,8 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 				return false, err
 			}
 			*b = ev.ContentBlock
+			b.open = true
+			return !hold.later(yield), nil
 		case "content_block_delta":
 			_, t, err := at(ev.Index)
 			if err != nil {
@@ -488,15 +511,15 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			if err != nil {
 				return false, err
 			}
-			b.Text += t.text.String()
-			b.Thinking += t.thinking.String()
-			b.Signature += t.signature.String()
-			if t.args.Len() > 0 {
-				b.Input = json.RawMessage(t.args.String())
-			}
-			// A call cut short has no usable input: its error is the one
-			// response gives at message_stop, as Decode's.
+			fold(b, t)
+			b.open = false
+			// A call cut short has no usable input: response drops it, or
+			// gives its error, at message_stop, as Decode's.
 			if item, ok, err := b.item(); err == nil && ok {
+				if b.Type == blockToolUse {
+					hold.last = item
+					return false, nil
+				}
 				return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}), nil
 			}
 		case "message_delta":
@@ -514,11 +537,13 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 				}
 			}
 		case "message_stop":
-			resp, err := m.response()
+			resp, err := m.finish(texts)
 			if err != nil {
 				return false, err
 			}
-			yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+			if hold.done(resp, yield) {
+				yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+			}
 			return true, nil
 		case "error":
 			return false, llmprovider.ClassifyStreamFailureBody(provider, "", ev.Error.Type, ev.Error.Message, wire.ErrorObject(payload))
@@ -526,6 +551,66 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 		return false, nil
 	}
 	return wire.ReadEvents(provider, body, "message_stop", dispatch)
+}
+
+// finish is the streamed message's response at message_stop: a block the
+// stream never stopped keeps what arrived of it, and a call among them is one
+// the limit cut.
+func (m *message) finish(texts []*blockText) (*llmprovider.Response, error) {
+	for i := range m.Content {
+		if m.Content[i].open {
+			fold(&m.Content[i], texts[i])
+		}
+	}
+	return m.response()
+}
+
+// callHold is what a Messages stream holds back of its calls (0088-MADR
+// ST80, ST103): last, the latest tool_use item, held until a later block
+// starts, since the last block is the call a cut at the limit cut; and held,
+// the calls whose input is not a whole object, held until the message stops.
+type callHold struct {
+	last llmprovider.Item
+	held wire.HeldCalls
+}
+
+// later handles a later block's start: the last call was not the last
+// block, so it is yielded, or held until the message stops when its input
+// is not whole. It reports false when yield stopped the stream.
+func (h *callHold) later(yield func(llmprovider.Event) bool) bool {
+	item := h.last
+	if item == nil {
+		return true
+	}
+	h.last = nil
+	if call, ok := item.(llmprovider.FunctionCallItem); ok && wire.CutCall(call.Arguments, false) {
+		h.held.Hold(item)
+		return true
+	}
+	return yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item})
+}
+
+// done yields, before resp's EventDone, each held call resp kept. It reports
+// false when yield stopped the stream.
+func (h *callHold) done(resp *llmprovider.Response, yield func(llmprovider.Event) bool) bool {
+	if !h.held.Done(resp, yield) {
+		return false
+	}
+	return h.last == nil || !slices.Contains(resp.Output, h.last) ||
+		yield(llmprovider.Event{Type: llmprovider.EventItem, Item: h.last})
+}
+
+// fold moves a streamed block's deltas, t, into b.
+func fold(b *block, t *blockText) {
+	b.Text += t.text.String()
+	b.Thinking += t.thinking.String()
+	b.Signature += t.signature.String()
+	if t.args.Len() > 0 {
+		b.Input = json.RawMessage(t.args.String())
+	}
+	t.text.Reset()
+	t.thinking.Reset()
+	t.signature.Reset()
 }
 
 // A Claude id's version, which deferred tools read (0040-MADR D2). The

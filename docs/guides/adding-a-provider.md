@@ -345,8 +345,12 @@ func TestConformance(t *testing.T) {
   - `Garbled` writes a 200 that cannot be decoded, which must be
     `ErrIncomplete` and is not retried;
   - `Truncated` writes an answer cut at the output limit with a partial
-    call, which must be `ErrIncomplete` with `Reason` `length`, or
-    `TruncatedReason` when your wire reports its own reason;
+    call and nothing else, which must be `ErrIncomplete` with `Reason`
+    `length`, or `TruncatedReason` when your wire reports its own reason:
+    the cut call is dropped, so nothing usable is left and the answer is
+    `ErrEmptyAnswer`, beneath `ErrIncomplete`. A cut answer with text or a
+    whole call is a response finishing `FinishLength`, the cut call named
+    in a `WarningToolCallCut` (0088-MADR ST75 to ST81);
   - `StrictTools: true` checks that a call reply finishes `tool_calls`,
     with valid JSON arguments;
   - `ReasoningCut` writes an answer cut at the output limit while the model

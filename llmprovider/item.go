@@ -126,8 +126,11 @@ type Response struct {
 	Output []Item
 
 	// FinishReason is the Chat Completions finish_reason, e.g. "stop" or
-	// "length"; a length-truncated text answer keeps its text and reports
-	// it here (MADR 0012 §1.5). Empty where the service does not report one.
+	// "length". An answer the output limit cut reports FinishLength here on
+	// every wire, with its text and its whole tool calls; a call the limit
+	// cut is dropped and named in a WarningToolCallCut in Warnings
+	// (0088-MADR ST75 to ST80, which replace MADR 0012 §1.5's error for a
+	// cut call). Empty where the service does not report one.
 	FinishReason FinishReason
 
 	// Usage counts the response's tokens; zero where the service reports

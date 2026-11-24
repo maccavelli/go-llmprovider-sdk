@@ -135,6 +135,12 @@ tool that holds a rule, where one does. For how the code is laid out, read
   carried, after a thinking budget raised it, whether one was sent, its
   `LimitBasis` and its source; a stream's final response carries it too
   (0089 D7, DL54, DL55).
+  An answer the output limit cut is one `Response` on every wire, by
+  `Generate` and at a stream's `EventDone`: `FinishLength`, its text and its
+  whole tool calls, each call the limit cut dropped and named in a
+  `WarningToolCallCut` and never yielded; with nothing usable it is
+  `ErrEmptyAnswer` with the service's reason (0088 ST75 to ST81, ST93,
+  ST94, ST103).
   In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
   and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
   convention. (0015 D3, D4, and its amendment "what `Usage` counts")

@@ -315,6 +315,9 @@ Exit criterion: no blocker, every row tested, plants caught.
    `make tools-test`.
 7. `python3 -B tools/claims.py` on the MADR and this PLAN;
    `python3 -B tools/recordlint.py --changed`.
+8. *(Added 2026-11-23, deviation 9: an open item.)* ST43's `tools/claims.py`
+   row on each of the merged phase's changelog entries, planted false,
+   which the merged phase did not add.
 
 Exit criterion: no blocker, every row tested, plants caught.
 
@@ -329,6 +332,10 @@ Exit criterion: no blocker, every row tested, plants caught.
    three options each, the recommended first; the ruling is recorded in the
    MADR as a row and in this PLAN as a dated deviation, and Phase 1's steps
    run again for it (a new pass, numbered).
+4. *(Added 2026-11-23, deviation 9.)* The reviewer rules, with the owner,
+   on the three items the MADR's tenth amendment leaves open from Phase 1b:
+   R1 (the wire-general cut rule), R2 (Responses' incomplete or never-done
+   call) and R3 (`wire.HeldCalls`).
 
 Exit criterion: no blocker, every row tested, plants caught.
 
@@ -748,3 +755,99 @@ Additions only; every step above stands, read as this amendment says.
 ### Execution record entry (2026-11-23, eleventh): the merged layer E
 
 * Built, unstaged, in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md)'s merged layer E, whose checkpoint records the runs: the rest of this PLAN's Phase 1 tests as the merged table builds them (ST23, ST26, ST46, ST48, ST50 to ST52, ST55 to ST57, ST59, ST61, ST63, ST91), each red at `6ace750` or green there as its row says, each green, and each plant caught, the replacements of the tenth entry included; ST51's form with its two planned test changes; the existing tests of Phase 1 step 2 (ST4, ST19, ST20, ST27, ST30, ST41, ST45, ST61), each with its plant caught; step 6's docs and the full checks. ST65 stays out of scope; the ST99-retired tests are not built.
+
+### Execution record entry (2026-11-23, twelfth): Phase 1b started
+
+* Phase 1b ("the cut answer, one way", OQ11), as the second amendment states it with the third's rows (ST93, ST94), the fourth's OQ16 (1) (`WarningToolCallCut`, exported) and the sixth's order (its own commit, after the merged phase, before Phase 1c and Phases 2 to 4). Base `247b745`, the merged phase committed by the owner; the tree clean at the start. Pass 1.
+* *(2026-11-23)* **Stopped** at step 3, the code written and unstaged, before any plant, gate or doc: ST78's Messages cell ("its `tool_use` block closed and its input parsed") returns a call the limit cut on a plain Messages reply, since the service closes and parses the cut block's partial input there. The existing `TestDecode_StopReason` (`llmprovider/internal/wire/messages/answer_test.go:32`, `{"subject":"fix: tru"}` on `max_tokens`) and `TestFinish_Messages` (`llmprovider/internal/wire/messages/decode_0021_test.go:57`, `{"a":1}` on `model_context_window_exceeded`) then fail: `answer_test.go:34: a tool call cut by max_tokens = <nil>, want ErrIncomplete`; `decode_0021_test.go:60: model_context_window_exceeded with a call: <nil>; want ErrIncomplete, reason length`. Anthropic's stop-reasons page (read 2026-11-23) checks "if the last content block is an incomplete tool_use". Put to the owner; no row changed yet.
+
+### Deviation 9 (2026-11-23): the owner's rulings on Phase 1b's stop
+
+Recorded before more code; pass 1 continues (a ruling, not a new pass). Relayed by the coordinator, quoted as given:
+
+* **ST78's Messages cell:** "Last tool block is the cut call (Recommended)". The MADR's tenth amendment adds ST103. Phase 1b's table gains, in `TestCutAnswer_CompleteCalls_0088`, a plain Messages case whose last block is `tool_use` with input `{"subject":"fix: tru"}` on `max_tokens`: dropped and named; plant: the last-block rule removed, caught only by that case. `TestDecode_StopReason` and `TestFinish_Messages` stand unchanged.
+* **The builder's three code choices** (R1 the wire-general cut rule, R2 Responses' incomplete or never-done call, R3 `wire.HeldCalls`): "Defer to the review". Built as they are, each with a test and a plant; recorded in the MADR's tenth amendment as open for Phase 3. **Phase 3 (added 2026-11-23):** the reviewer rules on R1, R2 and R3 with the owner, each named and described in the MADR's tenth amendment.
+* **Claims rows on uncommitted text** (ST83's annotations, ST84's changelog entry): the sixth amendment's "now" id convention, the coordinator's decision (this record's existing convention), each checked with plain ids on a scratch clone's commit of the tree and planted false there.
+* **Open for the joint Phase 2 (added 2026-11-23):** the merged phase added no `tools/claims.py` rows for its own changelog entries, which ST43 names ("a `tools/claims.py` row on each entry, planted false"). Not built in Phase 1b.
+
+### Execution record entry (2026-11-23, thirteenth): Phase 1b built (pass 1, then pass 2 after the coverage gate)
+
+Base `247b745`; unstaged; no live call, every reply the tests' own. Pass 1 continued after deviation 9; pass 2 is the rebuild after `coverage-check` failed (below).
+
+**Re-ground (step 1), at `247b745`:** each wire's decoder and stream reader: Chat Completions `response` (`chatcompletions.go:514`, C128 at `:533`) and `Events`/`done`; Messages `Decode` (`messages.go:310`, C129 at `:349`) and `Events` (`:440`); generateContent `Decode` (`generatecontent.go:179`, C132 at `:241`) and `Events` (`:298`); Gemini's Interactions `decodeInteraction` (`interactions.go:128`, C136 at `:167`) and `interactionEvents` (`:261`); Responses `decodeAs` (C130 at `responses.go:413`) and `readEvents` (C134 at `:700`); `wire.EmptyAnswer` (`finish.go:34`). `tools/claims.py` on the MADR at `self=247b745`: 82 of 140 (the rows Phase 1b rests on, C128 to C134, C136, C137, all pass; the others moved or were rewritten by the merged phase); at their pins, 140 of 140. The existing tests that pinned `ErrIncomplete` for a cut answer, found by the suite on the new code: `TestReadStream_FailureReturnsNoResponse` (`llmprovider/internal/wire/responses/decode_0021_test.go:41`, its incomplete case now a content filter, ST81) and `TestGeminiInteractions_Status` (`llmprovider/providers/gemini/interactions_test.go:154`, now a response finishing `length`, ST93), changed as ST84 plans; `TestDecode_StopReason` and `TestFinish_Messages` stand unchanged under ST103. Every other `ErrIncomplete` check of a cut answer, llmtest's W12 `Truncated` and `ReasoningCut` on all ten harnesses included, passes unchanged, since `ErrEmptyAnswer` matches `ErrIncomplete`.
+
+**The code.** `wire.CutAnswer`, `CutCall`, `ToolCallCut`, `WholeObject` and `HeldCalls` (`llmprovider/internal/wire/finish.go`); each decoder and stream reader returns a cut answer's usable part through `CutAnswer` (Chat Completions, Messages with ST103's last block, generateContent, Interactions, Responses with its incomplete or never-done call); `llmprovider.WarningToolCallCut`; the docs of `Response.FinishReason`, `FinishLength`, `ErrIncomplete`, `ErrEmptyAnswer` and `APIError`.
+
+**Tests**, in `llmprovider/providers/cut_answer_0088_test.go` and `llmprovider/internal/wire/cut_0088_test.go` (new):
+
+| Test | Rows | At `247b745` |
+| :--- | :--- | :--- |
+| `TestCutAnswer_Text_0088` | ST75, ST93, ST95 | red: `cut_answer_0088_test.go:449: responses, Generate: 1 request(s), resp <nil>, err llmprovider: incomplete response: max_output_tokens; want one request, a response finishing length with hello` (and Interactions) |
+| `TestCutAnswer_CompleteCalls_0088` | ST76 to ST78, ST93, ST94, ST103 | dropped (`WarningToolCallCut`); its red is its plants |
+| `TestCutAnswer_NothingUsable_0088` | ST79, ST93 | red: `:500: chat completions, Generate, only a cut call: resp <nil>, err llmprovider: incomplete response: length; want ErrEmptyAnswer with reason "length" and no response` (and every wire) |
+| `TestCutAnswer_Stream_0088` | ST80 | red: `:522: chat completions: items [], EventDone false, resp <nil>, err llmprovider: incomplete response: length; want the item lookup alone, then EventDone finishing length` (every wire) |
+| `TestCutAnswer_OtherIncomplete_0088` | ST81 | green (`--expect pass --rev 247b745`, with `TestDecode_StopReason` and `TestFinish_Messages`: 3 of 3) |
+| `TestCutAnswer_WireGeneral_0088`, `TestCutCall_0088` | R1 (open) | new API, dropped; red is the plants |
+| `TestCutAnswer_ResponsesCutItem_0088` | R2 (open) | the same |
+| `TestCutAnswer_HeldCalls_0088`, `TestHeldCalls_0088` | R3 (open) | the same |
+| `TestCutAnswer_Helper_0088`, `TestToolCallCut_0088` | ST77, ST79 (the helpers in their package) | the same |
+
+`tools/redgreen.py --expect fail --rev 247b745`: 3 of 3. `--expect pass` on the tree, the sixteen tests above and the four existing ones: 16 of 16.
+
+**Plants**, by `tools/plant.py` on scratch clones, one spec per test with `-run` naming that test alone, 22 plants (21 by `tools/plant.py`, ST82's by `apidiff`; *2026-11-23, corrected from "25" by deviation 10's run, which counted them*), each caught by a failing assertion, none by a build failure (a first draft of R3's `Done` plant broke the build and was rewritten):
+
+| Plant | Test | Its failing line |
+| :--- | :--- | :--- |
+| ST75 Responses' cut answer left an error | `Text` | `:449: responses, Generate: 1 request(s), resp <nil>, err llmprovider: incomplete response: max_output_tokens; ...` |
+| ST93 Interactions left an error | `Text` | `:449: interactions, Generate: 1 request(s), resp <nil>, err llmprovider: incomplete response: incomplete; ...` |
+| ST95 a continuation request sent | `Text` | `:449: interactions, Generate: 2 request(s), resp &{ID:int_1 ...FinishReason:length ...` |
+| ST76 (a) the complete calls dropped | `CompleteCalls` | `:478: chat completions, Generate: calls []; want ["lookup {\"x\":1}"], the cut call dropped` |
+| ST77 (b) the warning omitted | `CompleteCalls` | `:478: chat completions, Generate: warnings [{Kind: Model:m Detail:the output limit cut the call to "fetch" (id "call_b") ...` |
+| ST78 (c) the Chat Completions completeness check removed | `CompleteCalls` | `:478: chat completions, Generate: calls ["lookup {\"x\":1}" "fetch {\"path\":\"a\""]; want ["lookup {\"x\":1}"], the cut call dropped` |
+| ST94 (d) the empty last call kept | `CompleteCalls` | `:494: chat completions, the empty last call, Generate: calls ["lookup {\"x\":1}" "now {}" "list {}"]; ...` |
+| ST103 the last-block rule removed | `CompleteCalls`, only its ST103 case | `:487: messages, the last block parsed (ST103), Generate: calls ["lookup {\"x\":1}" "commit {\"subject\":\"fix: tru\"}"]; ...` (and Stream) |
+| ST79 an empty response returned | `NothingUsable`; `Helper` | `:542: chat completions, Generate, only a cut call: resp &{ID:c Model:m Output:[] FinishReason:length ...`; `cut_0088_test.go:44: only reasoning: &{...FinishReason:length ...` |
+| ST80 the stream ends with `ErrIncomplete` | `Stream` | `:564: chat completions: items [], EventDone false, resp <nil>, err llmprovider: incomplete response: length; ...` |
+| ST81 a content-filter incomplete returned as a response | `OtherIncomplete` | `:587: responses, Generate, a content filter: resp &{ID:resp_1 Model:gpt-5 Output:[{Role:assistant Text:hello}] FinishReason:length ...` |
+| R1 (a) the last-empty rule removed | `WireGeneral`; `CutCall` | `:605: generatecontent, a trailing call with no arguments, Generate: calls ["lookup {\"x\":1}" "now {}"]; ...`; `cut_0088_test.go:61: CutCall("{}", last true) = false; want true` |
+| R1 (b) any JSON taken as whole | `WireGeneral` | `:610: chat completions, arguments not an object, Generate: calls ["list [1]" "lookup {\"x\":1}"]; ...` |
+| R2 (a) the incomplete-status check removed | `ResponsesCutItem` | `:624: responses, an incomplete call item, Generate: calls ["lookup {\"x\":1}" "fetch {\"y\":2}"]; ...` |
+| R2 (b) a call added and never done not named | `ResponsesCutItem` | `:624: responses, an incomplete call item, Stream: warnings []; want one WarningToolCallCut naming fetch and call_b` |
+| R3 no call held | `HeldCalls` (providers) | `:639: responses, Stream: items ["first" "lookup" "now"]; want first, then lookup, and never the last {} call` |
+| R3 `Later` releases nothing | `TestHeldCalls_0088` | `cut_0088_test.go:100: Later yielded []; want now alone, the partial call kept` |
+| R3 `Done` yields a dropped call | `TestHeldCalls_0088` | `cut_0088_test.go:109: Done yielded ["now"]; want nothing: the response dropped the call` |
+| ST77 the name-only detail loses the name | `TestToolCallCut_0088` | `cut_0088_test.go:78: ToolCallCut("lookup", "") = {Kind:tool_call_cut ... Detail:the output limit cut a call before ...` |
+| ST82 a third name exported | `tools/apidiff.py v1.32.0` against the expected list | `Error: apidiff reports ./llmprovider.WarningPlanted0088: added, beyond the expected list` |
+
+**`apidiff`** (`python3 -B tools/apidiff.py v1.32.0`), exit 0: the merged phase's twenty lines and `./llmprovider.WarningToolCallCut: added`, nothing else.
+
+**Checks**, each exit status taken before any filter:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `go build ./...`; `go vet ./...`; `go vet -tags live_gateways ./...` | session (darwin/arm64) | 0; 0; 0 |
+| `run-heavy -- make pre-add-check FILES="<the phase's 14 Go files>"` | session | 2 first (golangci-lint: `errcheck` on `HeldCalls.Later`'s type assertion, `gocognit` on Messages' `Events` (60) and Responses' `readEvents` (54), `nilerr` in Messages' `Events`; fixed without a suppression: `HeldCalls` holds `FunctionCallItem`s, `callHold` and `message.finish` in Messages, `streamEnd` in Responses); then 0, `14 file(s) clean` |
+| `run-heavy -- go test -count=1 ./...` | session | 0, 46 packages ok |
+| `run-on-host --need linux --race -- go test -race -count=1` (`llmprovider`, `internal/wire/...`, `providers/...`) | a fleet Linux host (linux/amd64), not WSL | 0, 18 packages ok; `internal/wire` again after its new test, 0 |
+| `make parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest tools-test`, each alone, through `run-heavy` | session | first run: `coverage-check` 2 and `gate-selftest` 2 (`llmprovider/internal/wire` at 77.0 %, below its 80 % floor: the new helpers had no test in their package); pass 2 added `cut_0088_test.go` (82.2 %); then 0 each |
+| `tools/goldendiff.py` | | not run: no golden changed |
+| `python3 -B tools/claims.py` on the MADR | session | 0, 140 of 140 |
+| the "now" rows C144now to C148now, plain ids, on a scratch clone's tree of the working tree | session | 0, 5 of 5; `--plants`, all 5 caught |
+| `python3 -B tools/recordlint.py --changed`; `python3 -B tools/denyscan.py --changed` | session | 0 (no rule rose); 0 (0 hits) |
+
+**Docs.** `README.md` (the cut answer, its warning and its reasons); `docs/guides/api-standards.md` R7; `docs/guides/adding-a-provider.md` (`Truncated`); `docs/architecture.md` (`internal/wire`'s row, the answers bullet, the conformance `Truncated` line); `CHANGELOG.md` `[Unreleased]` **Added** (`WarningToolCallCut`) and **Changed** (the cut answer); the dated annotations of 0012-MADR §1.5 and 0020-MADR F3 (ST83).
+
+**Not done:** Phases 1c and 2 to 4; R1 to R3 wait for Phase 3's review; ST43's claims rows wait for Phase 2.
+
+### Deviation 10 (2026-11-23): a Responses stream cut with no `.done` events; Phase 1b pass 3
+
+* **Evidence**, a live probe (round 7, allowlisted output only), relayed by the coordinator: on xAI `grok-4.20-0309-non-reasoning` with `max_output_tokens` 16, a streamed text cut sends `response.created`, `response.in_progress`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, then `response.incomplete` (reason `max_output_tokens`), with no `output_text.done`, `content_part.done` or `output_item.done`, its final message item `incomplete`; a plain text cut has the top-level `status` `incomplete` and its message item `completed`. OpenAI (`gpt-4o-mini`) sends every `.done` event, the item `incomplete`. `llmprovider/internal/wire/responses/responses.go` (`readEvents`, lines 736 to 752 of the tree after pass 2) built a stream's `result.Output` only from `output_item.done`, so a cut streamed Grok answer had nothing usable, against ST75 and ST80. xAI did not enforce `max_output_tokens` on a forced call (1042 tokens against 160): no Grok call cut was observed.
+* **The owner's ruling**, relayed by the coordinator: "Fix it now in Phase 1b (Recommended)". The MADR's eleventh amendment adds ST104. This is Phase 1b's pass 3; a further failure is a stop, not a fourth pass.
+* **Added to Phase 1b's table:** `TestCutAnswer_XAIShapes_0088` (ST104), replaying the measured stream and plain shapes, with its plants (the terminal response's items ignored; the cut decided by an item's status).
+
+### Execution record entry (2026-11-23, fourteenth): Phase 1b pass 3 (ST104)
+
+* **The code.** `llmprovider/internal/wire/responses/responses.go`: `outputItem.ID`; the terminal event's `Response.Output`; the stream's state as `streamState`, with `itemDone`, `delivered`, `takeTerminal` and `end`: on a cut, each item the terminal `response.incomplete` carries that no `output_item.done` delivered (by id, or by place for an item with none) is taken under the cut rules, a call it names no longer an open one, and a kept item is yielded before `EventDone`. The plain reader already decided the cut by the top-level `status`.
+* **The test**, `TestCutAnswer_XAIShapes_0088` in `llmprovider/providers/cut_answer_0088_test.go`, on Grok: xAI's measured stream (no `.done` event) and plain shape (message item `completed`); and a stream whose terminal response carries a whole call and an incomplete one, never done (not measured). **Red** at the tree before this pass (its `responses.go` rebuilt from this pass's edits on a scratch clone, every other cut test there green): `cut_answer_0088_test.go:694: grok, Stream, xAI's cut: resp <nil>, EventDone false, err llmprovider: empty answer: max_output_tokens: responses: the answer has no content; want a response finishing length with its text`, `:705: grok, Stream, terminal calls: items []; want lookup alone, yielded before EventDone`; the plain case is green there, as the plain reader already met it. **Green** on the tree.
+* **Plants**, each caught only by `TestCutAnswer_XAIShapes_0088`: (a) the terminal response's items ignored, `:694` as above; (b) the cut decided by an item's status, `:694: grok, Generate, xAI's cut: resp &{... Output:[{Role:assistant Text:Counting: 1, 2, 3,}] FinishReason:stop ...`; (c) a taken call left open, `:707: grok, Stream, terminal calls: warnings [{Kind:tool_call_cut ... "fetch" (id "call_b") ...}, ...]`, named twice; (d) the taken items not yielded, `:705: ... items []`. Every earlier plant re-run on this tree: all caught (25 by `tools/plant.py`, ST82's by `apidiff`).
+* **Checks**, each exit taken before any filter: `go build`, `go vet`, `go vet -tags live_gateways`: 0, 0, 0; `run-heavy -- make pre-add-check FILES="<the 14 Go files>"`: 0, `14 file(s) clean`; `run-heavy -- go test -count=1 ./...`: 0, 46 packages; `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/internal/wire/... ./llmprovider/providers/...` on a fleet Linux host (linux/amd64), not WSL: 0, 17 packages; CI's set, each target alone through `run-heavy`: 0 each; `tools/apidiff.py v1.32.0`: 0, unchanged (21 lines); `tools/claims.py` on the MADR: 140 of 140; the "now" rows: 5 of 5, plants 5 caught; `tools/recordlint.py --changed` and `tools/denyscan.py --changed`: 0, 0.

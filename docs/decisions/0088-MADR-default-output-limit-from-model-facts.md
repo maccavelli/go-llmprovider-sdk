@@ -1389,3 +1389,64 @@ Additions only; no row's decision changes. Building the merged phase's layer E (
 * **ST91, the scope of "as given".** A caller's `WithMaxTokens` is cut to the stated output and never raised (ST15, 0089-MADR DL44), and the stated output is held to a stated window (0089-MADR DL19). So `WithMaxTokens(20000)` with W 8,192 is sent as given, 20,000, only where no source states the model's output limit; where one does, the option is cut to the held value, 8,192. A request's own `MaxOutputTokens` is sent as given in both (ST17). `TestDefaultLimit_WindowCap_0088` pins the first case on a model no extract section names (`org/window-cap-0088`). *(2026-11-23, recorded by the builder at the coordinator's word, from layer E's run: on `openai/gpt-6-luna`, which the extract states, the same case sent 8,192.)*
 
 Counts after this amendment: unchanged, 98 decided, 9 out of scope, 0 open, 107 rows.
+
+## Amendment (2026-11-23, tenth): Phase 1b's stop on ST78's Messages cell, and three choices left to the review
+
+Additions only. Building PLAN Phase 1b (the cut answer, OQ11) at `247b745`, ST78's Messages cell, "its `tool_use` block closed and its input parsed", returned a call the limit cut: on a plain Messages reply the service closes the cut block and parses its partial input, so the existing `TestDecode_StopReason` (`llmprovider/internal/wire/messages/answer_test.go:32`, input `{"subject":"fix: tru"}` on `max_tokens`) and `TestFinish_Messages` (`llmprovider/internal/wire/messages/decode_0021_test.go:57`, input `{"a":1}` on `model_context_window_exceeded`) failed: `answer_test.go:34: a tool call cut by max_tokens = <nil>, want ErrIncomplete`; `decode_0021_test.go:60: model_context_window_exceeded with a call: <nil>; want ErrIncomplete, reason length`. Anthropic's stop-reasons page (platform.claude.com, "Handling stop reasons", read 2026-11-23), on a reply cut at `max_tokens`: "Check if the last content block is an incomplete tool_use".
+
+### Owner rulings (2026-11-23, tenth)
+
+Relayed by the coordinator; labels quoted as given.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| ST78's Messages cell | "Last tool block is the cut call (Recommended)" | (1): when a Messages reply stops at the limit (`max_tokens` or `model_context_window_exceeded`), a `tool_use` block that is the last content block is the cut call, dropped with `WarningToolCallCut`, plain or streamed; `TestDecode_StopReason` and `TestFinish_Messages` stand unchanged | ST103 |
+| The builder's three code choices, below | "Defer to the review" | built as they are, each with a test and a plant like any row's; open for PLAN Phase 3's independent review, which rules on each with the owner; not decided rows | none |
+
+### Rows (2026-11-23, tenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST103 (new, 2026-11-23) | A Messages reply stopped at the limit (`max_tokens` or `model_context_window_exceeded`) whose last content block is a `tool_use` | decided | that block is the cut call, dropped and named in a `WarningToolCallCut`, by `Decode` and by `Events`, whatever its input; an earlier `tool_use` block is whole when it closed and its input parsed. Amends ST78's Messages cell | "Last tool block is the cut call (Recommended)"; Anthropic's stop-reasons page | `TestCutAnswer_CompleteCalls_0088`, its plain `{"subject":"fix: tru"}` case; `TestDecode_StopReason` and `TestFinish_Messages` unchanged; plant: the last-block rule removed, caught only by that case |
+
+### Open for PLAN Phase 3's review (2026-11-23, tenth)
+
+Built in Phase 1b by the owner's ruling "Defer to the review", each with a test and a plant; the reviewer rules on each with the owner. None is a decided row.
+
+* **R1, the wire-general cut rule.** On every wire, a call of a reply the limit cut is the cut call when its arguments as returned are not a JSON object, or when it is the reply's last item and its arguments are `{}`, the form a call cut before its first argument takes once the SDK writes empty arguments as `{}` (`wire.CutCall`, applied in `wire.CutAnswer`). An earlier call with `{}` is a whole call that takes none. It reads ST94 as wire-general: on generateContent and Interactions, whose call parts ST78 calls whole, a trailing call that takes no arguments is dropped on a cut reply.
+* **R2, Responses' cut call.** On the Responses wire, a cut reply's call whose item has `status` `incomplete` (plain or streamed), or that a stream added (`response.output_item.added`) and never finished (`response.output_item.done`), is the cut call, dropped and named.
+* **R3, streamed calls held back.** On the Responses stream, whose items are yielded as each ends, a call whose arguments are `{}` or not whole is held, not yielded, until a later item shows it was not the last (a `{}` call is then yielded) or the stream ends (a call the finished response kept is then yielded just before `EventDone`) (`wire.HeldCalls`), so that a cut call is never yielded (ST80). On the Messages stream every `tool_use` item is held until a later block starts, as ST103 needs, and one whose input is not a whole object is then held until the stream ends, by the same rule. A call is yielded later than before on those streams: on Messages every call, on Responses one taking no arguments.
+
+Their tests, each with plants recorded in PLAN Phase 1b's execution entry: R1 `TestCutAnswer_WireGeneral_0088` and `TestCutCall_0088`; R2 `TestCutAnswer_ResponsesCutItem_0088`; R3 `TestCutAnswer_HeldCalls_0088` and `TestHeldCalls_0088`.
+
+### Evidence added (2026-11-23, tenth)
+
+The ids end in "now", as the sixth amendment's do, so that `tools/claims.py` does not read them against this record's `self=55a5dca`: the text is uncommitted when written. Each was checked with a plain id against a scratch clone's commit of the tree, and planted false there (PLAN deviation 9).
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C144now | 0012-MADR §1.5's dated annotation (ST83) | new | `docs/decisions/0012-MADR-conform-providers-to-reference-clients.md:341` | `*(2026-11-23: an answer the output limit cut is no longer an error on any` |
+| C145now | 0020-MADR F3's dated annotation (ST83) | new | `docs/decisions/0020-MADR-remediate-v1-debugging-pass-findings.md:90` | `` *(2026-11-23: a cut tool call is no longer `ErrIncomplete`: the answer is a response finishing `length` `` |
+| C146now | the **Changed** entry (ST84) | new | `CHANGELOG.md:100` | `` - An answer the output limit cut is a response finishing `length` on every `` |
+| C147now | the **Added** entry (ST82) | new | `CHANGELOG.md:52` | `` - `llmprovider.WarningToolCallCut`: the output limit cut a tool call before `` |
+| C148now | ST103 in the Messages decoder | new | `llmprovider/internal/wire/messages/messages.go:365` | `b.Type == blockToolUse && (i == len(m.Content)-1 \|\| b.open \|\| err != nil)` |
+
+Counts after this amendment: 99 decided, 9 out of scope, 0 open, 108 rows (ST103 added).
+
+## Amendment (2026-11-23, eleventh): a Responses stream cut with no `.done` events
+
+Additions only. A live probe (round 7, allowlisted output only, 2026-11-23, relayed by the coordinator), xAI `grok-4.20-0309-non-reasoning` with `max_output_tokens` 16: a streamed text answer the limit cut sent `response.created`, `response.in_progress`, `response.output_item.added`, `response.content_part.added` and `response.output_text.delta`, then `response.incomplete` (reason `max_output_tokens`), with no `response.output_text.done`, `response.content_part.done` or `response.output_item.done`; the final response's message item is `incomplete`. A plain text answer it cut has the top-level `status` `incomplete` and its message item's `status` `completed`. OpenAI (`gpt-4o-mini`) sends every `.done` event, the item `incomplete`. The Responses stream reader built a cut answer only from `response.output_item.done`, so on Grok a cut streamed answer had nothing usable, against ST75 and ST80. xAI did not enforce `max_output_tokens` on a forced call (1042 tokens against 160), so a Grok call cut was not observed.
+
+### Owner rulings (2026-11-23, eleventh)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| The Responses stream cut with no `.done` events | "Fix it now in Phase 1b (Recommended)" | fixed in Phase 1b (its pass 3, PLAN deviation 10) | ST104 |
+
+### Rows (2026-11-23, eleventh)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST104 (new, 2026-11-23) | A Responses answer the output limit cut: streamed, with items the terminal `response.incomplete` carries that no `response.output_item.done` delivered; or plain, its top-level `status` `incomplete` (reason `max_output_tokens`) whatever its items' `status` says | decided | on a cut the stream reader also takes each item the terminal `response.incomplete` carries that no `output_item.done` delivered: its text, and its calls under the cut rules as built (ST77, ST78, R1, R2), yielded before `EventDone` when kept; a plain reply's top-level `incomplete` decides the cut, whatever an item's `status` | "Fix it now in Phase 1b (Recommended)"; the live probe above | `TestCutAnswer_XAIShapes_0088` (xAI's measured stream and plain shapes); plants: the terminal response's items ignored; the cut decided by an item's status |
+
+Counts after this amendment: 100 decided, 9 out of scope, 0 open, 109 rows (ST104 added).

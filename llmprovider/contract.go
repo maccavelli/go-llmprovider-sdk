@@ -169,7 +169,10 @@ type FinishReason string
 const (
 	// FinishStop is a natural end.
 	FinishStop FinishReason = "stop"
-	// FinishLength is the output-token limit; the text so far is kept.
+	// FinishLength is the output-token limit, on every wire: the answer's
+	// text and its whole tool calls so far are kept, and a call the limit
+	// cut is dropped and named in a WarningToolCallCut; a cut answer with
+	// nothing usable is ErrEmptyAnswer instead (0088-MADR ST75 to ST80).
 	FinishLength FinishReason = finishReasonLength
 	// FinishToolCalls is a stop to let the caller run tool calls.
 	FinishToolCalls FinishReason = "tool_calls"

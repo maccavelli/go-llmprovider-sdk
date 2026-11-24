@@ -40,11 +40,13 @@ func TestDecode_RefusalIsKept(t *testing.T) {
 
 // TestReadStream_FailureReturnsNoResponse (0021-MADR W14): a stream event
 // that fails gives its error and no response, the partial one included,
-// whether a blank line ends the event or the stream does.
+// whether a blank line ends the event or the stream does. An answer the
+// output limit cut is not a failure since 0088-MADR ST75 (OQ11), so the
+// incomplete case is one for another reason, a content filter (ST81).
 func TestReadStream_FailureReturnsNoResponse(t *testing.T) {
 	item := `data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"partial"}]}}` + "\n\n"
 	for name, event := range map[string]string{
-		"incomplete":  `data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`,
+		"incomplete":  `data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}`,
 		"failed":      `data: {"type":"response.failed","response":{"error":{"code":"server_error","message":"boom"}}}`,
 		"error":       `data: {"type":"error","code":"server_error","message":"boom"}`,
 		"undecodable": `data: {"garbled`,
