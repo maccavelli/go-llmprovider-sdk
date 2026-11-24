@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -44,7 +45,7 @@ func routeServerAt(t *testing.T, addr string, gateway llmprovider.ProviderID, mo
 		mu    sync.Mutex
 		paths []string
 	)
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/api.json") {
 			entry := `"other-model":{"id":"other-model"}`
 			if listed {
@@ -65,12 +66,12 @@ func routeServerAt(t *testing.T, addr string, gateway llmprovider.ProviderID, mo
 			_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"ok"}]}`))
 		case strings.HasSuffix(r.URL.Path, "/responses"):
 			_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`))
-		case strings.HasSuffix(r.URL.Path, ":generateContent"):
+		case strings.HasSuffix(r.URL.Path, ":generateContent"), strings.HasSuffix(r.URL.Path, ":streamGenerateContent"):
 			_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}`))
 		default:
 			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
 		}
-	}))
+	})))
 	if addr != "" {
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
@@ -116,7 +117,9 @@ func TestOpencode_RoutesFromMetadata(t *testing.T) {
 	}{
 		{"anthropic", goGW, "brand-new-model", "@ai-sdk/anthropic", "/messages"},
 		{"openai", goGW, "brand-new-model", "@ai-sdk/openai", "/responses"},
-		{"google", zen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:generateContent"},
+		// A Generate that names no limit is read over the route's stream
+		// (0088-MADR ST88, ST88e).
+		{"google", zen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:streamGenerateContent"},
 		{"compatible", goGW, "brand-new-model", "@ai-sdk/openai-compatible", "/chat/completions"},
 		{"unset", goGW, "brand-new-model", "", "/chat/completions"},
 		// The table says messages; the metadata wins.

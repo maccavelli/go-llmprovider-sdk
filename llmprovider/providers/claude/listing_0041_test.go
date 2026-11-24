@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -21,7 +22,7 @@ func TestListModels_DefaultBaseShape_0041(t *testing.T) {
 	var mu sync.Mutex
 	var paths []string
 	var body map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		paths = append(paths, r.URL.Path)
@@ -36,7 +37,7 @@ func TestListModels_DefaultBaseShape_0041(t *testing.T) {
 		default:
 			_, _ = w.Write([]byte(`{}`))
 		}
-	}))
+	})))
 	defer srv.Close()
 	p := build(t, apiKey(srv.URL+"/v1", "claude-sonnet-4-5-0041", llmprovider.WithModelProbes(false),
 		llmprovider.WithModelMetadataURL(srv.URL+"/api.json"))...)

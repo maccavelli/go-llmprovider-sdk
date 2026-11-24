@@ -437,7 +437,7 @@ red, from the PLAN.
 | ST48 | An overflow whose message shows the input alone over the window: "prompt is too long", xAI's and Together's input forms (C99 to C101), or a parsed split whose input part is at or above the window | decided | not resent; returned as today | OQ3 "Fit to window, resend once (Recommended)" | `TestDefaultLimit_OverflowResend_0088`, cases 5 and 6; plant: the input-alone check removed |
 | ST49 | The facts state a limit above what the service takes (stale facts, a caller's layer), refused in Anthropic's form `max_tokens: N > M` (C40) | decided | one resend with today's value | OQ3 "Fit to window, resend once (Recommended)" | `TestDefaultLimit_LimitRefusal_0088`; plant: the limit form not recognised |
 | ST50 | A gateway alias whose routed upstream takes less than the alias's stated limit | decided | a refusal in a recognised form is resent once; a cut answer (`FinishLength` with text) is returned as today; a refusal in an unrecorded form is returned; which Kilo does was not established | OQ3 "Fit to window, resend once (Recommended)" | `TestDefaultLimit_LimitRefusal_0088`, the Kilo `length` case; plant: a resend on `FinishLength` |
-| ST51 | Kilo's documented window form (C97), today `ErrInvalidRequest` | decided | added as an overflow form, so it is `ErrContextOverflow` for every Kilo request, and a raised request so refused is resent once | OQ3 "Fit to window, resend once (Recommended)" | `TestClassify_KiloWindowForm_0088`; plant: the form removed |
+| ST51 | Kilo's documented window form (C97), today `ErrInvalidRequest` | decided | added as an overflow form, so it is `ErrContextOverflow` for every Kilo request, and a raised request so refused is resent once | OQ3 "Fit to window, resend once (Recommended)" | `TestClassify_KiloWindowForm_0088`; plant: the form removed *(2026-11-23, ninth amendment: with two planned changes, a sample in `overflowSamples` and the form in the frozen reference, by the owner's ruling "Name the two test changes (Recommended)")* |
 | ST52 | The resend's value, with the budget shape | decided | the resend starts from today's configured value; `AddThinkingFor` applies after it, unchanged, so a budget at or above 8192 still raises `max_tokens` above it (C26) | OQ3 "Fit to window, resend once (Recommended)" | `TestDefaultLimit_ResendBudgetShape_0088`; plants: the resend's `max_tokens` set to 8192 after `AddThinkingFor`; the resend built without the thinking fields |
 | ST53 | A balance or credit refusal of a raised request | out of scope | Kilo's 402 at a zero balance (C95) is `ErrQuotaExhausted` (C94), not resent; an upstream's 402 reaches the client as 503 (C96), `ErrProviderUnavailable` (C98), which `WithRetry` may retry and the resend does not; a refusal that depends on the limit's size was not found in any local source; stated as a cost | | |
 | ST54 | The facts are not yet cached when the request is built (a cold cache, a listing fetch still running) | decided | today's value, 8192; the request never waits and never fetches | 0041-MADR D1, "No request waits, and no request lists" (C85) | `TestDefaultLimit_KiloListing_0088`, the cold case; plant: the provider reads its facts by `catalog.LookupModel`, which fetches, so 32,000 is sent and the listing is read during the request |
@@ -606,8 +606,8 @@ Counts: 56 decided, 5 out of scope, 0 open, 0 awaiting live evidence.
 | C30 | an answer cut while reasoning is empty | `llmprovider/internal/wire/chatcompletions/chatcompletions.go:544` | `if finish == llmprovider.FinishLength && text == "" {` |
 | C31 | the empty answer's error | `llmprovider/internal/wire/finish.go:34` | `func EmptyAnswer(where string, reason llmprovider.FinishReason) error {` |
 | C32 | Kilo's reasoning object | `llmprovider/providers/kilo/kilo.go:415` | `{effort} with an effort, else {enabled: true}` |
-| C33 | Kilo's listing states an output cap | `llmprovider/catalog/listing_metadata.go:297` | `if e.TopProvider.MaxCompletionTokens != nil {` |
-| C34 | Kilo's auto-routing models | `llmprovider/catalog/listing_metadata.go:287` | `variable price of its auto-routing models` |
+| C33 | Kilo's listing states an output cap *(2026-11-23: moved at `6ace750`; see C33now)* | `llmprovider/catalog/listing_metadata.go:297` | `if e.TopProvider.MaxCompletionTokens != nil {` |
+| C34 | Kilo's auto-routing models *(2026-11-23: moved at `6ace750`; see C34now)* | `llmprovider/catalog/listing_metadata.go:287` | `variable price of its auto-routing models` |
 | C35 | the completion alone fills the window | `llmprovider/context_overflow.go:69` | `max_tokens alone fills the context window: lower it` |
 | C36 | the split is parsed from the message | `llmprovider/context_overflow.go:64` | `contextSplitPattern = regexp.MustCompile(` |
 | C37 | the overflow kind | `llmprovider/api_error.go:44` | `ErrContextOverflow error = &sentinelError{msg: "llmprovider: context window exceeded"` |
@@ -620,10 +620,10 @@ Counts: 56 decided, 5 out of scope, 0 open, 0 awaiting live evidence.
 | C44 | the default's value is tested | `llmprovider/settings_test.go:83` | `st.MaxTokens() != 8192` |
 | C45 | and under concurrency | `llmprovider/concurrency_0048_test.go:83` | `want := 8192` |
 | C46 | 0041's rule | `docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md:358` | `default is never raised (Q3).` |
-| C47 | the owner's Q3 ruling | `docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md:1113` | `**Q3. The default output limit:** cut only (D2).` |
+| C47 | the owner's Q3 ruling *(2026-11-23: moved at `6ace750`; see C47now)* | `docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md:1113` | `**Q3. The default output limit:** cut only (D2).` |
 | C48 | a probe's own limit | `llmprovider/providers/claude/claude.go:161` | `probeMaxTokens = 8192` |
 | C49 | the README's line | `README.md:199` | `or levels it takes, and an output limit that cuts the default.` |
-| C50 | architecture's line | `docs/architecture.md:361` | `provider reads it once per request for its output limit and the efforts` |
+| C50 | architecture's line *(2026-11-23: moved at `6ace750`; see C50now)* | `docs/architecture.md:361` | `provider reads it once per request for its output limit and the efforts` |
 | C51 | a negative request limit is refused | `llmprovider/contract.go:262` | `if req.MaxOutputTokens < 0 {` |
 | C52 | a non-positive `WithMaxTokens` is refused | `llmprovider/settings.go:233` | `if s.cfg.MaxTokens <= 0 {` |
 | C53 | 0062's resend | `docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md:215` | `sends it once more, through` |
@@ -677,15 +677,15 @@ Counts: 56 decided, 5 out of scope, 0 open, 0 awaiting live evidence.
 | C101 | Together's input-alone form | `llmprovider/context_overflow.go:46` | `"Together AI (pi :21, :48)", "context length"` |
 | C102 | chatcompat reads models.dev by canonical id | `llmprovider/providers/chatcompat/chatcompat.go:84` | `then models.dev's facts of the model's canonical id, from the cached` |
 | C103 | a fact names its source | `llmprovider/catalog/model_info.go:236` | `func (m ModelInfo) SourceOf(f Field) string {` |
-| C104 | Gemini's listing states an output limit | `llmprovider/catalog/listing_metadata.go:135` | `b.info.MaxOutputTokens = *m.OutputTokenLimit` |
-| C105 | Claude's listing states one | `llmprovider/catalog/listing_metadata.go:156` | `b.info.MaxOutputTokens = *m.MaxTokens` |
-| C106 | Kilo's listing states one | `llmprovider/catalog/listing_metadata.go:298` | `b.info.MaxOutputTokens = *e.TopProvider.MaxCompletionTokens` |
+| C104 | Gemini's listing states an output limit *(2026-11-23: moved at `6ace750`; see C104now)* | `llmprovider/catalog/listing_metadata.go:135` | `b.info.MaxOutputTokens = *m.OutputTokenLimit` |
+| C105 | Claude's listing states one *(2026-11-23: moved at `6ace750`; see C105now)* | `llmprovider/catalog/listing_metadata.go:156` | `b.info.MaxOutputTokens = *m.MaxTokens` |
+| C106 | Kilo's listing states one *(2026-11-23: moved at `6ace750`; see C106now)* | `llmprovider/catalog/listing_metadata.go:298` | `b.info.MaxOutputTokens = *e.TopProvider.MaxCompletionTokens` |
 | C107 | a probe is a copy run through `Generate` | `llmprovider/providers/claude/claude.go:545` | `probe.model, probe.maxTokens, probe.reasoning = model, probeMaxTokens, nil` |
 | C108 | so that the probe's request is unchanged | `llmprovider/providers/claude/claude.go:160` | `unchanged (0015-MADR D1).` |
-| C109 | R55 | `docs/guides/api-standards.md:370` | `R55. A new export is justified.` |
+| C109 | R55 *(2026-11-23: moved at `6ace750`; see C109now)* | `docs/guides/api-standards.md:370` | `R55. A new export is justified.` |
 | C110 | `clientGiven` is derived from the value | `llmprovider/settings.go:228` | `s.clientGiven = s.cfg.HTTPClient != nil` |
 | C111 | `LoggerGiven`, a second precedent | `llmprovider/settings.go:333` | `func (st *Settings) LoggerGiven() bool { return st.s.logger != nil }` |
-| C112 | the standards guide says the default is never raised | `docs/guides/api-standards.md:103` | `the output limit, which cuts the default and never raises it.` |
+| C112 | the standards guide says the default is never raised *(2026-11-23: moved at `6ace750`; see C112now)* | `docs/guides/api-standards.md:103` | `the output limit, which cuts the default and never raises it.` |
 | C113 | and so does the 0041 test's doc comment | `llmprovider/providers/facts_0041_test.go:65` | `8192 default, which is never raised.` |
 | C114 | a provider is immutable after `New` | `docs/decisions/0048-MADR-adopt-go-sdk-best-practices.md:108` | `(R20, C15); every provider runs` |
 | C115 | Kilo's reasoning-object test | `llmprovider/providers/kilo/request_test.go:123` | `func TestGenerate_Reasoning(t *testing.T) {` |
@@ -693,10 +693,10 @@ Counts: 56 decided, 5 out of scope, 0 open, 0 awaiting live evidence.
 | C117 | Ollama's probe test | `llmprovider/providers/ollama/listing_test.go:110` | `func TestListModels_ProbeIsTheOldRequest(t *testing.T) {` |
 | C118 | Kilo's overflow inside a 200 is sent once | `llmprovider/providers/kilo/error_in_200_test.go:20` | `func TestKilo_ErrorIn200IsNotRetried(t *testing.T) {` |
 | C119 | Together's likewise | `llmprovider/providers/together/reply_0028_test.go:17` | `func TestTogether_TypedErrorInside200SentOnce(t *testing.T) {` |
-| C120 | `[Unreleased]` carries 0080 | `CHANGELOG.md:55` | `([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)` |
-| C121 | and 0082 | `CHANGELOG.md:280` | `([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)` |
-| C122 | the newest tag's section follows | `CHANGELOG.md:283` | `## [v1.31.0] - 2026-11-14` |
-| C123 | `[Unreleased]` already adds exported names, such as this error | `CHANGELOG.md:23` | `llmprovider.ErrToolSchemaRefused` |
+| C120 | `[Unreleased]` carries 0080 *(2026-11-23: moved at `6ace750`; see C120now)* | `CHANGELOG.md:55` | `([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)` |
+| C121 | and 0082 *(2026-11-23: moved at `6ace750`; see C121now)* | `CHANGELOG.md:280` | `([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)` |
+| C122 | the newest tag's section follows *(2026-11-23: moved at `6ace750`; see C122now)* | `CHANGELOG.md:283` | `## [v1.31.0] - 2026-11-14` |
+| C123 | `[Unreleased]` already adds exported names, such as this error *(2026-11-23: moved at `6ace750`; see C123now)* | `CHANGELOG.md:23` | `llmprovider.ErrToolSchemaRefused` |
 | C124 | Kilo's largest stated limit | `llmprovider/catalog/testdata/ranking-2026-10-12/kilo.json:1` | `"context_length":2000000,"max_completion_tokens":1800000}` |
 | C125 | a limit at 90% of the window | `llmprovider/catalog/testdata/ranking-2026-10-12/kilo.json:1` | `"context_length":1048576,"max_completion_tokens":943718}` |
 
@@ -1094,7 +1094,7 @@ of the second amendment that this one corrects carry a dated note in place
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | ST63 (decided 2026-11-22, third) | Grok, Responses, a request that names no limit | decided | nothing is sent unless the caller states a limit (OQ17 decides what counts); xAI's default of 128,000 visible tokens applies, reasoning outside it | xAI's schema, Chat and Responses (round 1 WS3; report R6 primary copy) | `TestDefaultLimit_GrokSilent_0088`; plant: Grok sent R |
 | ST90 | What counts as the caller's own statement of a limit, for the wires that otherwise send nothing | open *(2026-11-22, fifth: decided; see the fourth or fifth amendment's row)* | OQ17 | OQ17 | |
-| ST91 | The stated window W below the stated limit L, or equal to it | decided | the limit the SDK chooses is never above W, under every option of OQ9 and OQ14; a caller's own value is sent as given (ST17) | the window is the model's own fact: output cannot exceed it (models.dev: 8 entries above, 47 equal) | `TestDefaultLimit_WindowCap_0088`; plant: L sent above W |
+| ST91 | The stated window W below the stated limit L, or equal to it | decided | the limit the SDK chooses is never above W, under every option of OQ9 and OQ14; a caller's own value is sent as given (ST17) | the window is the model's own fact: output cannot exceed it (models.dev: 8 entries above, 47 equal) | `TestDefaultLimit_WindowCap_0088`; plant: L sent above W *(2026-11-23, ninth amendment: a `WithMaxTokens` value is sent as given only where no source states the output limit; otherwise it is cut to the output held to W)* |
 | ST92 | A refusal that states the window and the requested total but not the input (Kilo's forms C39, C97) | open *(2026-11-22, fifth: decided; see the fourth or fifth amendment's row)* | OQ14: under (1), the input is the stated total less the limit sent, and the resend asks the window less that input, once | OQ14 | |
 | ST93 | Gemini's Interactions answer with status `incomplete` | decided | treated as a cut at the output limit, the only cause measured (C136): its usable steps returned finishing `length`, nothing usable `ErrEmptyAnswer` with the reason `incomplete`, as ST75 to ST79 decide for the other wires | OQ11 "Inside 0088, this tag"; C136 | `TestCutAnswer_Text_0088`, `TestCutAnswer_NothingUsable_0088`, their Interactions cases; plant: Interactions left an error |
 | ST94 | On a `length` finish, the last tool call with an empty argument string | decided | the cut one: dropped and named in `WarningToolCallCut` (or as OQ16 decides); an earlier call with empty arguments, followed by another call, is a complete zero-argument call; ST78 is corrected so | B3: the SDK writes empty arguments as `{}` (`wire.CompactArguments`), so a cut call before its first argument byte looks complete | `TestCutAnswer_CompleteCalls_0088`, the empty-last case; plant: the empty last call kept |
@@ -1279,3 +1279,113 @@ owner approves it.
 
 Counts after this amendment: 96 decided, 8 out of scope, 0 open, 0 awaiting
 live evidence, 104 rows (ST99 added).
+
+## Amendment (2026-11-23, sixth): the merged build, the re-grounding, and OQ10's measurement
+
+Additions only; no row's decision changes. The owner ruled, relayed by the coordinator, that this record's PLAN Phase 1 is built with 0089-PLAN's Phases 2 and 3 as one phase ("Merge the phases"), and that OQ10's measurement runs before it ("Measure first, then build (Recommended)"); both are recorded as deviation 6 in the two PLANs, since they order the work and decide no row.
+
+### Facts found for ST65 (2026-11-23)
+
+The measurement OQ10 (1) decided needs a Claude model before 4.5. This record names none. The committed Claude listing of 2026-10-14 lists no model before 4.5 (C141now), and the SDK's retired list marks even the first 4.5 Haiku past its retirement floor (C142now); OpenCode Zen's listing of 2026-10-12 holds none either, while Kilo's still lists two (C143now). Whether Anthropic still serves a model before 4.5 to a request that names it was not established (no live request was sent). Put to the owner with the merged phase's stop; ST65 stands as decided until the owner rules.
+
+### Re-grounding at `6ace750` (2026-11-23)
+
+`python3 -B tools/claims.py docs/decisions/0088-MADR-default-output-limit-from-model-facts.md --rev self=6ace750`: 127 of 140 pass, exit 1. The 13 rows that moved, none gone, each at its line at `6ace750`, and three new rows (C141now to C143now) for the facts above. The ids end in "now" so that `tools/claims.py` does not read them against this record's `self=55a5dca`; with plain ids and `self=6ace750`, on a scratch copy, 16 of 16 pass, exit 0. C120, C121 and C123 now sit in `[v1.32.0]`'s section, released: what they claimed of `[Unreleased]` holds at `55a5dca`.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C33now | Kilo's listing states an output cap | line | `llmprovider/catalog/listing_metadata.go:327` | `if e.TopProvider.MaxCompletionTokens != nil {` |
+| C34now | Kilo's auto-routing models | line | `llmprovider/catalog/listing_metadata.go:317` | `variable price of its auto-routing models` |
+| C47now | the owner's Q3 ruling | line | `docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md:1116` | `**Q3. The default output limit:** cut only (D2).` |
+| C50now | architecture's line | line | `docs/architecture.md:364` | `provider reads it once per request for its output limit and the efforts` |
+| C104now | Gemini's listing states an output limit | line | `llmprovider/catalog/listing_metadata.go:165` | `b.info.MaxOutputTokens = *m.OutputTokenLimit` |
+| C105now | Claude's listing states one | line | `llmprovider/catalog/listing_metadata.go:186` | `b.info.MaxOutputTokens = *m.MaxTokens` |
+| C106now | Kilo's listing states one | line | `llmprovider/catalog/listing_metadata.go:328` | `b.info.MaxOutputTokens = *e.TopProvider.MaxCompletionTokens` |
+| C109now | R55 | line | `docs/guides/api-standards.md:371` | `R55. A new export is justified.` |
+| C112now | the standards guide says the default is never raised | line | `docs/guides/api-standards.md:104` | `the output limit, which cuts the default and never raises it.` |
+| C120now | `[Unreleased]` carries 0080 | line | `CHANGELOG.md:76` | `([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)` |
+| C121now | and 0082 | line | `CHANGELOG.md:323` | `([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)` |
+| C122now | the newest tag's section follows | line | `CHANGELOG.md:326` | `## [v1.31.0] - 2026-11-14` |
+| C123now | `[Unreleased]` already adds exported names, such as this error | line | `CHANGELOG.md:44` | `llmprovider.ErrToolSchemaRefused` |
+| C141now | the committed Claude listing's oldest models are 4.5 | new | `llmprovider/catalog/testdata/firstparty-2026-10-14/claude.json:1` | `"id":"claude-sonnet-4-5-20250929"` |
+| C142now | the retired list | new | `llmprovider/internal/retired/retired.go:28` | `"claude-haiku-4-5":           "retirement floor 2026-10-15",` |
+| C143now | Kilo still lists a Claude model before 4.5 | new | `llmprovider/catalog/testdata/ranking-2026-10-12/kilo.json:1` | `"id":"anthropic/claude-sonnet-4"` |
+
+### OQ10's measurement and the owner's rulings (2026-11-23)
+
+The owner's rulings of 2026-11-23 on the merged phase's stop, relayed by the coordinator: S1 "Try claude-sonnet-4 once" (one run of the measurement on `claude-sonnet-4-20250514`; a not-found, or any refusal not in the window form, is the finding that no older model is served there, and ST65 is then ruled out of scope with that and the listing evidence); S2 "Same, plus explicit-8192 goldens" (a decided row naming the G-wire goldens as a planned change, checked by a script, and one golden per wire sent with an explicit `WithMaxTokens(8192)`).
+
+The measurement ran once, on the session host, with the environment's `ANTHROPIC_API_KEY` (checked by name only): `LLMPROVIDER_LIVE_0088=1 LLMPROVIDER_LIVE_0088_MODEL=claude-sonnet-4-20250514 go test -tags live_gateways -count=1 -run '^TestLive_ClaudeWindowRefusal_0088$' -v -timeout 10m ./llmprovider/`, exit 0, one request, 0.34 s. Its allowlisted log line: `claude-sonnet-4-20250514: HTTP 404, type "not_found_error", stop reason "", message states numbers: true`. The record, `llmprovider/providers/claude/testdata/window-0088/refusal.json`, whole (no identifier in it to redact; `make fixtures-check` exit 0):
+
+```json
+{
+  "model": "claude-sonnet-4-20250514",
+  "max_tokens": 32000,
+  "input_words": 184000,
+  "status": 404,
+  "error_type": "not_found_error",
+  "message": "model: claude-sonnet-4-20250514"
+}
+```
+
+Anthropic does not serve `claude-sonnet-4-20250514`, the newest Claude model before 4.5 with an output cap of at least the request's 32,000, to this key: the request was refused for its model before its size was read. With the listing evidence (C141now to C143now), no Claude model before 4.5 is served on a Messages route this SDK names. So, by the owner's ruling, ST65 is out of scope.
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST65 (2026-11-23: out of scope) | Claude before 4.5, the input plus a limit the SDK chose over the window | out of scope | no Claude model before 4.5 is served on Anthropic's API (the measurement's 404 for `claude-sonnet-4-20250514`; C141now, C142now) or OpenCode's messages route (C143now's sibling listing, `zen.json`); every served model is 4.5 or later, which stops at the window with `model_context_window_exceeded` (ST23); Kilo's older Claude models answer in the gateway's forms (ST51; 0089 DL35). `TestDefaultLimit_ClaudeOldWindowForm_0088` is not built; a request naming an unlisted older model is refused as the service refuses it (ST50) | OQ10's measurement; S1 "Try claude-sonnet-4 once" | the record above; none |
+| ST100 (new, 2026-11-23) | The committed G-wire goldens, recorded with no caller limit, whose request bodies carry `"max_tokens": 8192` or `"max_output_tokens": 8192` (241 at `6ace750`) | decided | a planned change of the merged phase: regenerated with `-update`; a script asserts that each changed golden differs from `6ace750` only in the output-limit field and, where ST88 applies, the stream form, and is seen failing on a planted unrelated difference on a scratch copy; and one new golden per wire, sent with an explicit `WithMaxTokens(8192)`, pins ST16 at the wire: 8192 sent as given | S2 "Same, plus explicit-8192 goldens" | `TestWireGoldens` in each provider package; the script's planted difference; plant: `WithMaxTokens(8192)` not counted as given, so the explicit golden's 8192 goes |
+
+Counts after this amendment: 96 decided, 9 out of scope, 0 open, 105 rows (ST65 moved to out of scope; ST100 added).
+
+## Amendment (2026-11-23, seventh): the budget case of an existing Claude test
+
+Additions only; no row's decision changes. Building the merged phase's layer B (0089-PLAN), the existing `TestThinkingWire_Claude` (`llmprovider/providers/claude/claude_test.go:336`), its case `claude-sonnet-5` with a budget of 9000, sent `max_tokens` 128,000 where it pinned 13,096: the 13,096 was today's 8192 default raised above the budget (ST30), and under ST2 and 0089-MADR DL55 `AddThinkingFor` starts from the chosen fact, the extract's 128,000. No row named the test.
+
+### Owner rulings (2026-11-23, seventh)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| B1, the budget case of `TestThinkingWire_Claude` | first "Name it; add a caller layer (Recommended)"; then, corrected, "Explicit WithMaxTokens(8192) (Recommended)" | the first answer's question had wrongly described a caller layer: the build's probe on a scratch copy, a caller layer stating 8,192, sent `max_tokens 8192 thinking map[budget_tokens:8191 type:enabled]` (ST30 stops the raise at the facts' limit), and the caller's `WithMaxTokens(8192)` sent `max_tokens 13096 thinking map[budget_tokens:9000 type:enabled]`; the case gets the caller's `WithMaxTokens(8192)` | ST101 |
+
+### Rows (2026-11-23, seventh)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST101 (new, 2026-11-23) | `TestThinkingWire_Claude`'s budget case (`claude-sonnet-5`, budget 9000, at construction and on the request), which pinned 13,096 raised from the 8192 default | decided | a planned change of the merged phase under ST2 and 0089 DL55: the case is built with the caller's `WithMaxTokens(8192)`, so its 8192 is given (ST16), the budget raises it to 13,096 (ST30), and both values stay pinned; with no caller value the case would send the chosen fact (DL55) | B1 "Explicit WithMaxTokens(8192) (Recommended)", after "Name it; add a caller layer (Recommended)" | `TestThinkingWire_Claude`, changed; plant: `WithMaxTokens(8192)` not counted as given, so the chosen fact is sent |
+
+Counts after this amendment: 97 decided, 9 out of scope, 0 open, 106 rows (ST101 added).
+
+## Amendment (2026-11-23, eighth): existing tests that pin the old default on a route that now omits it
+
+Additions only; no row's decision changes. Building the merged layer B+C (0089-PLAN, deviation 8), the existing `TestTogether_RequestShapes` (`llmprovider/providers/together/together_test.go:83`, every case, at construction and on the request) asserted `body["max_tokens"] == 8192` on a request that names no limit; under ST86 and 0089-MADR DL47 Together now sends none: `together_test.go:84: max_tokens <nil>, model openai/gpt-oss-120b`. No row named the test.
+
+### Owner rulings (2026-11-23, eighth)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| The stop on `TestTogether_RequestShapes` | "One class row, assert absent (Recommended)" | one row names the class, with each member found listed; a later member is added to the list by a dated annotation, with no new stop for this same cause | ST102 |
+
+### Rows (2026-11-23, eighth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST102 (new, 2026-11-23) | Existing tests and goldens that pin the old 8,192 default on a route that now omits it. Members: `TestTogether_RequestShapes` (`llmprovider/providers/together/together_test.go:83`) | decided | a planned change of the merged phase under ST86 and 0089-MADR DL47: each such assertion becomes "no limit sent", red at the base (where 8,192 is sent), with a plant, 8192 sent on that route; a member found later is added to this row's list by a dated annotation | "One class row, assert absent (Recommended)" | each member, changed; plant: 8192 sent on that member's route |
+
+Counts after this amendment: 98 decided, 9 out of scope, 0 open, 107 rows (ST102 added).
+
+## Amendment (2026-11-23, ninth): the overflow form table's guard tests, and the scope of ST91's "as given"
+
+Additions only; no row's decision changes. Building the merged phase's layer E (0089-PLAN), ST51's code adds Kilo's documented window form (C97) to `contextOverflowMessages` (`llmprovider/context_overflow.go`), and three existing tests guard that table: with no sample for the form, `TestContextOverflow_EveryFormHasASample` (`llmprovider/context_overflow_test.go:42`, "has no sample"; `:46`, "21 samples for 22 forms") and `TestContextOverflow_PrefilterAdmitsEveryPattern` (`llmprovider/context_overflow_0028_test.go:15`) fail; with the sample, `TestContextOverflow_MatchesReference` (`llmprovider/context_overflow_0028_test.go:46`) fails, since its reference, `llmprovider/context_overflow_ref_test.go`, is generated and frozen at 0028-PLAN Phase 4 without the form. No row named the two test files.
+
+### Owner rulings (2026-11-23, ninth)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| ST51's changes to the overflow form table's guard tests | "Name the two test changes (Recommended)" | two planned changes of the merged phase: one sample entry for Kilo's form in `overflowSamples` (`llmprovider/context_overflow_test.go`), and Kilo's C97 pattern added to `refContextOverflowMessages` in the frozen reference (`llmprovider/context_overflow_ref_test.go`), whose generated header gains a dated line naming this row; the three guard tests pass | ST51 (annotated) |
+
+### Annotations (2026-11-23, ninth)
+
+* **ST51.** Its test is `TestClassify_KiloWindowForm_0088` (`llmprovider/context_overflow_0088_test.go`), and the two planned changes above are part of the row: the frozen reference is the classifier before 0028-PLAN Phase 4's prefilter, over the forms the table holds, so a form added to the table is added to it too; its header says so, dated. *(2026-11-23, the owner's ruling "Name the two test changes (Recommended)".)*
+* **ST91, the scope of "as given".** A caller's `WithMaxTokens` is cut to the stated output and never raised (ST15, 0089-MADR DL44), and the stated output is held to a stated window (0089-MADR DL19). So `WithMaxTokens(20000)` with W 8,192 is sent as given, 20,000, only where no source states the model's output limit; where one does, the option is cut to the held value, 8,192. A request's own `MaxOutputTokens` is sent as given in both (ST17). `TestDefaultLimit_WindowCap_0088` pins the first case on a model no extract section names (`org/window-cap-0088`). *(2026-11-23, recorded by the builder at the coordinator's word, from layer E's run: on `openai/gpt-6-luna`, which the extract states, the same case sent 8,192.)*
+
+Counts after this amendment: unchanged, 98 decided, 9 out of scope, 0 open, 107 rows.

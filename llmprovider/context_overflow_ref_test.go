@@ -1,4 +1,5 @@
 // Code generated from llmprovider/context_overflow.go at 0028-PLAN Phase 4's start; DO NOT EDIT.
+// Amended 2026-11-23 by 0088-MADR ST51 (its ninth amendment): Kilo's documented form added, as the table holds it.
 
 package llmprovider
 
@@ -25,6 +26,7 @@ var refContextOverflowMessages = []struct {
 	{regexp.MustCompile(`(?i)prompt (?:is )?too long`), "Anthropic, z.ai and Ollama (pi :11, :30, :35, :38)"},
 	{regexp.MustCompile(`(?i)input is too long for requested model`), "Amazon Bedrock (pi :40)"},
 	{regexp.MustCompile(`(?i)exceeds the context window`), "OpenAI (pi :13, :41)"},
+	{regexp.MustCompile(`(?i)exceeds the model'?s context window of [\d,]+ tokens?`), "Kilo's documented form (0088-MADR C97)"},
 	{regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), "OpenAI-compatible proxies (pi :14-15, :42)"},
 	{regexp.MustCompile(`(?i)input token count.*exceeds the maximum`), "Google Gemini (pi :16, :43)"},
 	{regexp.MustCompile(`(?i)maximum prompt length is \d+`), "xAI (pi :17, :44)"},

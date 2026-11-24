@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -22,7 +23,7 @@ const okResponse = `{"id":"r","output":[{"type":"message","content":[{"type":"ou
 func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *httptest.Server {
 	t.Helper()
 	var mu sync.Mutex
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		m := map[string]any{}
 		_ = json.Unmarshal(raw, &m)
@@ -30,16 +31,16 @@ func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *htt
 		*lastBody = m
 		mu.Unlock()
 		_, _ = io.WriteString(w, respBody)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }
 
 func replyServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, body)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -49,6 +50,11 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (fn roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
 
 func httpResponse(request *http.Request, status int, body string) *http.Response {
+	if status == http.StatusOK {
+		// A request asking for the stream gets the reply's stream form
+		// (0088-MADR ST88e).
+		body = wiretest.StreamBody(request, body)
+	}
 	return &http.Response{
 		StatusCode: status,
 		Status:     http.StatusText(status),

@@ -219,7 +219,10 @@ type Request struct {
 	ToolChoice ToolChoice
 	// Reasoning requests extended reasoning. Nil means none.
 	Reasoning *Reasoning
-	// MaxOutputTokens bounds the output. Zero is the provider's default.
+	// MaxOutputTokens bounds the output, sent as given (the ChatGPT routes
+	// send none). Zero leaves it to the provider: WithMaxTokens' value, else
+	// the model's stated limit where the wire requires one, else none
+	// (0089-MADR D6). A negative value is ErrInvalidRequest.
 	MaxOutputTokens int
 	// PreviousResponseID continues a conversation the service stored.
 	PreviousResponseID string

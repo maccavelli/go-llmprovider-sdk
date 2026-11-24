@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -34,7 +35,7 @@ type refusingServer struct {
 func newRefusingServer(t *testing.T, reply string, always bool, status int, errBody string) (*httptest.Server, *refusingServer) {
 	t.Helper()
 	rs := &refusingServer{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		var body struct {
 			ToolChoice map[string]any `json:"tool_choice"`
@@ -54,7 +55,7 @@ func newRefusingServer(t *testing.T, reply string, always bool, status int, errB
 			return
 		}
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, rs
 }

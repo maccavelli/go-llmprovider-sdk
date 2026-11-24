@@ -1,0 +1,8 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "max_tokens": 32000,
+  "input_words": 184000,
+  "status": 404,
+  "error_type": "not_found_error",
+  "message": "model: claude-sonnet-4-20250514"
+}

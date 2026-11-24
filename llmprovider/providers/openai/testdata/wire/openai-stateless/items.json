@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/responses",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer sk-wire",
         "Content-Type": "application/json",
@@ -42,9 +43,9 @@
             "role": "user"
           }
         ],
-        "max_output_tokens": 8192,
         "model": "gpt-5.5",
-        "store": false
+        "store": false,
+        "stream": true
       }
     }
   ],

@@ -60,28 +60,31 @@ func sentLimit(v any) (float64, bool) {
 	return 0, false
 }
 
-// TestOutputLimit_Facts_0041 (R7): with no MaxOutputTokens, a model whose
-// limit is 4096 is asked for 4096, and one whose limit is 128,000 for the
-// 8192 default, which is never raised.
+// TestOutputLimit_Facts_0041 (R7), as 0088-MADR ST32 planned its change,
+// with ST99's values (0089-MADR DL46 to DL48): with no MaxOutputTokens, a
+// route that sends a limit the SDK chooses (Claude, OpenCode's messages
+// route, and Kilo until DL65's verdict) asks for the model's stated limit,
+// 4096 or 128,000, with no fixed ceiling; every other route sends none.
 func TestOutputLimit_Facts_0041(t *testing.T) {
 	for _, tc := range []struct {
 		id    llmprovider.ProviderID
 		model string
+		sends bool
 	}{
-		{llmprovider.ProviderClaude, "claude-sonnet-5"},
-		{llmprovider.ProviderOpenAI, "gpt-6-luna"},
-		{llmprovider.ProviderGrok, "grok-4.6"},
-		{llmprovider.ProviderGemini, "gemini-3.8-flash"},
-		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5"},
-		{llmprovider.ProviderOpencodeZen, "gpt-5.5"},
-		{llmprovider.ProviderOpencodeZen, "glm-5.3"},
-		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash"},
-		{llmprovider.ProviderKilo, "openai/gpt-6-luna"},
-		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash"},
-		{llmprovider.ProviderTogether, "openai/gpt-oss-120b"},
-		{llmprovider.ProviderOllama, "llama3.3:latest"},
+		{llmprovider.ProviderClaude, "claude-sonnet-5", true},
+		{llmprovider.ProviderOpenAI, "gpt-6-luna", false},
+		{llmprovider.ProviderGrok, "grok-4.6", false},
+		{llmprovider.ProviderGemini, "gemini-3.8-flash", false},
+		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", true},
+		{llmprovider.ProviderOpencodeZen, "gpt-5.5", false},
+		{llmprovider.ProviderOpencodeZen, "glm-5.3", false},
+		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", false},
+		{llmprovider.ProviderKilo, "openai/gpt-6-luna", true},
+		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash", false},
+		{llmprovider.ProviderTogether, "openai/gpt-oss-120b", false},
+		{llmprovider.ProviderOllama, "llama3.3:latest", false},
 	} {
-		for _, limits := range [][2]int{{4096, 4096}, {128000, 8192}} {
+		for _, limits := range [][2]int{{4096, 4096}, {128000, 128000}} {
 			srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 			p, err := New(tc.id, llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL),
 				llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
@@ -93,8 +96,12 @@ func TestOutputLimit_Facts_0041(t *testing.T) {
 				Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}}}); err != nil {
 				t.Fatalf("%s/%s: %v", tc.id, tc.model, err)
 			}
-			if got, ok := sentLimit(lastBody(srv)); !ok || int(got) != limits[1] {
+			got, ok := sentLimit(lastBody(srv))
+			switch {
+			case tc.sends && (!ok || int(got) != limits[1]):
 				t.Errorf("%s/%s, a limit of %d: sent %v (found %t); want %d", tc.id, tc.model, limits[0], got, ok, limits[1])
+			case !tc.sends && ok:
+				t.Errorf("%s/%s, a limit of %d: sent %v; want none (0089-MADR DL47, DL48)", tc.id, tc.model, limits[0], got)
 			}
 		}
 	}

@@ -107,7 +107,12 @@ func ExampleNewHTTPClient() {
 	var seen atomic.Value
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen.Store(r.Header.Get("X-Example"))
-		fmt.Fprint(w, `{"id":"resp-example","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`)
+		// A Generate that names no output limit reads the service's event
+		// stream (0088-MADR ST88).
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}\n\n"+
+			"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello\"}]}}\n\n"+
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-example\"}}\n\n")
 	}))
 	defer srv.Close()
 	c := llmprovider.NewHTTPClient()

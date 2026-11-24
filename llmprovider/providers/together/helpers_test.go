@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -39,7 +40,7 @@ func (c *togetherCapture) last() (string, http.Header, map[string]any) {
 func togetherServer(t *testing.T, reply, listing string) (*httptest.Server, *togetherCapture) {
 	t.Helper()
 	c := &togetherCapture{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/models" {
 			_, _ = io.WriteString(w, listing)
 			return
@@ -52,7 +53,7 @@ func togetherServer(t *testing.T, reply, listing string) (*httptest.Server, *tog
 		c.path, c.header, c.body = r.URL.Path, r.Header.Clone(), body
 		c.mu.Unlock()
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, c
 }
@@ -61,11 +62,11 @@ func togetherServer(t *testing.T, reply, listing string) (*httptest.Server, *tog
 func metadataServer(t *testing.T, status int, body string) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(body))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &hits
 }

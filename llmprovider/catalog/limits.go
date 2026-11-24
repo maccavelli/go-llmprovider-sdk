@@ -12,8 +12,10 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/opencoderoute"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/retired"
 )
 
 // A model's limits and the evidence for each (0089-MADR D1 to D3): every
@@ -30,8 +32,16 @@ type Limits struct {
 	Model    string
 	// Output is the most the output-limit field may carry. It is never above
 	// a known Window: a stated output above it is held to it, and marked
-	// Conflicting.
+	// Conflicting. It is held, too, to a cap the service stated when it
+	// refused a plain request's limit, kept in this process (0089-MADR D5),
+	// whose evidence is "observed".
 	Output Fact
+	// StreamedOutput is Output for a streamed request: held to the cap the
+	// service stated for a streamed request instead, since a service may
+	// state different caps for a streamed and a plain call (0088-MADR ST95;
+	// the owner's ruling of 2026-11-23, "Add a stream dimension"). With no
+	// cap kept for either, it is Output.
+	StreamedOutput Fact
 	// Window is input plus output, where a source states it.
 	Window Fact
 	// Input is the input limit, where a source states it apart from the
@@ -68,13 +78,17 @@ type Evidence struct {
 	// server serves; "models.dev", "models.dev (canonical id)" and
 	// "models.dev (family)" for the fetched document by exact id, canonical
 	// id and family; "models.dev (bundled <date>)", with ", canonical id" or
-	// ", family" before its parenthesis, for the embedded extract; or a
-	// caller's layer's Name.
+	// ", family" before its parenthesis, for the embedded extract;
+	// "remembered" for a cap passed back with
+	// llmprovider.WithLimitObservations; "observed" for a cap a service
+	// stated in this process, which bounds the output and is chosen only
+	// where nothing else states it; or a caller's layer's Name.
 	Source string
 	// Tokens is the value the source states.
 	Tokens int
-	// Seen is when the source was read; zero for a caller's layer, and the
-	// extract's date for the extract.
+	// Seen is when the source was read; zero for a caller's layer, the
+	// extract's date for the extract, the observation's Seen for a
+	// remembered cap, and when it was kept for an observed one.
 	Seen time.Time
 	// Stale reports that the source was read longer ago than its freshness:
 	// ten minutes for a listing, a one-model or a served read and the
@@ -86,7 +100,8 @@ type Evidence struct {
 // service above the registry; within the service, a server's served context
 // above the rest; within the registry, a "models.dev" layer, then the fetched
 // document, then the extract, each by exact id, then canonical id, then
-// family (0089-MADR D1, D3). A later layer ranks above an earlier one.
+// family; a remembered cap below them all, so that it fills a gap only
+// (0089-MADR D1, D3, D5). A later layer ranks above an earlier one.
 const (
 	rankCaller        = 10000
 	rankServed        = rankService + 1
@@ -94,7 +109,24 @@ const (
 	rankRegistryLayer = 4000
 	rankDocument      = 3000
 	rankBundled       = 2000
+	rankRemembered    = 1000
 )
+
+// sourceRemembered names a cap a caller passed back (0089-MADR D1, D5).
+const sourceRemembered = "remembered"
+
+// sourceObserved names a cap a service stated in this process, kept in the
+// cache's memo (0089-MADR D1's "observed cap", D5). It ranks below a
+// remembered cap, so that it is chosen only where nothing states the output,
+// and bounds whatever is chosen.
+const (
+	sourceObserved = "observed"
+	rankObserved   = 500
+)
+
+// rememberedWindow is how long after its Seen a passed-back cap is used: the
+// SDK's window for serving a service's stale statement (0089-MADR D5; C19).
+const rememberedWindow = lastGoodWindow
 
 // The fetched document's source names by stage: its exact id's is
 // sourceModelsDev, its canonical id's sourceCanonical.
@@ -320,13 +352,171 @@ func assembleLimits(id llmprovider.ProviderID, model string, cfg config, doc Met
 	}
 	ext := bundledExtract()
 	registryEvidence(&b, ext.meta, cfg, id, model, rankBundled, ext.names(), ext.date, true)
-	l := Limits{Provider: id, Model: model, Output: b.output.fact(), Window: b.window.fact(), Input: b.input.fact(),
+	rememberedEvidence(&b, id, model, cfg)
+	l := Limits{Provider: id, Model: model, Window: b.window.fact(), Input: b.input.fact(),
 		Required: requiresLimit(id, model, doc, docOK), Checked: listingNow()}
-	if l.Output.Known && l.Window.Known && l.Output.Tokens > l.Window.Tokens {
-		// The output is never above the window (0088 ST91; 0089-MADR DL19).
-		l.Output.Tokens, l.Output.Conflicting = l.Window.Tokens, true
+	l.Output = observedOutput(b.output, l.Window, cfg.memo, memoKey(id, model, cfg, false))
+	l.StreamedOutput = observedOutput(b.output, l.Window, cfg.memo, memoKey(id, model, cfg, true))
+	if hasMessagesRoute(id) && (!l.Output.Known || !l.StreamedOutput.Known) {
+		// The route's fallback, for the provider's request (0089-MADR DL51),
+		// carried through the cache's memo. A provider may pin a model to the
+		// messages route that its table does not name, so the fallback is
+		// found for any model on a provider with that route.
+		tokens, src := routeFallback(id, cfg, doc, docOK, key, keyed)
+		cfg.memo.SetFallback(memoKey(id, model, cfg, false), tokens, src)
 	}
 	return l
+}
+
+// hasMessagesRoute reports whether id has a Messages route: Claude, and the
+// OpenCode gateways' messages route (0089-MADR DL30).
+func hasMessagesRoute(id llmprovider.ProviderID) bool {
+	switch id {
+	case llmprovider.ProviderClaude, llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
+		return true
+	}
+	return false
+}
+
+// routeFallback is the smallest output limit any current model on id's
+// messages route is stated to take, and the evidence that states it
+// (0089-MADR DL51, OQ2 (1)): the cached listing's models when one is cached,
+// else the fetched document's section, else the extract's. A model is
+// current unless the SDK's retired list names it, or its facts mark it
+// deprecated or retired or past its retirement date. On an OpenCode gateway
+// the models counted are those the shared route table routes to messages
+// there (DL77): the extract keeps no status, and its section holds models
+// the gateway no longer routes. 0 when none states one.
+func routeFallback(id llmprovider.ProviderID, cfg config, doc Metadata, docOK bool, key listingKey,
+	keyed bool) (int, string) {
+	now := listingNow()
+	current := func(model string, info ModelInfo) bool {
+		if _, gone := retired.IDs[id][model]; gone {
+			return false
+		}
+		if info.Has(FieldStatus) && (info.Status == StatusDeprecated || info.Status == StatusRetired) {
+			return false
+		}
+		if info.Has(FieldRetires) && !info.Retires.After(now) {
+			return false
+		}
+		if id == llmprovider.ProviderOpencodeZen || id == llmprovider.ProviderOpencodeGo {
+			return opencoderoute.Table[id][strings.ToLower(model)] == opencoderoute.Messages
+		}
+		return requiresLimit(id, model, doc, docOK)
+	}
+	least := func(models map[string]ModelInfo) int {
+		best := 0
+		for m, info := range models {
+			if current(m, info) && info.Has(FieldMaxOutputTokens) && info.MaxOutputTokens > 0 &&
+				(best == 0 || info.MaxOutputTokens < best) {
+				best = info.MaxOutputTokens
+			}
+		}
+		return best
+	}
+	if keyed {
+		models, _ := cfg.store.listingAt(key)
+		if best := least(models); best > 0 {
+			return best, listingLayer(id)
+		}
+	}
+	section := func(m Metadata) map[string]ModelInfo {
+		out := map[string]ModelInfo{}
+		if m.doc == nil {
+			return out
+		}
+		for _, info := range m.Models(id) {
+			out[info.ID] = info
+		}
+		return out
+	}
+	if docOK {
+		if best := least(section(doc)); best > 0 {
+			return best, sourceModelsDev
+		}
+	}
+	ext := bundledExtract()
+	if best := least(section(ext.meta)); best > 0 {
+		return best, ext.names()[0]
+	}
+	return 0, ""
+}
+
+// observedOutput is the output fact out's statements give, held to the
+// window and then to the cap the memo keeps under k, whose evidence is
+// "observed": chosen where nothing else states the output, and first where
+// it holds the chosen value (0089-MADR D1, D5; 0088 ST91, DL19).
+func observedOutput(out factBuilder, window Fact, memo *limitmemo.Memo, k limitmemo.Key) Fact {
+	b := factBuilder{cands: slices.Clone(out.cands)}
+	tokens, at, kept := memo.Entry(k)
+	if kept {
+		b.add(rankObserved, sourceObserved, tokens, at, false)
+	}
+	f := b.fact()
+	if f.Known && window.Known && f.Tokens > window.Tokens {
+		// The output is never above the window (0088 ST91; 0089-MADR DL19).
+		f.Tokens, f.Conflicting = window.Tokens, true
+	}
+	if kept && f.Known && f.Tokens > tokens {
+		f.Tokens, f.Conflicting = tokens, true
+		i := slices.IndexFunc(f.Evidence, func(e Evidence) bool { return e.Source == sourceObserved })
+		f.Evidence = append(append([]Evidence{f.Evidence[i]}, f.Evidence[:i]...), f.Evidence[i+1:]...)
+	}
+	return f
+}
+
+// memoKey is the memo's key for model on id under cfg, streamed or plain: the
+// key a provider keeps a refusal's cap under (0089-MADR D5, DL38).
+func memoKey(id llmprovider.ProviderID, model string, cfg config, stream bool) limitmemo.Key {
+	return limitmemo.Key{Provider: string(id), BaseURL: limitBase(id, cfg.BaseURL), Scope: limitScope(id, cfg),
+		Model: model, Stream: stream}
+}
+
+// limitBase is base as an observation and the memo name it: without its
+// trailing slashes, and empty for the provider's default, which a provider
+// passes to the catalog by name while a caller passes none (0089-MADR D5).
+func limitBase(id llmprovider.ProviderID, base string) string {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	switch id {
+	case llmprovider.ProviderClaude:
+		if strings.EqualFold(base, claudeListingHost) || strings.EqualFold(base, claudeListingHost+"/v1") {
+			return ""
+		}
+	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
+		if def, err := opencodeBaseURL(id); err == nil && strings.EqualFold(base, def) {
+			return ""
+		}
+	}
+	return base
+}
+
+// rememberedEvidence records the caps cfg's observations pass back for
+// model: each whose model, base URL and scope are the lookup's, seen within
+// rememberedWindow (0089-MADR D5, DL40, DL41).
+func rememberedEvidence(b *limitFacts, id llmprovider.ProviderID, model string, cfg config) {
+	now, scope, base := listingNow(), limitScope(id, cfg), limitBase(id, cfg.BaseURL)
+	for _, o := range cfg.observations {
+		if !strings.EqualFold(strings.TrimSpace(o.Model), strings.TrimSpace(model)) ||
+			limitBase(id, o.BaseURL) != base || strings.TrimSpace(o.Scope) != scope ||
+			now.Sub(o.Seen) >= rememberedWindow {
+			continue
+		}
+		b.output.add(rankRemembered, sourceRemembered, o.Tokens, o.Seen, false)
+	}
+}
+
+// limitScope is the scope a lookup of id is in: the Kilo organization, or
+// the Claude workspace, that its options name; empty for none (0089-MADR
+// D5).
+func limitScope(id llmprovider.ProviderID, cfg config) string {
+	switch id {
+	case llmprovider.ProviderKilo:
+		return strings.TrimSpace(cfg.KiloOrganization)
+	case llmprovider.ProviderClaude:
+		return cfg.ClaudeWorkspace
+	}
+	return ""
 }
 
 // serviceEvidence records what the listing, its extra fields and the reads

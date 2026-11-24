@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -19,11 +20,11 @@ import (
 // outage; the error names kilo.
 func TestKilo_ErrorIn200IsNotRetried(t *testing.T) {
 	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"error":{"code":400,"message":"This endpoint's maximum context length is 8192 tokens. However, you requested about 9000 tokens."}}`)
-	}))
+	})))
 	defer srv.Close()
 	p := build(t, llmprovider.WithAPIKey("kilo_test"), llmprovider.WithModel("kilo-auto/free"), llmprovider.WithBaseURL(srv.URL))
 	retrying := llmprovider.WithRetry(p, llmprovider.RetryPolicy{MaxAttempts: 3, BaseDelay: time.Millisecond})

@@ -36,6 +36,13 @@ const (
 	// because the service cannot take it in the form given, as the provider's
 	// package doc lists. Its Detail says which image and why (0061-MADR D5).
 	WarningImageDropped WarningKind = "image_dropped"
+	// WarningLimitLearned reports that the service refused the output limit
+	// the provider sent and stated its cap, validated as 0089-MADR D4 says,
+	// and that the provider keeps the cap for the rest of the process, once
+	// per model, base URL, scope and stream or plain call. Its Observed is
+	// what a caller can keep, and pass back with WithLimitObservations on its
+	// next start (0089-MADR D5).
+	WarningLimitLearned WarningKind = "limit_learned"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but
@@ -53,4 +60,8 @@ type Warning struct {
 	// refused; zero for any other kind, and then left out of a Warning's JSON,
 	// which stays as it was (0062-MADR D6).
 	Refused ReasoningRefusal `json:",omitzero"`
+	// Observed is the cap a WarningLimitLearned reports the service stated;
+	// zero for any other kind, and then left out of a Warning's JSON
+	// (0089-MADR D5).
+	Observed LimitObservation `json:",omitzero"`
 }

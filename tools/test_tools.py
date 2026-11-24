@@ -1211,5 +1211,139 @@ class TestLimitSnapshot(unittest.TestCase):
         self.assertEqual(rc, 2)
 
 
+class TestGoldenDiff(unittest.TestCase):
+    """0088-MADR ST100 and ST88: a golden may change only in its output limit, and with --stream to the stream form."""
+
+    WIRE = "llmprovider/providers/p/testdata/wire/c"
+
+    def setUp(self) -> None:
+        import goldendiff  # pylint: disable=import-outside-toplevel
+
+        self.main = goldendiff.main
+        self.root = temp_repo(self)
+        self.goldens = {
+            "text.json": {"requests": [{"method": "POST", "path": "/v1/messages", "header": {"X-Key": "k"},
+                                        "body": {"model": "m", "max_tokens": 8192}}], "result": "hello"},
+            "google.json": {"requests": [{"method": "POST", "path": "/v1beta/models/m:generateContent",
+                                          "header": {"X-Key": "k"},
+                                          "body": {"generationConfig": {"maxOutputTokens": 8192}}}],
+                            "result": "hello"},
+        }
+        for name, doc in self.goldens.items():
+            self.write(name, doc)
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "goldens")
+
+    def write(self, name: str, doc: dict) -> None:
+        path = self.root / self.WIRE / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+    def run_tool(self, *extra: str) -> tuple[int, str]:
+        return call(self.main, "--repo", str(self.root), "--rev", "HEAD", *extra)
+
+    def streamed(self) -> None:
+        """Both goldens in ST88's stream form, their 8192 removed."""
+        text = json.loads(json.dumps(self.goldens["text.json"]))
+        req = text["requests"][0]
+        del req["body"]["max_tokens"]
+        req["body"]["stream"] = True
+        req["header"]["Accept"] = "text/event-stream"
+        self.write("text.json", text)
+        google = json.loads(json.dumps(self.goldens["google.json"]))
+        req = google["requests"][0]
+        req["path"] = "/v1beta/models/m:streamGenerateContent"
+        req["query"] = {"alt": ["sse"]}
+        req["header"]["Accept"] = "text/event-stream"
+        self.write("google.json", google)
+
+    def test_unchanged_and_a_limit_change_are_clean(self) -> None:
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        doc = json.loads(json.dumps(self.goldens["text.json"]))
+        doc["requests"][0]["body"]["max_tokens"] = 128000
+        self.write("text.json", doc)
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("p: changed 1, unchanged 1, new 0", out)
+
+    def test_an_unrelated_change_is_a_finding(self) -> None:
+        doc = json.loads(json.dumps(self.goldens["text.json"]))
+        del doc["requests"][0]["body"]["max_tokens"]
+        doc["requests"][0]["body"]["model"] = "planted"
+        self.write("text.json", doc)
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("text.json: requests/0/body/model: 'm' -> 'planted'", out)
+        self.assertNotIn("max_tokens", out.split("FINDING", 1)[1])
+
+    def test_the_stream_form_needs_the_flag(self) -> None:
+        self.streamed()
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 0, out)
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("requests/0/body/stream: <absent> -> True", out)
+
+    def test_a_change_that_is_not_the_stream_form_is_a_finding(self) -> None:
+        planted = {
+            "a stream that is not true": ("body", "stream", "true"),
+            "stream_options asking for no usage": ("body", "stream_options", {"include_usage": False}),
+            "another Accept": ("header", "Accept", "application/json"),
+        }
+        for name, (part, key, value) in planted.items():
+            with self.subTest(name):
+                self.streamed()
+                doc = json.loads((self.root / self.WIRE / "text.json").read_text(encoding="utf-8"))
+                doc["requests"][0][part][key] = value
+                self.write("text.json", doc)
+                rc, out = self.run_tool("--stream")
+                self.assertEqual(rc, 1, out)
+                self.assertIn(f"requests/0/{part}/{key}", out)
+        self.streamed()
+        doc = json.loads((self.root / self.WIRE / "google.json").read_text(encoding="utf-8"))
+        doc["requests"][0]["path"] = "/v1beta/models/m:countTokens"
+        self.write("google.json", doc)
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("requests/0/path", out)
+
+    def test_a_new_golden_is_an_explicit_one_kept_plain(self) -> None:
+        self.write("explicit-8192.json", self.goldens["text.json"])
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 0, out)
+        doc = json.loads(json.dumps(self.goldens["text.json"]))
+        doc["requests"][0]["body"]["stream"] = True
+        self.write("explicit-8192.json", doc)
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("is in the stream form", out)
+        self.write("explicit-8192.json", self.goldens["text.json"])
+        self.write("other.json", self.goldens["text.json"])
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("other.json: new, and not an explicit-8192.json golden", out)
+
+    def test_a_route_that_always_streams_keeps_its_stream_form(self) -> None:
+        sse = {"requests": [{"method": "POST", "path": "/backend/responses", "header": {},
+                             "body": {"model": "m", "stream": True}}], "result": "hello"}
+        path = self.root / "llmprovider/providers/p/testdata/wire/sse"
+        path.mkdir(parents=True)
+        (path / "text.json").write_text(json.dumps(sse), encoding="utf-8")
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "an always-streaming route")
+        (path / "explicit-8192.json").write_text(json.dumps(sse), encoding="utf-8")
+        rc, out = self.run_tool("--stream")
+        self.assertEqual(rc, 0, out)
+
+    def test_a_missing_golden_and_a_bad_rev(self) -> None:
+        (self.root / self.WIRE / "google.json").unlink()
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("google.json: in HEAD, missing", out)
+        rc, out = call(self.main, "--repo", str(self.root), "--rev", "no-such-rev")
+        self.assertEqual(rc, 2, out)
+
+
 if __name__ == "__main__":
     unittest.main()

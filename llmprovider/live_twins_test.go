@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
@@ -56,7 +57,7 @@ func newTwinFake(t *testing.T) *twinFake {
 	t.Helper()
 	f := &twinFake{echo: true, chatWord: true, deltas: true, tool: true, rotate: true, revokeKills: true,
 		profileStatus: http.StatusOK, models: []string{"gpt-6.1-sol", "gpt-6-luna"}}
-	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	f.srv = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(f.serve)))
 	t.Cleanup(f.srv.Close)
 	return f
 }
@@ -236,7 +237,7 @@ type identityFake struct {
 func newIdentityFake(t *testing.T) *identityFake {
 	t.Helper()
 	f := &identityFake{originator: probeIdentityName, listed: true, revokeKills: true}
-	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	f.srv = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(f.serve)))
 	t.Cleanup(f.srv.Close)
 	return f
 }
@@ -1005,7 +1006,7 @@ type nameFake struct {
 func newNameFake(t *testing.T) *nameFake {
 	t.Helper()
 	f := &nameFake{body: &twinFake{echo: true, deltas: true}, refuseRefresh: false, revokeKills: true}
-	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	f.srv = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(f.serve)))
 	t.Cleanup(f.srv.Close)
 	return f
 }
@@ -1352,7 +1353,7 @@ func newGrantFake(t *testing.T, c grantCase) *grantFake {
 	if f.code == "" {
 		f.code = "invalid_grant"
 	}
-	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	f.srv = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(f.serve)))
 	t.Cleanup(f.srv.Close)
 	return f
 }
@@ -2653,10 +2654,10 @@ func TestGrantCodeAgreesWithTheSDK_0081(t *testing.T) {
 		{"a body of 70000 bytes", grantPadded(70000), ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = io.WriteString(w, c.body)
-			}))
+			})))
 			defer srv.Close()
 			rec := &grantRecorder{next: srv.Client().Transport}
 			session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: srv.URL, TokenURL: srv.URL + "/token",

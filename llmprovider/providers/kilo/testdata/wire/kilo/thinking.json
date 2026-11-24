@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/chat/completions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer kilo-wire-key",
         "Content-Type": "application/json",
@@ -12,7 +13,7 @@
         "X-Kilocode-Taskid": "wire-session"
       },
       "body": {
-        "max_tokens": 8192,
+        "max_tokens": 128000,
         "messages": [
           {
             "content": "What is the weather in Paris?",
@@ -25,6 +26,10 @@
         },
         "reasoning": {
           "enabled": true
+        },
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
         }
       }
     }

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -23,7 +24,7 @@ func TestOpencode_MetadataLookupUsesClientInfo(t *testing.T) {
 	// and the metadata request runs in the background (0028-MADR D-A1): the
 	// test waits for it (0028-PLAN D13).
 	requested := make(chan struct{}, 1)
-	meta := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	meta := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		agents = append(agents, r.Header.Get("User-Agent"))
 		mu.Unlock()
@@ -32,11 +33,11 @@ func TestOpencode_MetadataLookupUsesClientInfo(t *testing.T) {
 		default:
 		}
 		_, _ = io.WriteString(w, `{}`)
-	}))
+	})))
 	defer meta.Close()
-	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	gateway := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hi"}}]}`)
-	}))
+	})))
 	defer gateway.Close()
 
 	p, err := NewGo(llmprovider.WithAPIKey("k"), llmprovider.WithModel("glm-5.3-flash"), llmprovider.WithBaseURL(gateway.URL),

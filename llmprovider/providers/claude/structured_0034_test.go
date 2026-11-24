@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -30,7 +31,7 @@ func structuredServer(t *testing.T, reply string) (*httptest.Server, func() []ma
 	t.Helper()
 	var mu sync.Mutex
 	var bodies []map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		var body map[string]any
 		_ = json.Unmarshal(raw, &body)
@@ -38,7 +39,7 @@ func structuredServer(t *testing.T, reply string) (*httptest.Server, func() []ma
 		bodies = append(bodies, body)
 		mu.Unlock()
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, func() []map[string]any {
 		mu.Lock()

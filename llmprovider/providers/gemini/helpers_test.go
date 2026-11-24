@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -45,7 +46,7 @@ func (c *interactionCapture) count() int {
 func interactionServer(t *testing.T, reply string) (*httptest.Server, *interactionCapture) {
 	t.Helper()
 	c := &interactionCapture{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		if raw, _ := io.ReadAll(r.Body); len(raw) > 0 {
 			if err := json.Unmarshal(raw, &body); err != nil {
@@ -56,7 +57,7 @@ func interactionServer(t *testing.T, reply string) (*httptest.Server, *interacti
 		c.paths, c.bodies, c.headers = append(c.paths, r.URL.Path), append(c.bodies, body), append(c.headers, r.Header.Clone())
 		c.mu.Unlock()
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, c
 }

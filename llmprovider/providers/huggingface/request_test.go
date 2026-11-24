@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
@@ -59,10 +60,10 @@ func (s *countingSource) Token(context.Context) (llmprovider.Token, error) {
 // TestGenerate_ReadsTheKeyPerRequest: a rotating source's new key is used.
 func TestGenerate_ReadsTheKeyPerRequest(t *testing.T) {
 	var seen []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(fxHFChat))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, llmprovider.WithTokenSource(&countingSource{}), llmprovider.WithModel("m"), llmprovider.WithBaseURL(srv.URL))
 	for range 2 {

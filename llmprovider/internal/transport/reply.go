@@ -52,6 +52,30 @@ func IsAfterReply(err error) bool {
 	return errors.As(err, &mark)
 }
 
+// afterEvent marks a failure of a Generate read over a stream after its first
+// event.
+type afterEvent struct{ err error }
+
+func (e *afterEvent) Error() string { return e.err.Error() }
+func (e *afterEvent) Unwrap() error { return e.err }
+
+// AfterEvent marks err as the failure of a Generate read over the service's
+// stream after the stream's first event (0088-MADR ST88a): nothing is resent
+// after an event, as for any stream (0034-MADR D3), so llmprovider.WithRetry
+// does not retry it. The mark changes neither its text nor its kind.
+func AfterEvent(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &afterEvent{err: err}
+}
+
+// IsAfterEvent reports whether err carries AfterEvent's mark.
+func IsAfterEvent(err error) bool {
+	var mark *afterEvent
+	return errors.As(err, &mark)
+}
+
 // ReplyReader reads a reply's body under an idle limit and a size limit, and
 // keeps the first read failure, so a caller can tell a cut connection from a
 // body that arrived whole but did not decode (0021-MADR D1, D2).

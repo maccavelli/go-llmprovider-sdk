@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
@@ -57,7 +58,7 @@ type learnServer struct {
 func newLearnServer(t *testing.T, refusals ...string) *learnServer {
 	t.Helper()
 	s := &learnServer{}
-	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.Server = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		var body map[string]any
 		_ = json.Unmarshal(raw, &body)
@@ -75,7 +76,7 @@ func newLearnServer(t *testing.T, refusals ...string) *learnServer {
 			w.WriteHeader(reply.Status)
 		}
 		_, _ = io.WriteString(w, reply.Body)
-	}))
+	})))
 	t.Cleanup(s.Close)
 	return s
 }

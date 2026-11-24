@@ -11,7 +11,11 @@ decision, in
 [0048-MADR-adopt-go-sdk-best-practices.md](../decisions/0048-MADR-adopt-go-sdk-best-practices.md)
 ("0048 D*n*", "0048 X*n*"), R56 in
 [0062-MADR-learn-thinking-parameters-from-refusals.md](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md)
-("0062 D*n*"), and R24's `ResetAt` and `Limit` in
+("0062 D*n*"), R57 and the output limit of R6 and R7 in
+[0089-MADR-model-output-limit-discovery.md](../decisions/0089-MADR-model-output-limit-discovery.md)
+("0089 D*n*", "0089 DL*n*") and
+[0088-MADR-default-output-limit-from-model-facts.md](../decisions/0088-MADR-default-output-limit-from-model-facts.md)
+("0088 ST*n*"), and R24's `ResetAt` and `Limit` in
 [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](../decisions/0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md)
 ("0072 D*n*").
 
@@ -33,16 +37,18 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `internal/signinflow` may also import the nested module `authcontract`,
   which is itself standard library only (0073-MADR D1). (0015 D2, D13; the table's `internal/wire` rows, 0026
   F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2;
-  `internal/toolschema`, 0084 D3; `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `internal/opencoderoute`, 0089 DL74; `llmprovider/x/signin`, `internal/signinflow` and
-  `authcontract`, 0074 D3)
+  `internal/toolschema`, 0084 D3; `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `internal/opencoderoute`, 0089 DL74;
+  `internal/limitmemo`, 0089 D5, and its import by `llmprovider` (`WithoutLimitLearning`'s value, DL73) and
+  `catalog` (a kept cap's evidence, DL76); `catalog`'s `internal/retired`, 0089 DL51; `llmprovider/x/signin`, `internal/signinflow` and `authcontract`, 0074 D3)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
-  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource`, `internal/toolschema` |
+  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource`, `internal/toolschema`, `internal/limitmemo` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/recorderr`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
-  | `llmprovider/catalog` | static catalogs, model metadata, a model's limits and their evidence (`Limits`), ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute` |
+  | `llmprovider/catalog` | static catalogs, model metadata, a model's limits and their evidence (`Limits`), ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `auth`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute`, `internal/limitmemo`, `internal/retired` |
   | `internal/kiloendpoint` | Kilo's endpoints, derived from a credential, and whether one has an organization; in the module's own `internal`, not `llmprovider`'s, so that `internal/signinflow` may import it (0080 D4) | the standard library |
-  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages` |
+  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages`, `internal/limitmemo` |
+  | `llmprovider/internal/limitmemo` | the memo of validated output caps, one per `catalog.Cache` through `internal/cacheref` (0089-MADR D5) | the standard library |
   | `llmprovider/internal/nilsource` | a typed-nil `TokenSource`'s test, for `llmprovider` and `catalog` | the standard library |
   | `llmprovider/internal/toolschema` | a service's refusal of a tool's schema, read from a reply: its form and the names it gives, for `llmprovider`'s classification and `internal/wire`'s naming (0084 D3) | the standard library |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
@@ -100,18 +106,35 @@ tool that holds a rule, where one does. For how the code is laid out, read
   0040 D1, D5, D7)
   What a request leaves to the provider, the model's facts decide: the
   thinking shape and its budget bounds, the efforts or levels a model
-  takes, the Chat Completions field that reasoning is replayed under, and
-  the output limit, which cuts the default and never raises it. The facts
-  are the caller's layers, then the provider's listing, then models.dev,
-  read only from what is cached (`catalog.CachedFacts`). A request never
-  waits for them or fetches them. Without them, and with
+  takes, and the Chat Completions field that reasoning is replayed under.
+  The facts are the caller's layers, then the provider's listing, then
+  models.dev, read only from what is cached (`catalog.CachedFacts`). A
+  request never waits for them or fetches them. Without them, and with
   `WithoutModelMetadata`, the request decides. A model's refusal of an
   effort or a thinking shape, learned, outranks the facts and the request.
   (0041 D1, D2, A3; 0062 D2, D3)
+  The output limit follows R57. `MaxOutputTokens` is sent as given; a
+  `WithMaxTokens` value is cut to the model's stated output limit and never
+  raised; the ChatGPT backend and plan routes send none, whatever is given
+  (0088 ST4). With neither, a Messages route (Claude, OpenCode's messages
+  route), whose wire requires a limit, sends the model's output limit as
+  `catalog.CachedLimits` states it: the caller's layers, then the service,
+  then the registry (the fetched models.dev document, then the SDK's
+  embedded extract), then a cap passed back with `WithLimitObservations`,
+  held to the stated window and to a cap the service stated; where none is
+  stated, the smallest limit of the route's current models, and where none
+  of those is either, `ErrInvalidRequest` before sending. Kilo sends its
+  stated output limit until 0089 DL65's measurement decides; every other
+  wire sends none, so the service's own default applies. A `Generate` that
+  names no limit is read over the service's stream and returned whole.
+  (0089 D1 to D7, DL46 to DL51; 0088 ST15 to ST18, ST88)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked
-  (0034 D7).
+  (0034 D7), and `OutputLimit`, a `SentLimit`: the output limit the request
+  carried, after a thinking budget raised it, whether one was sent, its
+  `LimitBasis` and its source; a stream's final response carries it too
+  (0089 D7, DL54, DL55).
   In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
   and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
   convention. (0015 D3, D4, and its amendment "what `Usage` counts")
@@ -384,6 +407,22 @@ This rule is
   service's refusal cannot replace stays as a wire mapping, cited and listed
   under the provider's Degradations. (0062 D1, D2, D8)
 
+## Output limits
+
+This rule is
+[0089-MADR-model-output-limit-discovery.md](../decisions/0089-MADR-model-output-limit-discovery.md)'s
+D9 ("0089 D*n*").
+
+- **R57. No fixed number decides an output limit a caller did not give:**
+  the model's evidence does (`catalog.Limits`), and a limit is sent only as
+  R6's default rule decides. A number with no source is listed with its
+  provenance in the record that keeps it: a listing probe's 8192, which is
+  sent as given (0088 ST26; 0089 DL53). A refusal that states a cap or a
+  window resends a limit the SDK chose once at the stated value; a stated
+  cap is kept for the process and reported in a `WarningLimitLearned`
+  unless `WithoutLimitLearning` is given, and a caller's own limit is never
+  resent. (0089 D4 to D6, D9; 0088 ST99)
+
 ## Checks
 
 | Rule | Checked by | From |
@@ -401,6 +440,7 @@ This rule is
 | R53 | `make changelog-check` | 0048-PLAN Phase 5 |
 | R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1, 0055-MADR, 0077-MADR |
 | R56 | `git grep -n -w` of each thinking rule 0062 removed, which 0062-PLAN Phase 6's record names: none found | 0062-MADR Confirmation |
+| R57 | `git grep -n -w` of 32000, 16384 and 8192 in the module's non-test Go code: only the listing probes' given 8192 and `MaxTokens`' default, which decides nothing unless given; 0089-PLAN's merged phase records the run | 0089-MADR D9 |
 
 An S*n* phase is 0015-PLAN's. The other rules are held by review against this
 guide.

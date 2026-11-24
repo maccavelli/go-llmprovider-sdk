@@ -290,6 +290,15 @@ redirection. It reads no key and reaches no network, and writes only
 allowlisted lines (mode, console kind, case, result word, line-ending bytes)
 to `tmp/live-0087/`; the commands are in
 `docs/decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md`, Phase 1.
+0088's window measurement, `TestLive_ClaudeWindowRefusal_0088`, is switched on
+by `LLMPROVIDER_LIVE_0088`, with `LLMPROVIDER_LIVE_0088_MODEL` naming a Claude
+model before 4.5 and `ANTHROPIC_API_KEY` in the environment: one request of
+about 184,000 input tokens with `max_tokens` 32,000, its status, error type
+and message, redacted, written to
+`llmprovider/providers/claude/testdata/window-0088/refusal.json`; it is run
+once, and a second run needs the owner's word
+(`docs/decisions/0088-PLAN-default-output-limit-from-model-facts.md`, its
+first and sixth amendments).
 The login tests need a person to sign in. Each keeps its
 checks after the sign-in in a function in `llmprovider/live_checks_test.go`,
 which an offline twin in `llmprovider/live_twins_test.go` runs against a fake.

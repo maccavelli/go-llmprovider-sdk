@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/chat/completions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer kilo-wire-key",
         "Content-Type": "application/json",
@@ -16,7 +17,7 @@
           "ttl": "1h",
           "type": "ephemeral"
         },
-        "max_tokens": 8192,
+        "max_tokens": 128000,
         "messages": [
           {
             "content": "Be brief.",
@@ -30,6 +31,10 @@
         "model": "anthropic/claude-sonnet-5",
         "provider": {
           "data_collection": "deny"
+        },
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
         },
         "tools": [
           {

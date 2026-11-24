@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -25,9 +26,9 @@ func apiKey(url string, opts ...llmprovider.Option) []llmprovider.Option {
 
 func replyServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(body))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -181,9 +182,9 @@ func TestOpenAI_ErrorClassification(t *testing.T) {
 		{500, llmprovider.ErrProviderUnavailable},
 		{400, llmprovider.ErrInvalidRequest},
 	} {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(tc.status)
-		}))
+		})))
 		p := build(t, apiKey(srv.URL, llmprovider.WithModel("gpt-4o"))...)
 		_, err := p.Generate(context.Background(), text("hi"))
 		srv.Close()
@@ -197,11 +198,11 @@ func TestOpenAI_ErrorClassification(t *testing.T) {
 // explanation (MADR 0012 §1.1, 0013 B3), and still matches the sentinel its
 // status always mapped to.
 func TestOpenAI_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, llmprovider.WithModel("gpt-4.1-mini"))...)
 	_, err := p.Generate(context.Background(), text("hello"))
@@ -219,10 +220,10 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 // (MADR 0012 §1.4), never Go's default agent.
 func TestOpenAI_UserAgent(t *testing.T) {
 	var ua string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua = r.Header.Get("User-Agent")
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, llmprovider.WithModel("gpt-4.1-mini"))...)
 	_, _ = p.Generate(context.Background(), text("hello"))

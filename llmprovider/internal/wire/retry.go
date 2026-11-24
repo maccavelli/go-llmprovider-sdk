@@ -25,7 +25,9 @@ type Retry func(err error) (resend bool, replaced error)
 // reply with decode. While it fails and retry says to, the request is built
 // again, so that it reflects what retry learned, and sent once more, through
 // Reauth again, at most MaxSends times in all; the last failure is returned.
-// A nil retry sends once. provider labels a failure to fetch a token.
+// The one resend at a validated stated output limit (LimitRetry) is not
+// counted (0089-MADR D6). A nil retry sends once. provider labels a failure
+// to fetch a token.
 func Send[T any](ctx context.Context, provider string, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
 	decode func(io.Reader) (T, error), retry Retry) (T, error) {
 	send := func(token llmprovider.Token) (T, error) { return Post(ctx, build(token), token, decode) }
@@ -35,6 +37,9 @@ func Send[T any](ctx context.Context, provider string, src llmprovider.TokenSour
 		if !resend {
 			var zero T
 			return zero, replaced
+		}
+		if uncounted(replaced) {
+			sends--
 		}
 		out, err = Reauth(ctx, provider, src, send)
 	}

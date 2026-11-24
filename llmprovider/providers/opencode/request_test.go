@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
@@ -56,10 +57,10 @@ func (s *countingSource) Token(context.Context) (llmprovider.Token, error) {
 // TestGenerate_ReadsTheKeyPerRequest: a rotating source's new key is used.
 func TestGenerate_ReadsTheKeyPerRequest(t *testing.T) {
 	var keys []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		keys = append(keys, r.Header.Get("x-api-key"))
 		_, _ = w.Write([]byte(fxMessages))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, llmprovider.ProviderOpencodeZen, llmprovider.WithTokenSource(&countingSource{}),
 		llmprovider.WithModel("claude-sonnet-5"), llmprovider.WithBaseURL(srv.URL))

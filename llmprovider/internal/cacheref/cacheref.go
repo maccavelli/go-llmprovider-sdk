@@ -1,13 +1,15 @@
 // Package cacheref carries a catalog.Cache from a provider's options to the
 // code that reads it: the catalog's listings and metadata, the wire's probes
-// (0048-MADR D1), the Messages wire's learned refusals (0049-MADR D3), and
-// the thinking settings models refused (0062-MADR D5). catalog.WithCache puts
-// a *Value among the options; a provider and the catalog find it with From.
+// (0048-MADR D1), the Messages wire's learned refusals (0049-MADR D3), the
+// thinking settings models refused (0062-MADR D5), and the output caps
+// services stated (0089-MADR D5). catalog.WithCache puts a *Value among the
+// options; a provider and the catalog find it with From.
 package cacheref
 
 import (
 	"slices"
 
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
@@ -16,20 +18,32 @@ import (
 // Value is catalog.WithCache's option value. Catalog is the catalog's state,
 // which only the catalog reads; Probes is the probe store; Refusals is the
 // memo of learned forced-choice refusals; Thinking is the memo of refused
-// thinking settings. A nil *Value means the process's caches. A Value is not
-// changed after it is made, so it is safe for concurrent use.
+// thinking settings; Limits is the memo of validated output caps. A nil
+// *Value means the process's caches. A Value is not changed after it is
+// made, so it is safe for concurrent use.
 type Value struct {
 	Catalog  any
 	Probes   *transport.ProbeStore
 	Refusals *messages.Refusals
 	Thinking *wire.Learned
+	Limits   *limitmemo.Memo
 }
 
 // New is a Value of catalog's state, with a probe store and memos of learned
-// refusals of its own (0049-MADR D3; 0062-MADR D5).
+// refusals and output caps of its own (0049-MADR D3; 0062-MADR D5;
+// 0089-MADR D5).
 func New(catalog any) *Value {
 	return &Value{Catalog: catalog, Probes: transport.NewProbeStore(), Refusals: messages.NewRefusals(),
-		Thinking: wire.NewLearned()}
+		Thinking: wire.NewLearned(), Limits: limitmemo.New()}
+}
+
+// LimitMemo is v's memo of validated output caps: nil for a nil v, which the
+// memo reads as the process's (0089-MADR D5, DL38).
+func (v *Value) LimitMemo() *limitmemo.Memo {
+	if v == nil {
+		return nil
+	}
+	return v.Limits
 }
 
 // From returns the last *Value among a provider's option values, so that a

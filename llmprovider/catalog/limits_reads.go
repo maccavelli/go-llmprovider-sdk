@@ -207,6 +207,9 @@ func readClaudeModel(ctx context.Context, token llmprovider.Token, cfg config, k
 		r.input = *m.MaxInputTokens
 	}
 	cfg.store.storeRead(k, r)
+	// The resolved id reaches the provider's refusal check through the
+	// cache's memo (0089-MADR V6, through internal/cacheref).
+	cfg.memo.KeepResolved(memoKey(llmprovider.ProviderClaude, model, cfg, false), m.ID)
 	return nil
 }
 

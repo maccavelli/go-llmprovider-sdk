@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
@@ -41,11 +42,11 @@ func (l *meetingLayer0048) Model(llmprovider.ProviderID, string) (catalog.ModelI
 // WithModelLayer asks the layer on every request, so concurrent requests call
 // its Model at once.
 func TestLayer_CalledByConcurrentRequests_0048(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"msg_0048","type":"message","role":"assistant","model":"claude-x",` +
 			`"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	layer := &meetingLayer0048{met: make(chan struct{})}
 	p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("key-0048"), llmprovider.WithBaseURL(srv.URL),

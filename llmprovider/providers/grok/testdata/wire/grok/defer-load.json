@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/responses",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer xai-wire",
         "Content-Type": "application/json",
@@ -27,8 +28,8 @@
             "type": "function_call_output"
           }
         ],
-        "max_output_tokens": 8192,
         "model": "grok-4.5",
+        "stream": true,
         "tools": [
           {
             "description": "Weather for a city",

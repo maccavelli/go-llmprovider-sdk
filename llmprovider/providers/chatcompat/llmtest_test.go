@@ -15,9 +15,12 @@ import (
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
 		Model: "llmtest-model",
+		// The harness's Generate checks are of a plain request: each names its own
+		// limit, since one whose limit the SDK chose or left out is read over the
+		// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{testCache(t), WithID(testID), llmprovider.WithAPIKey("sk-llmtest"),
-				llmprovider.WithModel("llmtest-model"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
+				llmprovider.WithModel("llmtest-model"), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, fxChat)

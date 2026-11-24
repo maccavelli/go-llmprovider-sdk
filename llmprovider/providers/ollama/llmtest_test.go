@@ -16,8 +16,11 @@ import (
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
 		Model: "llama3.2:latest",
+		// The harness's Generate checks are of a plain request: each names its own
+		// limit, since one whose limit the SDK chose or left out is read over the
+		// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
-			return New(append([]llmprovider.Option{llmprovider.WithModel("llama3.3"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
+			return New(append([]llmprovider.Option{llmprovider.WithModel("llama3.3"), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, fxOllamaChat)

@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/chat/completions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer opencode-wire-key",
         "Content-Type": "application/json",
@@ -11,7 +12,6 @@
         "X-Opencode-Session": "wire-session"
       },
       "body": {
-        "max_tokens": 8192,
         "messages": [
           {
             "content": "Be brief.",
@@ -49,7 +49,11 @@
             "role": "user"
           }
         ],
-        "model": "glm-5.3"
+        "model": "glm-5.3",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
       }
     }
   ],

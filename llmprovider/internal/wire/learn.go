@@ -345,7 +345,8 @@ func (l *Learner) learn(refused llmprovider.ReasoningRefusal, what string) {
 }
 
 // Retries is checks as one Retry, in order: the first that resends, or
-// replaces the error, decides; a nil check is skipped.
+// replaces the error, decides; a nil check is skipped. A resend's mark that
+// it is not counted (LimitRetry's) is passed on, and nothing else.
 func Retries(checks ...Retry) Retry {
 	return func(err error) (bool, error) {
 		for _, check := range checks {
@@ -354,6 +355,9 @@ func Retries(checks ...Retry) Retry {
 			}
 			resend, replaced := check(err)
 			if resend {
+				if uncounted(replaced) {
+					return true, replaced
+				}
 				return true, nil
 			}
 			if replaced != err { //nolint:errorlint // the same error, not one it wraps: the check left it alone

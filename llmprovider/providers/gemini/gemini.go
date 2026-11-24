@@ -75,8 +75,11 @@
 // something has fetched it. A request never fetches, and never waits.
 // From them, thinking_level is sent only when the model lists it; an effort
 // off the list steps to the nearest listed.
-// With no MaxOutputTokens, the output limit is the default, cut to the
-// model's own when that is smaller; it is never raised.
+// The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a
+// request's own MaxOutputTokens is sent as given, and WithMaxTokens' value
+// cut to the model's stated limit, never raised; otherwise none is sent,
+// and the service's own default applies. The Response, and a stream's done
+// event, carry the limit sent in OutputLimit.
 // With no facts, the level asked is sent, and a refusal learned.
 package gemini
 
@@ -122,6 +125,8 @@ type provider struct {
 	client    *http.Client
 	caps      llmprovider.Capabilities
 	maxTokens int
+	// limitState is what the output limit reads of the options (limit.go).
+	limitState
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
 	store     bool
 	userAgent string
@@ -163,17 +168,18 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		return nil, fmt.Errorf("%w: gemini takes an API key, not an OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported)
 	}
 	p := &provider{
-		src:       src,
-		model:     st.Model(),
-		baseURL:   defaultBaseURL,
-		client:    st.HTTPClient(),
-		maxTokens: st.MaxTokens(),
-		reasoning: st.Reasoning(),
-		userAgent: st.UserAgent(),
-		logger:    st.Logger(),
-		probe:     st.ModelProbes(),
-		cache:     cacheref.From(st.Values()),
-		refusals:  st.ReasoningRefusals(),
+		src:        src,
+		model:      st.Model(),
+		baseURL:    defaultBaseURL,
+		client:     st.HTTPClient(),
+		maxTokens:  st.MaxTokens(),
+		limitState: newLimitState(st),
+		reasoning:  st.Reasoning(),
+		userAgent:  st.UserAgent(),
+		logger:     st.Logger(),
+		probe:      st.ModelProbes(),
+		cache:      cacheref.From(st.Values()),
+		refusals:   st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -207,17 +213,27 @@ func (p *provider) ID() llmprovider.ProviderID { return llmprovider.ProviderGemi
 func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 
 // Generate sends req to the Interactions API.
+// When the SDK chose its output limit or left it out, it is read over the
+// stream and returned whole (0088-MADR ST88).
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
+	if wire.OverStream(req, p.maxGiven) {
+		return wire.Collect(string(llmprovider.ProviderGemini), p.Stream(ctx, req))
+	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the level sent is learned, and the request
 	// built again (0062-MADR D5).
-	effort := p.learner(req)
-	return wire.Send(ctx, string(llmprovider.ProviderGemini), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) }, decodeInteraction,
-		effort.Check)
+	effort, limit := p.learner(req), p.limitRetry(req, false)
+	resp, err := wire.Send(ctx, string(llmprovider.ProviderGemini), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, limit) },
+		decodeInteraction, wire.Retries(limit.Check, effort.Check))
+	if err == nil {
+		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+		limit.Finish(resp, p.observe(req, false))
+	}
+	return resp, err
 }
 
 // learner is req's level, learned from the model's refusals of it
@@ -236,10 +252,11 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	}
 	return func(yield func(llmprovider.Event, error) bool) {
 		// Each range is its own request, with its own effort learner.
-		effort := p.learner(req)
-		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGemini), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, interactionEvents,
-			effort.Check) {
+		effort, limit := p.learner(req), p.limitRetry(req, true)
+		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGemini), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, limit) },
+			interactionEvents, wire.Retries(limit.Check, effort.Check))
+		for ev, err := range limit.FinishStream(stream, p.observe(req, true)) {
 			if !yield(ev, err) {
 				return
 			}
@@ -259,9 +276,12 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 // call is the Interactions request for req, asking for an event stream when
 // stream is set, at the level effort chooses.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
-	effort *wire.Learner) wire.Call {
+	effort *wire.Learner, limit *wire.LimitRetry) wire.Call {
 	facts := p.facts(ctx, req, token)
-	body, warnings := p.body(req, facts, effort)
+	// The output limit, none unless the caller gives one (0089-MADR D6).
+	outLimit := p.chooseLimit(ctx, req, token, stream, limit)
+	body, warnings := p.body(req, facts, effort, outLimit)
+	wire.DropLimit(body, outLimit, "generation_config", "max_output_tokens")
 	if stream {
 		body["stream"] = true
 	}
@@ -291,19 +311,14 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 
 // body is the Interactions request for req (MADR 0014 §1), at the level
 // learner chooses.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
-	[]llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner,
+	outLimit llmprovider.SentLimit) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
 	}
-	maxTokens := p.maxTokens
-	if req.MaxOutputTokens > 0 {
-		maxTokens = req.MaxOutputTokens
-	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
-		// The default, cut to the model's limit, never raised (0041-MADR D2).
-		maxTokens = min(maxTokens, limit)
-	}
+	// The output limit chosen (0089-MADR D6); none when it is not sent.
+	maxTokens := outLimit.Tokens
 	gen := map[string]any{"max_output_tokens": maxTokens}
 	var warnings []llmprovider.Warning
 	if r := p.effectiveReasoning(req); r != nil {

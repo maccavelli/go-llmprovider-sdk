@@ -132,7 +132,9 @@ functions over any provider, and `Stream` streams from every one.
   before each wait with a `RetryNotice`: the attempt, the wait, whether the
   service asked for it, and the error. Use it to tell your user "rate
   limited, retrying in 4 s"; `notify` must not block. Both buffer a
-  stream, so that it can be retried whole. `WithStreamRetry(p, policy,
+  stream, so that it can be retried whole. A `Generate` that names no
+  output limit is read over the service's stream, and is retried only
+  until its first event. `WithStreamRetry(p, policy,
   notify)` streams text as it arrives instead: it retries a failure before
   the first event as they do, and after it ends the stream with the error,
   unretried, so the caller drops the turn.
@@ -224,6 +226,23 @@ functions over any provider, and `Stream` streams from every one.
     from an earlier run.
   - `catalog.ListRaw` returns a provider's listing exactly as it was sent,
     every page and every entry, with none of the SDK's curation.
+- **Output limits.** `catalog.LookupLimits` reads every source of a
+  model's output limit, window and input limit, and returns each source's
+  value and time, the chosen value, and whether the model's wire requires
+  an output limit; `catalog.CachedLimits` is the same without a fetch, as
+  a request reads it. A request's own `MaxOutputTokens` is sent as given,
+  and `WithMaxTokens` is cut to the model's stated limit. With neither,
+  Claude and OpenCode's messages route, whose wire requires a limit, send
+  the model's stated output limit (else the smallest of the route's current
+  models, else the request is refused with a message saying how to state
+  it), Kilo sends the model's stated output limit, and every other wire sends
+  none, so the service's default applies; the ChatGPT routes never send
+  one. A `Generate` that names no limit is read over the service's stream
+  and returned whole. `Response.OutputLimit` says what was sent and why. A
+  refusal that states the service's cap is resent once at it, and the cap
+  is kept for the process and reported in a `WarningLimitLearned`, which
+  `WithLimitObservations` passes back on the next start;
+  `WithoutLimitLearning` keeps and reports nothing.
 - **Ranking.** The recommended models of every provider but Ollama are
   ranked by use case, from each model's facts. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -35,7 +36,7 @@ const (
 func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *httptest.Server {
 	t.Helper()
 	var mu sync.Mutex
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		m := map[string]any{}
 		_ = json.Unmarshal(raw, &m)
@@ -43,7 +44,7 @@ func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *htt
 		*lastBody = m
 		mu.Unlock()
 		_, _ = io.WriteString(w, respBody)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -51,10 +52,10 @@ func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *htt
 // pathCapture records the request path and replies with a canned body.
 func pathCapture(t *testing.T, lastPath *string, resp string) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*lastPath = r.URL.Path
 		_, _ = w.Write([]byte(resp))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -63,11 +64,11 @@ func pathCapture(t *testing.T, lastPath *string, resp string) *httptest.Server {
 func metadataServer(t *testing.T, status int, body string) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(body))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &hits
 }
@@ -185,7 +186,7 @@ type recorded struct {
 func newHeaderRecorder(t *testing.T) *headerRecorder {
 	t.Helper()
 	r := &headerRecorder{}
-	r.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	r.srv = httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		r.mu.Lock()
 		r.seen = append(r.seen, recorded{path: req.URL.Path, header: req.Header.Clone()})
 		r.mu.Unlock()
@@ -197,7 +198,7 @@ func newHeaderRecorder(t *testing.T) *headerRecorder {
 		default:
 			_, _ = w.Write([]byte(fxChat))
 		}
-	}))
+	})))
 	t.Cleanup(r.srv.Close)
 	return r
 }

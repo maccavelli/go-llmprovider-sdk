@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -35,7 +36,7 @@ func TestHuggingFace_TokenHeaderOverride(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var mu sync.Mutex
 			seen := map[string]http.Header{}
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				seen[r.Method] = r.Header.Clone()
 				mu.Unlock()
@@ -44,7 +45,7 @@ func TestHuggingFace_TokenHeaderOverride(t *testing.T) {
 					return
 				}
 				_, _ = w.Write([]byte(fxHFChat))
-			}))
+			})))
 			t.Cleanup(srv.Close)
 			p := build(t, llmprovider.WithTokenSource(headerSource(tc.token)), llmprovider.WithModel("m"), llmprovider.WithBaseURL(srv.URL))
 			if _, err := p.Generate(context.Background(), text("hi")); err != nil {

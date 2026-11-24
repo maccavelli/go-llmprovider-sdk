@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/llmtest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
@@ -38,12 +39,12 @@ func TestDefaultWith_ReachesEveryBuiltin_0048(t *testing.T) {
 // DefaultWith's, so it wins: the request carries the caller's key.
 func TestDefaultWith_CallerOptionWins_0048(t *testing.T) {
 	var key atomic.Value
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key.Store(r.Header.Get("x-api-key"))
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"msg_0048","type":"message","role":"assistant","model":"claude-x",` +
 			`"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	r := providers.DefaultWith(llmprovider.WithAPIKey("default-0048"))
 	p, err := r.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("caller-0048"), llmprovider.WithBaseURL(srv.URL),

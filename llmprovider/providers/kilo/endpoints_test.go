@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -49,6 +50,10 @@ func kiloCalls(t *testing.T, token string, opts ...llmprovider.Option) []kiloCal
 		if r.Method == http.MethodGet {
 			body = `{"data":[{"id":"deepseek/deepseek-v4.1-flash","architecture":{"input_modalities":["text"],` +
 				`"output_modalities":["text"]},"supported_parameters":["tools"],"pricing":{"completion":"0.1"}}]}`
+		} else {
+			// A request asking for the stream gets the reply's stream form
+			// (0088-MADR ST88e).
+			body = wiretest.StreamBody(r, body)
 		}
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
 			Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
@@ -126,7 +131,8 @@ func TestKilo_RotatingTokenPicksItsBase(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		urls = append(urls, r.URL.String())
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{},
-			Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`)), Request: r}, nil
+			Body:    io.NopCloser(strings.NewReader(wiretest.StreamBody(r, `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))),
+			Request: r}, nil
 	})}
 	src := &tokenSequence{values: []string{"https://a.example.test:s1", "https://b.example.test:s2"}}
 	p := build(t, llmprovider.WithTokenSource(src), llmprovider.WithModel("m"), llmprovider.WithHTTPClient(client))
@@ -160,12 +166,12 @@ func (s *tokenSequence) Token(context.Context) (llmprovider.Token, error) {
 func kiloBody(t *testing.T, opts ...llmprovider.Option) map[string]any {
 	t.Helper()
 	var body map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("decode: %v", err)
 		}
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	if _, err := build(t, apiKey(srv.URL, "deepseek/deepseek-v4.1-flash", opts...)...).Generate(context.Background(), text("hi")); err != nil {
 		t.Fatalf("Generate: %v", err)

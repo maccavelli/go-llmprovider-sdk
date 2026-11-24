@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/grok"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
@@ -20,9 +21,9 @@ import (
 // stream's response.failed is.
 func TestResponsesProviders_FailedStatusUsesTheirVocabulary(t *testing.T) {
 	reply := func(body string) *httptest.Server {
-		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		return httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, body)
-		}))
+		})))
 	}
 	quota := reply(`{"status":"failed","error":{"code":"insufficient_quota","message":"quota"}}`)
 	defer quota.Close()

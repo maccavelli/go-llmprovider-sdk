@@ -135,9 +135,11 @@ func StreamEventsFor(ctx context.Context, src llmprovider.TokenSource, build fun
 
 // StreamEventsRetry is StreamEventsFor with a retry check: a stream whose
 // opening fails, which is before any event, is built again and opened once
-// more while retry says to, at most MaxSends times in all, as Send does. A
-// failure after the stream opened is never resent (0034-MADR D3; 0062-MADR
-// D5). provider labels a failure to fetch a token.
+// more while retry says to, at most MaxSends times in all, as Send does. So
+// is a stream that opened and failed before yielding any event, such as a
+// gateway's error inside a 200 as its first payload (0088-MADR A5, ST88d). A
+// failure after an event is never resent (0034-MADR D3; 0062-MADR D5).
+// provider labels a failure to fetch a token.
 func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
 	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error, retry Retry) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
@@ -147,30 +149,44 @@ func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.Tok
 			warnings = c.Warnings
 			return OpenStream(ctx, c, token)
 		}
+		sends := 1
 		reply, err := Reauth(ctx, provider, src, open)
-		for sends := 1; err != nil && retry != nil && sends < MaxSends; sends++ {
-			var resend bool
-			if resend, err = retry(err); !resend {
-				break
-			}
-			reply, err = Reauth(ctx, provider, src, open)
-		}
-		if err != nil {
-			yield(llmprovider.Event{}, err)
-			return
-		}
-		stopped := false
-		err = reply.Read(func(body io.Reader) error {
-			return decode(provider, body, func(ev llmprovider.Event) bool {
-				if ev.Type == llmprovider.EventDone && ev.Response != nil {
-					ev.Response.Warnings = append(ev.Response.Warnings, warnings...)
+		for {
+			for ; err != nil && retry != nil && sends < MaxSends; sends++ {
+				resend, replaced := retry(err)
+				if !resend {
+					err = replaced
+					break
 				}
-				stopped = !yield(ev, nil)
-				return !stopped
+				if uncounted(replaced) {
+					sends-- // the limit's one resend (0089-MADR D6)
+				}
+				reply, err = Reauth(ctx, provider, src, open)
+			}
+			if err != nil {
+				yield(llmprovider.Event{}, err)
+				return
+			}
+			stopped, yielded := false, false
+			err = reply.Read(func(body io.Reader) error {
+				return decode(provider, body, func(ev llmprovider.Event) bool {
+					if ev.Type == llmprovider.EventDone && ev.Response != nil {
+						ev.Response.Warnings = append(ev.Response.Warnings, warnings...)
+					}
+					yielded = true
+					stopped = !yield(ev, nil)
+					return !stopped
+				})
 			})
-		})
-		if err != nil && !stopped {
-			yield(llmprovider.Event{}, err)
+			if err == nil || stopped {
+				return
+			}
+			if yielded {
+				yield(llmprovider.Event{}, err)
+				return
+			}
+			// Nothing was yielded: the failure is checked as an opening's is,
+			// and resent while retry says to (0088-MADR A5).
 		}
 	}
 }

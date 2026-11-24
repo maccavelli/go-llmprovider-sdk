@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/responses",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer sk-wire",
         "Content-Type": "application/json",
@@ -41,9 +42,9 @@
             "type": "function_call_output"
           }
         ],
-        "max_output_tokens": 8192,
         "model": "gpt-5.5",
         "store": false,
+        "stream": true,
         "tools": [
           {
             "description": "Weather for a city",

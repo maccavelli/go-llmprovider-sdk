@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -31,14 +32,14 @@ type streamRequest struct {
 func sseServer(t *testing.T, reply string) (*httptest.Server, *streamRequest) {
 	t.Helper()
 	got := &streamRequest{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		got.mu.Lock()
 		got.accept, got.body = r.Header.Get("Accept"), nil
 		_ = json.Unmarshal(raw, &got.body)
 		got.mu.Unlock()
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, got
 }
@@ -79,9 +80,11 @@ func TestStream(t *testing.T) {
 }
 
 // TestGenerate_Unchanged (0031-MADR E4): Generate asks for no stream.
+// A Generate whose limit the SDK chose or left out is read over the stream
+// (0088-MADR ST88); this one names its own, which stays plain (ST88e).
 func TestGenerate_Unchanged(t *testing.T) {
 	srv, got := sseServer(t, `{"id":"int_1","model":"m","status":"completed","steps":[{"type":"model_output","content":[{"type":"text","text":"ok"}]}]}`)
-	p := build(t, apiKey(srv.URL, "gemini-3.7-flash")...)
+	p := build(t, append(apiKey(srv.URL, "gemini-3.7-flash"), llmprovider.WithMaxTokens(4000))...)
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {
 		t.Fatal(err)
 	}

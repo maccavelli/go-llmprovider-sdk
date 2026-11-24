@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
@@ -32,7 +33,7 @@ func list(t *testing.T, p llmprovider.Provider) ([]string, error) {
 
 // TestListModels was TestGrokProvider_DiscoverModels.
 func TestListModels(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/models":
 			_, _ = w.Write([]byte(`{"data":[{"id":"grok-3-mini-fast"}]}`))
@@ -41,7 +42,7 @@ func TestListModels(t *testing.T) {
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
-	}))
+	})))
 	defer srv.Close()
 	models, err := list(t, build(t, apiKey(srv.URL, "grok-3-mini-fast")...))
 	if err != nil {
@@ -57,14 +58,14 @@ func TestListModels(t *testing.T) {
 func generationCounter(t *testing.T) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var posts atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			posts.Add(1)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &posts
 }
@@ -146,9 +147,9 @@ func (d *deadlineTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 // 10 s bound ListModelCatalogWithSource applies. Grok's old DiscoverModels
 // listed through the same function; no test pinned it there.
 func TestListModels_ListingBounded(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	rec := &deadlineTransport{}
 	p := build(t, apiKey(srv.URL, "m", llmprovider.WithHTTPClient(&http.Client{Transport: rec}), llmprovider.WithModelProbes(false))...)
@@ -171,12 +172,12 @@ func TestListModels_ListingBounded(t *testing.T) {
 func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 	var mu sync.Mutex
 	var agents []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		agents = append(agents, r.Method+" "+r.UserAgent())
 		mu.Unlock()
 		_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, "m", llmprovider.WithModelProbes(false), llmprovider.WithClientInfo("wire-app", "9.9.9"))...)
 	if _, err := list(t, p); err != nil {
@@ -195,7 +196,7 @@ func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 func TestListModels_ProbeBodyIsTheOldProbes(t *testing.T) {
 	var mu sync.Mutex
 	var probes []map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
 			return
@@ -206,7 +207,7 @@ func TestListModels_ProbeBodyIsTheOldProbes(t *testing.T) {
 		probes = append(probes, body)
 		mu.Unlock()
 		_, _ = w.Write([]byte(`{"id":"r","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, "grok-base", llmprovider.WithMaxTokens(77), WithStore(false),
 		llmprovider.WithReasoning(&llmprovider.Reasoning{Effort: llmprovider.EffortHigh}))...)
@@ -244,7 +245,7 @@ func (r *pathRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
 // its OAuth session's refresh through one *http.Client. It was the grok row
 // of llmprovider's test of the same name.
 func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/oauth/token":
 			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "a-refreshed", "expires_in": 3600})
@@ -253,7 +254,7 @@ func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
 		default:
 			_, _ = w.Write([]byte(okResponse))
 		}
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	session := &auth.OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a-old", Refresh: "rt-old",
 		Expiry: time.Now().Add(-time.Minute), ClientID: "client-test", TokenURL: srv.URL + "/oauth/token"}

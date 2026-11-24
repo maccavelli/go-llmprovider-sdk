@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -21,11 +22,11 @@ import (
 func TestGemini_KeyInHeaderNotURL(t *testing.T) {
 	const key = "test-api-key-gemini-123"
 	var gotKeyHeader, gotRawQuery string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotKeyHeader = r.Header.Get("x-goog-api-key")
 		gotRawQuery = r.URL.RawQuery
 		_, _ = w.Write([]byte(interactionText))
-	}))
+	})))
 	defer srv.Close()
 
 	p := build(t, llmprovider.WithAPIKey(key), llmprovider.WithModel("gemini-x"), llmprovider.WithBaseURL(srv.URL))
@@ -102,11 +103,11 @@ func TestGeminiThinkingTool(t *testing.T) {
 // §1.1, 0013 B3). It was the gemini row of
 // TestProviders_ErrorCarriesServiceMessage.
 func TestGemini_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	_, err := llmprovider.GenerateText(context.Background(), build(t, apiKey(srv.URL, "gemini-3.7-flash")...), text("hello"))
 	if err == nil || !strings.Contains(err.Error(), "model is unavailable") {

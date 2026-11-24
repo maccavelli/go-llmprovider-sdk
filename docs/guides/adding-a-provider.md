@@ -82,6 +82,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
         userAgent: st.UserAgent(),
         logger:    st.Logger(),
         maxTokens: st.MaxTokens(),
+        maxGiven:  st.MaxTokensGiven(),
     }, nil
 }
 ```
@@ -89,9 +90,12 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 - **`ResolveOptions` refuses** an option scoped to another provider, and a
   malformed `For`, with `ErrInvalidRequest` (R18). Return its error as it is.
 - **What `Settings` gives you:** `Model`, `BaseURL`, `HTTPClient`,
-  `TokenSource`, `UserAgent`, `Logger`, `MaxTokens`, `Reasoning`,
-  `SessionID`, `ModelProbes`, `ModelMetadataURL`, `ModelMetadataDisabled`,
-  and `Values` for your own options.
+  `TokenSource`, `UserAgent`, `Logger`, `MaxTokens`, `MaxTokensGiven`,
+  `Reasoning`, `SessionID`, `ModelProbes`, `ModelMetadataURL`,
+  `ModelMetadataDisabled`, and `Values` for your own options.
+  - `MaxTokens` is 8192 when the caller gave no `WithMaxTokens`;
+    `MaxTokensGiven` tells the two apart. Send `MaxTokens` only when it is
+    given (R6, R57; 0088-MADR OQ5).
   - `HTTPClient` is never nil. Without `WithHTTPClient` it is the module's
     default client, which honours the proxy variables.
   - `Logger` is never nil. Without `WithLogger` it discards everything, so log
@@ -149,8 +153,18 @@ In this order:
      returns an error (R9);
    - `req.Tools`, and `req.ToolChoice`, whose `Tool()` says whether one tool
      is forced;
-   - `req.Reasoning`, `req.MaxOutputTokens` (or `MaxTokens` from `New`), and
-     `req.PreviousResponseID` when you support `Continuation`;
+   - `req.Reasoning`, and `req.PreviousResponseID` when you support
+     `Continuation`;
+   - the output limit by R6 and R57: `req.MaxOutputTokens` as given; else
+     `MaxTokens` from `New` when `MaxTokensGiven` says the caller gave it,
+     cut to the model's stated output limit, which
+     `catalog.CachedLimits(ctx, ID, model, opts...)` reads without a fetch
+     (a provider outside this module may call it for its own id); else, on
+     a wire that requires a limit, that stated limit, and on one that does
+     not, none. Set `Response.OutputLimit`, a `llmprovider.SentLimit`, to
+     what you sent and why, on a stream's final response too
+     ([0089-MADR](../decisions/0089-MADR-model-output-limit-discovery.md)
+     D6, D7, DL57);
    - the effort and the thinking shape by the model's facts and what it
      refused, never by a rule of model names. A built-in provider takes them
      from a per-request `wire.Learner`, and sends through `wire.Send` with

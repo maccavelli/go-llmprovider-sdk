@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -51,7 +52,7 @@ func TestClaude_ConcurrentRefusalsRunCommandOnce(t *testing.T) {
 
 	arrived, retried := make(chan struct{}, requests), make(chan struct{}, requests)
 	release, done := make(chan struct{}), make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "key-1" {
 			retried <- struct{}{}
 			_, _ = io.WriteString(w, okReply)
@@ -64,7 +65,7 @@ func TestClaude_ConcurrentRefusalsRunCommandOnce(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { close(done) })
 	p := build(t, llmprovider.WithTokenSource(src), llmprovider.WithBaseURL(srv.URL))

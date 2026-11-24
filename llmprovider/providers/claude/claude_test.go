@@ -332,7 +332,11 @@ func assertThinkingFields(t *testing.T, body map[string]any, want map[string]any
 // effort is set; a Budget is an enabled budget, with max_tokens raised above
 // it. No version rule decides: a model that refuses its shape is learned from
 // (0062-MADR D2, D3; R1 removed). Each case is sent twice: with the effort and
-// budget set at construction, as the old test did, and on the request.
+// budget set at construction, as the old test did, and on the request. The
+// budget case that pins max_tokens gives WithMaxTokens(8192), so its 8192 is
+// the caller's and the budget raises it to 13,096 (0088-MADR ST101, ST16,
+// ST30); with no caller value it would send the model's chosen fact (0089-MADR
+// DL55).
 func TestThinkingWire_Claude(t *testing.T) {
 	adaptive := map[string]any{"type": "adaptive"}
 	for _, tc := range []thinkingCase{
@@ -355,6 +359,9 @@ func TestThinkingWire_Claude(t *testing.T) {
 				var body map[string]any
 				srv := captureServer(t, &body, okReply)
 				opts := apiKey(srv.URL, tc.model)
+				if _, pinned := tc.want["max_tokens"]; pinned {
+					opts = append(opts, llmprovider.WithMaxTokens(8192)) // 0088-MADR ST101
+				}
 				req := thinking(text("hi"))
 				if via == "construction" {
 					r := reasoning

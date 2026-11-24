@@ -12,7 +12,9 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatid"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
@@ -60,8 +62,11 @@ type config struct {
 	limit         int          // WithLimit's n; zero or less, the default, is no limit
 	logger        *slog.Logger // Settings.Logger
 	layers        []Layer      // WithModelLayer's, in the order given
-	workload      workload     // WithWorkload's, else the published one
-	lastGood      lastGood     // WithLastGood's
+	// observations are llmprovider.WithLimitObservations', in the order
+	// given (0089-MADR D5).
+	observations []llmprovider.LimitObservation
+	workload     workload // WithWorkload's, else the published one
+	lastGood     lastGood // WithLastGood's
 	// tokens is the credential the options give (WithAPIKey or
 	// WithTokenSource), or nil: CachedFacts finds a listing by it.
 	tokens llmprovider.TokenSource
@@ -73,6 +78,9 @@ type config struct {
 	extra func(id string, x listingExtra)
 	// store is WithCache's, else the process's (0048-MADR D1).
 	store *store
+	// memo is WithCache's memo of output caps, nil for the process's
+	// (0089-MADR D5).
+	memo *limitmemo.Memo
 	// compat reports a chatcompat provider's listing: an id no built-in has,
 	// which the options' chatcompat.WithID names (0061-MADR, amendment
 	// "chatcompat, provider-agnostic", E1).
@@ -230,6 +238,8 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.ClaudeWorkspace = workspace
 		case modelLayerOption:
 			cfg.layers = append(cfg.layers, v.layer)
+		case []llmprovider.LimitObservation:
+			cfg.observations = append(cfg.observations, v...)
 		case lastGoodOption:
 			cfg.lastGood = lastGood(v)
 		case workloadOption:
@@ -242,6 +252,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 	}
 	cfg.limit = listlimit.Of(st.Values())
 	cfg.store = storeIn(st.Values())
+	cfg.memo = cacheref.From(st.Values()).LimitMemo()
 	// A chatcompat provider's model is the server's: models.dev is read for it
 	// by canonical id, as its lowest layer (0061-MADR E2; its amendment "E2
 	// and E4's menu, made exact before Phase 4c", decision 4, X1).

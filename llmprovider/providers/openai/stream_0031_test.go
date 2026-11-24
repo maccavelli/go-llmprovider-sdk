@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -25,7 +26,7 @@ type streamRequest struct {
 func sseServer(t *testing.T, reply string) (*httptest.Server, *streamRequest) {
 	t.Helper()
 	got := &streamRequest{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		got.mu.Lock()
 		got.path, got.accept, got.body = r.URL.Path, r.Header.Get("Accept"), nil
@@ -33,7 +34,7 @@ func sseServer(t *testing.T, reply string) (*httptest.Server, *streamRequest) {
 		got.mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, reply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, got
 }
@@ -103,9 +104,12 @@ func TestStream_ChatGPT(t *testing.T) {
 
 // TestGenerate_Unchanged (0031-MADR D5): an API key's Generate asks for no
 // stream.
+// A Generate whose limit the SDK chose or left out is read over the stream
+// (0088-MADR ST88); this one names its own, which stays plain (ST88e).
 func TestGenerate_Unchanged(t *testing.T) {
 	srv, got := sseServer(t, okResponse)
-	p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithBaseURL(srv.URL))
+	p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithBaseURL(srv.URL),
+		llmprovider.WithMaxTokens(4000))
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {
 		t.Fatal(err)
 	}

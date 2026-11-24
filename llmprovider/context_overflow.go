@@ -26,6 +26,9 @@ var contextOverflowTypes = []string{
 // anchorMaxContextLength is the anchor three forms share.
 const anchorMaxContextLength = "maximum context length"
 
+// anchorContextWindow is the anchor three other forms share.
+const anchorContextWindow = "context window"
+
 // contextOverflowMessages are the message forms, each with where it was seen
 // and a lower-case literal it cannot match without, checked first
 // (0028-MADR D-A10).
@@ -36,7 +39,11 @@ var contextOverflowMessages = []struct {
 }{
 	{regexp.MustCompile(`(?i)prompt (?:is )?too long`), "Anthropic, z.ai and Ollama (pi :11, :30, :35, :38)", "too long"},
 	{regexp.MustCompile(`(?i)input is too long for requested model`), "Amazon Bedrock (pi :40)", "too long"},
-	{regexp.MustCompile(`(?i)exceeds the context window`), "OpenAI (pi :13, :41)", "context window"},
+	{regexp.MustCompile(`(?i)exceeds the context window`), "OpenAI (pi :13, :41)", anchorContextWindow},
+	// Kilo's documented window form (0088-MADR ST51, C97): an overflow on
+	// every Kilo request; a limit the SDK chose, so refused, is resent once
+	// at the room it states (0089-MADR DL35).
+	{regexp.MustCompile(`(?i)exceeds the model'?s context window of [\d,]+ tokens?`), "Kilo's documented form (0088-MADR C97)", anchorContextWindow},
 	{regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), "OpenAI-compatible proxies (pi :14-15, :42)", anchorMaxContextLength},
 	{regexp.MustCompile(`(?i)input token count.*exceeds the maximum`), "Google Gemini (pi :16, :43)", "exceeds the maximum"},
 	{regexp.MustCompile(`(?i)maximum prompt length is \d+`), "xAI (pi :17, :44)", "maximum prompt length"},
@@ -47,7 +54,7 @@ var contextOverflowMessages = []struct {
 	{regexp.MustCompile(`(?i)exceeds the limit of \d+`), "GitHub Copilot (pi :24, :49)", "exceeds the limit"},
 	{regexp.MustCompile(`(?i)exceeds the available context size`), "llama.cpp (pi :22, :50)", "available context size"},
 	{regexp.MustCompile(`(?i)greater than the context length`), "LM Studio (pi :23, :51)", "context length"},
-	{regexp.MustCompile(`(?i)context window exceeds limit`), "MiniMax (pi :25, :52)", "context window"},
+	{regexp.MustCompile(`(?i)context window exceeds limit`), "MiniMax (pi :25, :52)", anchorContextWindow},
 	{regexp.MustCompile(`(?i)exceeded model token limit`), "Kimi (pi :26, :53)", "token limit"},
 	{regexp.MustCompile(`(?i)too large for model with \d+ maximum context length`), "Mistral (pi :29, :54)", anchorMaxContextLength},
 	{regexp.MustCompile(`(?i)prompt has [\d,]+ tokens?, but the configured context size is [\d,]+ tokens?`), "DS4 (pi :27, :55)", "configured context size"},

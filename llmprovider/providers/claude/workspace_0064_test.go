@@ -115,9 +115,11 @@ func TestWorkspace_Header_0064(t *testing.T) {
 			seen := s.take()
 			for _, kind := range []string{"list", "stream", "post"} {
 				all, named := count(seen, kind, tc.want)
-				// Two listing pages; one stream; the generation and a probe
-				// of each of the two listed models.
-				want := map[string]int{"list": 2, "stream": 1, "post": 3}[kind]
+				// Two listing pages; two streams, the Stream's and the
+				// generation's, whose limit the SDK chose, read over the
+				// stream (0088-MADR ST88, ST88e); a probe of each of the two
+				// listed models.
+				want := map[string]int{"list": 2, "stream": 2, "post": 2}[kind]
 				if all != want || named != all {
 					t.Errorf("%s: %d requests, %d naming %q; want %d, all naming it (%v)", kind, all, named, tc.want, want, seen)
 				}

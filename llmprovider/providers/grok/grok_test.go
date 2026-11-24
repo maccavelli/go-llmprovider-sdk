@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -122,7 +123,7 @@ func TestGrok_GenerateThinking_ReasoningEffortSent(t *testing.T) {
 func TestGrok_GenerateThinking_ReasoningEffortOmitted(t *testing.T) {
 	var mu sync.Mutex
 	var bodies []map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		mu.Lock()
@@ -135,7 +136,7 @@ func TestGrok_GenerateThinking_ReasoningEffortOmitted(t *testing.T) {
 			return
 		}
 		_, _ = io.WriteString(w, okResponse)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, "grok-4", llmprovider.WithReasoning(&llmprovider.Reasoning{Effort: llmprovider.EffortHigh}))...)
 	resp, err := p.Generate(context.Background(), thinking(text("hi")))
@@ -224,9 +225,9 @@ func TestGrok_ErrorClassification(t *testing.T) {
 		{422, llmprovider.ErrInvalidRequest},
 	}
 	for _, tc := range tests {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(tc.status)
-		}))
+		})))
 		_, err := build(t, apiKey(srv.URL, "grok-4")...).Generate(context.Background(), text("hi"))
 		srv.Close()
 		if !errors.Is(err, tc.target) {
@@ -239,10 +240,10 @@ func TestGrok_ErrorClassification(t *testing.T) {
 func TestGrok_KeyInHeader(t *testing.T) {
 	const key = "test-api-key-grok-123"
 	var gotAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(okResponse))
-	}))
+	})))
 	defer srv.Close()
 	p := build(t, llmprovider.WithAPIKey(key), llmprovider.WithModel("grok-4"), llmprovider.WithBaseURL(srv.URL))
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {
@@ -331,11 +332,11 @@ func TestGrok_WithStore(t *testing.T) {
 // explanation and still matches the sentinel its status maps to (MADR 0012
 // §1.1, 0013 B3). It was the grok row of TestProviders_ErrorCarriesServiceMessage.
 func TestGrok_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	_, err := llmprovider.GenerateText(context.Background(), build(t, apiKey(srv.URL, "grok-4.5")...), text("hello"))
 	if err == nil || !strings.Contains(err.Error(), "model is unavailable") {
@@ -354,12 +355,12 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 func TestGrok_Identification(t *testing.T) {
 	var mu sync.Mutex
 	var seen http.Header
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		seen = r.Header.Clone()
 		mu.Unlock()
 		_, _ = w.Write([]byte(okResponse))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	if _, err := build(t, apiKey(srv.URL, "grok-4.5")...).Generate(context.Background(), text("hello")); err != nil {
 		t.Fatalf("Generate: %v", err)

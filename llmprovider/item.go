@@ -138,6 +138,10 @@ type Response struct {
 	// exactly as asked, such as a forced tool choice sent as auto. Nil when
 	// it was (0034-MADR D7).
 	Warnings []Warning
+
+	// OutputLimit is the output limit the request carried, and why
+	// (0089-MADR D7); zero where the provider does not report it.
+	OutputLimit SentLimit
 }
 
 // OutputText returns the concatenation of all MessageItem texts in Output,

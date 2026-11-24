@@ -195,6 +195,7 @@ is a reader and a phase rather than a new decision.
 * Live deltas and `WithRetry` are therefore exclusive. A caller that wants
   text as it arrives streams from the provider unwrapped and handles a
   failure itself; the `WithRetry` doc says so.
+* *(Annotated 2026-11-23, under [0088-MADR-default-output-limit-from-model-facts.md](0088-MADR-default-output-limit-from-model-facts.md) ST88 and ST88a: "a failure at any point is retried" now holds for a plain `Generate` only, one that names its own output limit. A `Generate` that names none is read over the service's stream (ST88), and `WithRetry` retries its failure only until its first event; a failure after it is returned, not resent, as for any stream (`transport.AfterEvent`, which `retryable` does not retry). Additions only; the decision above stands for the plain request.)*
 
 ### D7. A conformance check for every `Streamer`
 

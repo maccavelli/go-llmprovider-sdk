@@ -113,8 +113,19 @@
 // From them comes the thinking shape: a budget bound means an enabled
 // budget within it, efforts mean adaptive thinking with the effort, and a
 // toggle alone means adaptive thinking with none.
-// With no MaxOutputTokens, the output limit is the default, cut to the
-// model's own when that is smaller; it is never raised.
+// The output limit (0089-MADR D6, D7): a request's own MaxOutputTokens is
+// sent as given, and WithMaxTokens' value cut to the model's stated limit,
+// never raised. Otherwise, as the Messages API requires a limit, the
+// model's chosen output fact (catalog.CachedLimits) is sent, held to its
+// window and to a cap the service stated; with no fact, the smallest limit
+// any current Claude model is stated to take; with none of those, the
+// request is refused before the network with ErrInvalidRequest, its message
+// saying how to state the limit. A refusal of a limit the SDK chose, in
+// Anthropic's "max_tokens: N > M" form and validated as 0089-MADR D4 says,
+// is sent once more at M, outside the bound below; M is kept for the rest
+// of the process, in memory only, and reported in a WarningLimitLearned,
+// unless llmprovider.WithoutLimitLearning is given. The Response, and a
+// stream's done event, carry the limit sent in OutputLimit.
 // With no facts, the request decides the shape, and a refusal is learned
 // (0062-MADR D2, D3).
 //
@@ -132,6 +143,7 @@
 package claude
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -145,6 +157,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
@@ -190,6 +203,13 @@ type provider struct {
 	client    *http.Client
 	caps      llmprovider.Capabilities
 	maxTokens int
+	// maxGiven reports that WithMaxTokens gave maxTokens, or that a probe set
+	// it: a given value is the caller's (0088-MADR ST15, ST26).
+	maxGiven bool
+	// learn is false under llmprovider.WithoutLimitLearning (0089-MADR DL73);
+	// givenBase is WithBaseURL's, as a LimitObservation names it.
+	learn     bool
+	givenBase string
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
 	forcing   messages.Policy        // WithForcedChoiceFallback's and WithModelForcedChoice's
 	userAgent string
@@ -236,6 +256,9 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		baseURL:   defaultBaseURL,
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
+		maxGiven:  st.MaxTokensGiven(),
+		learn:     !limitmemo.LearningOff(st.Values()),
+		givenBase: st.BaseURL(),
 		reasoning: st.Reasoning(),
 		forcing:   messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices(), cacheref.From(st.Values()).LearnedRefusals()),
 		userAgent: st.UserAgent(),
@@ -277,9 +300,14 @@ func (p *provider) ID() llmprovider.ProviderID { return llmprovider.ProviderClau
 func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 
 // Generate sends req to the Messages API.
+// When the SDK chose its output limit or left it out, it is read over the
+// stream and returned whole (0088-MADR ST88).
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
+	}
+	if wire.OverStream(req, p.maxGiven) {
+		return wire.Collect(string(llmprovider.ProviderClaude), p.Stream(ctx, req))
 	}
 	f := p.forcingFor(req)
 	// A required choice a model refuses fails here unless the caller opted in
@@ -293,14 +321,17 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// sent once more, or the refusal returned (0034-MADR D3). A refusal of the
 	// effort sent is learned, and the request built again (0062-MADR D5).
 	retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
+	// A refusal of the output limit that states a cap resends once at it,
+	// outside that bound (0089-MADR D4 to D6).
+	limit := p.limitRetry(req, false)
 	// The tools the body holds, once, for the encoder and for resolving the
 	// index of a refused one (0084-MADR D4).
 	form, tools := p.tools(req)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
 		func(token llmprovider.Token) wire.Call {
-			return p.call(req, p.facts(ctx, req, token), false, effort, tools)
+			return p.call(req, p.facts(ctx, req, token), false, effort, tools, limit, p.limitInput(ctx, req, token, false, limit))
 		},
-		messages.Decode, wire.Retries(retry.Check, effort.Check))
+		messages.Decode, wire.Retries(limit.Check, retry.Check, effort.Check))
 	// A refusal of a tool's schema names the tool it refused, by the index it
 	// gave into the list as sent (0084-MADR D2, D4).
 	err = wire.NameRefusedTool(err, wire.Held{Listed: deferral.Listed(tools, form)})
@@ -314,6 +345,8 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 				resp.Warnings = append(resp.Warnings, w)
 			}
 		}
+		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+		limit.Finish(resp, p.observe(req, false))
 	}
 	return resp, err
 }
@@ -346,14 +379,16 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		// Each range is its own request, with its own retry checks and its own
 		// list of the tools the body holds (0084-MADR D4).
 		retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
+		limit := p.limitRetry(req, true)
 		form, tools := p.tools(req)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
 			func(token llmprovider.Token) wire.Call {
-				return p.call(req, p.facts(ctx, req, token), true, effort, tools)
+				return p.call(req, p.facts(ctx, req, token), true, effort, tools, limit, p.limitInput(ctx, req, token, true, limit))
 			},
-			messages.Events, wire.Retries(retry.Check, effort.Check))
+			messages.Events, wire.Retries(limit.Check, retry.Check, effort.Check))
 		stream = wire.NameRefusedStream(stream, wire.Held{Listed: deferral.Listed(tools, form)})
 		stream = messages.StructuredStream(req, f, stream)
+		stream = limit.FinishStream(stream, p.observe(req, true))
 		for ev, err := range messages.WarnOnDone(stream, retry.Warning,
 			func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }) {
 			if !yield(ev, err) {
@@ -386,10 +421,16 @@ func (p *provider) tools(req *llmprovider.Request) (deferral.Form, []llmprovider
 }
 
 // call is the Messages request for req, asking for an event stream when
-// stream is set, at the effort effort chooses, sending tools.
+// stream is set, at the effort effort chooses, sending tools, with the
+// output limit limit chooses from in. A request no limit can be chosen for
+// is refused before the network (0089-MADR DL51).
 func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner,
-	tools []llmprovider.Tool) wire.Call {
-	body, warnings := p.body(req, facts, effort, tools)
+	tools []llmprovider.Tool, limit *wire.LimitRetry, in wire.LimitInput) wire.Call {
+	chosen, refused := limit.Choose(in)
+	body, warnings := p.body(req, facts, effort, tools, chosen.Tokens)
+	if sent, ok := body["max_tokens"].(int); ok {
+		limit.Sent(sent)
+	}
 	if stream {
 		body["stream"] = true
 	}
@@ -407,8 +448,8 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		Warnings: append(deferral.Warnings(deferral.Of(deferral.Messages, model), req, model), warnings...),
 		// A model whose facts take no image is refused before the network
 		// (0061-MADR D5).
-		Refusal: wire.RefuseImages(model, req.Input, facts.Has(catalog.FieldInput),
-			slices.Contains(facts.Input, catalog.ModalityImage)),
+		Refusal: cmp.Or(refused, wire.RefuseImages(model, req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage))),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")
@@ -453,17 +494,11 @@ func outputLimit(info catalog.ModelInfo) int {
 
 // body is the Messages request for req, with its model's facts, at the
 // effort effort chooses, sending tools, the list p.tools gave for the
-// request.
+// request, and maxTokens, the output limit chosen (0089-MADR D6), which a
+// thinking budget may raise (DL55).
 func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effort *wire.Learner,
-	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
+	tools []llmprovider.Tool, maxTokens int) (map[string]any, []llmprovider.Warning) {
 	model := p.modelFor(req)
-	maxTokens := p.maxTokens
-	if req.MaxOutputTokens > 0 {
-		maxTokens = req.MaxOutputTokens
-	} else if limit := outputLimit(facts); limit > 0 {
-		// The default, cut to the model's limit, never raised (0041-MADR D2).
-		maxTokens = min(maxTokens, limit)
-	}
 	// Deferred tools go out in the model's form (0040-MADR D1, D2, D6).
 	form := deferral.Of(deferral.Messages, model)
 	msgs := messages.FromItems(req.Input)
@@ -542,7 +577,9 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	}
 	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderClaude, p.baseURL, p.workspace, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
-		probe.model, probe.maxTokens, probe.reasoning = model, probeMaxTokens, nil
+		// The probe's 8192 is given: sent as it is, whatever the facts state
+		// (0088-MADR ST26; 0089-MADR DL53).
+		probe.model, probe.maxTokens, probe.maxGiven, probe.reasoning = model, probeMaxTokens, true, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
@@ -39,14 +40,14 @@ func TestDefaultClient_HonoursProxy(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var hosts []string
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		hosts = append(hosts, r.Host)
 		mu.Unlock()
 		reply := wirecase.Case{}.Reply(r)
 		w.WriteHeader(max(reply.Status, http.StatusOK))
 		_, _ = w.Write([]byte(reply.Body))
-	}))
+	})))
 	t.Cleanup(proxy.Close)
 
 	cmd := exec.Command(os.Args[0], "-test.run=^TestDefaultClient_HonoursProxy$", "-test.count=1")

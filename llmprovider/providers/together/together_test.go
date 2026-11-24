@@ -80,8 +80,10 @@ func TestTogether_RequestShapes(t *testing.T) {
 				if path != "/chat/completions" || header.Get("Authorization") != "Bearer tg-key" {
 					t.Errorf("path %q, Authorization %q", path, header.Get("Authorization"))
 				}
-				if body["max_tokens"] != float64(8192) || body["model"] != "openai/gpt-oss-120b" {
-					t.Errorf("max_tokens %v, model %v", body["max_tokens"], body["model"])
+				// No limit named, none sent: the service's own default applies
+				// (0088-MADR ST86, ST102; 0089-MADR DL47).
+				if limit, sent := body["max_tokens"]; sent || body["model"] != "openai/gpt-oss-120b" {
+					t.Errorf("max_tokens %v (sent %t; want none), model %v", limit, sent, body["model"])
 				}
 				assertThinkingFields(t, body, map[string]any{"reasoning": tc.wantReasoning, "reasoning_effort": tc.wantEffort})
 				choice, forced := body["tool_choice"]

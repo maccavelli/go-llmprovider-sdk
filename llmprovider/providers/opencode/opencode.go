@@ -111,9 +111,22 @@
 //     hold of its model, a caller's catalog.WithModelLayer and the models.dev
 //     document once fetched, and never fetches. From them come the messages
 //     route's thinking shape, as the claude package sends it; the google
-//     route's thinkingLevel, from the levels the model lists; and, with no
-//     MaxOutputTokens, the default output limit cut to the model's. With no
+//     route's thinkingLevel, from the levels the model lists. With no
 //     facts the request decides the shape (0062-MADR D2).
+//   - The output limit (0089-MADR D6, D7): a request's own MaxOutputTokens
+//     is sent as given, and WithMaxTokens' value cut to the model's stated
+//     limit, never raised. Otherwise the messages route, whose wire requires
+//     a limit, sends the model's chosen output fact (catalog.CachedLimits),
+//     held to its window and to a cap the gateway stated; with no fact, the
+//     smallest limit among the models OpenCode's route table sends to that
+//     route (DL51, DL77); with none of those, the request is refused before
+//     the network with ErrInvalidRequest, its message saying how to state
+//     the limit. A refusal of a limit the SDK chose, in Anthropic's form and
+//     validated as 0089-MADR D4 says, is sent once more at the stated cap,
+//     which is kept for the process unless llmprovider.WithoutLimitLearning
+//     is given. The responses, chat and google routes send none unless the
+//     caller gives one (DL47). The Response, and a stream's done event, carry
+//     the limit sent in OutputLimit.
 //
 // A refusal of a tool's schema is an *APIError of kind
 // llmprovider.ErrToolSchemaRefused when its reply carries a marker the
@@ -154,6 +167,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/limitmemo"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -201,13 +215,21 @@ func WithRoute(route Route) llmprovider.Option {
 }
 
 type provider struct {
-	gateway     llmprovider.ProviderID
-	src         llmprovider.TokenSource
-	model       string
-	baseURL     string
-	client      *http.Client
-	caps        llmprovider.Capabilities
-	maxTokens   int
+	gateway   llmprovider.ProviderID
+	src       llmprovider.TokenSource
+	model     string
+	baseURL   string
+	client    *http.Client
+	caps      llmprovider.Capabilities
+	maxTokens int
+	// maxGiven reports that WithMaxTokens gave maxTokens (0088-MADR ST15);
+	// learn is false under llmprovider.WithoutLimitLearning (0089-MADR DL73).
+	maxGiven bool
+	learn    bool
+	// limits is catalog.WithCache's memo of output caps, nil for the
+	// process's; defaultBase is the gateway's own base URL (0089-MADR D5).
+	limits      *limitmemo.Memo
+	defaultBase string
 	reasoning   *llmprovider.Reasoning // WithReasoning's default, or nil
 	forcing     messages.Policy        // WithForcedChoiceFallback's and WithModelForcedChoice's
 	route       Route                  // WithRoute's, or the table's for model
@@ -270,6 +292,10 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		baseURL:     base,
 		client:      st.HTTPClient(),
 		maxTokens:   st.MaxTokens(),
+		maxGiven:    st.MaxTokensGiven(),
+		learn:       !limitmemo.LearningOff(st.Values()),
+		limits:      cacheref.From(st.Values()).LimitMemo(),
+		defaultBase: base,
 		reasoning:   st.Reasoning(),
 		forcing:     messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices(), cacheref.From(st.Values()).LearnedRefusals()),
 		metadataOff: st.ModelMetadataDisabled(),
@@ -321,6 +347,11 @@ type call struct {
 	// facts is what the caches know of the model, read once per request
 	// (0041-MADR D1).
 	facts catalog.ModelInfo
+	// limits is what the caches state of the model's limits, read once per
+	// request, and limit the messages route's output limit across its
+	// sends (0089-MADR D6); nil on another route.
+	limits catalog.Limits
+	limit  *wire.LimitRetry
 	// dropped is a warning for each image the route did not send
 	// (0061-MADR D5).
 	dropped []llmprovider.Warning
@@ -331,21 +362,32 @@ type call struct {
 	held  wire.Held
 }
 
-// Generate sends req to the gateway on the model's route.
+// Generate sends req to the gateway on the model's route. When the SDK
+// chose its output limit or left it out, it is read over the route's stream
+// and returned whole (0088-MADR ST88).
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
 	c := p.resolve(ctx, req)
+	if streams(c.route) && wire.OverStream(req, p.maxGiven) {
+		return wire.Collect(string(p.gateway), p.Stream(ctx, req))
+	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the effort sent is learned, and the
 	// request built again (0062-MADR D5).
 	effort := p.learner(c)
+	// The call reads c as it is when sent, its limit set below.
 	build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, false, effort) }
 	if c.route != RouteMessages {
 		// A refusal of a tool's schema names the tool it refused, when the
 		// body held it (0084-MADR D2, D4).
-		resp, err := wire.Send(ctx, "opencode", p.src, build, p.decode(c), effort.Check)
+		c.limit = p.limitRetry(c, false)
+		resp, err := wire.Send(ctx, "opencode", p.src, build, p.decode(c), wire.Retries(c.limit.Check, effort.Check))
+		if err == nil {
+			// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+			c.limit.Finish(resp, p.observe(c, false))
+		}
 		return resp, wire.NameRefusedTool(err, c.held)
 	}
 	f := p.forcing.For(string(p.gateway), c.model)
@@ -358,9 +400,15 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// no layer knows is learned, and handled by policy (0034-MADR D3); a
 	// refusal learned, and a forced choice sent as auto, are reported (D7).
 	retry := messages.NewRefusalRetry(f, req.ToolChoice)
-	resp, err := wire.Send(ctx, "opencode", p.src, build, messages.Decode, wire.Retries(retry.Check, effort.Check))
+	// A refusal of the output limit that states a cap resends once at it,
+	// outside that bound (0089-MADR D4 to D6).
+	c.limit = p.limitRetry(c, false)
+	resp, err := wire.Send(ctx, "opencode", p.src, build, messages.Decode,
+		wire.Retries(c.limit.Check, retry.Check, effort.Check))
 	err = wire.NameRefusedTool(err, c.held)
 	if err == nil {
+		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+		c.limit.Finish(resp, p.observe(c, false))
 		messages.StructuredCall(req, f, resp)
 		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning,
 			func() (llmprovider.Warning, bool) { return messages.ToolChoiceWarning(req, c.reasoning != nil, f) }} {
@@ -392,11 +440,14 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		// retry checks.
 		return func(yield func(llmprovider.Event, error) bool) {
 			retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(c)
+			c := c
+			c.limit = p.limitRetry(c, true)
 			build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }
 			stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src, build, messages.Events,
-				wire.Retries(retry.Check, effort.Check))
+				wire.Retries(c.limit.Check, retry.Check, effort.Check))
 			stream = wire.NameRefusedStream(stream, c.held)
 			stream = messages.StructuredStream(req, f, stream)
+			stream = c.limit.FinishStream(stream, p.observe(c, true))
 			for ev, err := range messages.WarnOnDone(stream, retry.Warning, func() (llmprovider.Warning, bool) {
 				return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
 			}) {
@@ -420,14 +471,24 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	return func(yield func(llmprovider.Event, error) bool) {
 		// Each range is its own request, with its own effort learner.
 		effort := p.learner(c)
+		c := c
+		c.limit = p.limitRetry(c, true)
 		stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src,
-			func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }, events, effort.Check)
+			func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }, events,
+			wire.Retries(c.limit.Check, effort.Check))
+		stream = c.limit.FinishStream(stream, p.observe(c, true))
 		for ev, err := range wire.NameRefusedStream(stream, c.held) {
 			if !yield(ev, err) {
 				return
 			}
 		}
 	}
+}
+
+// streams reports whether Stream reads route's own event stream, rather
+// than Generate's result.
+func streams(route Route) bool {
+	return route == RouteMessages || route == RouteResponses || route == RouteChatCompletions || route == RouteGoogle
 }
 
 // generateOnly is a provider without its Stream, so that llmprovider.Stream
@@ -451,13 +512,13 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	// The gateways are not listing layers, so the facts need no token, and
 	// are never waited for (0041-MADR D1).
 	c.facts, _ = catalog.CachedFacts(ctx, p.gateway, c.model, p.listing...)
-	if req.MaxOutputTokens > 0 {
-		c.maxTokens = req.MaxOutputTokens
-	} else if limit := c.facts.MaxOutputTokens; limit > 0 && c.facts.Has(catalog.FieldMaxOutputTokens) {
-		// The default, cut to the model's limit, never raised (0041-MADR D2).
-		c.maxTokens = min(c.maxTokens, limit)
-	}
 	c.route = p.requestRoute(ctx, c.model)
+	if c.route == RouteMessages || (p.maxGiven && req.MaxOutputTokens <= 0) {
+		// The model's limits: the messages route's output limit, and on
+		// another route the stated limit a given option is cut to
+		// (0089-MADR D6).
+		c.limits = catalog.CachedLimits(ctx, p.gateway, c.model, p.listing...)
+	}
 	if c.route == RouteGoogle {
 		// No generateContent form for an image by URL is confirmed, so the
 		// google route drops one, warned (0061-MADR D5, E7).
@@ -517,15 +578,38 @@ func (p *provider) decode(c call) func(io.Reader) (*llmprovider.Response, error)
 func (p *provider) routeCall(ctx context.Context, c call, stream bool, effort *wire.Learner) wire.Call {
 	var body map[string]any
 	var warnings []llmprovider.Warning
+	// The output limit on an optional route: none unless the caller gives one
+	// (0089-MADR D6, DL47); the messages route chooses its own below.
+	var optional llmprovider.SentLimit
+	if c.route != RouteMessages {
+		optional = c.limit.Optional(c.req.MaxOutputTokens, p.maxTokens, p.maxGiven, func() (int, string) {
+			return statedOutput(c.limits, stream)
+		})
+		c.maxTokens = optional.Tokens
+	}
 	switch c.route {
 	case RouteResponses:
 		body, warnings = p.responsesBody(c, effort)
+		wire.DropLimit(body, optional, "max_output_tokens")
 	case RouteMessages:
-		body, warnings = p.messagesBody(c, effort)
+		chosen, refused := c.limit.Choose(p.limitInput(c, stream))
+		body, warnings = p.messagesBody(c, effort, chosen.Tokens)
+		if sent, ok := body[jsonKeyMaxTokens].(int); ok {
+			c.limit.Sent(sent)
+		}
+		if refused != nil {
+			// No limit can be chosen: refused before the network (0089-MADR
+			// DL51).
+			call := p.wireCall(c, body, stream, warnings)
+			call.Refusal = refused
+			return call
+		}
 	case RouteGoogle:
 		body, warnings = p.googleBody(c, effort)
+		wire.DropLimit(body, optional, "generationConfig", "maxOutputTokens")
 	default:
 		body, warnings = p.chatBody(ctx, c, effort)
+		wire.DropLimit(body, optional, jsonKeyMaxTokens)
 	}
 	switch {
 	case !stream, c.route == RouteGoogle:
@@ -712,9 +796,9 @@ func (p *provider) responsesBody(c call, learner *wire.Learner) (map[string]any,
 }
 
 // messagesBody is the Anthropic Messages shape, at the effort learner
-// chooses, with its warnings.
-func (p *provider) messagesBody(c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
-	maxTokens := c.maxTokens
+// chooses, with its warnings, and maxTokens, the output limit chosen
+// (0089-MADR D6), which a thinking budget may raise (DL55).
+func (p *provider) messagesBody(c call, learner *wire.Learner, maxTokens int) (map[string]any, []llmprovider.Warning) {
 	// Deferred tools go out in the model's form: a Claude model's natively,
 	// any other model's appended as loaded (0040-MADR D1, D2, D6).
 	form := c.deferForm()
@@ -907,4 +991,72 @@ func (p *provider) metadata(ctx context.Context) (catalog.Metadata, error) {
 	// The lookup names the caller's application, as generation does
 	// (0026-MADR F33).
 	return catalog.LookupMetadataWith(ctx, p.gateway, p.listing...)
+}
+
+// memoKey is c's key in the memo of output caps (0089-MADR D5).
+func (p *provider) memoKey(c call, stream bool) limitmemo.Key {
+	base := p.baseURL
+	if strings.EqualFold(base, p.defaultBase) {
+		base = ""
+	}
+	return limitmemo.Key{Provider: string(p.gateway), BaseURL: base, Model: c.model, Stream: stream}
+}
+
+// routeLimits is what route reads of a refusal of its output limit
+// (0089-MADR DL68).
+func routeLimits(route Route) wire.LimitWire {
+	switch route {
+	case RouteMessages:
+		return wire.MessagesLimits
+	case RouteResponses:
+		return wire.ResponsesLimits
+	case RouteGoogle:
+		return wire.GenerateContentLimits
+	}
+	return wire.ChatCompletionsLimits
+}
+
+// statedOutput is the output limits states for a streamed or a plain
+// request, and its evidence's source; 0 when no source states it.
+func statedOutput(limits catalog.Limits, stream bool) (int, string) {
+	out := limits.Output
+	if stream {
+		out = limits.StreamedOutput
+	}
+	if !out.Known {
+		return 0, ""
+	}
+	return out.Tokens, out.Evidence[0].Source
+}
+
+// limitRetry is c's output limit across its sends, on c's route.
+func (p *provider) limitRetry(c call, stream bool) *wire.LimitRetry {
+	given := p.baseURL
+	if strings.EqualFold(given, p.defaultBase) {
+		given = ""
+	}
+	r := &wire.LimitRetry{Wire: routeLimits(c.route), Model: c.model,
+		Observed: llmprovider.LimitObservation{Model: c.model, BaseURL: given}}
+	if p.learn {
+		memo, key := p.limits, p.memoKey(c, stream)
+		r.Keep = func(tokens int) bool { return memo.Keep(key, tokens) }
+	}
+	return r
+}
+
+// observe is c's memo's drop of a cap a response shows wrong (DL39).
+func (p *provider) observe(c call, stream bool) func(int) {
+	memo, key := p.limits, p.memoKey(c, stream)
+	return func(output int) { memo.Observe(key, output) }
+}
+
+// limitInput is what c's output limit is chosen from on the messages route,
+// which requires one: the request's own value, the option, the model's
+// chosen output fact, and the route's fallback (0089-MADR D6, DL51).
+func (p *provider) limitInput(c call, stream bool) wire.LimitInput {
+	in := wire.LimitInput{Request: c.req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
+		Required: true, Provider: string(p.gateway), Model: c.model}
+	in.Output, in.Source = statedOutput(c.limits, stream)
+	in.Fallback, in.FallbackSource = p.limits.Fallback(p.memoKey(c, false))
+	return in
 }

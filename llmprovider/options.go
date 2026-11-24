@@ -13,7 +13,10 @@ import (
 type providerConfig struct {
 	HTTPClient *http.Client
 	MaxTokens  int
-	BaseURL    string // For Ollama URL and test injection
+	// MaxTokensGiven reports that WithMaxTokens set MaxTokens, so that a given
+	// 8192 is told from the default (0088-MADR A7, ST35).
+	MaxTokensGiven bool
+	BaseURL        string // For Ollama URL and test injection
 	// ModelMetadataURL overrides the models.dev-format document the open
 	// catalogs are ranked with, and OpenCode's chat route reads
 	// reasoning_options from. Empty uses https://models.opencode.ai/api.json;
@@ -72,11 +75,15 @@ func NewHTTPClient() *http.Client {
 	return transport.DefaultClient()
 }
 
-// WithMaxTokens sets the maximum response tokens for the provider. It must be
-// positive: New refuses another value with ErrInvalidRequest (R23).
+// WithMaxTokens sets the output limit the provider sends when a request names
+// none, cut to the model's stated limit and never raised (0088-MADR ST15). It
+// must be positive: New refuses another value with ErrInvalidRequest (R23).
+// A given value is the caller's, 8192 included (Settings.MaxTokensGiven);
+// without it, the provider sends what 0089-MADR D6 decides.
 func WithMaxTokens(n int) Option {
 	return commonOption("WithMaxTokens", func(cfg *providerConfig) {
 		cfg.MaxTokens = n
+		cfg.MaxTokensGiven = true
 	})
 }
 

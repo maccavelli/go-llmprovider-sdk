@@ -14,6 +14,7 @@ var overflowSamples = map[string]string{
 	"Anthropic, z.ai and Ollama (pi :11, :30, :35, :38)": "prompt is too long: 213462 tokens > 200000 maximum",
 	"Amazon Bedrock (pi :40)":                            "Input is too long for requested model.",
 	"OpenAI (pi :13, :41)":                               "Your input exceeds the context window of this model.",
+	"Kilo's documented form (0088-MADR C97)":             "This request exceeds the model's context window of 200000 tokens. Your request contains approximately 250000 tokens.",
 	"OpenAI-compatible proxies (pi :14-15, :42)":         "Requested token count exceeds the model's maximum context length of 131072 tokens",
 	"Google Gemini (pi :16, :43)":                        "The input token count (1196265) exceeds the maximum number of tokens allowed (1048575)",
 	"xAI (pi :17, :44)":                                  "This model's maximum prompt length is 131072 but the request contains 537812 tokens",

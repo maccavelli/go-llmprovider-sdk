@@ -129,10 +129,13 @@ func TestStream_GoogleRouteNative(t *testing.T) {
 
 // TestGenerate_Unchanged (0031-MADR D5): Generate on the responses route asks
 // for no stream.
+// A Generate whose limit the SDK chose or left out is read over the stream
+// (0088-MADR ST88); this one names its own, which stays plain (ST88e).
 func TestGenerate_Unchanged(t *testing.T) {
 	var body map[string]any
 	srv := captureServer(t, &body, `{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`)
-	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "some-model", WithRoute(RouteResponses))...)
+	p := build(t, llmprovider.ProviderOpencodeGo, append(apiKey(srv.URL, "some-model", WithRoute(RouteResponses)),
+		llmprovider.WithMaxTokens(4000))...)
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {
 		t.Fatal(err)
 	}

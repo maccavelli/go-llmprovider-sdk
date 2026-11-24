@@ -642,8 +642,8 @@ func TestDiscover_Stale_0089(t *testing.T) {
 
 // TestDiscover_Offline_0089 (DL24, its Phase 1 part): every server closed
 // or answering an empty document: the caller's layer and the extract
-// answer, and the empty document states nothing. Phase 2 adds a
-// passed-back cap (0089-PLAN deviation 1).
+// answer, and the empty document states nothing; a passed-back cap is kept
+// beside them (0089-PLAN deviation 1: its case added in the merged phase).
 func TestDiscover_Offline_0089(t *testing.T) {
 	withExtract(t, opusExtract)
 	listing := newCountingServer(t, func(w http.ResponseWriter, _ *http.Request) {})
@@ -667,6 +667,21 @@ func TestDiscover_Offline_0089(t *testing.T) {
 				t.Errorf("evidence %+v from the empty document", e)
 			}
 		}
+	}
+
+	// The passed-back cap's case: offline, on a cold cache, a caller layer
+	// and a passed-back cap: those two and the extract's facts.
+	_, c = limitsCache(t)
+	back := llmprovider.LimitObservation{Model: "claude-opus-4-6", BaseURL: listing.URL, Tokens: 30000, Seen: time.Now().Add(-time.Hour)}
+	l, err = LookupLimits(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), "claude-opus-4-6",
+		llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(doc.URL), c,
+		WithModelLayer(outputLayer("models.json", 20000)), llmprovider.WithLimitObservations(back))
+	if err == nil || errors.As(err, &apiErr) {
+		t.Errorf("passed back: err = %v; want the listing's transport failure", err)
+	}
+	wantFact(t, "offline output, passed back", l.Output, 20000, "models.json")
+	if !hasSource(l.Output, "models.dev (bundled 2026-10-12)", 64000) || !hasSource(l.Output, "remembered", 30000) {
+		t.Errorf("offline output, passed back = %+v; want the extract's 64,000 and the remembered 30,000", l.Output)
 	}
 }
 

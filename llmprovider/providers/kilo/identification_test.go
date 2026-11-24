@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -22,12 +23,12 @@ func headerServer(t *testing.T) (*httptest.Server, func() []http.Header) {
 	t.Helper()
 	var mu sync.Mutex
 	var seen []http.Header
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		seen = append(seen, r.Header.Clone())
 		mu.Unlock()
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, func() []http.Header {
 		mu.Lock()
@@ -113,11 +114,11 @@ func TestKilo_KeylessSendsTheAnonymousToken(t *testing.T) {
 // explanation and still matches the sentinel its status maps to (MADR 0012
 // §1.1, 0013 B3). It was the kilo row of TestProviders_ErrorCarriesServiceMessage.
 func TestKilo_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	_, err := llmprovider.GenerateText(context.Background(), build(t, apiKey(srv.URL, "some/model")...), text("hello"))
 	if err == nil || !strings.Contains(err.Error(), "model is unavailable") {

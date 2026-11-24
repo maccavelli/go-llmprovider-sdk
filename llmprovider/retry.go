@@ -75,6 +75,10 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //     D1). So is a failure after the request was written, such as a timeout
 //     awaiting the reply's headers (0028-MADR D-H1). That retry counts
 //     against MaxAttempts.
+//   - A Generate that a provider reads over the service's stream, because
+//     the SDK chose its output limit or left it out (0088-MADR ST88), is
+//     retried as above until the stream's first event, and not after it: a
+//     failure after an event is returned, as for any stream (ST88a).
 //   - A TLS certificate the client refuses is returned at once, as an
 //     HTTP 501 or 505 is: a retry would meet the same answer (0068-MADR
 //     D2).
@@ -87,8 +91,10 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //
 // The result does not stream natively, even when p does; Stream falls back to
 // its Generate. That buffers the stream so that it can be retried whole: a
-// failure at any point is retried, and the caller receives events only from
-// the attempt that succeeds, never text it already holds. A caller that wants
+// failure at any point of a plain Generate is retried, and the caller
+// receives events only from the attempt that succeeds, never text it already
+// holds; a Generate read over the stream is retried only until its first
+// event, as above (0088-MADR ST88a). A caller that wants
 // text as it is generated streams from p itself, and handles a failure there
 // (0031-MADR D6), or uses WithStreamRetry, which retries a failure only
 // before the first event (0051-MADR). When p lists models, so does the
@@ -329,6 +335,11 @@ func retryable(err error) bool {
 	// with: an OAuth refresh wraps it as ErrProviderUnavailable (0068-MADR
 	// D2).
 	if transport.CertificateRefused(err) {
+		return false
+	}
+	// A Generate read over the stream that failed after its first event is
+	// not resent, as no stream is after an event (0088-MADR ST88a).
+	if transport.IsAfterEvent(err) {
 		return false
 	}
 	if apiErr, ok := errors.AsType[*APIError](err); ok {

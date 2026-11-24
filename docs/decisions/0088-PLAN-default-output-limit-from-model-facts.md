@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-22
+date: 2026-11-23
 associated-madr: "0088-MADR-default-output-limit-from-model-facts.md"
 decision-makers: repository owner
 ---
@@ -181,6 +181,8 @@ Exit criterion: no blocker, every row tested, plants caught (here: every
 decided row names its test and plant, and none is open). *(2026-11-22: not met again until OQ9 to OQ12 are answered; Phase 0 re-runs for them.)*
 
 ### Phase 1: the tests and the code, one commit
+
+*(2026-11-23, deviation 6: built with 0089-PLAN's Phases 2 and 3 as one phase, after OQ10's measurement: [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md), "Merged phase"; see this PLAN's sixth amendment.)*
 
 1. **Re-ground** (the rule above) at the commit that carries 0087's code
    (OQ8), and re-read at the base: each provider's
@@ -695,3 +697,54 @@ fifth amendment stands: 0089-PLAN's Phases 1 and 2 first, then its live
 measurement, then this PLAN's Phase 1b, then Phase 1 with 0089-PLAN's Phase 3
 in one commit, then Phase 1c. Nothing of this PLAN's phases is built yet; the
 v1.32.0 tag is the owner's.
+
+## Amendment (2026-11-23, sixth): Phase 1 built in 0089-PLAN's merged phase (deviation 6)
+
+Additions only; every step above stands, read as this amendment says.
+
+* **Deviation 6.** 0089-PLAN's Phase 2 stopped: three of its tests (DL35, DL37, DL43) assert the resend at a stated cap, which this PLAN's Phase 1 and 0089-PLAN's Phase 3 build, and the resend needs `Settings.MaxTokensGiven` (OQ5) to tell a given limit from the default. The owner's ruling, relayed by the coordinator: "Merge the phases". This PLAN's Phase 1 is built with 0089-PLAN's Phases 2 and 3 as one phase, in one commit:
+  [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md), "Merged phase: Phases 2 and 3 with 0088-PLAN's Phase 1". That section names which of Phase 1's tests are built, with which values (ST99), and which are not; its exports add `Settings.MaxTokensGiven` and no `WarningToolCallCut`.
+* **OQ10's measurement first.** The owner's ruling (2026-11-23), relayed by the coordinator: "Measure first, then build (Recommended)". The first amendment's "OQ10 (1): the live measurement, before Phase 1" is the merged phase's step 0, run once, its refusal quoted in a dated MADR amendment; a message stating no numbers stops the build for a ruling on ST65's resend value.
+* **Where the rest falls.** Phase 1b after the merged phase, in its own commit, before Phases 2 to 4 (no merged test depends on it); Phase 1c after it (it reads `catalog.Limits` and the merged rule); 0089's Kilo measurement gates no code; Phases 2 to 4 run once with 0089-PLAN's Phases 4 to 7.
+
+### Execution record entry (2026-11-23, sixth)
+
+* Re-grounding at `6ace750`: `python3 -B tools/claims.py docs/decisions/0088-MADR-default-output-limit-from-model-facts.md --rev self=6ace750`: 127 of 140 pass, exit 1; the 13 rows that moved, none gone, are in the MADR's sixth amendment, each at its line at `6ace750`.
+* The merged phase's step 0 stopped before its run, on two findings put to the owner, recorded in 0089-PLAN's execution record of 2026-11-23: no Claude model before 4.5 is in the committed Claude listing or named by this pair (S1), and 241 G-wire goldens that record 8192 change under ST99 with no row naming them (S2). No live request was sent; nothing was built, staged or committed.
+* The owner's rulings of 2026-11-23 on the merged phase's stop, relayed by the coordinator: S1 "Try claude-sonnet-4 once" (one run of the measurement on `claude-sonnet-4-20250514`; a not-found, or any refusal not in the window form, is the finding that no older model is served there, and ST65 is then ruled out of scope with that and the listing evidence); S2 "Same, plus explicit-8192 goldens" (a decided row naming the G-wire goldens as a planned change, checked by a script, and one golden per wire sent with an explicit `WithMaxTokens(8192)`). The measurement ran once: `LLMPROVIDER_LIVE_0088=1 LLMPROVIDER_LIVE_0088_MODEL=claude-sonnet-4-20250514 go test -tags live_gateways -count=1 -run '^TestLive_ClaudeWindowRefusal_0088$' -v -timeout 10m ./llmprovider/`, exit 0, HTTP 404 `not_found_error`; ST65 is out of scope and ST100 added (the MADR's sixth amendment); the merged phase drops `TestDefaultLimit_ClaudeOldWindowForm_0088` and gains ST100's goldens.
+
+### Deviation 7 (2026-11-23): the merged phase built in ordered layers
+
+* **The stop.** The merged phase's pass 1 built `Settings.MaxTokensGiven` (ST35, ST36) and its test, and stopped: the phase is more than one run can carry (ST88e: 335 `Generate` call sites in 120 test files move to the stream; ST100's 241 goldens; about 45 new tests over ten providers and OpenCode's four routes).
+* **The owner's ruling**, relayed by the coordinator: "Ordered layers, one commit (Recommended)": the same phase and one commit, built as ordered layers, each its own run with a checkpoint: A, 0089's Phase 2 API, the memo, the validator and the pass-back; B, the request rule, the report and the resend, with Claude, Kilo and OpenCode's messages route; C, the optional wires and ST100's goldens (the diff-check script seen failing first, and the explicit-8192 goldens); D, ST88 and the ST88e test changes; E, this PLAN's remaining Phase 1 tests, the docs and all gates. The table "Layers" in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md)'s Merged phase section holds each layer's rows and status, and its execution record each checkpoint.
+* **Pass counting.** A layer is not a build pass: only a rebuild after a failed gate or review counts toward the three-pass limit.
+
+### Execution record entry (2026-11-23, seventh): ST101 and deviation 8
+
+* The owner's rulings on layer B's stop, relayed by the coordinator: B1, first "Name it; add a caller layer (Recommended)", then, corrected after the build's probe showed a caller layer stating 8,192 sends 8,192 with a budget of 8,191, "Explicit WithMaxTokens(8192) (Recommended)": `TestThinkingWire_Claude`'s budget case gets the caller's `WithMaxTokens(8192)` (the MADR's seventh amendment, ST101). B2, "Merge layers B and C": layers B and C are one layer (0089-PLAN's deviation 8 and its Layers table).
+
+### Execution record entry (2026-11-23, eighth): ST102
+
+* The owner's ruling on the merged layer B+C's stop, relayed by the coordinator: "One class row, assert absent (Recommended)". The existing tests and goldens that pin the old 8,192 default on a route that now omits it are a planned change, the MADR's eighth amendment (ST102), its first member `TestTogether_RequestShapes`; each such assertion becomes "no limit sent", red at the base, with the plant "8192 sent" on that route.
+
+### Execution record entry (2026-11-23, eighth): the merged layer B+C
+
+* Built, unstaged, in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md)'s merged layer B+C, whose checkpoint records the runs: ST32's change to `TestOutputLimit_Facts_0041` with ST99's values, ST101's to `TestThinkingWire_Claude`, ST102's to `TestTogether_RequestShapes` (its one member), and ST100's goldens (234 regenerated, each differing from `6ace750` only in its output-limit field by the diff-check script, which was first seen failing on a planted unrelated difference; 21 explicit-8192 goldens added). Layers D and E follow.
+
+### Execution record entry (2026-11-23, ninth): the merged layer D
+
+* Built, unstaged, in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md)'s merged layer D, whose checkpoint records the runs: ST88 (a plain `Generate` whose limit the SDK chose or left out read over the service's stream and returned whole) with ST88a to ST88d, `TestGenerateOverStream_0088` and its four siblings, each red at `6ace750` and each plant caught; ST88e's changes to the existing `Generate` tests whose servers answered plain JSON (94 test files, by package and kind in that checkpoint); the 234 G-wire goldens in the stream form, checked by `tools/goldendiff.py --stream` (the diff-check moved into `tools/`). A5's first-payload resend, which ST88d needs, is built there; ST55's own test stays in layer E. ST102's list is unchanged. Layer E follows.
+
+### Execution record entry (2026-11-23, tenth): ST51's guard tests and the plants with no site
+
+* **The stop.** Layer E stopped at ST51: adding Kilo's documented form (C97) to `contextOverflowMessages` fails three existing guard tests of that table unless two test files change, which no row named (the MADR's ninth amendment quotes the failing lines). The owner's ruling, relayed by the coordinator: "Name the two test changes (Recommended)": one sample entry in `overflowSamples` (`llmprovider/context_overflow_test.go`) and the C97 pattern in `refContextOverflowMessages` (`llmprovider/context_overflow_ref_test.go`, whose generated header gains a dated line naming ST51). Recorded in the MADR's ninth amendment before the code.
+* **The plants with no site in the merged code.** The owner's ruling, relayed by the coordinator: "Accept, noted in the record (Recommended)". Each replacement is caught only by its row's test failing (the run that row's spec names), and the merged phase's layer E checkpoint in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md) quotes each failing line.
+  * *(2026-11-23)* ST23 (b) and ST48 (e), "the input-alone check removed": the merged code has no input-alone check to remove. The Messages wire reads no window form (0089-MADR DL68), so "prompt is too long" is never read for a resend; on Kilo, a window form whose input is at or over the window is held back twice, by V5 in `wire.ReadLimitRefusal` and by the room's floor in `LimitRetry.Check`, so removing either alone changes nothing (an equivalent plant). The replacement: `LimitRetry.Check` resends any overflow of a limit the SDK chose without reading it.
+  * *(2026-11-23)* ST56 (b), "the raise undone after any refusal: case 2's second send is 8192": no 8192 resend exists since ST99. The replacement: `LimitRetry.Check` sets a sticky resend at 8192 on any refusal it cannot read.
+  * *(2026-11-23)* ST61, "the resend runs on any overflow, raised or not": dropping `Check`'s sent and basis checks alone is caught by nothing, since V5 rejects the window form when no limit was sent (the input it implies is the whole total). The replacement: `LimitRetry.Check` resends any `ErrContextOverflow`.
+  * *(2026-11-23)* ST57 (c), "the undoing send counted against the bound": planted in `internal/wire/sse.go`'s `StreamEventsRetry`, not `wire.Send`, since a `Generate` whose limit the SDK chose is read over the stream (ST88); `wire.Send`'s uncounted branch is no longer reached (a follow-up in 0089-PLAN).
+* **ST56's test gains one case within its row:** case 1 again with a cap naming another model, which serves this request only (0089-MADR DL36), so that no memo masks the resend's stickiness. Plant (a) as first written was not caught: the cap kept in the memo bounded the third send to 64,000 by itself.
+
+### Execution record entry (2026-11-23, eleventh): the merged layer E
+
+* Built, unstaged, in [0089-PLAN-model-output-limit-discovery.md](0089-PLAN-model-output-limit-discovery.md)'s merged layer E, whose checkpoint records the runs: the rest of this PLAN's Phase 1 tests as the merged table builds them (ST23, ST26, ST46, ST48, ST50 to ST52, ST55 to ST57, ST59, ST61, ST63, ST91), each red at `6ace750` or green there as its row says, each green, and each plant caught, the replacements of the tenth entry included; ST51's form with its two planned test changes; the existing tests of Phase 1 step 2 (ST4, ST19, ST20, ST27, ST30, ST41, ST45, ST61), each with its plant caught; step 6's docs and the full checks. ST65 stays out of scope; the ST99-retired tests are not built.

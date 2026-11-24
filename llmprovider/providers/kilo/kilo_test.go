@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -16,7 +17,7 @@ import (
 
 func TestKilo_RequestShape(t *testing.T) {
 	var path string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
 		switch r.URL.Path {
 		case "/responses", "/messages":
@@ -27,7 +28,7 @@ func TestKilo_RequestShape(t *testing.T) {
 			t.Errorf("Authorization = %q", got)
 		}
 		_, _ = w.Write([]byte(fxKiloChat))
-	}))
+	})))
 	defer srv.Close()
 	p := build(t, llmprovider.WithAPIKey("kilo_test"), llmprovider.WithModel("kilo-auto/free"), llmprovider.WithBaseURL(srv.URL))
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {
@@ -212,10 +213,10 @@ func TestKilo_ErrorClassification(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(http.StatusText(tc.status), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(kiloAuthErr))
-			}))
+			})))
 			defer srv.Close()
 			if _, err := build(t, apiKey(srv.URL, "kilo-auto/free")...).Generate(context.Background(), text("hi")); !errors.Is(err, tc.wantErr) {
 				t.Errorf("err = %v, want wrapping %v", err, tc.wantErr)

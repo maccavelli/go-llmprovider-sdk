@@ -16,8 +16,13 @@ import (
 // WithBaseURL the provider sends to the service itself.
 func ExampleNew() {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"id":"v1_example","model":"gemini-x","status":"completed","steps":[{"type":"model_output","content":[{"type":"text","text":"Hello!"}]}]}`)
+		// A Generate that names no output limit reads the service's event
+		// stream (0088-MADR ST88).
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "event: interaction.created\ndata: {\"event_type\":\"interaction.created\",\"interaction\":{\"id\":\"v1_example\",\"model\":\"gemini-x\"}}\n\n"+
+			"event: step.start\ndata: {\"event_type\":\"step.start\",\"index\":0,\"step\":{\"type\":\"model_output\"}}\n\n"+
+			"event: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":0,\"delta\":{\"type\":\"text\",\"text\":\"Hello!\"}}\n\n"+
+			"event: interaction.completed\ndata: {\"event_type\":\"interaction.completed\",\"interaction\":{\"status\":\"completed\"}}\n\n")
 	}))
 	defer srv.Close()
 

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -44,7 +45,7 @@ func (h headers0066) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestWrappedClient_Headers_0066(t *testing.T) {
 	var mu sync.Mutex
 	var seen []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		seen = append(seen, r.URL.Path+" X-Test="+r.Header.Get("X-Test"))
 		mu.Unlock()
@@ -53,7 +54,7 @@ func TestWrappedClient_Headers_0066(t *testing.T) {
 			return
 		}
 		_, _ = io.WriteString(w, fxChat)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	c := llmprovider.NewHTTPClient()
 	c.Transport = headers0066{base: c.Transport}

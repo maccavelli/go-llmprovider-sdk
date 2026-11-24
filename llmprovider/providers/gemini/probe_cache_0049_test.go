@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -17,7 +18,7 @@ import (
 // probes again. The server answers each probe, so its result is kept.
 func TestProbeCache_ProviderProbesIntoItsCache_0049(t *testing.T) {
 	var posts atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodPost {
 			posts.Add(1)
@@ -25,7 +26,7 @@ func TestProbeCache_ProviderProbesIntoItsCache_0049(t *testing.T) {
 			return
 		}
 		_, _ = w.Write([]byte(geminiListing))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	var a, b catalog.Cache
 	processKey := "k-process-" + rand.Text()

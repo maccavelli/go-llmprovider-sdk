@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -25,7 +26,9 @@ func TestOpencode_RoutePaths(t *testing.T) {
 	}{
 		{llmprovider.ProviderOpencodeZen, "gpt-5.5", "/responses", fxResponses},
 		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", "/messages", fxMessages},
-		{llmprovider.ProviderOpencodeZen, "gemini-3.7-flash", "/models/gemini-3.7-flash:generateContent", fxGoogle},
+		// A Generate that names no limit is read over the route's stream
+		// (0088-MADR ST88, ST88e).
+		{llmprovider.ProviderOpencodeZen, "gemini-3.7-flash", "/models/gemini-3.7-flash:streamGenerateContent", fxGoogle},
 		{llmprovider.ProviderOpencodeZen, deepSeekV4Pro, "/chat/completions", fxChat},
 		{llmprovider.ProviderOpencodeZen, "minimax-m3", "/chat/completions", fxChat},
 		{llmprovider.ProviderOpencodeGo, "minimax-m3", "/messages", fxMessages},
@@ -109,7 +112,7 @@ func TestOpencode_KeyInHeader(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.model, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				for _, h := range keyHeaders {
 					got := r.Header.Get(h)
 					switch {
@@ -119,11 +122,13 @@ func TestOpencode_KeyInHeader(t *testing.T) {
 						t.Errorf("%s must not be sent on this route, got %q", h, got)
 					}
 				}
-				if r.URL.RawQuery != "" {
+				// The google route's stream asks alt=sse, and nothing else (0088-MADR
+				// ST88, ST88e).
+				if q := r.URL.RawQuery; q != "" && q != "alt=sse" {
 					t.Errorf("key must never reach the URL; RawQuery = %q", r.URL.RawQuery)
 				}
 				_, _ = w.Write([]byte(tc.fixture))
-			}))
+			})))
 			defer srv.Close()
 			p := build(t, llmprovider.ProviderOpencodeZen, llmprovider.WithAPIKey("test-key"),
 				llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL))
@@ -289,10 +294,10 @@ func TestOpencode_ChatReasoningEffort(t *testing.T) {
 func TestOpencode_SessionHeader(t *testing.T) {
 	var seen []string
 	serve := func(fixture string) *httptest.Server {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			seen = append(seen, r.Header.Get("x-opencode-session"))
 			_, _ = w.Write([]byte(fixture))
-		}))
+		})))
 		t.Cleanup(srv.Close)
 		return srv
 	}
@@ -337,10 +342,10 @@ func TestOpencode_ErrorClassification(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(http.StatusText(tc.status), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(`{"type":"error","error":{"type":"AuthError","message":"x"}}`))
-			}))
+			})))
 			defer srv.Close()
 			_, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-sonnet-5")...).Generate(context.Background(), text("hi"))
 			if !errors.Is(err, tc.wantErr) {
@@ -415,14 +420,14 @@ func TestOpencode_NoContinuation(t *testing.T) {
 // retries a 429.
 func TestOpencode_RetryOnRateLimit(t *testing.T) {
 	var calls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		if calls == 1 {
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
 		_, _ = w.Write([]byte(fxMessages))
-	}))
+	})))
 	defer srv.Close()
 	p := llmprovider.WithRetry(build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-sonnet-5")...),
 		llmprovider.RetryPolicy{MaxAttempts: 2, BaseDelay: time.Millisecond})

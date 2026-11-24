@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -32,7 +33,7 @@ func ollamaTags(names ...string) string {
 func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *httptest.Server {
 	t.Helper()
 	var mu sync.Mutex
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		m := map[string]any{}
 		_ = json.Unmarshal(raw, &m)
@@ -40,7 +41,7 @@ func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *htt
 		*lastBody = m
 		mu.Unlock()
 		_, _ = io.WriteString(w, respBody)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }

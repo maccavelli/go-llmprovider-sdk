@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -23,7 +24,7 @@ import (
 // with status:"failed" on auth errors, which would decode as a silent success.
 func TestHuggingFace_RequestShape(t *testing.T) {
 	var path string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
 		if r.URL.Path == "/responses" {
 			t.Error("/responses must never be requested: it returns 200 on auth failure")
@@ -32,7 +33,7 @@ func TestHuggingFace_RequestShape(t *testing.T) {
 			t.Errorf("Authorization = %q, want %q", got, "Bearer hf_test")
 		}
 		_, _ = w.Write([]byte(fxHFChat))
-	}))
+	})))
 	defer srv.Close()
 	p := build(t, llmprovider.WithAPIKey("hf_test"), llmprovider.WithModel("openai/gpt-oss-20b"), llmprovider.WithBaseURL(srv.URL))
 	out, err := llmprovider.GenerateText(context.Background(), p, text("hi"))
@@ -138,10 +139,10 @@ func TestHuggingFace_ErrorClassification(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(http.StatusText(tc.status), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(`{"error":"Invalid username or password."}`))
-			}))
+			})))
 			defer srv.Close()
 			if _, err := build(t, apiKey(srv.URL, "openai/gpt-oss-20b")...).Generate(context.Background(), text("hi")); !errors.Is(err, tc.wantErr) {
 				t.Errorf("err = %v, want wrapping %v", err, tc.wantErr)
@@ -172,11 +173,11 @@ func TestHuggingFace_NoContinuation(t *testing.T) {
 // §1.1, 0013 B3). It was the huggingface row of
 // TestProviders_ErrorCarriesServiceMessage.
 func TestHuggingFace_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	_, err := llmprovider.GenerateText(context.Background(), build(t, apiKey(srv.URL, "org/model")...), text("hello"))
 	if err == nil || !strings.Contains(err.Error(), "model is unavailable") {
@@ -193,10 +194,10 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 // §1.4). It was the huggingface row of TestIdentification_UserAgent.
 func TestHuggingFace_UserAgent(t *testing.T) {
 	var ua string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua = r.UserAgent()
 		_, _ = w.Write([]byte(fxHFChat))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	if _, err := build(t, apiKey(srv.URL, "org/model")...).Generate(context.Background(), text("hello")); err != nil {
 		t.Fatalf("Generate: %v", err)

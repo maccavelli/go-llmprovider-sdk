@@ -275,6 +275,9 @@ func (s *settings) sendable() error {
 	if err := s.cfg.checkForcedChoice(); err != nil {
 		return err
 	}
+	if err := checkLimitObservations(s.values); err != nil {
+		return err
+	}
 	return s.cfg.checkReasoningRefusals()
 }
 
@@ -317,8 +320,15 @@ func (st *Settings) HTTPClientGiven() bool { return st.s.clientGiven }
 // BaseURL is the endpoint from WithBaseURL, or empty for the provider's own.
 func (st *Settings) BaseURL() string { return st.s.cfg.BaseURL }
 
-// MaxTokens is the output limit from WithMaxTokens, or 8192.
+// MaxTokens is the output limit from WithMaxTokens, or 8192 when none was
+// given; MaxTokensGiven tells the two apart.
 func (st *Settings) MaxTokens() int { return st.s.cfg.MaxTokens }
+
+// MaxTokensGiven reports whether WithMaxTokens gave the output limit, rather
+// than MaxTokens being the default. A For(id, WithMaxTokens(n)) gives it for
+// id only. A provider sends a given limit as the caller's, and otherwise
+// applies the default rule (0088-MADR A7, ST35, ST36; 0089-MADR D6).
+func (st *Settings) MaxTokensGiven() bool { return st.s.cfg.MaxTokensGiven }
 
 // Logger is the logger from WithLogger, or one that discards everything.
 func (st *Settings) Logger() *slog.Logger {

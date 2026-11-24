@@ -175,7 +175,8 @@ func usageFor(path string) llmprovider.Usage {
 	switch {
 	case strings.HasSuffix(path, "/messages"):
 		return messagesUsage
-	case strings.HasSuffix(path, ":generateContent"), strings.HasSuffix(path, "/interactions"):
+	case strings.HasSuffix(path, ":generateContent"), strings.HasSuffix(path, ":streamGenerateContent"),
+		strings.HasSuffix(path, "/interactions"):
 		return googleUsage
 	}
 	return writeUsage
@@ -230,13 +231,18 @@ func (c Case) Reply(r *http.Request) wiretest.Reply {
 		return wiretest.Reply{Body: MessagesReply}
 	case strings.HasSuffix(path, "/interactions"):
 		return wiretest.Reply{Body: InteractionsReply}
-	case strings.HasSuffix(path, ":generateContent"):
+	case strings.HasSuffix(path, ":generateContent"), strings.HasSuffix(path, ":streamGenerateContent"):
+		// The stream path gets its stream form from the server (0088-MADR
+		// ST88e).
 		return wiretest.Reply{Body: GoogleReply}
 	case strings.HasSuffix(path, "/chat/completions"):
 		return wiretest.Reply{Body: ChatReply}
 	}
 	return wiretest.Reply{Status: http.StatusNotFound, Body: `{"error":{"message":"no canned reply for this path"}}`}
 }
+
+// explicit8192 names the scenario sent with an explicit WithMaxTokens(8192).
+const explicit8192 = "explicit-8192"
 
 // errSkip marks a scenario that has no golden for this case.
 var errSkip = errors.New("scenario not recorded for this case")
@@ -318,6 +324,12 @@ var scenarios = []scenario{
 		}
 		return map[string]any{"response": result(resp), "warnings": resp.Warnings}, nil
 	}},
+	// explicit-8192 is text with the provider built with WithMaxTokens(8192):
+	// a given 8192 is the caller's, sent as given where the route takes a
+	// limit, never read as the old default (0088-MADR ST16, ST100).
+	{explicit8192, func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return llmprovider.GenerateText(ctx, p, &llmprovider.Request{Input: []llmprovider.Item{user(Prompt)}})
+	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)
 		if !ok {
@@ -386,6 +398,9 @@ func Run(t *testing.T, cases []Case, update bool) {
 				extra := []llmprovider.Option{llmprovider.WithoutModelMetadata()}
 				if s.name == "continuation" {
 					extra = append(extra, c.ContinueOpts...)
+				}
+				if s.name == explicit8192 {
+					extra = append(extra, llmprovider.WithMaxTokens(8192))
 				}
 				p, err := c.Build(srv.URL, extra...)
 				if err != nil {

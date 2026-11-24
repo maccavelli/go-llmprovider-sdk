@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -18,7 +19,7 @@ import (
 func conventionsBody(t *testing.T, model string, reasons bool, opts ...llmprovider.Option) map[string]any {
 	t.Helper()
 	var body map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("decode: %v", err)
 		}
@@ -28,7 +29,7 @@ func conventionsBody(t *testing.T, model string, reasons bool, opts ...llmprovid
 		default:
 			_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`))
 		}
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	req := text("hi")
 	if reasons {

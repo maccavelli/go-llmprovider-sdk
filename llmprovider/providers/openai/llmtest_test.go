@@ -47,9 +47,12 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 	}
 	return llmtest.Harness{
 		Model: "llmtest-model",
+		// The harness's Generate checks are of a plain request: each names its own
+		// limit, since one whose limit the SDK chose or left out is read over the
+		// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{credential(), llmprovider.WithModel("gpt-5.5"),
-				llmprovider.WithBaseURL(baseURL)}, opts...)...)
+				llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...)...)
 		},
 		Text:          func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
 		ToolCall:      func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },

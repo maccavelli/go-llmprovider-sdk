@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/messages",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Anthropic-Version": "2023-06-01",
         "Content-Type": "application/json",
@@ -11,7 +12,7 @@
         "X-Api-Key": "sk-ant-wire"
       },
       "body": {
-        "max_tokens": 8192,
+        "max_tokens": 128000,
         "messages": [
           {
             "content": "What is the weather in Paris?",
@@ -19,6 +20,7 @@
           }
         ],
         "model": "claude-sonnet-5-5",
+        "stream": true,
         "tools": [
           {
             "description": "Weather for a city",

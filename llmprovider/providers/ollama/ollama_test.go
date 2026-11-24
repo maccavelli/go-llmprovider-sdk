@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -26,7 +27,7 @@ func TestOllama_NoAuthHeader(t *testing.T) {
 		"key=other": {llmprovider.WithAPIKey("ignored-by-ollama")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if got := r.Header.Get("Authorization"); got != "" {
 					t.Errorf("Authorization must never be sent to Ollama, got %q", got)
 				}
@@ -34,7 +35,7 @@ func TestOllama_NoAuthHeader(t *testing.T) {
 					t.Errorf("path = %q, want /v1/chat/completions", r.URL.Path)
 				}
 				_, _ = w.Write([]byte(fxOllamaChat))
-			}))
+			})))
 			defer srv.Close()
 			if _, err := build(t, local(srv.URL, "llama3.2:latest", opts...)...).Generate(context.Background(), text("hi")); err != nil {
 				t.Fatalf("Generate: %v", err)
@@ -142,9 +143,9 @@ func TestOllama_ErrorClassification(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(http.StatusText(tc.status), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
-			}))
+			})))
 			defer srv.Close()
 			_, err := build(t, local(srv.URL, "llama3.2:latest")...).Generate(context.Background(), text("hi"))
 			if !errors.Is(err, tc.wantErr) {
@@ -178,11 +179,11 @@ func TestOllama_NoContinuation(t *testing.T) {
 // §1.1, 0013 B3). It was the ollama row of
 // TestProviders_ErrorCarriesServiceMessage.
 func TestOllama_ErrorCarriesServiceMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":{"message":"model is unavailable"}}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	_, err := llmprovider.GenerateText(context.Background(), build(t, local(srv.URL, "llama3")...), text("hello"))
 	if err == nil || !strings.Contains(err.Error(), "model is unavailable") {
@@ -199,10 +200,10 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 // §1.4). It was the ollama row of TestIdentification_UserAgent.
 func TestOllama_UserAgent(t *testing.T) {
 	var ua string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua = r.UserAgent()
 		_, _ = w.Write([]byte(fxOllamaChat))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	if _, err := build(t, local(srv.URL, "llama3")...).Generate(context.Background(), text("hello")); err != nil {
 		t.Fatalf("Generate: %v", err)

@@ -27,8 +27,73 @@ tag and its commit without notes; its notes are its section here.
   Face's per-provider `context_length` and Kilo's `per_request_limits`, and
   an embedded, limits-only extract of models.dev, below the fetched
   document, so offline a model models.dev knows still has its limits. A
-  Claude workspace is read from `catalog.WithClaudeWorkspace`. `LookupModel`,
-  `ModelInfo` and every request are unchanged (0089-MADR D1 to D3).
+  Claude workspace is read from `catalog.WithClaudeWorkspace`. `LookupModel`
+  and `ModelInfo` are unchanged (0089-MADR D1 to D3). `Limits.StreamedOutput`
+  is the output limit for a streamed request beside `Output`'s for a plain
+  one, each held to the cap the service stated for its own kind of call
+  (0089-MADR DL76).
+- `llmprovider.Response.OutputLimit`, a `llmprovider.SentLimit`: the output
+  limit a request carried, after a thinking budget raised it, whether one
+  was sent, its `llmprovider.LimitBasis` (`LimitBasisRequest`,
+  `LimitBasisOption`, `LimitBasisFact`, `LimitBasisRefusal`,
+  `LimitBasisFallback`, `LimitBasisNone`) and its source; a stream's final
+  response carries it too (0089-MADR D7).
+- `llmprovider.WarningLimitLearned`, with `Warning.Observed`, a
+  `llmprovider.LimitObservation`: a cap the service stated when it refused a
+  limit the SDK chose, kept for the process and reported once.
+  `llmprovider.WithLimitObservations` passes such caps back on the next
+  start; one is used only for its base URL and scope, within 24 hours of
+  when it was seen, and only where no other source states the model's limit.
+  `llmprovider.WithoutLimitLearning` keeps and reports nothing, and still
+  resends (0089-MADR D5, DL40 to DL42, DL49, DL73).
+- `llmprovider.Settings.MaxTokensGiven`: whether `WithMaxTokens` gave the
+  limit, so that a provider outside this module can tell a caller's value
+  from the default (0088-MADR OQ5, ST35, ST36).
+
+### Changed
+
+- A request that names no output limit (no `MaxOutputTokens`, no
+  `WithMaxTokens`) no longer sends 8192. On a Messages route, Claude and
+  OpenCode's messages route, whose wire requires one, it sends the model's
+  output limit as `catalog.CachedLimits` states it, held to the stated
+  window and to a cap the service stated; where nothing states it, the
+  smallest limit of the route's current models (64,000 on Claude in the
+  embedded extract), and where nothing states even that, the request is
+  refused before sending with an error matching `ErrInvalidRequest` that
+  says how to state the limit. Kilo sends the limit its listing states, until
+  0089-MADR DL65's measurement decides. Every other wire sends none, so the
+  service's own default applies: Gemini, Grok, OpenAI with a key, Together,
+  Hugging Face, Ollama, chatcompat and OpenCode's other routes. A request's
+  own `MaxOutputTokens` is sent as given; a `WithMaxTokens` value is cut to
+  the model's stated limit and never raised; a listing probe still sends
+  8192; the ChatGPT routes send none, as before. A caller that wants the old
+  value passes `WithMaxTokens(8192)` (0089-MADR D6, DL44 to DL51, DL77;
+  0088-MADR ST99).
+- A refusal of a limit the SDK chose that states the service's cap
+  (Anthropic's `max_tokens: N > M`, OpenAI's "supports at most", Gemini's
+  range, each on the wires 0089-MADR DL68 names) or a window and the tokens
+  asked (OpenRouter's and Kilo's forms on Kilo) is resent once at the stated
+  value, outside the bound of seven sends, once the refusal is checked
+  against the request; a stated cap is kept and bounds later requests to
+  that model for the process. A caller's own limit is never resent
+  (0089-MADR D4 to D6, DL31 to DL39; 0088-MADR ST56, ST57).
+- A `Generate` that names no output limit is now read over the service's
+  stream and returned whole, on every provider, Gemini's listing probe
+  included, since it keeps the provider's limit. A failure before the first event is
+  retried by `WithRetry` as before; one after it is returned, not resent; the
+  assembled answer is bounded at 16 MiB, past which it is `ErrIncomplete`;
+  the usage is what the stream reports, zero when it reports none; and an
+  error inside a 200 as the stream's first payload is classified as
+  `Stream` classifies it, and resent once when it states a limit the SDK
+  chose. A cap learned from such a call bounds `Limits.StreamedOutput`, not
+  `Limits.Output`. A `Generate` that names its own limit stays a plain
+  request (0088-MADR ST88, ST88a to ST88d).
+- A `Stream` whose first payload, inside a 200, is a refusal of a limit the
+  SDK chose is resent once, before any event is yielded; an error after an
+  event is yielded as before (0088-MADR A5, ST55).
+- Kilo's documented window refusal ("exceeds the model's context window of
+  N tokens") is `ErrContextOverflow`, beneath `ErrInvalidRequest`, where it
+  was `ErrInvalidRequest` alone (0088-MADR ST51).
 
 ### Fixed
 

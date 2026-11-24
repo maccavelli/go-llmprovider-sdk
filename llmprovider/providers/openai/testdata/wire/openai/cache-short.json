@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/responses",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer sk-wire",
         "Content-Type": "application/json",
@@ -17,9 +18,9 @@
           }
         ],
         "instructions": "Be brief.",
-        "max_output_tokens": 8192,
         "model": "gpt-5.5",
         "prompt_cache_key": "wire-session",
+        "stream": true,
         "tools": [
           {
             "description": "Weather for a city",

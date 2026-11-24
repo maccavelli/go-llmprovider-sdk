@@ -123,9 +123,12 @@ func TestConformance(t *testing.T) {
 			}
 			h := llmtest.Harness{
 				Model: "llmtest-model",
+				// The harness's Generate checks are of a plain request: each names its own
+				// limit, since one whose limit the SDK chose or left out is read over the
+				// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 					return newFor(tc.gateway)(append(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
-						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), WithRoute(tc.route)}, opts...), metadataOff()...)...)
+						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192), WithRoute(tc.route)}, opts...), metadataOff()...)...)
 				},
 				Text: write(replies.text),
 				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {

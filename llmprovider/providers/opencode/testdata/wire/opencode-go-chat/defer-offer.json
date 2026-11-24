@@ -4,6 +4,7 @@
       "method": "POST",
       "path": "/chat/completions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer opencode-wire-key",
         "Content-Type": "application/json",
@@ -11,7 +12,6 @@
         "X-Opencode-Session": "wire-session"
       },
       "body": {
-        "max_tokens": 8192,
         "messages": [
           {
             "content": "What is the weather in Paris?",
@@ -19,6 +19,10 @@
           }
         ],
         "model": "kimi-k3",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        },
         "tools": [
           {
             "function": {

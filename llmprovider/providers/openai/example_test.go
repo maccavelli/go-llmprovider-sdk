@@ -16,8 +16,12 @@ import (
 // WithBaseURL the provider sends to the service itself.
 func ExampleNew() {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"id":"resp_example","output":[{"type":"message","content":[{"type":"output_text","text":"Hello!"}]}]}`)
+		// A Generate that names no output limit reads the service's event
+		// stream (0088-MADR ST88).
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello!\"}\n\n"+
+			"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello!\"}]}}\n\n"+
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_example\"}}\n\n")
 	}))
 	defer srv.Close()
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -246,7 +247,7 @@ func replayServer(t *testing.T, interleaved string) (*httptest.Server, *map[stri
 	t.Helper()
 	enableMetadata(t)
 	var body map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/api.json") {
 			_, _ = w.Write([]byte(`{"opencode-go":{"models":{"kimi-k2.6":{"id":"kimi-k2.6"` + interleaved + `}}}}`))
 			return
@@ -255,7 +256,7 @@ func replayServer(t *testing.T, interleaved string) (*httptest.Server, *map[stri
 			t.Errorf("decode: %v", err)
 		}
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"sunny"}}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &body
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
@@ -39,7 +40,7 @@ func thinkingRefuser(t *testing.T) (*httptest.Server, func() []string) {
 		mu   sync.Mutex
 		sent []string
 	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
 			reply := wirecase.Case{}.Reply(r)
 			_, _ = io.WriteString(w, reply.Body)
@@ -59,7 +60,7 @@ func thinkingRefuser(t *testing.T) (*httptest.Server, func() []string) {
 			return
 		}
 		_, _ = io.WriteString(w, wirecase.ChatReply)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, func() []string {
 		mu.Lock()

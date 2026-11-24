@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -29,7 +30,7 @@ func effortServer(t *testing.T) (*httptest.Server, func() any) {
 	t.Helper()
 	var mu sync.Mutex
 	var effort any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/models":
 			_, _ = io.WriteString(w, grok43Listing)
@@ -44,7 +45,7 @@ func effortServer(t *testing.T) (*httptest.Server, func() any) {
 			mu.Unlock()
 			_, _ = io.WriteString(w, okResponse)
 		}
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, func() any { mu.Lock(); defer mu.Unlock(); return effort }
 }

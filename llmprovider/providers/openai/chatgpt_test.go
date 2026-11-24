@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
@@ -266,7 +267,7 @@ func (s *rotatingSource) Invalidate() {
 // half, TestCommandToken_RerunsAfterInvalidate.
 func TestOpenAI_RetriesOnceAfterInvalidate(t *testing.T) {
 	var seen []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Header.Get("Authorization"))
 		if r.Header.Get("Authorization") != "Bearer key-2" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -274,7 +275,7 @@ func TestOpenAI_RetriesOnceAfterInvalidate(t *testing.T) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"id":"r","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`))
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	src := &rotatingSource{}
 	p := sessionProvider(t, src, "gpt-5.5", llmprovider.WithBaseURL(srv.URL))

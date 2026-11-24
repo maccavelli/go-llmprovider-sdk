@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
@@ -163,7 +164,7 @@ func twinServer(t *testing.T, refusals ...string) *httptest.Server {
 	t.Helper()
 	var mu sync.Mutex
 	n := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
 		mu.Lock()
 		n++
@@ -179,7 +180,7 @@ func twinServer(t *testing.T, refusals ...string) *httptest.Server {
 			w.WriteHeader(reply.Status)
 		}
 		_, _ = io.WriteString(w, reply.Body)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv
 }

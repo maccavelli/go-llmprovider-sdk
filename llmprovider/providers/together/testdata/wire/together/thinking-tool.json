@@ -4,13 +4,13 @@
       "method": "POST",
       "path": "/chat/completions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Authorization": "Bearer together-wire-key",
         "Content-Type": "application/json",
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
       },
       "body": {
-        "max_tokens": 8192,
         "messages": [
           {
             "content": "What is the weather in Paris?",
@@ -20,6 +20,10 @@
         "model": "openai/gpt-oss-120b",
         "reasoning": {
           "enabled": true
+        },
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
         },
         "tool_choice": {
           "function": {

@@ -90,8 +90,11 @@
 // something has fetched it. A request never fetches, and never waits.
 // From them come the efforts a request may send, xAI's listing above
 // models.dev; an effort off them steps to the nearest listed.
-// With no MaxOutputTokens, the output limit is the default, cut to the
-// model's own when that is smaller; it is never raised.
+// The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a
+// request's own MaxOutputTokens is sent as given, and WithMaxTokens' value
+// cut to the model's stated limit, never raised; otherwise none is sent,
+// and the service's own default applies. The Response, and a stream's done
+// event, carry the limit sent in OutputLimit.
 // With no facts, the effort asked is sent, and a refusal learned.
 package grok
 
@@ -146,6 +149,8 @@ type provider struct {
 	client    *http.Client
 	caps      llmprovider.Capabilities
 	maxTokens int
+	// limitState is what the output limit reads of the options (limit.go).
+	limitState
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
 	store     *bool                  // WithStore's value, or nil for the service default
 	userAgent string
@@ -199,17 +204,18 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		}
 	}
 	p := &provider{
-		src:       src,
-		model:     st.Model(),
-		baseURL:   BaseURL,
-		client:    st.HTTPClient(),
-		maxTokens: st.MaxTokens(),
-		reasoning: st.Reasoning(),
-		userAgent: st.UserAgent(),
-		logger:    st.Logger(),
-		probe:     st.ModelProbes(),
-		cache:     cacheref.From(st.Values()),
-		refusals:  st.ReasoningRefusals(),
+		src:        src,
+		model:      st.Model(),
+		baseURL:    BaseURL,
+		client:     st.HTTPClient(),
+		maxTokens:  st.MaxTokens(),
+		limitState: newLimitState(st),
+		reasoning:  st.Reasoning(),
+		userAgent:  st.UserAgent(),
+		logger:     st.Logger(),
+		probe:      st.ModelProbes(),
+		cache:      cacheref.From(st.Values()),
+		refusals:   st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -249,9 +255,14 @@ func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 
 // Generate sends req to the Responses API. A 401 from a source that can
 // refresh is retried once with a new token.
+// When the SDK chose its output limit or left it out, it is read over the
+// stream and returned whole (0088-MADR ST88).
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if err := p.check(req); err != nil {
 		return nil, err
+	}
+	if wire.OverStream(req, p.maxGiven) {
+		return wire.Collect(string(llmprovider.ProviderGrok), p.Stream(ctx, req))
 	}
 	form, decoder := p.deferForm(req)
 	if err := deferral.CheckDispatch(form, req); err != nil {
@@ -263,12 +274,16 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the effort sent is learned, and the
 	// request built again (0062-MADR D5).
-	effort := p.learner(req)
+	effort, limit := p.learner(req), p.limitRetry(req, false)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderGrok), p.src,
 		func(token llmprovider.Token) wire.Call {
-			return p.call(req, p.facts(ctx, req, token), false, effort, tools)
+			return p.call(req, p.facts(ctx, req, token), false, effort, tools, p.chooseLimit(ctx, req, token, false, limit))
 		},
-		decoder.DecodeFor(string(llmprovider.ProviderGrok)), effort.Check)
+		decoder.DecodeFor(string(llmprovider.ProviderGrok)), wire.Retries(limit.Check, effort.Check))
+	if err == nil {
+		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+		limit.Finish(resp, p.observe(req, false))
+	}
 	// A refusal of a tool's schema names the tool it refused, when the body
 	// held it (0084-MADR D2, D4).
 	return resp, wire.NameRefusedTool(err, wire.Held{Listed: deferral.Listed(tools, form)})
@@ -314,13 +329,14 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	return func(yield func(llmprovider.Event, error) bool) {
 		// Each range is its own request, with its own effort learner and its
 		// own list of the tools the body holds (0084-MADR D4).
-		effort := p.learner(req)
+		effort, limit := p.learner(req), p.limitRetry(req, true)
 		tools := deferral.Tools(req, form)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGrok), p.src,
 			func(token llmprovider.Token) wire.Call {
-				return p.call(req, p.facts(ctx, req, token), true, effort, tools)
+				return p.call(req, p.facts(ctx, req, token), true, effort, tools, p.chooseLimit(ctx, req, token, true, limit))
 			},
-			decoder.Events, effort.Check)
+			decoder.Events, wire.Retries(limit.Check, effort.Check))
+		stream = limit.FinishStream(stream, p.observe(req, true))
 		for ev, err := range wire.NameRefusedStream(stream, wire.Held{Listed: deferral.Listed(tools, form)}) {
 			if !yield(ev, err) {
 				return
@@ -354,18 +370,13 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 // effort learner chooses, sending tools, the list deferral.Tools gave for the
 // request.
 func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner,
-	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
+	tools []llmprovider.Tool, outLimit llmprovider.SentLimit) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
 	}
-	maxTokens := p.maxTokens
-	if req.MaxOutputTokens > 0 {
-		maxTokens = req.MaxOutputTokens
-	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
-		// The default, cut to the model's limit, never raised (0041-MADR D2).
-		maxTokens = min(maxTokens, limit)
-	}
+	// The output limit chosen (0089-MADR D6); none when it is not sent.
+	maxTokens := outLimit.Tokens
 	input := req.Input
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
@@ -431,8 +442,10 @@ func (p *provider) effort(req *llmprovider.Request, facts catalog.ModelInfo, lea
 // call is the Responses request for req, asking for an event stream when
 // stream is set, at the effort effort chooses, sending tools.
 func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner,
-	tools []llmprovider.Tool) wire.Call {
-	body, warnings := p.body(req, facts, effort, tools)
+	tools []llmprovider.Tool, outLimit llmprovider.SentLimit) wire.Call {
+	body, warnings := p.body(req, facts, effort, tools, outLimit)
+	// The output limit, none unless the caller gives one (0089-MADR D6).
+	wire.DropLimit(body, outLimit, "max_output_tokens")
 	if stream {
 		body["stream"] = true
 	}
@@ -478,6 +491,8 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		// no reasoning (0015-MADR D1).
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
+		// The probe's 8192 is given: sent as it is (0088-MADR ST26; 0089-MADR DL53).
+		probe.maxGiven = true
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {

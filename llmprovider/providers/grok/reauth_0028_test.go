@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -25,7 +26,7 @@ func (s *renewingSource) Invalidate() { s.invalidated.Add(1) }
 // and the request sent again.
 func TestReauth_GrokRefusedKeyRenews(t *testing.T) {
 	var requests atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if requests.Add(1) == 1 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -33,7 +34,7 @@ func TestReauth_GrokRefusedKeyRenews(t *testing.T) {
 			return
 		}
 		_, _ = io.WriteString(w, `{"id":"r","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}]}`)
-	}))
+	})))
 	defer srv.Close()
 	src := &renewingSource{}
 	p, err := New(llmprovider.WithTokenSource(src), llmprovider.WithModel("grok-test"), llmprovider.WithBaseURL(srv.URL))

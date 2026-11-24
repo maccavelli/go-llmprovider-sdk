@@ -106,8 +106,11 @@
 // already hold of its model: a caller's catalog.WithModelLayer, a listing
 // that ListModels or catalog.List read, and the models.dev document once
 // something has fetched it. A request never fetches, and never waits.
-// With no MaxOutputTokens, the output limit is the default, cut to the
-// model's own when that is smaller; it is never raised.
+// The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a
+// request's own MaxOutputTokens is sent as given, and WithMaxTokens' value
+// cut to the model's stated limit, never raised; otherwise none is sent,
+// and the service's own default applies. The Response, and a stream's done
+// event, carry the limit sent in OutputLimit.
 // A ChatGPT session and a plan session send no output limit, as before.
 package openai
 
@@ -197,6 +200,8 @@ type provider struct {
 	client    *http.Client
 	caps      llmprovider.Capabilities
 	maxTokens int
+	// limitState is what the output limit reads of the options (limit.go).
+	limitState
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
 	store     *bool                  // WithStore's value, or nil for the service default
 	userAgent string
@@ -258,6 +263,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		model:      st.Model(),
 		client:     st.HTTPClient(),
 		maxTokens:  st.MaxTokens(),
+		limitState: newLimitState(st),
 		reasoning:  st.Reasoning(),
 		userAgent:  st.UserAgent(),
 		originator: st.ClientName(),
@@ -319,9 +325,15 @@ func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 
 // Generate sends req to the Responses API. A 401 from a session that can
 // refresh is retried once with a new token.
+// With an API key, when the SDK left the output limit out, it is read over
+// the stream and returned whole (0088-MADR ST88); a ChatGPT session's
+// request is streamed always, and read as it was.
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if err := p.check(ctx, req); err != nil {
 		return nil, err
+	}
+	if !p.chatGPT && !p.plan && wire.OverStream(req, p.maxGiven) {
+		return wire.Collect(string(llmprovider.ProviderOpenAI), p.Stream(ctx, req))
 	}
 	// The tools the body holds, once, for the encoder and for naming a refused
 	// one (0084-MADR D4).
@@ -329,9 +341,14 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2); a refusal of the effort sent is learned, and the
 	// request built again (0062-MADR D5).
-	effort := p.learner(req)
+	effort, limit := p.learner(req), p.limitRetry(req, false)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderOpenAI), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, tools) }, p.decode(req), effort.Check)
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, tools, limit) }, p.decode(req),
+		wire.Retries(limit.Check, effort.Check))
+	if err == nil {
+		// The limit sent, and a cap learned, are reported (0089-MADR D5, D7).
+		limit.Finish(resp, p.observe(req, false))
+	}
 	// A refusal of a tool's schema names the tool it refused, when the body
 	// held it (0084-MADR D2, D4).
 	return resp, wire.NameRefusedTool(err, held)
@@ -362,11 +379,12 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	return func(yield func(llmprovider.Event, error) bool) {
 		// Each range is its own request, with its own effort learner and its
 		// own list of the tools the body holds (0084-MADR D4).
-		effort := p.learner(req)
+		effort, limit := p.learner(req), p.limitRetry(req, true)
 		tools, held := p.tools(req)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderOpenAI), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, tools) }, decoder.Events,
-			effort.Check)
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, tools, limit) },
+			decoder.Events, wire.Retries(limit.Check, effort.Check))
+		stream = limit.FinishStream(stream, p.observe(req, true))
 		for ev, err := range wire.NameRefusedStream(stream, held) {
 			if !yield(ev, err) {
 				return
@@ -468,7 +486,7 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 const includeEncryptedReasoning = "reasoning.encrypted_content"
 
 func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner,
-	tools []llmprovider.Tool) (map[string]any, []llmprovider.Warning) {
+	tools []llmprovider.Tool, outLimit llmprovider.SentLimit) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -503,14 +521,11 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learn
 		body["include"] = []string{includeEncryptedReasoning}
 		wire.AddPromptCacheKey(body, req.Cache, p.session)
 	} else {
-		maxTokens := p.maxTokens
-		if req.MaxOutputTokens > 0 {
-			maxTokens = req.MaxOutputTokens
-		} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
-			// The default, cut to the model's limit, never raised (0041-MADR D2).
-			maxTokens = min(maxTokens, limit)
+		if outLimit.Sent {
+			// The output limit chosen (0089-MADR D6): none unless the caller
+			// gives one.
+			body["max_output_tokens"] = outLimit.Tokens
 		}
-		body["max_output_tokens"] = maxTokens
 		if p.store != nil {
 			body["store"] = *p.store
 			if !*p.store {
@@ -580,9 +595,12 @@ func (p *provider) decode(req *llmprovider.Request) func(io.Reader) (*llmprovide
 // ChatGPT session sends the Codex backend's headers. effort chooses the
 // effort, and tools are those p.tools gave for the request.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
-	effort *wire.Learner, tools []llmprovider.Tool) wire.Call {
+	effort *wire.Learner, tools []llmprovider.Tool, limit *wire.LimitRetry) wire.Call {
 	facts := p.facts(ctx, req, token)
-	body, warnings := p.body(req, facts, effort, tools)
+	// The output limit, none unless the caller gives one, and none on the
+	// ChatGPT routes (0089-MADR D6, DL45).
+	outLimit := p.chooseLimit(ctx, req, token, stream, limit)
+	body, warnings := p.body(req, facts, effort, tools, outLimit)
 	if stream {
 		body["stream"] = true
 	}
@@ -655,6 +673,8 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderOpenAI, p.baseURL, "", p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
+		// The probe's 8192 is given: sent as it is (0088-MADR ST26; 0089-MADR DL53).
+		probe.maxGiven = true
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {

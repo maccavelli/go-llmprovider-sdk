@@ -4,15 +4,14 @@
       "method": "POST",
       "path": "/interactions",
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Content-Type": "application/json",
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
         "X-Goog-Api-Key": "gemini-wire-key"
       },
       "body": {
-        "generation_config": {
-          "max_output_tokens": 8192
-        },
+        "generation_config": {},
         "input": [
           {
             "content": [
@@ -26,6 +25,7 @@
         ],
         "model": "gemini-3.7-flash",
         "store": false,
+        "stream": true,
         "tools": [
           {
             "description": "Weather for a city",

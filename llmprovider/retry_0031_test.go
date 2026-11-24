@@ -69,10 +69,14 @@ func cutThenAnswer(t *testing.T) (*httptest.Server, func() int) {
 // TestWithRetry_StreamIsBuffered (0031-MADR D6, Q1): WithRetry over a
 // provider that streams natively does not stream: it is no Streamer, reports
 // NativeStreaming Unsupported, and Stream over it retries a reply cut part
-// way, yielding events only from the attempt that succeeds.
+// way, yielding events only from the attempt that succeeds. The provider
+// names its own output limit, so its Generate is a plain request: one whose
+// limit the SDK chose or left out is read over the stream, and not retried
+// after its first event (0088-MADR ST88a, ST88e).
 func TestWithRetry_StreamIsBuffered(t *testing.T) {
 	srv, requests := cutThenAnswer(t)
-	inner, err := openai.New(llmprovider.WithAPIKey("k"), llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithBaseURL(srv.URL))
+	inner, err := openai.New(llmprovider.WithAPIKey("k"), llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithBaseURL(srv.URL),
+		llmprovider.WithMaxTokens(8192))
 	if err != nil {
 		t.Fatal(err)
 	}

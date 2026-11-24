@@ -2,8 +2,14 @@
   "requests": [
     {
       "method": "POST",
-      "path": "/models/gemini-3.8-flash:generateContent",
+      "path": "/models/gemini-3.8-flash:streamGenerateContent",
+      "query": {
+        "alt": [
+          "sse"
+        ]
+      },
       "header": {
+        "Accept": "text/event-stream",
         "Accept-Encoding": "gzip",
         "Content-Type": "application/json",
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
@@ -64,9 +70,7 @@
             "role": "user"
           }
         ],
-        "generationConfig": {
-          "maxOutputTokens": 8192
-        },
+        "generationConfig": {},
         "systemInstruction": {
           "parts": [
             {

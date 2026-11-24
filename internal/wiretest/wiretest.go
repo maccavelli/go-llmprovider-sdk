@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -115,6 +116,8 @@ type Server struct {
 }
 
 // NewServer starts a Server that answers with reply. It is closed when t ends.
+// A request that asks for an event stream gets the stream form of a 200 JSON
+// reply (StreamReply; 0088-MADR ST88e); reply may read the request's body.
 func NewServer(t testing.TB, reply func(r *http.Request) Reply) *Server {
 	t.Helper()
 	s := &Server{}
@@ -123,15 +126,26 @@ func NewServer(t testing.TB, reply func(r *http.Request) Reply) *Server {
 		if err != nil {
 			t.Errorf("wiretest: read request body: %v", err)
 		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		s.mu.Lock()
 		s.requests = append(s.requests, Normalize(r, body))
 		s.mu.Unlock()
 		answer := reply(r)
-		for name, value := range answer.Header {
-			w.Header().Set(name, value)
-		}
 		if answer.Status == 0 {
 			answer.Status = http.StatusOK
+		}
+		if answer.Status == http.StatusOK && WantsStream(r, body) {
+			if streamed, ok := StreamReply(r.URL.Path, answer.Body); ok {
+				answer.Body = streamed
+				answer.Header = maps.Clone(answer.Header)
+				if answer.Header == nil {
+					answer.Header = map[string]string{}
+				}
+				answer.Header["Content-Type"] = "text/event-stream"
+			}
+		}
+		for name, value := range answer.Header {
+			w.Header().Set(name, value)
 		}
 		w.WriteHeader(answer.Status)
 		if _, err := io.WriteString(w, answer.Body); err != nil {

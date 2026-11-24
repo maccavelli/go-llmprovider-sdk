@@ -16,9 +16,12 @@ import (
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
 		Model: "llmtest-model",
+		// The harness's Generate checks are of a plain request: each names its own
+		// limit, since one whose limit the SDK chose or left out is read over the
+		// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append(append([]llmprovider.Option{llmprovider.WithAPIKey("tg_llmtest"),
-				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL)}, opts...), metadataOff()...)...)
+				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...), metadataOff()...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, togetherText)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
@@ -27,7 +28,7 @@ func slowRouteServer(t *testing.T, gateway llmprovider.ProviderID, model, npm st
 		mu    sync.Mutex
 		paths []string
 	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/api.json") {
 			time.Sleep(delay)
 			_, _ = w.Write([]byte(`{"` + metadataKey(gateway) + `":{"models":{"` + model + `":{"id":"` + model +
@@ -43,7 +44,7 @@ func slowRouteServer(t *testing.T, gateway llmprovider.ProviderID, model, npm st
 		default:
 			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
 		}
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, func() []string {
 		mu.Lock()

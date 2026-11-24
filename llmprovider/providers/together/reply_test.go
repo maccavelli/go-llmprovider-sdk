@@ -12,16 +12,17 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 func replyServer(t *testing.T, reply func(w http.ResponseWriter)) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		reply(w)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &hits
 }

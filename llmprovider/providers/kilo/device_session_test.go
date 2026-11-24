@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
@@ -25,7 +26,7 @@ func TestNew_AcceptsAKiloDeviceSession(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var mu sync.Mutex
 			var authz string
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(wiretest.StreamReplies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				authz = r.Header.Get("Authorization")
 				mu.Unlock()
@@ -35,7 +36,7 @@ func TestNew_AcceptsAKiloDeviceSession(t *testing.T) {
 					return
 				}
 				_, _ = io.WriteString(w, `{"error":{"message":"invalid token"}}`)
-			}))
+			})))
 			t.Cleanup(srv.Close)
 			session := &auth.OAuthSession{Provider: llmprovider.ProviderKilo, Access: "kilo-device-token"}
 			p, err := New(llmprovider.WithTokenSource(session), llmprovider.WithModel("kilo-auto/free"),
