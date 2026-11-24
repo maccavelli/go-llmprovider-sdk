@@ -228,6 +228,8 @@ label. The state table cites them by row.
 | OR14 | ST22's pseudo-console test, green at the base (Phase 2, 2026-11-22) | "Retarget the Windows test (Recommended)" | ST22; "Amendments of 2026-11-22", A-6 |
 | OR15 | ST32's plant, not caught on a pseudo console (Phase 2, 2026-11-22) | "Unit-test the event filter (Recommended)" | ST32; "Amendments of 2026-11-22", A-7 |
 | OR16 | the gate self-test anchored on the `wizard` row's old text (Phase 2, 2026-11-22) | "Make the anchor robust" | A6a's amendment of this date; ST41 |
+| OR17 | `select` interrupted by a signal (`EINTR`), found by ST3's flaky test (2026-11-23) | "Wait again for the time left (Recommended)" | ST9, ST43; A3's amendment; "Amendment of 2026-11-23" (A-8) |
+| OR18 | when the fix of OR17 ships (2026-11-23) | "In v1.33.0 (Recommended)" | the PLAN's Phase 4: its own commit, before the 0088/0089 output-limit commit; both in `v1.33.0` |
 
 ### What option A is
 
@@ -260,7 +262,16 @@ label. The state table cites them by row.
   today. An end of input or a read error met by the peek is kept for the
   next read (`bufio.Reader.Peek` hands an error over only once), which
   answers as it does today (the first end of input answers the prompt's
-  default, 0020-MADR F6; an error is returned).
+  default, 0020-MADR F6; an error is returned). *(Annotated 2026-11-23,
+  A-8: the Go runtime's own preemption signal interrupts the wait with no
+  outside signal, often enough to fail ST3's test; the `EINTR` case is open
+  with the owner.)* *(Amended 2026-11-23, OR17, "Wait again for the time
+  left (Recommended)": `EINTR` is no longer nothing pending. After it, the
+  check calls `select` again with the time left to a deadline fixed before
+  the first call, so A5's bound holds; when no time is left, it makes no
+  further call and reports nothing pending, with no error. Every other
+  `select` error, and a descriptor `select` cannot take, are unchanged. The
+  cases are A-8's, row ST43.)*
 * **A4. Nothing else changes.** Line-mode reads, the path for an input that
   is not a terminal, and the path when raw mode is refused are unchanged;
   `Ctrl-C`, `Ctrl-U`, Backspace and escape sequences during the entry are
@@ -464,13 +475,13 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | ST1 | Enter as a lone CR, nothing follows | decided | the entry is returned within W plus the time to read what is pending; the next prompt reads only what the person types next | A1, A5 (OR1) | `TestSecret_SettleIsBounded_0087`; plant: a blocking `Peek` in place of the bounded wait |
 | ST2 | CR+LF in one read (a paste, a CR+LF terminal) | decided | the LF is dropped with no wait; the next prompt takes the person's answer | 0020-MADR F17 (0020-PLAN Phase 4), A2 | `TestTextPrompter_MaskedEntry` (existing; plant: the buffered-LF discard (C11) removed); and, for "no wait", `TestSecret_NoWaitWhenNotNeeded_0087`, case `CR+LF together` (plant: the settle runs whatever the reader holds) |
-| ST3 | CR, then an LF in a later read, pending when the settle starts or arriving during the 50 ms (whatever sent it, Ctrl-J included) | decided | the LF is dropped; the next `Input`, `Select`, `Confirm` or `Secret` takes the person's answer, with no "empty value" warning | A1 (OR1) | `TestSecret_LateLineFeedDropped_0087` (subtests Input, Select, Confirm, Secret; plant: `readMasked` no longer calls the settle); `TestSecret_LateLineFeedDuringWait_0087` (Unix; *third pass*: it sets the wait to 2 s and writes the LF 10 ms in, so a stalled `-race` run keeps a margin of nearly 2 s; W itself is pinned by ST23's row; plant: the check made once with no wait) |
+| ST3 | CR, then an LF in a later read, pending when the settle starts or arriving during the 50 ms (whatever sent it, Ctrl-J included) | decided | the LF is dropped; the next `Input`, `Select`, `Confirm` or `Secret` takes the person's answer, with no "empty value" warning | A1 (OR1) | `TestSecret_LateLineFeedDropped_0087` (subtests Input, Select, Confirm, Secret; plant: `readMasked` no longer calls the settle); `TestSecret_LateLineFeedDuringWait_0087` (Unix; *third pass*: it sets the wait to 2 s and writes the LF 10 ms in, so a stalled `-race` run keeps a margin of nearly 2 s; W itself is pinned by ST23's row; plant: the check made once with no wait) *(2026-11-23, A-8: this test fails 25 times in 10000 at `77563af` when the runtime's preemption signal interrupts `select`; the outcome is not met then)* |
 | ST4 | CR, then an LF that arrives after W: the person's next Enter at the next prompt, or a late half that missed the wait | decided | the LF is kept and answers the next prompt with its default, as today | 0020-MADR F17 and 0020-PLAN deviation of 2026-10-03; A1 | `TestSecret_NextEnterKept_0087`, and `TestTextPrompter_EnterAfterMaskedEntryIsKept` (existing); plant: option B's rule, a leading LF dropped at the next read |
 | ST5 | CR, then a byte other than LF within W (type-ahead) | decided | the byte stays in the reader and is the next prompt's | A1 (OR1) | `TestSecret_TypeAheadKept_0087`; plant: the settle discards whatever byte it peeks |
 | ST6 | Two line endings after the entry, arriving after the CR is read (CR+LF then CR+LF; CR then CR) | decided | *(corrected 2026-11-20, third pass)* one LF per CR is dropped. CR+LF then CR+LF: the second ending is a whole line, and the next line-mode question takes its default. CR then CR: the kept CR does not end a line read, so the next line-mode question waits for one more line and takes it, the CR trimmed (an Enter alone then gives its default); a second hidden entry reads the CR as an empty entry and warns | A2 (OR1); OR10 | `TestSecret_SecondLineEndKept_0087` (Unix; plants: the settle drops every CR and LF it finds; `readLine` ends a line on a CR) |
 | ST7 | An entry ended by an LF, alone or followed by a CR (LF then CR) | decided | no settle and no wait; a following CR stays: a line-mode prompt trims it, a raw prompt reads an empty entry and warns, as today | A2 (OR1) | `TestSecret_LineFeedEndedEntry_0087` (plant: the settle also runs after an LF and drops a CR); and, for "no wait", `TestSecret_NoWaitWhenNotNeeded_0087`, case `LF-ended` (plant: the settle runs after an LF) |
 | ST8 | The input ends while settling | decided | the entry is returned with no error; the next prompt answers its default; the read after that ends the input | A3 (OR1); 0020-MADR F6 | `TestSecret_EndOfInputWhileSettling_0087`; plant: the settle marks the input ended when its peek meets the end |
-| ST9 | The settle's check fails or cannot be made (a `select` error, `EINTR` included; a closed file, whose descriptor reads as negative; a descriptor at or above `FD_SETSIZE`) | decided | the entry is returned with no error; any read error is the next read's; a negative descriptor or one at or above `FD_SETSIZE` is never given to `select`; after `EINTR` a late LF leaks, as after W | A3 (OR1) | `TestSecret_SettleCheckFails_0087` (Unix; subtests "closed", "descriptor 1100"); plants: the settle returns its check's error as `Secret`'s (caught by both subtests, since the check returns an error for a negative descriptor and for one at or above `FD_SETSIZE`); the `FD_SETSIZE` check removed (the `FdSet` index panics) |
+| ST9 | The settle's check fails or cannot be made (a `select` error, `EINTR` included; a closed file, whose descriptor reads as negative; a descriptor at or above `FD_SETSIZE`) | decided | the entry is returned with no error; any read error is the next read's; a negative descriptor or one at or above `FD_SETSIZE` is never given to `select`; after `EINTR` a late LF leaks, as after W *(2026-11-23, A-8: the `EINTR` outcome is open with the owner, since the runtime's own signal makes it contradict ST3)* *(decided 2026-11-23, OR17: `EINTR` is no longer this row's; it is ST43's)* | A3 (OR1) | `TestSecret_SettleCheckFails_0087` (Unix; subtests "closed", "descriptor 1100"); plants: the settle returns its check's error as `Secret`'s (caught by both subtests, since the check returns an error for a negative descriptor and for one at or above `FD_SETSIZE`); the `FD_SETSIZE` check removed (the `FdSet` index panics) |
 | ST10 | Raw mode refused (Git Bash, mintty) | decided | read as a line and trimmed, no settle, as today | A4 (OR1) | `TestSecret_RawMode_0059`, "raw mode refused" (existing); plant: the refused path's line read not trimmed |
 | ST11 | A pipe or file, CR+LF line endings | decided | no raw mode and no settle; each line is trimmed, as today | A4 (OR1) | `TestSecret_PipeCRLF_0087`; plant: `readLine` stops trimming |
 | ST12 | An injected reader that is not an `*os.File`, reaching `readMasked` directly (tests) | decided | no wait; today's buffered rule only | A3 (OR1) | `TestTextPrompter_EnterAfterMaskedEntryIsKept` (existing); plant: option B's rule |
@@ -504,11 +515,13 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST40 | A second reader of the same terminal takes the byte between the check and the peek | out of scope | the peek waits for the next byte; beside ST27; stated in the doc (OR11) | | |
 | ST41 | The doc and table lines the new import makes false (A6a) | decided | each line A6a names is edited in the same change | A6a; the review's finding 2 | `make tables-check` (plant: `docs/architecture.md`'s `wizard` row left without `golang.org/x/sys`: "imports ..., which its row does not name"); `make docs-check` and Phase 2's review for the prose lines |
 | ST42 | Where the probe lives, and its switch | decided | `llmprovider/live_raw_enter_0087_windows_test.go`, standard library only; `AGENTS.md` names `LLMPROVIDER_LIVE_0087` | OR9; OR12 | ~~`make tables-check` (plant: `AGENTS.md`'s name of the variable removed: "a live test reads it, and AGENTS.md does not name it")~~ *(amended 2026-11-22, OR12: that plant is not caught, since `tables-check` admits a variable its own record names; see A-1)* `make tables-check` (plant: the probe reads a variable no document names); `AGENTS.md`'s name of `LLMPROVIDER_LIVE_0087` pinned by the claims row C47now (plant: its text changed, by `tools/claims.py --plants`); `make dep-check` unchanged |
+| ST43 | The settle's `select` interrupted by a signal (`EINTR`): the Go runtime's own preemption signal, a resize, any other (added 2026-11-23, A-8) | decided | `select` is called again with the time left to a deadline fixed before the first call; the cases and outcomes are A-8's table, K1 to K7 | OR17; A3's amendment | `TestPendingWithin_Interrupted_0087` (Unix; subtests per case, through the unexported seam `selectFn`); plant: the retry removed (`EINTR` returned as the check's error, as before); ST3's `TestSecret_LateLineFeedDuringWait_0087`, unchanged, 0 failures in 10000 runs |
 
 Counts *(third pass)*: 29 decided, 11 out of scope, 0 open, 2 open awaiting
 live evidence (ST20, ST21). *(2026-11-22, A-4: 31 decided, 11 out of scope,
 0 open; Phase 1 mapped to "seen", in a pseudo console, so ST31 and ST32
-arise.)*
+arise.)* *(2026-11-23, A-8, OR17: 32 decided, 11 out of scope, 0 open; ST43
+added.)*
 
 ## Pros and Cons of the Options
 
@@ -931,6 +944,101 @@ planted false by `tools/claims.py --plants` ("2 of 2 pass", exit 0; both plants,
 | :--- | :--- | :--- | :--- |
 | C48now | W is 50 ms (ST23, OR2) | `wizard/text_prompter.go:98` | `var settleWait = 50 * time.Millisecond` |
 | C49now | `Prompter.Secret`'s doc names the late LF (ST35, OR5) | `wizard/prompter.go:108` | `where Enter can arrive as CR then LF, must not leave that LF for the` |
+
+### Amendment of 2026-11-23: the Go runtime's own signal interrupts the wait (A-8; open, with the owner)
+
+*(Decided 2026-11-23 by OR17 and OR18; see "The rulings" and "The cases the
+retry decides" at the end of this amendment.)*
+
+**What A3 asserts, and what was measured.** A3 counts a `select` error,
+"`EINTR` included, when a signal such as a window resize interrupts the
+wait", as nothing pending, so that a late LF leaks "as after W"; ST9 decides
+the same. The assumption under it is that an interruption needs a signal
+from outside, which is rare. It does not: the Go runtime's own asynchronous
+preemption signal (`SIGURG`) interrupts the wait in an ordinary process, with
+no outside signal, often enough to fail ST3's own test.
+
+**The defect it caused.** `TestSecret_LateLineFeedDuringWait_0087` (ST3)
+failed twice in about 23 full `go test` runs of the working tree (once in
+`make coverage-check`), with
+`late_lf_0087_unix_test.go:109: Input after an LF 10 ms into the wait = "saved-model", <nil>; want my-model`.
+
+**The reproduction,** on a scratch clone of `77563af` (the `v1.32.0` code;
+`wizard/` unchanged since), this Mac, idle: the wizard's test binary built
+once (`go test -c ./wizard/`), then run with
+`-test.run '^TestSecret_LateLineFeedDuringWait_0087$' -test.count=N`:
+
+| Run | Failures |
+| :--- | :--- |
+| N = 2000 | 3 |
+| N = 10000 | 25 (0.25 %) |
+| N = 10000, `GODEBUG=asyncpreemptoff=1` | 0 |
+| N = 5000, a second scratch clone whose `settle` prints `pendingWithin`'s result when it is not "ready" (never in the tree) | 15; 15 printed lines, each `ready=false err=interrupted system call`, between 20 µs and 650 µs into a 2 s wait |
+| N = 3000 with `-race`, the Linux machine (not WSL), through `run-on-host --need linux --race` | 0 |
+
+Every failure is an `EINTR` from `select(2)`, and switching off the
+runtime's asynchronous preemption removes them all. The Linux run under
+`-race` showed none in 3000; a Linux rate without `-race` was not measured.
+The rate in a real terminal was not measured.
+
+**The interleaving.** `readMasked` reads the CR with nothing buffered after
+it and calls `settle` (`wizard/text_prompter.go:548` to `:549`);
+`pendingWithin` enters `select(2)` with the 2 s wait
+(`wizard/settle_unix.go:31`). A preemption signal the runtime requested
+while the goroutine was still running Go code (`preemptM`, from sysmon's 10
+ms time slice, `runtime/proc.go:6715` to `:6716` of Go 1.27.4, or from the
+garbage collector) is delivered while the thread is in `select`, which
+returns `EINTR` (`select` is not restarted after a handler). `pendingWithin`
+returns the error (`wizard/settle_unix.go:32` to `:33`), `settle` returns as
+if nothing were pending (`wizard/text_prompter.go:591`), and `Secret`
+returns. The LF the test writes 10 ms after the line end then reaches the
+next `Input`, a line-mode read, as an empty line: its default. This is A3's
+decided path, met far more often than A3 assumed, and it contradicts ST3's
+outcome ("arriving during the 50 ms ... the LF is dropped"), which ST3's
+test asserts.
+
+**What it means.** The cause is the production code, as A3 and ST9 decided
+it, not the test: the test asserts ST3 exactly, and fails only when
+`select` is interrupted. ST3 and ST9 cannot both hold as written once the
+runtime's own signal is a routine source of `EINTR`, so ST9's `EINTR` outcome
+is open again until the owner rules. Its resolutions are in the PLAN's
+deviation of this date. Nothing was changed in the code or the tests.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| C50now | the readiness check returns `select`'s error, `EINTR` included | `wizard/settle_unix.go:31` | `n, err := unix.Select(fd+1, &set, nil, nil, &tv)` |
+| C51now | the settle treats any error as nothing pending | `wizard/text_prompter.go:591` | `if err != nil \|\| !ready {` |
+
+The two rows hold at `77563af`, checked with plain ids on a scratch record
+(`self=77563af`): "2 of 2 pass", exit 0; `tools/claims.py --plants`, C50's
+text changed and C51's line moved, "claims: all 2 plant(s) caught", exit 0.
+
+**The rulings (2026-11-23).** Each is the owner's, relayed by the
+coordinator, by its exact label; A-8 is decided by them.
+
+* OR17: "Wait again for the time left (Recommended)": after `EINTR`,
+  `pendingWithin` calls `select` again with the time left to a deadline fixed
+  before the first call, so A5's bound holds; A3 and ST9 are amended (A3's
+  annotation of this date; ST9's row; the new row ST43); one deterministic
+  test through an unexported seam on the `select` call, whose plant removes
+  the retry; accepted when the reproduction above shows 0 failures in 10000
+  on this Mac, with a Linux run.
+* OR18: "In v1.33.0 (Recommended)": the fix is its own commit, landing
+  before the 0088/0089 output-limit commit, and both ship in `v1.33.0`.
+
+**The cases the retry decides (ST43),** each outcome by OR17, before any
+code. "The deadline" is the moment the first `select` starts plus the wait,
+on the monotonic clock; "the time left" is the deadline less now.
+
+| Case | Input or state | Outcome | Pinned by (`TestPendingWithin_Interrupted_0087` subtest, unless named) |
+| :--- | :--- | :--- | :--- |
+| K1 | `EINTR`, then the input readable within the time left | `true`, no error; the LF is dropped, `Secret` returns the key and the next `Input` the answer | `EINTR, then the LF` (through `Secret` and `Input`) |
+| K2 | `EINTR`, then `select` again | the next call's wait is the time left, never a fresh W: at most W less the time already spent | `EINTR, then the LF` (the second call's wait is checked) |
+| K3 | `EINTR` repeated until the deadline passes | `false`, no error; no call starts after the deadline | `EINTR until the deadline` |
+| K4 | `EINTR` with no time left | no further `select`; `false`, no error | `EINTR with no time left` (one call) |
+| K5 | any other `select` error | unchanged (A3): `false` and the error, no retry, which `readMasked` ignores | `another error` (one call); and `TestSecret_SettleCheckFails_0087`, `closed`, unchanged |
+| K6 | a descriptor `select` cannot take (negative, or at or above `FD_SETSIZE`) | unchanged (A3): `false` and `errNoSelect`, never given to `select` | `TestSecret_SettleCheckFails_0087` (`closed`, `descriptor 1100`), unchanged |
+| K7 | the builds that are not Unix | unaffected: `wizard/settle_windows.go` waits with `WaitForSingleObject`, which is not alertable, in slices to a deadline it already fixes, and `wizard/settle_other.go` does not wait; neither calls `select` or the seam | read in both files at `77563af`; `GOOS=windows go vet ./wizard` and `GOOS=windows go test -c ./wizard` build with the fix |
 
 ## Release note (2026-11-22)
 

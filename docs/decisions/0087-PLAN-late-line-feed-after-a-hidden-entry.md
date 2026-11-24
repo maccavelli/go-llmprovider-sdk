@@ -1,5 +1,5 @@
 ---
-status: complete
+status: in-progress
 date: 2026-11-23
 associated-madr: "0087-MADR-late-line-feed-after-a-hidden-entry.md"
 decision-makers: repository owner
@@ -358,6 +358,51 @@ record's changelog entry and its consumer note with the other four records'.
 This PLAN goes to `complete` when that tag is made and every row is green.
 
 Exit criterion: no blocker, every row tested, plants caught.
+
+### Phase 4: the interrupted wait (added 2026-11-23, OR17, OR18)
+
+Base `77563af`. Files: `wizard/settle_unix.go`, `wizard/text_prompter.go`
+(`settle`'s doc comment only), `wizard/late_lf_0087_unix_test.go`, this
+pair, `docs/README.md`'s 0087 rows, and one line in `CHANGELOG.md`
+`[Unreleased]`, **Fixed**. Its own commit, before the 0088/0089
+output-limit commit; both ship in `v1.33.0` (OR18).
+
+1. **Records first.** OR17 and OR18 in the MADR (rulings table, A3's
+   amendment, ST9, ST43, A-8's cases K1 to K7) and here; this PLAN to
+   `in-progress` by `tools/records.py status`.
+2. **The seam.** `selectFn`, an unexported variable in
+   `wizard/settle_unix.go` holding `unix.Select`, through which
+   `pendingWithin` calls `select`. It changes no behaviour, and it does not
+   exist at the base, so the red run is made on the base plus the seam alone.
+3. **The test.** `TestPendingWithin_Interrupted_0087` in
+   `wizard/late_lf_0087_unix_test.go`, one subtest per case K1 to K5, each
+   with a fake `selectFn`: `EINTR, then the LF` (the fake writes the LF and
+   returns `EINTR` once, then calls `unix.Select`; through `Secret` and
+   `Input`; the second call's wait is at most W less the time already
+   spent); `EINTR until the deadline`; `EINTR with no time left`; `another
+   error`. Red on the base plus the seam: K1 to K4's subtests fail on their
+   assertions; `another error` is green.
+4. **The fix.** After `EINTR`, `pendingWithin` calls `select` again with the
+   time left to a deadline fixed before the first call; with no time left it
+   returns `false` and no error. Doc comments of `pendingWithin` and
+   `settle` say so.
+5. **Green and plants.** The new test and every 0087 test green. Plants by
+   `tools/plant.py` on a scratch clone: "the retry removed" (caught by the
+   new test); ST3's "the check made once with no wait" (still caught by
+   `TestSecret_LateLineFeedDuringWait_0087`).
+6. **The reproduction.** `TestSecret_LateLineFeedDuringWait_0087`,
+   `-test.count=10000`, on this Mac: 0 failures (the base: 25 of 10000); a
+   Linux run through `run-on-host`.
+7. **Gates,** on a scratch clone of `77563af` plus only this phase's files
+   (`CHANGELOG.md` there is `77563af`'s plus the one line): `go vet ./...`;
+   `go test -count=1 ./wizard/`; `-race` on `./wizard/` through
+   `run-on-host` on the Linux machine (not WSL); golangci-lint over
+   `./wizard/`; `make records-check markdownlint changelog-check
+   docs-check`; `tools/claims.py` on the MADR; `tools/denyscan.py
+   --changed`.
+
+Exit criterion: no blocker; K1 to K7 each tested or checked as A-8's table
+names; the plants caught.
 
 ## Verification
 
@@ -975,3 +1020,143 @@ owner's steps) stays open: the probe file is not in Phase 2's file list.
 ### The release completed (2026-11-23)
 
 Tag `v1.32.0` (annotated, the owner's) on `f86933c`, pushed 2026-11-23. Tag CI run 45195957872: completed, success. `python3 -B tools/consumer.py v1.32.0`: exit 0, "consumer: 17 packages linked", "consumer: every step passed". `python3 -B tools/offline.py v1.32.0`: exit 0, "caught: no caller layer", "offline: every step passed". The GitHub Release `v1.32.0` was published 2026-11-23T14:46:16Z by the release workflow, not a draft, not a prerelease, its body the `v1.32.0` changelog section (verified by the coordinator, 2026-11-23). Release phase complete. This PLAN's status is set to `complete` (`tools/records.py status`, 2026-11-23). 0088 and 0089 are not in this release.
+
+### Deviation, 2026-11-23: ST3's during-wait test fails when the runtime's preemption signal interrupts the wait (open, with the owner)
+
+*(Annotated 2026-11-23: ruled, OR17 and OR18; see "Phase 4" below.)*
+
+**The owner's ruling** that opened this entry, relayed by the coordinator:
+"Fix the flake first": an agent reproduces and fixes it under an 0087
+amendment before the 0088/0089 phase is staged.
+
+* **Found.** `TestSecret_LateLineFeedDuringWait_0087` (ST3) failed twice in
+  about 23 full `go test -count=1 -cover ./...` runs of the working tree on
+  this Mac, once in `make coverage-check`:
+  `late_lf_0087_unix_test.go:109: Input after an LF 10 ms into the wait = "saved-model", <nil>; want my-model`.
+  Five side-by-side full runs failed 0 times at `77563af` and 0 times on the
+  working tree, so whether it existed at the base was not shown.
+* **Reproduced at the base,** on a scratch clone of `77563af` (a `git clone`,
+  not a worktree), this Mac, idle: the wizard's test binary built once, then
+  run with `-test.run '^TestSecret_LateLineFeedDuringWait_0087$'`:
+  3 failures in `-test.count=2000`; 25 in 10000 (0.25 %); 0 in 10000 with
+  `GODEBUG=asyncpreemptoff=1`. The Linux machine (not WSL), through
+  `run-on-host --need linux --race`, `go test -race ./wizard/` with the same
+  `-run` and `-count=3000`: 0 failures, exit 0. No load was needed, and the
+  0088/0089 files play no part: it is not a regression of that phase.
+* **Cause, seen directly.** A second scratch clone whose `settle` printed
+  `pendingWithin`'s result when it was not "ready" (never in the tree),
+  `-test.count=5000`: 15 failures and 15 printed lines, each
+  `ready=false err=interrupted system call`, between 20 µs and 650 µs into
+  the 2 s wait. The runtime's asynchronous preemption signal (`SIGURG`)
+  reaches the thread while it is in `select(2)` (`wizard/settle_unix.go:31`),
+  which returns `EINTR`; `pendingWithin` returns it (`:32` to `:33`); `settle`
+  takes any error as nothing pending (`wizard/text_prompter.go:591`), as MADR
+  A3 and ST9 decide; `Secret` returns, and the LF written 10 ms later answers
+  the next `Input` with its default. The cause is in production code, not
+  in the test, which asserts ST3 exactly. MADR "Amendment of 2026-11-23"
+  (A-8) records the contradicted assumption and the interleaving.
+* **Resolutions, for the owner** (none changes the test, its 2 s, or any
+  assertion):
+  1. *(Recommended.)* `pendingWithin` calls `select` again after `EINTR`,
+     with the time left to a deadline fixed before the first call, so W stays
+     the bound (A5); any other error, a descriptor out of range, and the
+     deadline still mean nothing pending. A3 and ST9 amended (`EINTR`: the
+     wait goes on). A new deterministic test through an unexported seam on
+     the `select` call that returns `EINTR` once (plant: the retry removed).
+     Acceptance: the reproduction above, 0 in 10000 on this Mac, and the
+     Linux run. Cost: about ten lines in `wizard/settle_unix.go`, one test,
+     these records, a `CHANGELOG.md` **Fixed** line and a patch release.
+  2. On Linux, `pselect(2)` with every signal blocked for the wait, so it
+     cannot be interrupted, and on darwin and the BSDs, where
+     `golang.org/x/sys` v0.47.0 has no `Pselect`, the retry of 1. Cost: two
+     mechanisms and more platform files and tests; a signal to the process
+     (a resize, Ctrl-C from another terminal) waits up to 50 ms on Linux.
+  3. After `EINTR`, `select` again with a fresh full W, at most a fixed
+     number of times, then nothing pending. Simplest code, but `Secret`'s
+     bound becomes that number plus one times W, which amends A5 as well as
+     A3 and ST9, and a constant and a claims row are added.
+* **If nothing is done:** ST3's test stays red about once in 400 runs on
+  this Mac, which fails `make coverage-check` and CI at random; and in use a
+  CR+LF Enter's late LF leaks whenever the preemption signal lands in the
+  wait (its rate in a real terminal is not measured), answering the next
+  question with its default, the defect this record fixes.
+* **Not done, pending the ruling:** any code or test change; the gates of a
+  fix. This PLAN's status stays `complete` until the owner rules; a fix is
+  a further pass under this pair. *(Annotated 2026-11-23: ruled; the status
+  is `in-progress` for Phase 4.)*
+
+### 2026-11-23: Phase 4, pass 1 (the interrupted wait)
+
+**The rulings,** the owner's, relayed by the coordinator, by their exact
+labels: OR17, "Wait again for the time left (Recommended)"; OR18, "In
+v1.33.0 (Recommended)". Recorded in the MADR (rulings table, A3's
+amendment, ST9, ST43, and A-8's "The rulings" and cases K1 to K7) before
+any code. No case needed a further ruling. Status to `in-progress` by
+`python3 -B tools/records.py status docs/decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md in-progress --date 2026-11-23`:
+"records: written; records-check: 0 problem(s)", exit 0.
+
+**What was changed:** `wizard/settle_unix.go` (`selectFn`; `pendingWithin`
+calls `select` again after `EINTR` with the time left to a deadline fixed
+before the first call, and with no time left returns `false` and no error;
+its doc comment); `wizard/text_prompter.go` (`settle`'s doc comment only);
+`wizard/late_lf_0087_unix_test.go` (`TestPendingWithin_Interrupted_0087`,
+with the helpers `fakeSelect0087` and `pipeReader0087`); this pair;
+`docs/README.md`'s 0087 PLAN row; one `CHANGELOG.md` line.
+
+**Red,** on a scratch clone of `77563af` plus the new test file and the seam
+alone (`selectFn` through which `select` is called, no retry; the seam does
+not exist at the base), `go test -count=1 ./wizard/ -run
+'^TestPendingWithin_Interrupted_0087$' -v`, exit 1:
+
+```text
+late_lf_0087_unix_test.go:173: Input after an interrupted wait = "saved-model", <nil>; want my-model: the LF leaked after EINTR
+late_lf_0087_unix_test.go:176: select called 1 time(s); want 2: once, and again after EINTR
+late_lf_0087_unix_test.go:192: pendingWithin = false, interrupted system call; want false and no error once the deadline passes
+late_lf_0087_unix_test.go:195: select called 1 time(s); want it called again after EINTR
+late_lf_0087_unix_test.go:215: pendingWithin = false, interrupted system call; want false and no error
+--- PASS: TestPendingWithin_Interrupted_0087/another_error (0.00s)
+```
+
+K1 to K4's subtests red on their assertions; K5's (`another error`) green,
+as planned. **Green** after the fix: all four subtests pass, and every
+`_0087` test with `TestTextPrompter_*`, `TestSecret_RawMode_0059` and
+`TestTextPrompterRefusesBlank_0085`, 70 `PASS` lines, exit 0.
+
+**Plants** (`tools/plant.py --root` the gates clone below):
+
+| Plant | Run | Result |
+| :--- | :--- | :--- |
+| the retry removed (`if errors.Is(err, unix.EINTR) && false {`) | `-run '_0087$'` | caught, only `TestPendingWithin_Interrupted_0087` failing, on the red run's five lines |
+| ST3's: the check made once with no wait (`pendingWithin(p.rawIn, 0)`) | `-run '^TestSecret_LateLineFeedDuringWait_0087$'` | caught: `late_lf_0087_unix_test.go:109: Input after an LF 10 ms into the wait = "saved-model", <nil>; want my-model` |
+
+The first spec of the retry plant deleted the `EINTR` branch and did not
+build (`deadline` unused): `tools/plant.py` counted the build failure as
+caught. That is not a test catching it, so the plant was respecified to
+disable the branch, which builds, and run again (the table's line).
+
+**The reproduction** (`TestSecret_LateLineFeedDuringWait_0087`, unchanged):
+this Mac, the gates clone's test binary, `-test.count=10000`: 0 failures,
+exit 0 (`77563af`: 25 of 10000, A-8). The Linux machine (not WSL), through
+`run-on-host --need linux --race`: `-count=10000` under `-race`, `ok`, 0
+failures. It runs under `-race` because `pick-host` sends a run without it
+to a WSL distro, and only a race run is kept on the Linux machine (0015 D11).
+
+**Gates,** on a scratch clone of `77563af` plus only this phase's files
+(`CHANGELOG.md` there is `77563af`'s plus the one line, under a `### Fixed`
+heading after `### Added`):
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| `go vet ./...` | this Mac | 0 |
+| `go test -count=1 ./wizard/` | this Mac | 0 |
+| `run-on-host --need linux --race -- sh -c 'go test -race -count=1 ./wizard/ && <the reproduction> && go test -race -count=1 -v ./wizard/ -run "^TestPendingWithin_Interrupted_0087$"'` | the Linux machine | 0 (three `ok`) |
+| `golangci-lint run -c .golangci.yml --build-tags live_gateways ./wizard/` (v2.15.0), and with `GOOS=windows` | this Mac | 0, "0 issues." each |
+| `GOOS=windows CGO_ENABLED=0 go vet ./wizard/` and `go test -c ./wizard/` (K7) | this Mac | 0 each |
+| `make records-check markdownlint changelog-check docs-check` | this Mac | 0 (189 records, 0 problems; 0 issues; 46 sections, 0 problems) |
+| `tools/claims.py --search <the repositories' parent>` on the MADR | this Mac | 0 (46 of 46) |
+| `tools/denyscan.py --changed`; `tools/recordlint.py --changed` | this Mac | 0 (0 hits in 7 files); 0 (no new findings) |
+
+Exit criterion: no blocker; K1 to K5 tested, K6 by its existing tests, K7
+checked; both plants caught. Phase 4 is done in one pass. Not done here: the
+commit (the owner's; its own, before the 0088/0089 output-limit commit,
+OR18), and `v1.33.0`, whose release takes this PLAN back to `complete`.

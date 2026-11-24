@@ -30,6 +30,10 @@ tag and its commit without notes; its notes are its section here.
   Claude workspace is read from `catalog.WithClaudeWorkspace`. `LookupModel`,
   `ModelInfo` and every request are unchanged (0089-MADR D1 to D3).
 
+### Fixed
+
+- `TextPrompter` drops a late LF even when a signal interrupts its wait, which then goes on for the time left ([0087-MADR](docs/decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) A-8).
+
 ## [v1.32.0] - 2026-11-22
 
 ### Added

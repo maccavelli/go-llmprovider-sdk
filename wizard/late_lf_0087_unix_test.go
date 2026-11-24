@@ -110,6 +110,129 @@ func TestSecret_LateLineFeedDuringWait_0087(t *testing.T) {
 	}
 }
 
+// fakeSelect0087 replaces selectFn for the test. step is given each call's
+// number, from 1, and its wait; it returns the call's result, or real to make
+// the call through unix.Select. The waits are returned as they were asked for.
+func fakeSelect0087(t *testing.T, step func(call int, wait time.Duration) (n int, real bool, err error)) *[]time.Duration {
+	t.Helper()
+	saved := selectFn
+	t.Cleanup(func() { selectFn = saved })
+	waits := &[]time.Duration{}
+	selectFn = func(nfd int, r, w, e *unix.FdSet, tv *unix.Timeval) (int, error) {
+		wait := time.Duration(tv.Nano())
+		*waits = append(*waits, wait)
+		n, real, err := step(len(*waits), wait)
+		if real {
+			return saved(nfd, r, w, e, tv)
+		}
+		return n, err
+	}
+	return waits
+}
+
+// pipeReader0087 is the reading end of a new os.Pipe, both ends closed when the
+// test ends.
+func pipeReader0087(t *testing.T) *os.File {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = w.Close()
+		_ = r.Close()
+	})
+	return r
+}
+
+// TestPendingWithin_Interrupted_0087 (ST43; 0087-MADR A-8, OR17): a select
+// interrupted by a signal (EINTR) is made again with the time left to a
+// deadline fixed before the first call. Each subtest is one of A-8's cases.
+func TestPendingWithin_Interrupted_0087(t *testing.T) {
+	t.Run("EINTR, then the LF", func(t *testing.T) { // K1, K2
+		saved := settleWait
+		settleWait = 2 * time.Second
+		t.Cleanup(func() { settleWait = saved })
+		p, w, _ := latePipe0087(t)
+		write0087(t, w, key0087+"\r")
+		const spent = 2 * time.Millisecond
+		waits := fakeSelect0087(t, func(call int, _ time.Duration) (int, bool, error) {
+			if call > 1 {
+				return 0, true, nil
+			}
+			// The signal lands in the wait; the LF arrives after it.
+			write0087(t, w, "\n")
+			time.Sleep(spent)
+			return 0, false, unix.EINTR
+		})
+		if got, err := p.Secret("Key"); err != nil || got != key0087 {
+			t.Fatalf("Secret = %q, %v; want the key", got, err)
+		}
+		write0087(t, w, "my-model\n")
+		if got, err := p.Input("Model", "saved-model"); err != nil || got != "my-model" {
+			t.Errorf("Input after an interrupted wait = %q, %v; want my-model: the LF leaked after EINTR", got, err)
+		}
+		if len(*waits) != 2 {
+			t.Fatalf("select called %d time(s); want 2: once, and again after EINTR", len(*waits))
+		}
+		if first, second := (*waits)[0], (*waits)[1]; first != settleWait || second > first-spent {
+			t.Errorf("select waits %v then %v; want %v, then at most %v: the time left, not a fresh wait", first, second, settleWait, settleWait-spent)
+		}
+	})
+	t.Run("EINTR until the deadline", func(t *testing.T) { // K3
+		r := pipeReader0087(t)
+		const wait = 30 * time.Millisecond
+		waits := fakeSelect0087(t, func(int, time.Duration) (int, bool, error) {
+			time.Sleep(5 * time.Millisecond)
+			return 0, false, unix.EINTR
+		})
+		start := time.Now()
+		ready, err := pendingWithin(r, wait)
+		if ready || err != nil {
+			t.Errorf("pendingWithin = %v, %v; want false and no error once the deadline passes", ready, err)
+		}
+		if len(*waits) < 2 {
+			t.Errorf("select called %d time(s); want it called again after EINTR", len(*waits))
+		}
+		for i, d := range *waits {
+			if d <= 0 || d > wait {
+				t.Errorf("call %d waits %v; want more than 0 and at most %v", i+1, d, wait)
+			}
+		}
+		if d := time.Since(start); d > time.Second {
+			t.Errorf("pendingWithin took %v; want it bounded by its %v", d, wait)
+		}
+	})
+	t.Run("EINTR with no time left", func(t *testing.T) { // K4
+		r := pipeReader0087(t)
+		const wait = 20 * time.Millisecond
+		waits := fakeSelect0087(t, func(int, time.Duration) (int, bool, error) {
+			time.Sleep(2 * wait)
+			return 0, false, unix.EINTR
+		})
+		ready, err := pendingWithin(r, wait)
+		if ready || err != nil {
+			t.Errorf("pendingWithin = %v, %v; want false and no error", ready, err)
+		}
+		if len(*waits) != 1 {
+			t.Errorf("select called %d time(s); want 1: no time was left after EINTR", len(*waits))
+		}
+	})
+	t.Run("another error", func(t *testing.T) { // K5
+		r := pipeReader0087(t)
+		waits := fakeSelect0087(t, func(int, time.Duration) (int, bool, error) {
+			return 0, false, unix.EBADF
+		})
+		ready, err := pendingWithin(r, 20*time.Millisecond)
+		if ready || !errors.Is(err, unix.EBADF) {
+			t.Errorf("pendingWithin = %v, %v; want false and EBADF, as A3 decides", ready, err)
+		}
+		if len(*waits) != 1 {
+			t.Errorf("select called %d time(s); want 1: only EINTR is waited again", len(*waits))
+		}
+	})
+}
+
 // TestSecret_NoWaitWhenNotNeeded_0087 (ST2, ST7): with the wait set to 5 s, an
 // entry whose CR+LF arrive together, and one ended by an LF, return within
 // 2 s: neither waits.

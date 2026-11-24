@@ -581,8 +581,10 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 // while secretOnce holds the terminal in raw mode, it waits up to settleWait
 // for the input to become readable, and then peeks one byte, dropping it if
 // it is an LF, the rest of the same Enter; any other byte stays for the next
-// prompt. A check that fails or cannot be made is nothing pending, and an
-// error the peek meets is kept for the next read (0087-MADR A1 to A5).
+// prompt. A check that a signal interrupts waits again for the time left, so
+// the wait is not cut short (0087-MADR A-8, OR17); a check that fails
+// otherwise or cannot be made is nothing pending, and an error the peek meets
+// is kept for the next read (0087-MADR A1 to A5).
 func (p *TextPrompter) settle(r *bufio.Reader) {
 	if p.rawIn == nil {
 		return

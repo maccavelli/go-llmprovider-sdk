@@ -191,7 +191,7 @@ documents a reader follows to do something.
 | 0086 | MADR | [Pin golangci-lint v2.15.0, and Drop the Three nolint Directives It Makes Dead](decisions/0086-MADR-golangci-lint-v2-15-0.md) | accepted |
 | 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | in-progress |
 | 0087 | MADR | [Keep a Hidden Entry's Late Line Feed From Answering the Next Prompt: `TextPrompter` Settles Its Enter Before It Leaves Raw Mode](decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) | accepted |
-| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | complete |
+| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | in-progress |
 | 0088 | MADR | [Send the Model's Own Output Limit When a Request Names None, So Reasoning Does Not Spend the Whole 8192-Token Default](decisions/0088-MADR-default-output-limit-from-model-facts.md) | accepted |
 | 0088 | PLAN | [Implement Sending the Model's Own Output Limit When a Request Names None](decisions/0088-PLAN-default-output-limit-from-model-facts.md) | in-progress |
 | 0088 | REPORT | [Output Limits Across Agents and Vendors, Recorded for 0088](reports/0088-REPORT-output-limits-across-agents-and-vendors.md) | observation |
