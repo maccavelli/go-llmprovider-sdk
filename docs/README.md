@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-190 records. Cite them by full filename.
+193 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -200,6 +200,9 @@ documents a reader follows to do something.
 | 0089 | PLAN | [Implement Model Output-Limit Discovery, and Send a Limit Only Where It Is Needed](decisions/0089-PLAN-model-output-limit-discovery.md) | in-progress |
 | 0090 | MADR | [A Cancelled Run Does Not Ask About the Endpoint: `resolveBaseURL` Reads the Run's Context Before It Warns, and Two Test Gaps From 0081 Are Closed or Left](decisions/0090-MADR-a-cancelled-run-does-not-ask-about-the-endpoint.md) | accepted |
 | 0090 | PLAN | [Implement: A Cancelled Run Does Not Ask About the Endpoint](decisions/0090-PLAN-a-cancelled-run-does-not-ask-about-the-endpoint.md) | in-progress |
+| 0091 | MADR | [Adopt the Responses API Per Provider Where It Loses Nothing Chat Completions Gives, and Read a Cut a Service Reports as Complete](decisions/0091-MADR-adopt-the-responses-api-per-provider.md) | accepted |
+| 0091 | PLAN | [Implement: Adopt the Responses API Per Provider](decisions/0091-PLAN-adopt-the-responses-api-per-provider.md) | in-progress |
+| 0091 | REPORT | [The Responses API Across the SDK's Providers, Recorded for 0091](reports/0091-REPORT-responses-api-across-providers.md) | observation |
 
 ## I want to…
 
