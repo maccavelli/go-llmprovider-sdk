@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-23
+date: 2026-11-24
 associated-madr: "0088-MADR-default-output-limit-from-model-facts.md"
 decision-makers: repository owner
 ---
@@ -914,3 +914,47 @@ Base `f4efc5e`; unstaged; no live call, every reply the tests' own.
 **Docs.** The doc comments of `wire.LimitInput` and `wire.ChooseLimit`, of `Request.MaxOutputTokens` (`llmprovider/contract.go`), and the package docs of Claude, Kilo and OpenCode; `docs/guides/api-standards.md` R6 (the hold) and R57 (the estimate's numbers and their provenance); `docs/architecture.md` (`internal/wire`'s row); `docs/guides/adding-a-provider.md` (the output limit step); `README.md` ("Output limits"); `CHANGELOG.md` `[Unreleased]` **Changed** (the estimate fit).
 
 **Not done:** Phases 2 to 4; R1 to R5 wait for Phase 3's review; ST43's claims rows on the changelog entries wait for Phase 2, as deviation 9 says.
+
+## Amendment (2026-11-24, seventh): v1.33.0 re-scoped, Phase 3 a short release review
+
+Additions only; every step above stands, read as this amendment says.
+
+* **The owner's rulings of 2026-11-24**, relayed by the coordinator, quoted as given: "5 now, converge to 1 (Recommended)" (gobble-cli sends each model's known output cap from its own catalog now; this SDK's next release is fast-tracked in parallel; gobble-cli then owns the per-turn limit on this SDK's facts, in gobble-cli's own records), and "Yes, re-scope v1.33.0 (Recommended)".
+* **What v1.33.0 carries.** It is cut from SDK main as it stands at `33e6f09`: this PLAN's Phase 1 as built in 0089-PLAN's merged phase, Phase 1b (the cut answer) and Phase 1c (the estimate fit); 0089-PLAN's Phases 1 to 3; 0087-MADR A-8's wizard fix (`c5b9912`); 0090's fix and tests; 0091's records and the docs of its Phase 1. It is a minor version: `apidiff` against `v1.32.0` lists 21 added names at `33e6f09`.
+* **A scope addition (2026-11-24).** The owner, relayed by the coordinator, quoted as given: "scope this into v1.33.0: It also found something for the SDK release. When a service refuses a limit the caller set, the SDK learns the cap but never reports it, since that warning only travels on a successful reply." v1.33.0 also carries the caller-limit refusal report, its record to follow as a 0089-MADR amendment, built as its own phase after this release preparation; Phase 2's gates run again on that phase's commit before the tag, and its changelog entries join `[Unreleased]`.
+* **What moves to v1.34.0.** R1 to R5 (the MADR's tenth, twelfth and thirteenth amendments; R1 to R3 are the three cut-answer choices Phase 1b deferred) are not ruled before v1.33.0: the behaviour ships as built, each with its tests and plants (the MADR's fourteenth amendment). 0091-PLAN's Phase 2 (`chatcompat.WithResponses()`) moves too (that PLAN's amendment of this date), and so does 0092 (the note below).
+* **Phase 2** runs as written, over this PLAN's tables and 0089-PLAN's (its Phases 4 and 5), at `33e6f09`, step 8's ST43 rows included.
+* **Phase 3** is a short release review, not the full review steps 2 and 3 describe: a reviewer who did not build the phases reads the diff from `v1.32.0` to the release commit and reports blockers only. A blocker goes to the owner as step 3 says; a finding that is not a blocker is recorded as a follow-up for v1.34.0. Step 4 (R1 to R3) moves to v1.34.0 with R4 and R5.
+* **Phase 4** releases v1.33.0. Step 2's `apidiff` runs against `v1.32.0`, the newest tag, and expects the 21 lines the merged phase and Phase 1b recorded, nothing else, beside any the caller-limit refusal report's record names. `CHANGELOG.md`'s `[Unreleased]` becomes `[v1.33.0] - <date>`, dated by the release commit's day, with `README.md`'s "current release" line; this step is pending until the caller-limit refusal report's entries are in (the coordinator, 2026-11-24). *(2026-11-24: before the date step also come 0089's DL70 extract regeneration, the owner's "One fetch, then ship (Recommended)", and DL65's Kilo measurement, the owner's "Run before the tag", then the gates again; 0089-PLAN's entry of 2026-11-24 lists the remaining steps in order.)* The tag and the GitHub Release each wait for the owner's word in the same turn, as written.
+* **0092 (a note).** `0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md` (`accepted`) and its PLAN (`proposed`) are drafted outside this tree (`<scratch>/m0092/`) and are not placed by this amendment. They target v1.34.0, where their drafts say v1.33.0 (the owner's "Own v1.33.0 phase (Recommended)", now superseded by "Yes, re-scope v1.33.0 (Recommended)"); placing them is their own Phase 0, which records the move by dated amendment.
+
+### Execution record entry (2026-11-24, eighteenth): Phase 2, the joint gates, pass 1
+
+Base `33e6f09`, the tree clean at the start (`git status --porcelain` empty); no code changed; no live call. Run with 0089-PLAN's Phases 4 and 5 as the seventh amendment says. Scripts and outputs: `<scratch>/rel133/`.
+
+**Records (step 1 of the brief).** This PLAN's seventh amendment; the MADR's fourteenth (R1 to R5 to v1.34.0; ST43's rows); 0089-PLAN's entry of 2026-11-24 and 0089-MADR's amendment of 2026-11-24 (DL59's rows); 0091-PLAN's amendment and 0091-MADR's sixth (ST30); the 0092 note. No `docs/README.md` row changes: no title or status moved (`make records-check`: 193 records, 0 problems).
+
+**Plants (step 2).** Every `tools/plant.py` spec the build phases wrote (0089-PLAN Phase 1, the merged phase's layers A to E, Phase 1b, Phase 1c), run again on scratch clones of the tree at `33e6f09`: 73 specs, 182 plants. 173 matched and were caught as written. 9 no longer matched once (8 sites, one plant in two specs), their text reworded by later layers and by Phases 1b and 1c; each was re-grounded to the same production change at the text `33e6f09` holds and caught on an assertion: DL19's window hold (`catalog/limits.go`, `observedOutput`), `TestDiscover_OutputAboveWindow_0089`; DL40 (d) the base URL ignored (`rememberedEvidence`), `limit_observations_0089_test.go:53`; DL39 the cap kept (`limitmemo.go`), `limitmemo_0089_test.go:47`; DL51 (d) 8192 sent where nothing states a limit (`limit_rule.go`), `output_limit_fallback_0089_test.go:196`; DL55 and DL67 (f) the pre-raise value reported (Claude, OpenCode's messages route), `output_limit_0089_test.go:383` (a first re-grounding left `sent` unused and broke the build; rewritten, then caught on the assertion); ST32/ST99 a 2026-11-21 value kept, `facts_0041_test.go:102: claude/claude-sonnet-5, a limit of 128000: sent 8192 ... want 128000`; ST27 the Chat Completions empty check removed, now the decoder's cut path skipping `wire.CutAnswer` (Phase 1b moved the check there), `empty_0061_test.go:21: cut while still reasoning: <nil>; want an error matching ErrEmptyAnswer and ErrIncomplete`. **182 of 182 caught, none by a build failure.** ST82's `apidiff` plant caught. `make changelog-check`'s plants: the newest section's heading undated, and removed: 2 of 2 caught.
+
+**Claims rows (step 8; 0089-PLAN Phase 4).** ST43: 12 rows (C149now to C160now), one per 0088/0089 entry of `[Unreleased]`; DL59: 47 rows in 0089-MADR (C56now to C102now). Each checked with a plain id against a scratch clone's commit of the tree: 12 of 12 and 47 of 47 pass; each planted false: 12 of 12 and 47 of 47 caught.
+
+**Checks**, each exit taken before any filter:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/...` | the Linux machine (linux/amd64), not WSL | 0: 37 packages ok, 2 with no tests |
+| `run-heavy -- python3 -B tools/gate.py --timeout 5400` | this Mac (darwin/arm64) | 0: `gate: 30 of 30 passed` (its clone held `[v1.33.0] - 2026-11-24`, since put back to `[Unreleased]`, Markdown only) |
+| `run-heavy -- make -k lint vuln parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest tools-test` | this Mac | 0 (lint 0 issues on each target; no vulnerabilities) |
+| `go vet -tags live_gateways ./...` | this Mac | 0 |
+| `python3 -B tools/apidiff.py v1.32.0` | this Mac | 0, 21 lines |
+| `python3 -B tools/claims.py` on 0088-, 0089-, 0090- and 0091-MADR | this Mac | 0 each: 140 of 140, 49 of 49, 7 of 7, 109 of 109 |
+| `python3 -B tools/recordlint.py --changed`; `python3 -B tools/denyscan.py --changed` | this Mac | 0 (6 records, no rule rose); 0 (0 hits) |
+| `make changelog-check records-check` on the final tree | this Mac | 0 (46 sections; 193 records) |
+
+**`apidiff`** (`python3 -B tools/apidiff.py v1.32.0`), exit 0: the 21 lines the merged phase and Phase 1b recorded, nothing else (compared line for line with Phase 1b's expected list).
+
+**Release preparation (Phase 4 step 2, adapted).** `CHANGELOG.md`'s `[Unreleased]` was dated `[v1.33.0] - 2026-11-24` with its compare links, `make changelog-check` passed (47 sections), then put back to `[Unreleased]` at the coordinator's word: the caller-limit refusal report's entries are to follow, so the date step is pending. `README.md`'s "current release" line still reads `v1.31.0` (v1.32.0's preparation left it); it moves to `v1.33.0` with the date step. No other version string is kept. `tools/consumer.py --replace` (17 packages, six platforms) and `tools/offline.py --replace` (its plant caught): exit 0 each.
+
+**Findings, recorded:** `make changelog-check` does not read the compare links at the file's end (a missing `[v1.33.0]:` link and an `[Unreleased]:` link left at `v1.32.0` both passed); a follow-up for v1.34.0. C146now and C147now are superseded by C160now and C153now (their lines moved with Phase 1c's entry).
+
+**Not done:** Phase 3's short release review; the caller-limit refusal report's phase and the gates again on its commit; the date step; Phase 4's tag and GitHub Release (the owner's word); 0089's DL70 regeneration and DL65 measurement, put to the owner.

@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-22
+date: 2026-11-24
 decision-makers: repository owner
 consulted: "the owner's reply of 2026-11-22 on 0088-MADR OQ9, the owner's question on omitting the limit and the owner's design note, each relayed by the coordinator and quoted or assessed below; 0088-MADR-default-output-limit-from-model-facts.md and its report; record reviews 1 to 3 of 2026-11-22 (review 3 of this record's first draft), each finding re-verified against the code before it was written in; research rounds 1 to 3 of 2026-11-22, each claim this record rests on re-read at its source; this repository at 751e970 and gobble-cli at dfaa1ac, read only; the public pages and source files named under More Information"
 informed: every caller of Generate and Stream that names no output limit; gobble-cli first, whose 0066-MADR uses this record's API to set each session's model up; prepare-commit-msg and magic-cli-remote
@@ -751,3 +751,68 @@ route) requires one.
 | W11 | Pydantic AI at 463a6d519b: `anthropic_max_output_tokens: int \| None`, "Default: `None` (unknown)", and 16,384 sent when it is unknown | 2026-11-22 | verbatim copy read (round 3) |
 | W12 | litellm issue #14876 (closed 2025-09-26): Sonnet 4's `max_output_tokens` set to 1,000,000 "when it should remain 64,000" | 2026-11-22 | relayed from the issue's text (round 3) |
 | W13 | local servers for a later dialect record: llama.cpp `meta.n_ctx` and `/props`; vLLM `max_model_len`; LM Studio `loaded_instances[].config.context_length`; TGI `/info` `max_total_tokens` | 2026-11-22 | verbatim copies read (round 3); no reply recorded |
+
+## Amendment (2026-11-24): the joint gates' claims rows, and v1.33.0
+
+Additions only; no row's decision changes. The owner's ruling of 2026-11-24, relayed by the coordinator, quoted as given: "Yes, re-scope v1.33.0 (Recommended)": v1.33.0 is cut from what `33e6f09` holds, with the caller-limit refusal report the owner scoped in on 2026-11-24 (its own amendment of this record, to follow), after the joint gates and a short release review whose findings are blockers only (PLAN entry of 2026-11-24). DL65 stays open, and its interim ships (Kilo sends its discovered limit); DL70's regeneration of the extract before the tag is put to the owner (the PLAN entry). *(2026-11-24: both answered; see the annotations below.)*
+
+### Annotations (2026-11-24)
+
+Annotations of the State Table's rows, made here rather than in the rows' own lines; no row's decision changes.
+
+* **DL70 (annotated 2026-11-24).** The owner's ruling, relayed by the coordinator, quoted as given: "One fetch, then ship (Recommended)". Before v1.33.0's tag, an agent fetches models.dev's public `api.json` once, with no key, and regenerates the extract, which the goldens and the gates check before the tag (PLAN entry of 2026-11-24).
+* **DL65 (annotated 2026-11-24).** The owner's ruling, relayed by the coordinator, quoted as given: "Run before the tag". An agent makes a few short live calls on Kilo before v1.33.0's tag, environment keys only, allowlisted output; the verdict becomes a dated row here. Until then the interim stands.
+
+### Evidence added (2026-11-24)
+
+DL59's rows, PLAN Phase 4's check: one per line of R6's output-limit sentences, R7's `OutputLimit` sentence, R57 and its Checks row in `docs/guides/api-standards.md`, and one per package doc's output-limit line (the first line of its 0089 paragraph; `catalog`'s limits paragraph). DL60's rows, one per changelog entry, are 0088-MADR's C149now to C160now (its fourteenth amendment). The ids end in "now", so that `tools/claims.py` does not read them against this record's `self=751e970`: each was checked with a plain id against a scratch clone's commit of the tree, 47 of 47, and planted false there, 47 of 47 caught.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C56now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:116` | `` The output limit follows R57. `MaxOutputTokens` is sent as given; a `` |
+| C57now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:117` | `` `WithMaxTokens` value is cut to the model's stated output limit and never `` |
+| C58now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:118` | `raised; the ChatGPT backend and plan routes send none, whatever is given` |
+| C59now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:119` | `(0088 ST4). With neither, a Messages route (Claude, OpenCode's messages` |
+| C60now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:120` | `route), whose wire requires a limit, sends the model's output limit as` |
+| C61now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:121` | `` `catalog.CachedLimits` states it: the caller's layers, then the service, `` |
+| C62now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:122` | `then the registry (the fetched models.dev document, then the SDK's` |
+| C63now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:123` | `` embedded extract), then a cap passed back with `WithLimitObservations`, `` |
+| C64now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:124` | `held to the stated window and to a cap the service stated; where none is` |
+| C65now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:125` | `stated, the smallest limit of the route's current models, and where none` |
+| C66now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:126` | `` of those is either, `ErrInvalidRequest` before sending. Kilo sends its `` |
+| C67now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:127` | `stated output limit until 0089 DL65's measurement decides; every other` |
+| C68now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:128` | `wire sends none, so the service's own default applies. A limit the SDK` |
+| C69now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:129` | `chose, the stated limit or the route's smallest, is held to the room the` |
+| C70now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:130` | `stated window (else the stated input limit) leaves the request's input,` |
+| C71now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:131` | `estimated from its content as pi does, never below the wire's minimum,` |
+| C72now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:132` | `before a thinking budget raises it; a caller's value is not held. A` |
+| C73now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:133` | `` `Generate` that names no limit is read over the service's stream and `` |
+| C74now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:134` | `returned whole. (0089 D1 to D7, DL46 to DL51, DL56; 0088 ST15 to ST18,` |
+| C75now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:135` | `ST87, ST88, ST105, ST106)` |
+| C76now | R7's `OutputLimit` (0089 DL59) | new | `docs/guides/api-standards.md:139` | `` (0034 D7), and `OutputLimit`, a `SentLimit`: the output limit the request `` |
+| C77now | R7's `OutputLimit` (0089 DL59) | new | `docs/guides/api-standards.md:140` | `carried, after a thinking budget raised it, whether one was sent, its` |
+| C78now | R7's `OutputLimit` (0089 DL59) | new | `docs/guides/api-standards.md:141` | `` `LimitBasis` and its source; a stream's final response carries it too `` |
+| C79now | R7's `OutputLimit` (0089 DL59) | new | `docs/guides/api-standards.md:142` | `(0089 D7, DL54, DL55).` |
+| C80now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:427` | `**R57. No fixed number decides an output limit a caller did not give:**` |
+| C81now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:428` | `` the model's evidence does (`catalog.Limits`), and a limit is sent only as `` |
+| C82now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:429` | `R6's default rule decides. A number with no source is listed with its` |
+| C83now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:430` | `provenance in the record that keeps it: a listing probe's 8192, which is` |
+| C84now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:431` | `sent as given (0088 ST26; 0089 DL53); the estimate's 3.5 characters a` |
+| C85now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:432` | `token, 4,800 characters an image and 4,096 spare, pi's and unmeasured` |
+| C86now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:433` | `(0088 ST87). A refusal that states a cap or a` |
+| C87now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:434` | `window resends a limit the SDK chose once at the stated value; a stated` |
+| C88now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:435` | `` cap is kept for the process and reported in a `WarningLimitLearned` `` |
+| C89now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:436` | `` unless `WithoutLimitLearning` is given, and a caller's own limit is never `` |
+| C90now | R57 (0089 DL59) | new | `docs/guides/api-standards.md:437` | `resent. (0089 D4 to D6, D9; 0088 ST99)` |
+| C91now | R57's Checks row (0089 DL59) | new | `docs/guides/api-standards.md:456` | `` R57 \| `git grep -n -w` of 32000, 16384 and 8192 in the module's non-test Go code `` |
+| C92now | `catalog`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/catalog/doc.go:44` | `A model's limits, with every source's statement of each, are Limits:` |
+| C93now | `chatcompat`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/chatcompat/chatcompat.go:92` | `optional on this wire (0089-MADR D6, DL47, DL48): a request's own` |
+| C94now | `claude`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/claude/claude.go:116` | `The output limit (0089-MADR D6, D7): a request's own MaxOutputTokens is` |
+| C95now | `gemini`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/gemini/gemini.go:78` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+| C96now | `grok`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/grok/grok.go:93` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+| C97now | `huggingface`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/huggingface/huggingface.go:80` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+| C98now | `kilo`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/kilo/kilo.go:88` | `The output limit (0089-MADR D6, D7, DL65): a request's own` |
+| C99now | `ollama`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/ollama/ollama.go:86` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+| C100now | `openai`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/openai/openai.go:109` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |
+| C101now | `opencode`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/opencode/opencode.go:116` | `- The output limit (0089-MADR D6, D7): a request's own MaxOutputTokens` |
+| C102now | `together`'s package doc, its output-limit line (0089 DL59) | new | `llmprovider/providers/together/together.go:77` | `The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a` |

@@ -804,3 +804,11 @@ Scripts: `<scratch>/p1-0091/p1.py` and `rows.py`; the rows are written with plai
 * **Plants.** `tools/claims.py --plants`, each row's text made false: 41 of 41 caught, for example (F39 pins the corrected parenthesis on Together's probes, `docs/architecture.md:699`) `FAIL F24 llmprovider/providers/ollama/ollama.go:18: line 18 is '// reply cut at the output limit as completed (rounds 1 and 3), where this'`. ST28's plant, the Hugging Face paragraph put back as it read at the base, committed on a scratch clone: exit 1, F12 to F19 fail, for example `F12 llmprovider/providers/huggingface/huggingface.go:10: line 10 is '// also exists, but it is deliberately NOT used: it is undocumented, the'`.
 
 Counts after this annotation: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+## Amendment (2026-11-24, sixth): the release is split, v1.33.0 and v1.34.0
+
+Annotation only; no row's decision changes but ST30's release. The owner's ruling of 2026-11-24, relayed by the coordinator, quoted as given: "Yes, re-scope v1.33.0 (Recommended)".
+
+* **ST30 (annotated 2026-11-24).** v1.33.0 carries this record's REPORT and the docs of the four providers that stay (PLAN Phases 0 and 1), with no code. `chatcompat.WithResponses()` and the rows only it builds (ST5, ST10, ST13, ST16, ST18, ST19, ST23, ST33, ST34, ST50 to ST64 as PLAN Phase 2 lists them) ship in v1.34.0, after 0088's R1 to R3 are ruled there. Where this record says v1.33.0 of that opt-in, read v1.34.0.
+
+Counts after this amendment: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.

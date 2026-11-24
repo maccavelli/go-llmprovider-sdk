@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-22
+date: 2026-11-24
 decision-makers: repository owner
 consulted: "the owner's answers of 2026-11-21 to OQ1 to OQ8, relayed by the coordinator; the coordinator's brief of 2026-11-21, which relays a gobble-cli report and the owner's choice among three options (its label quoted below), with facts the coordinator verified; record review 1 of this pair (2026-11-21), each finding re-verified against the code before it was written in; this repository at 55a5dca, read only; gobble-cli at 4c3e397, read only; the read-only upstream checkouts kilocode at 58072bd696, opencode at 4ce137b39e, codex at 57e64682f8 and grok-build at 2bdd1d6a; Anthropic's API reference as bundled with the drafting agent's tools, read 2026-11-21"
 informed: every caller of Generate and Stream that sends a request with no MaxOutputTokens and no WithMaxTokens; gobble-cli first, whose agent turns name no limit; prepare-commit-msg and magic-cli-remote
@@ -1503,5 +1503,32 @@ Annotations only; no row's decision changes. Building PLAN Phase 1c, the suite f
 ### Open for PLAN Phase 3's review (2026-11-23, thirteenth)
 
 * **R5, the wire's minimum of 16.** `ResponsesLimits.Minimum` is 16 (`llmprovider/internal/wire/limit_refusal.go:63`), and `LimitRetry.Choose` holds an estimate's room no lower than it; but no route on the Responses wire sends a limit the SDK chose, so only `TestFit_0088` (`llmprovider/internal/wire/estimate_0088_test.go`) reaches a minimum above 1, by a value it passes itself. Recorded by the builder; the reviewer rules with the owner.
+
+Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111 rows.
+
+## Amendment (2026-11-24, fourteenth): R1 to R5 move to v1.34.0
+
+Annotations only; no row's decision changes. The owner's ruling of 2026-11-24, relayed by the coordinator, quoted as given: "Yes, re-scope v1.33.0 (Recommended)". v1.33.0 is cut from what `33e6f09` holds after the joint gates and a short release review whose findings are blockers only (PLAN amendment of 2026-11-24, seventh).
+
+* **R1 to R5** (the tenth amendment's R1 to R3, the cut-answer choices Phase 1b deferred; the twelfth's R4; the thirteenth's R5) are not ruled before v1.33.0. Each ships as built, with the tests and plants PLAN Phases 1b and 1c record, and stays open for v1.34.0's review, where the reviewer rules on each with the owner. Where the tenth, twelfth and thirteenth amendments say "PLAN Phase 3's review", read v1.34.0's.
+
+### Evidence added (2026-11-24, fourteenth)
+
+ST43's rows, one per `[Unreleased]` changelog entry this record and 0089-MADR wrote (each also 0089-MADR DL60's), at the lines `CHANGELOG.md` holds at `33e6f09`. They supersede C146now and C147now, whose lines moved when Phase 1c added its entry (C160now and C153now hold the same text). The changelog's section keeps `[Unreleased]` until the caller-limit refusal report (a 0089-MADR amendment, to follow) adds its entries; when the section is dated `[v1.33.0]`, every entry moves two lines down and these rows move with it, by dated annotation. The ids end in "now", as the sixth amendment's do: the text is uncommitted when written. Each was checked with a plain id against a scratch clone's commit of the tree, 12 of 12, and planted false there, 12 of 12 caught (PLAN execution entry of 2026-11-24, the joint gates).
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C149now | the **Added** entry on catalog.LookupLimits and catalog.CachedLimits, with catalog.Limits, catalog.Fact ... (ST43; 0089 DL60) | new | `CHANGELOG.md:16` | `` `catalog.LookupLimits` and `catalog.CachedLimits`, with `catalog.Limits`, `` |
+| C150now | the **Added** entry on llmprovider.Response.OutputLimit, a llmprovider.SentLimit: the output limit ... (ST43; 0089 DL60) | new | `CHANGELOG.md:35` | `` `llmprovider.Response.OutputLimit`, a `llmprovider.SentLimit`: the output `` |
+| C151now | the **Added** entry on llmprovider.WarningLimitLearned, with Warning.Observed, a llmprovider.LimitObservation: a ... (ST43; 0089 DL60) | new | `CHANGELOG.md:41` | `` `llmprovider.WarningLimitLearned`, with `Warning.Observed`, a `` |
+| C152now | the **Added** entry on llmprovider.Settings.MaxTokensGiven: whether WithMaxTokens gave the limit ... (ST43; 0089 DL60) | new | `CHANGELOG.md:49` | `` `llmprovider.Settings.MaxTokensGiven`: whether `WithMaxTokens` gave the `` |
+| C153now | the **Added** entry on llmprovider.WarningToolCallCut: the output limit cut a ... (ST43; 0089 DL60) | new | `CHANGELOG.md:52` | `` `llmprovider.WarningToolCallCut`: the output limit cut a tool call before `` |
+| C154now | the **Changed** entry on A request that names no output ... (ST43; 0089 DL60) | new | `CHANGELOG.md:58` | `` A request that names no output limit (no `MaxOutputTokens`, no `` |
+| C155now | the **Changed** entry on A limit the SDK chose (the ... (ST43; 0089 DL60) | new | `CHANGELOG.md:75` | `A limit the SDK chose (the model's stated limit, or the route's smallest)` |
+| C156now | the **Changed** entry on A refusal of a limit the ... (ST43; 0089 DL60) | new | `CHANGELOG.md:82` | `A refusal of a limit the SDK chose that states the service's cap` |
+| C157now | the **Changed** entry on A Generate that names no output ... (ST43; 0089 DL60) | new | `CHANGELOG.md:90` | `` A `Generate` that names no output limit is now read over the service's `` |
+| C158now | the **Changed** entry on A Stream whose first payload, inside ... (ST43; 0089 DL60) | new | `CHANGELOG.md:101` | `` A `Stream` whose first payload, inside a 200, is a refusal of a limit the `` |
+| C159now | the **Changed** entry on Kilo's documented window refusal ("exceeds the ... (ST43; 0089 DL60) | new | `CHANGELOG.md:104` | `Kilo's documented window refusal ("exceeds the model's context window of` |
+| C160now | the **Changed** entry on An answer the output limit cut ... (ST43; 0089 DL60) | new | `CHANGELOG.md:107` | `` An answer the output limit cut is a response finishing `length` on every `` |
 
 Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111 rows.

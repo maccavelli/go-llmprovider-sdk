@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-23
+date: 2026-11-24
 associated-madr: "0089-MADR-model-output-limit-discovery.md"
 decision-makers: repository owner
 ---
@@ -1169,3 +1169,16 @@ Choices within the rows, for review: `TestDefaultLimit_ResendLadder_0088` case 3
 | Step 7's record | E | this entry, 0088-PLAN's tenth entry, 0088-MADR's ninth amendment |
 
 Exit criterion: no blocker found by the builder; every row of the merged phase tested; every plant caught. Pass count: 1. Nothing staged or committed.
+
+### 2026-11-24: v1.33.0 re-scoped (Phases 4 to 7)
+
+Additions only; Phases 4 to 7 stand, read as this entry says. The owner's rulings of 2026-11-24, relayed by the coordinator, quoted as given: "5 now, converge to 1 (Recommended)" and "Yes, re-scope v1.33.0 (Recommended)" ([0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md), amendment of 2026-11-24, seventh, states what v1.33.0 carries and what moves to v1.34.0).
+
+* **Phases 4 and 5** run once with 0088-PLAN's Phase 2, as the joint gates, at `33e6f09`: Phase 4's checks (DL58: `tools/apidiff.py v1.32.0` lists the 21 lines the merged phase and 0088's Phase 1b recorded, and nothing else; DL59, DL60: a `tools/claims.py` row on each sentence of R6, R7 and R57 that the merged phase wrote, on each package doc's output-limit line and on each `[Unreleased]` changelog entry, each planted false), then Phase 5's plants of Phases 1 to 4, `-race`, `tools/gate.py` and CI's set.
+* **Phase 6** is a short release review whose findings are blockers only, with 0088-PLAN's Phase 3; a finding that is not a blocker is a follow-up for v1.34.0.
+* **Phase 7** releases v1.33.0; the tag and the GitHub Release each wait for the owner's word in the same turn. Two pre-tag steps this PLAN names are not run under this entry and are put to the owner: the extract's regeneration from a public models.dev document (DL70), a network read the re-scope does not name; and the Kilo measurement (DL65), which gates no code, so that until its verdict the release ships DL65's interim (Kilo sends its discovered limit, pinned by `TestOutputLimit_Omitted_0089`).
+* **A scope addition (2026-11-24).** The owner, relayed by the coordinator, quoted as given: "scope this into v1.33.0: It also found something for the SDK release. When a service refuses a limit the caller set, the SDK learns the cap but never reports it, since that warning only travels on a successful reply." v1.33.0 also carries the caller-limit refusal report, recorded by an amendment of this PLAN's MADR (to follow) and built as its own phase after the release preparation; Phases 4 and 5 run again on its commit before the tag, and `CHANGELOG.md` keeps `[Unreleased]` until its entries are in.
+* **DL70, the owner's ruling (2026-11-24)**, relayed by the coordinator, quoted as given: "One fetch, then ship (Recommended)". Before the date step, an agent fetches models.dev's public `api.json` once, with no key, regenerates the embedded extract with `tools/limitsnapshot.py`, and the goldens and the gates check it before the tag. Not run under this entry; a separate agent runs it after this records commit lands.
+* **DL65, the owner's ruling (2026-11-24)**, relayed by the coordinator, quoted as given: "Run before the tag". Before the date step, an agent makes a few short live calls on Kilo, with environment keys only and allowlisted output; "OQ1 (1)'s measurement" above defines how a finish reason decides DL65, and the verdict is a dated row of the MADR. Not run under this entry; a separate agent runs it after this records commit lands.
+* **v1.33.0's remaining steps, in order (2026-11-24):** the caller-limit refusal report's phase; DL70's fetch and regenerated extract; DL65's measurement and its row; the gates again on the result; the short release review (Phase 6, with 0088-PLAN's Phase 3); the date step (`[Unreleased]` to `[v1.33.0] - <date>`, `README.md`'s release line); the tag and the GitHub Release on the owner's word.
+* **The joint gates, run (2026-11-24).** Phases 4 and 5's checks and plants ran with 0088-PLAN's Phase 2, pass 1, recorded in [0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md)'s eighteenth execution entry: 182 of 182 plants caught (9 re-grounded), DL59's 47 rows and DL60's 12 (0088-MADR's C149now to C160now) checked and planted, `apidiff` the 21 lines, every gate exit 0. Phases 6 and 7 wait, as above.
