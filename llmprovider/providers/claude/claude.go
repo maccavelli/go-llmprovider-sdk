@@ -120,10 +120,15 @@
 // window and to a cap the service stated; with no fact, the smallest limit
 // any current Claude model is stated to take; with none of those, the
 // request is refused before the network with ErrInvalidRequest, its message
-// saying how to state the limit. A refusal of a limit the SDK chose, in
-// Anthropic's "max_tokens: N > M" form and validated as 0089-MADR D4 says,
-// is sent once more at M, outside the bound below; M is kept for the rest
-// of the process, in memory only, and reported in a WarningLimitLearned,
+// saying how to state the limit. The fact or that smallest limit is held to
+// the room the model's stated window, else its stated input limit, leaves
+// the request's input, estimated from its content as pi does (3.5
+// characters a token, an image 4,800 characters, 4,096 spare), before a
+// thinking budget raises it (0088-MADR ST87, ST105, ST106). A refusal of a
+// limit the SDK chose, in Anthropic's "max_tokens: N > M" form and
+// validated as 0089-MADR D4 says, is sent once more at M, outside the bound
+// below; M is kept for the rest of the process, in memory only, and
+// reported in a WarningLimitLearned,
 // unless llmprovider.WithoutLimitLearning is given. The Response, and a
 // stream's done event, carry the limit sent in OutputLimit.
 // With no facts, the request decides the shape, and a refusal is learned

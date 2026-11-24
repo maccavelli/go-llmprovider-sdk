@@ -83,7 +83,9 @@
 // MaxOutputTokens is sent as given, and WithMaxTokens' value cut to the
 // model's stated limit, never raised. Otherwise the model's chosen output
 // fact (catalog.CachedLimits) is sent, held to its window and to a cap the
-// service stated, until a measurement shows Kilo's own default is not
+// service stated, and to the room the stated window, else the stated input
+// limit, leaves the request's input, estimated from its content as pi does
+// (0088-MADR ST87), until a measurement shows Kilo's own default is not
 // lower; with no fact, none is sent. A refusal of a limit the SDK chose that
 // states a cap (Anthropic's or OpenAI's form) or a window (OpenRouter's or
 // Kilo's form), validated as 0089-MADR D4 says, is sent once more at the cap
@@ -523,8 +525,10 @@ func (p *provider) observe(req *llmprovider.Request, stream bool) func(int) {
 
 // limitInput is what req's output limit is chosen from: its own value, the
 // option, and what the caches state of its model, read with the request's
-// token, as its facts are (0041-MADR D1). Kilo sends the chosen fact until
-// 0089-MADR DL65's measurement decides, and requires none.
+// token, as its facts are (0041-MADR D1), and the window, else the input
+// limit, with req's estimated input, which hold the fact (0088-MADR ST87).
+// Kilo sends the chosen fact until 0089-MADR DL65's measurement decides, and
+// requires none.
 func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, token llmprovider.Token,
 	stream bool) wire.LimitInput {
 	model := cmp.Or(req.Model, p.model)
@@ -535,7 +539,8 @@ func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, tok
 		out = limits.StreamedOutput
 	}
 	in := wire.LimitInput{Request: req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
-		Provider: string(llmprovider.ProviderKilo), Model: model}
+		Provider: string(llmprovider.ProviderKilo), Model: model,
+		Window: cmp.Or(limits.Window.Tokens, limits.Input.Tokens), Estimate: wire.EstimateInput(req)}
 	if out.Known {
 		in.Output, in.Source = out.Tokens, out.Evidence[0].Source
 	}

@@ -37,6 +37,11 @@ type LimitInput struct {
 	// (0089-MADR DL51).
 	Fallback       int
 	FallbackSource string
+	// Window is the model's stated window, else its stated input limit where
+	// only that is stated (0088-MADR ST87; 0089-MADR DL56), 0 for neither;
+	// Estimate is the request's estimated input (EstimateInput); Minimum is
+	// the wire's least limit, at least 1.
+	Window, Estimate, Minimum int
 	// Provider and Model name the request, for the refusal's message.
 	Provider, Model string
 }
@@ -44,10 +49,12 @@ type LimitInput struct {
 // ChooseLimit is the output limit a request carries (0089-MADR D6): the
 // request's own value as given; a given option cut to the stated output and
 // never raised; on a route that sends one, the output fact, else where the
-// wire requires one the fallback; otherwise none. On a wire that requires a
-// limit with no fact and no fallback, it returns an error matching
-// llmprovider.ErrInvalidRequest that says how to state the limit, and no
-// request is sent (DL51).
+// wire requires one the fallback; otherwise none. The fact and the fallback,
+// the values the SDK chose, are held to the room a stated window leaves the
+// estimated input (0088-MADR ST87, ST105); a caller's value is not. On a
+// wire that requires a limit with no fact and no fallback, it returns an
+// error matching llmprovider.ErrInvalidRequest that says how to state the
+// limit, and no request is sent (DL51).
 func ChooseLimit(in LimitInput) (llmprovider.SentLimit, error) {
 	switch {
 	case in.Request > 0:
@@ -60,11 +67,12 @@ func ChooseLimit(in LimitInput) (llmprovider.SentLimit, error) {
 	case !in.Sends:
 		return llmprovider.SentLimit{Basis: llmprovider.LimitBasisNone}, nil
 	case in.Output > 0:
-		return llmprovider.SentLimit{Tokens: in.Output, Sent: true, Basis: llmprovider.LimitBasisFact, Source: in.Source}, nil
+		return llmprovider.SentLimit{Tokens: fit(in.Output, in), Sent: true, Basis: llmprovider.LimitBasisFact,
+			Source: in.Source}, nil
 	case !in.Required:
 		return llmprovider.SentLimit{Basis: llmprovider.LimitBasisNone}, nil
 	case in.Fallback > 0:
-		return llmprovider.SentLimit{Tokens: in.Fallback, Sent: true, Basis: llmprovider.LimitBasisFallback,
+		return llmprovider.SentLimit{Tokens: fit(in.Fallback, in), Sent: true, Basis: llmprovider.LimitBasisFallback,
 			Source: in.FallbackSource}, nil
 	}
 	return llmprovider.SentLimit{}, fmt.Errorf("%w: %s: no source states an output limit for model %q, and the wire requires "+
@@ -124,12 +132,13 @@ type LimitRetry struct {
 }
 
 // Choose is the limit the next send carries: the resend's, once a refusal
-// set it (sticky), else ChooseLimit's.
+// set it (sticky), else ChooseLimit's, held no lower than r's wire's minimum.
 func (r *LimitRetry) Choose(in LimitInput) (llmprovider.SentLimit, error) {
 	if r.resent {
 		r.sent = r.resend
 		return r.sent, nil
 	}
+	in.Minimum = max(in.Minimum, r.Wire.Minimum)
 	l, err := ChooseLimit(in)
 	r.sent = l
 	return l, err

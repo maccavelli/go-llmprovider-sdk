@@ -125,9 +125,14 @@ tool that holds a rule, where one does. For how the code is laid out, read
   stated, the smallest limit of the route's current models, and where none
   of those is either, `ErrInvalidRequest` before sending. Kilo sends its
   stated output limit until 0089 DL65's measurement decides; every other
-  wire sends none, so the service's own default applies. A `Generate` that
-  names no limit is read over the service's stream and returned whole.
-  (0089 D1 to D7, DL46 to DL51; 0088 ST15 to ST18, ST88)
+  wire sends none, so the service's own default applies. A limit the SDK
+  chose, the stated limit or the route's smallest, is held to the room the
+  stated window (else the stated input limit) leaves the request's input,
+  estimated from its content as pi does, never below the wire's minimum,
+  before a thinking budget raises it; a caller's value is not held. A
+  `Generate` that names no limit is read over the service's stream and
+  returned whole. (0089 D1 to D7, DL46 to DL51, DL56; 0088 ST15 to ST18,
+  ST87, ST88, ST105, ST106)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked
@@ -423,7 +428,9 @@ D9 ("0089 D*n*").
   the model's evidence does (`catalog.Limits`), and a limit is sent only as
   R6's default rule decides. A number with no source is listed with its
   provenance in the record that keeps it: a listing probe's 8192, which is
-  sent as given (0088 ST26; 0089 DL53). A refusal that states a cap or a
+  sent as given (0088 ST26; 0089 DL53); the estimate's 3.5 characters a
+  token, 4,800 characters an image and 4,096 spare, pi's and unmeasured
+  (0088 ST87). A refusal that states a cap or a
   window resends a limit the SDK chose once at the stated value; a stated
   cap is kept for the process and reported in a `WarningLimitLearned`
   unless `WithoutLimitLearning` is given, and a caller's own limit is never

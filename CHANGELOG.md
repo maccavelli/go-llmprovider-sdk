@@ -72,6 +72,13 @@ tag and its commit without notes; its notes are its section here.
   8192; the ChatGPT routes send none, as before. A caller that wants the old
   value passes `WithMaxTokens(8192)` (0089-MADR D6, DL44 to DL51, DL77;
   0088-MADR ST99).
+- A limit the SDK chose (the model's stated limit, or the route's smallest)
+  is now held to the room the model's stated window, else its stated input
+  limit, leaves the request's input, estimated from its content as pi does:
+  3.5 characters a token, each image 4,800 characters, 4,096 spare, never
+  below the wire's minimum. The hold comes before a thinking budget raises
+  the limit; a caller's own limit is not held (0088-MADR ST87, ST105,
+  ST106; 0089-MADR DL56).
 - A refusal of a limit the SDK chose that states the service's cap
   (Anthropic's `max_tokens: N > M`, OpenAI's "supports at most", Gemini's
   range, each on the wires 0089-MADR DL68 names) or a window and the tokens

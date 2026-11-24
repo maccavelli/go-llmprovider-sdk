@@ -160,7 +160,9 @@ In this order:
      cut to the model's stated output limit, which
      `catalog.CachedLimits(ctx, ID, model, opts...)` reads without a fetch
      (a provider outside this module may call it for its own id); else, on
-     a wire that requires a limit, that stated limit, and on one that does
+     a wire that requires a limit, that stated limit, held to the room the
+     stated window (else the stated input limit, both in `catalog.Limits`)
+     leaves the request's input, estimated as R6 says, and on one that does
      not, none. Set `Response.OutputLimit`, a `llmprovider.SentLimit`, to
      what you sent and why, on a stream's final response too
      ([0089-MADR](../decisions/0089-MADR-model-output-limit-discovery.md)

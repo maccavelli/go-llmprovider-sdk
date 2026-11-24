@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"cmp"
 	"context"
 	"slices"
 
@@ -43,8 +44,10 @@ func (p *provider) observe(req *llmprovider.Request, stream bool) func(int) {
 }
 
 // limitInput is what req's output limit is chosen from: its own value, the
-// option, and what the caches state of its model, read with the request's
-// token, as its facts are (0041-MADR D1). It sets r's resolved id (V6).
+// option, what the caches state of its model, read with the request's
+// token, as its facts are (0041-MADR D1), and the window, else the input
+// limit, with req's estimated input, which hold the value chosen (0088-MADR
+// ST87). It sets r's resolved id (V6).
 func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	r *wire.LimitRetry) wire.LimitInput {
 	model := p.modelFor(req)
@@ -57,7 +60,8 @@ func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, tok
 	memo, key := p.cache.LimitMemo(), p.memoKey(req, false)
 	r.Resolved = memo.Resolved(key)
 	in := wire.LimitInput{Request: req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
-		Required: true, Provider: string(llmprovider.ProviderClaude), Model: model}
+		Required: true, Provider: string(llmprovider.ProviderClaude), Model: model,
+		Window: cmp.Or(limits.Window.Tokens, limits.Input.Tokens), Estimate: wire.EstimateInput(req)}
 	if out.Known {
 		in.Output, in.Source = out.Tokens, out.Evidence[0].Source
 	}

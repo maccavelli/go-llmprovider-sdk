@@ -217,22 +217,27 @@ func TestDefaultLimit_GrokSilent_0088(t *testing.T) {
 
 // TestDefaultLimit_WindowCap_0088 (ST91), on Kilo, which sends the limit it
 // discovers until 0089-MADR DL65's verdict: a layer stating L 16,384 and W
-// 8,192 sends 8,192; L 20,000 and W 1,000,000 sends 20,000; a caller's
-// WithMaxTokens(20000) with a stated W of 8,192, and no output limit stated,
-// is sent as given. The model is in no extract section, so the layer is the
-// only source.
+// 8,192 sends the estimate's room, 8,192 − 1 − 4,096 = 4,095, which ST87
+// holds below the window (0088-MADR's thirteenth amendment); L 20,000 and W
+// 1,000,000 sends 20,000; a caller's WithMaxTokens(20000) with a stated W of
+// 8,192, and no output limit stated, is sent as given; with L 16,384 stated,
+// it is cut to the output held to the window, 8,192, where the cap shows
+// (ST91's ninth-amendment annotation). The model is in no extract section,
+// so the layer is the only source.
 func TestDefaultLimit_WindowCap_0088(t *testing.T) {
 	ctx := context.Background()
 	const model = "org/window-cap-0088"
+	given := []llmprovider.Option{llmprovider.WithMaxTokens(20000)}
 	for _, tc := range []struct {
 		name  string
 		layer windowLayer
 		opts  []llmprovider.Option
 		want  int
 	}{
-		{"L 16,384, W 8,192", windowLayer{model, 16384, 8192}, nil, 8192},
+		{"L 16,384, W 8,192", windowLayer{model, 16384, 8192}, nil, 4095},
 		{"L 20,000, W 1,000,000", windowLayer{model, 20000, 1000000}, nil, 20000},
-		{"WithMaxTokens(20000), W 8,192", windowLayer{model, 0, 8192}, []llmprovider.Option{llmprovider.WithMaxTokens(20000)}, 20000},
+		{"WithMaxTokens(20000), W 8,192", windowLayer{model, 0, 8192}, given, 20000},
+		{"WithMaxTokens(20000), L 16,384, W 8,192", windowLayer{model, 16384, 8192}, given, 8192},
 	} {
 		srv := newE88Server(t, nil, func(_ int, body map[string]any, w http.ResponseWriter) {
 			answer(w, streamed(body), chatStream, plainChat)
@@ -647,6 +652,115 @@ func TestDefaultLimit_ResendBudgetShape_0088(t *testing.T) {
 		if err != nil || fmt.Sprint(srv.limits()) != "[128000 64000]" || budget != float64(10000) {
 			t.Errorf("stream %t: sent %v, the second's budget_tokens %v, err %v; want 128000 then 64000, budget 10000",
 				streamCall, srv.limits(), budget, err)
+		}
+	}
+}
+
+// estimateLayer is a caller layer stating one model's output limit, window
+// and input limit, each where above zero, and, where budgetMin is above zero,
+// a reasoning budget bound, so that the Messages wire sends the budget shape.
+type estimateLayer struct {
+	model                            string
+	output, window, input, budgetMin int
+}
+
+func (l estimateLayer) Name() string { return "test" }
+
+func (l estimateLayer) Model(_ llmprovider.ProviderID, id string) (catalog.ModelInfo, bool) {
+	if id != l.model {
+		return catalog.ModelInfo{}, false
+	}
+	info := catalog.ModelInfo{ID: id, MaxOutputTokens: l.output, ContextWindow: l.window, MaxInputTokens: l.input}
+	info.Reasoning.BudgetMin = l.budgetMin
+	var known []catalog.Field
+	for _, f := range []struct {
+		set   bool
+		field catalog.Field
+	}{
+		{l.output > 0, catalog.FieldMaxOutputTokens}, {l.window > 0, catalog.FieldContextWindow},
+		{l.input > 0, catalog.FieldMaxInputTokens}, {l.budgetMin > 0, catalog.FieldReasoningBudget},
+	} {
+		if f.set {
+			known = append(known, f.field)
+		}
+	}
+	return info.Known(known...), true
+}
+
+// estimateRequest is a request whose content is one user message of n
+// characters, and no limit of its own.
+func estimateRequest(n int) *llmprovider.Request {
+	return &llmprovider.Request{Input: []llmprovider.Item{
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: strings.Repeat("a", n)}}}
+}
+
+// TestDefaultLimit_EstimatedFit_0088 (0088-MADR ST87 as amended, ST105,
+// ST106): a request whose content holds 350,000 characters (100,000 tokens at
+// 3.5), W 131,072, L 60,000, no caller limit, is sent 131,072 − 100,000 −
+// 4,096 = 26,976 on each route that sends a limit the SDK chose (Claude,
+// Kilo, OpenCode's messages route); the same with a 1 MiB image counts the
+// image at 4,800 characters, not its base64: 354,800 characters, 101,372
+// tokens, 25,604 (ST87). A model no source states the output for, W 50,000,
+// 35,000 characters: the route's fallback held to 35,904 (ST105). The budget
+// shape with no budget given, L 128,000, W 16,000, 35,000 characters: held to
+// 1,904 before the raise, sent as 8,192 with the default budget 4,096, and
+// reported 8,192 (ST106). Each reads the wire.
+func TestDefaultLimit_EstimatedFit_0088(t *testing.T) {
+	ctx := context.Background()
+	const claudeModel, kiloModel = "claude-sonnet-5", "openai/gpt-6-luna"
+	image := llmprovider.ImageItem{Role: llmprovider.RoleUser, MediaType: "image/png", Data: make([]byte, 1<<20)}
+	withImage := estimateRequest(350000)
+	withImage.Input = append(withImage.Input, image)
+	budget := estimateRequest(35000)
+	budget.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortMedium}
+	for _, tc := range []struct {
+		name          string
+		id            llmprovider.ProviderID
+		layer         estimateLayer
+		opts          []llmprovider.Option
+		stream, plain string
+		req           *llmprovider.Request
+		want          int
+		basis         llmprovider.LimitBasis
+		budget        float64 // the budget_tokens sent; 0 for none
+	}{
+		{"claude", llmprovider.ProviderClaude, estimateLayer{model: claudeModel, output: 60000, window: 131072}, nil,
+			messagesStream, plainMessages, estimateRequest(350000), 26976, llmprovider.LimitBasisFact, 0},
+		{"kilo", llmprovider.ProviderKilo, estimateLayer{model: kiloModel, output: 60000, window: 131072}, nil,
+			chatStream, plainChat, estimateRequest(350000), 26976, llmprovider.LimitBasisFact, 0},
+		{"opencode-zen messages", llmprovider.ProviderOpencodeZen,
+			estimateLayer{model: claudeModel, output: 60000, window: 131072},
+			[]llmprovider.Option{opencode.WithRoute(opencode.RouteMessages)},
+			messagesStream, plainMessages, estimateRequest(350000), 26976, llmprovider.LimitBasisFact, 0},
+		{"claude, a 1 MiB image", llmprovider.ProviderClaude,
+			estimateLayer{model: claudeModel, output: 60000, window: 131072}, nil,
+			messagesStream, plainMessages, withImage, 25604, llmprovider.LimitBasisFact, 0},
+		{"claude, the fallback (ST105)", llmprovider.ProviderClaude,
+			estimateLayer{model: "claude-fallback-0088", window: 50000}, nil,
+			messagesStream, plainMessages, estimateRequest(35000), 35904, llmprovider.LimitBasisFallback, 0},
+		{"claude, the budget raise (ST106)", llmprovider.ProviderClaude,
+			estimateLayer{model: "claude-budget-0088", output: 128000, window: 16000, budgetMin: 1024}, nil,
+			messagesStream, plainMessages, budget, 8192, llmprovider.LimitBasisFact, 4096},
+	} {
+		srv := newE88Server(t, nil, func(_ int, body map[string]any, w http.ResponseWriter) {
+			answer(w, streamed(body), tc.stream, tc.plain)
+		})
+		p := e88Provider(t, tc.id, tc.layer.model, srv,
+			append([]llmprovider.Option{catalog.WithModelLayer(tc.layer)}, tc.opts...)...)
+		resp, err := p.Generate(ctx, tc.req)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		var sentBudget float64
+		if posts := srv.posts(); len(posts) == 1 {
+			if th, ok := posts[0]["thinking"].(map[string]any); ok {
+				sentBudget, _ = th["budget_tokens"].(float64)
+			}
+		}
+		if got := srv.limits(); len(got) != 1 || got[0] != tc.want || sentBudget != tc.budget ||
+			resp.OutputLimit.Tokens != tc.want || resp.OutputLimit.Basis != tc.basis {
+			t.Errorf("%s: sent %v, budget_tokens %v, reported %+v; want one send at %d, budget_tokens %v, basis %s",
+				tc.name, got, sentBudget, resp.OutputLimit, tc.want, tc.budget, tc.basis)
 		}
 	}
 }

@@ -397,6 +397,36 @@ func TestOutputLimit_BudgetReported_0089(t *testing.T) {
 	}
 }
 
+// TestOutputLimit_EstimateReadsLimits_0089 (DL56; 0088-MADR ST87 as amended):
+// Claude, a model in no other source whose layer states an input limit of
+// 1,000,000 and an output of 1,000,000, and no window; a request whose
+// content holds 350,000 characters (100,000 tokens at 3.5), no caller limit:
+// the estimate reads Limits.Input where no window is stated, so the request
+// carries 1,000,000 − 100,000 − 4,096 = 895,904, by Generate and by Stream.
+func TestOutputLimit_EstimateReadsLimits_0089(t *testing.T) {
+	ctx := context.Background()
+	const model = "claude-estimate-0089"
+	for _, streamCall := range []bool{false, true} {
+		srv := newE88Server(t, nil, func(_ int, body map[string]any, w http.ResponseWriter) {
+			answer(w, streamed(body), messagesStream, plainMessages)
+		})
+		p := e88Provider(t, llmprovider.ProviderClaude, model, srv,
+			catalog.WithModelLayer(estimateLayer{model: model, output: 1000000, input: 1000000}))
+		var err error
+		if streamCall {
+			_, _, _, err = drain(ctx, p, estimateRequest(350000))
+		} else {
+			_, err = p.Generate(ctx, estimateRequest(350000))
+		}
+		if err != nil {
+			t.Fatalf("stream %t: %v", streamCall, err)
+		}
+		if got := srv.limits(); len(got) != 1 || got[0] != 895904 {
+			t.Errorf("stream %t: sent %v; want one send at 895904, held by the input limit", streamCall, got)
+		}
+	}
+}
+
 // TestLimitObservations_Request_0089 (DL40, DL41, at the request): on the
 // routes that require a limit, Claude and OpenCode's messages route, a model
 // no source states and a passed-back cap of 30,000 seen an hour ago, for the

@@ -1094,7 +1094,7 @@ of the second amendment that this one corrects carry a dated note in place
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | ST63 (decided 2026-11-22, third) | Grok, Responses, a request that names no limit | decided | nothing is sent unless the caller states a limit (OQ17 decides what counts); xAI's default of 128,000 visible tokens applies, reasoning outside it | xAI's schema, Chat and Responses (round 1 WS3; report R6 primary copy) | `TestDefaultLimit_GrokSilent_0088`; plant: Grok sent R |
 | ST90 | What counts as the caller's own statement of a limit, for the wires that otherwise send nothing | open *(2026-11-22, fifth: decided; see the fourth or fifth amendment's row)* | OQ17 | OQ17 | |
-| ST91 | The stated window W below the stated limit L, or equal to it | decided | the limit the SDK chooses is never above W, under every option of OQ9 and OQ14; a caller's own value is sent as given (ST17) | the window is the model's own fact: output cannot exceed it (models.dev: 8 entries above, 47 equal) | `TestDefaultLimit_WindowCap_0088`; plant: L sent above W *(2026-11-23, ninth amendment: a `WithMaxTokens` value is sent as given only where no source states the output limit; otherwise it is cut to the output held to W)* |
+| ST91 | The stated window W below the stated limit L, or equal to it | decided | the limit the SDK chooses is never above W, under every option of OQ9 and OQ14; a caller's own value is sent as given (ST17) | the window is the model's own fact: output cannot exceed it (models.dev: 8 entries above, 47 equal) | `TestDefaultLimit_WindowCap_0088`; plant: L sent above W *(2026-11-23, ninth amendment: a `WithMaxTokens` value is sent as given only where no source states the output limit; otherwise it is cut to the output held to W)* *(2026-11-23, thirteenth amendment: under ST87 the estimate's room, always below W, holds a chosen fact, so the first case sends 8,192 − 1 − 4,096 = 4,095; the cap is pinned on a caller's `WithMaxTokens(20000)` with L 16,384 and W 8,192: 8,192, its plant moved there; the owner's ruling "Expect 4,095; add a cap case (Recommended)")* |
 | ST92 | A refusal that states the window and the requested total but not the input (Kilo's forms C39, C97) | open *(2026-11-22, fifth: decided; see the fourth or fifth amendment's row)* | OQ14: under (1), the input is the stated total less the limit sent, and the resend asks the window less that input, once | OQ14 | |
 | ST93 | Gemini's Interactions answer with status `incomplete` | decided | treated as a cut at the output limit, the only cause measured (C136): its usable steps returned finishing `length`, nothing usable `ErrEmptyAnswer` with the reason `incomplete`, as ST75 to ST79 decide for the other wires | OQ11 "Inside 0088, this tag"; C136 | `TestCutAnswer_Text_0088`, `TestCutAnswer_NothingUsable_0088`, their Interactions cases; plant: Interactions left an error |
 | ST94 | On a `length` finish, the last tool call with an empty argument string | decided | the cut one: dropped and named in `WarningToolCallCut` (or as OQ16 decides); an earlier call with empty arguments, followed by another call, is a complete zero-argument call; ST78 is corrected so | B3: the SDK writes empty arguments as `{}` (`wire.CompactArguments`), so a cut call before its first argument byte looks complete | `TestCutAnswer_CompleteCalls_0088`, the empty-last case; plant: the empty last call kept |
@@ -1202,7 +1202,7 @@ that every `open` row in this record names a question.
 
 | Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| ST87 (decided 2026-11-22, fourth) | The window | decided | the SDK estimates the request's input from the body it builds (3.5 characters a token, 4,096 spare, pi's) and holds the limit to the window less that, never below the wire's minimum; it reads 0089's `Limits.Window`, or `Limits.Input` where only that is stated; built after 0089's Phase 3 (PLAN Phase 1c). Until it is built in a release, the 2026-11-21 hold to half the window (OQ3) applies | OQ14 "we will be going with option 3, but only after the llmprovider-sdk work related to model discovery and output limit work is complete." | `TestDefaultLimit_EstimatedFit_0088`; plant: the 4,096 removed: 31,072 |
+| ST87 (decided 2026-11-22, fourth) | The window | decided | the SDK estimates the request's input from the body it builds (3.5 characters a token, 4,096 spare, pi's) and holds the limit to the window less that, never below the wire's minimum; it reads 0089's `Limits.Window`, or `Limits.Input` where only that is stated; built after 0089's Phase 3 (PLAN Phase 1c). Until it is built in a release, the 2026-11-21 hold to half the window (OQ3) applies *(2026-11-23, twelfth amendment: "body" reads "request", counted as pi counts it, by the owner's ruling "Count content, as pi does (Recommended)"; the amended row is there)* | OQ14 "we will be going with option 3, but only after the llmprovider-sdk work related to model discovery and output limit work is complete." | `TestDefaultLimit_EstimatedFit_0088`; plant: the 4,096 removed: 31,072 |
 | ST88 (decided 2026-11-22, fourth) | A plain `Generate` whose limit the SDK chose or left out | decided | read over the service's stream and returned whole; ST88a to ST88e apply | OQ15 "Over the stream (Recommended)" | `TestGenerateOverStream_0088`; plant: the stream path skipped |
 | ST90 (open, 2026-11-22, fourth) | What counts as the caller's own statement | open *(2026-11-22, fifth: decided; see the fourth or fifth amendment's row)* | 0089-MADR OQ1: under (1) moot on the wires that would otherwise send nothing; under (2) a layer whose name is the models.dev document's counts as models.dev (0089 DL15, DL16) | 0089-MADR OQ1 | |
 | ST97 (decided 2026-11-22, fourth) | `WarningToolCallCut` | decided | exported; ST82 stands as written | OQ16 "Exported WarningToolCallCut (Recommended)" | as ST82 |
@@ -1450,3 +1450,58 @@ Additions only. A live probe (round 7, allowlisted output only, 2026-11-23, rela
 | ST104 (new, 2026-11-23) | A Responses answer the output limit cut: streamed, with items the terminal `response.incomplete` carries that no `response.output_item.done` delivered; or plain, its top-level `status` `incomplete` (reason `max_output_tokens`) whatever its items' `status` says | decided | on a cut the stream reader also takes each item the terminal `response.incomplete` carries that no `output_item.done` delivered: its text, and its calls under the cut rules as built (ST77, ST78, R1, R2), yielded before `EventDone` when kept; a plain reply's top-level `incomplete` decides the cut, whatever an item's `status` | "Fix it now in Phase 1b (Recommended)"; the live probe above | `TestCutAnswer_XAIShapes_0088` (xAI's measured stream and plain shapes); plants: the terminal response's items ignored; the cut decided by an item's status |
 
 Counts after this amendment: 100 decided, 9 out of scope, 0 open, 109 rows (ST104 added).
+
+## Amendment (2026-11-23, twelfth): how the estimate counts, the fallback's hold, and the budget raise
+
+Additions and one dated amendment of ST87. Starting PLAN Phase 1c at `f4efc5e`, its re-grounding stopped (PLAN execution entry, fifteenth): ST87 estimates "from the body it builds ... pi's", while OQ14 (3) reads "from the request it builds, as pi does", and pi counts content, not a body: the text of each message, its reasoning text, each call's name and arguments, the system text and the tools, with each image at 4,800 characters (`pi:packages/ai/src/utils/estimate.ts:15`, `:16`, `:34`, `:46` to `:68`, `:114` to `:117`). This SDK's body carries an image's bytes base64-encoded (`llmprovider/item.go:82`; `llmprovider/internal/wire/messages/messages.go:121`): a 1 MiB image is 1,398,104 characters, 399,459 tokens at 3.5, above a 200,000-token window, so a body's length would hold the limit to the wire's minimum, 1. Two more cases no row decided: whether the route's fallback (0089-MADR DL51) is held as the fact is (0089-MADR D6 names the fact only), and whether the hold applies before or after the budget shape's raise (`messages.go:731`).
+
+### Owner rulings (2026-11-23, twelfth)
+
+Relayed by the coordinator; labels quoted as given.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| Q1. How the estimate counts the request | "Count content, as pi does (Recommended)" | (1): the request's content, as pi counts it, not the encoded body; ST87's "body" reads "request" | ST87 (amended) |
+| Q2. The route's fallback | "Hold the fallback too (Recommended)" | (1): the fallback is held to the estimate's room as the fact is | ST105 |
+| Q3. Claude's budget thinking shape | "Before the raise (Recommended)" | (1): the hold applies to the chosen value, before the budget shape raises it (0089-MADR DL55) | ST106 |
+
+### Rows (2026-11-23, twelfth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST87 (amended 2026-11-23, twelfth) | The window | decided | the SDK estimates the request's input from the request it builds, counting its content as pi does (`pi:packages/ai/src/utils/estimate.ts`), not its encoded body: the characters (Unicode code points) of its instructions, of each message's text, of each reasoning item's text (not its signature or encrypted form), of each call's name and arguments, of each call output, of each loaded tool's name, and of each tool it sends that is not deferred (its name, description and JSON-encoded schema), with each image at 4,800 characters whatever its size; at 3.5 characters a token, rounded up. A limit the SDK chose (the fact; the fallback, ST105) is held to the window less that estimate less 4,096, never below the wire's minimum; the window is 0089's `Limits.Window`, or `Limits.Input` where only that is stated (DL56); with neither, nothing is held. A caller's value (ST17, ST91) and a refusal's resend (0089-MADR D4) are not held. A stored conversation the request continues (`PreviousResponseID`) is not counted: the SDK does not hold it | Q1 "Count content, as pi does (Recommended)"; OQ14 "we will be going with option 3, but only after the llmprovider-sdk work related to model discovery and output limit work is complete." | `TestDefaultLimit_EstimatedFit_0088`, on Claude, Kilo and OpenCode's messages route (350,000 characters, W 131,072, L 60,000: 26,976), with an image case on Claude (350,000 characters and one 1 MiB image: 354,800 characters, 101,372 tokens: 25,604); `TestEstimateInput_0088` for the count; plants: the 4,096 removed (31,072); an image counted by its base64; a reasoning signature counted; a deferred tool counted |
+| ST105 (new, 2026-11-23) | No source states the output; a window or input is stated; the route's fallback is sent (0089-MADR DL51) | decided | the fallback is held to the estimate's room as the fact is (ST87), basis fallback | Q2 "Hold the fallback too (Recommended)" | `TestDefaultLimit_EstimatedFit_0088`'s fallback case: Claude, a model no source states the output for, a layer stating W 50,000, a request of 35,000 characters (10,000 tokens): 50,000 − 10,000 − 4,096 = 35,904, basis fallback (the route's fallback is 64,000 or more); plant: the fallback not held: the fallback sent |
+| ST106 (new, 2026-11-23) | The budget thinking shape (0089-MADR DL55) on a limit the estimate held | decided | the hold applies to the chosen value, before `AddThinkingFor` raises it above the budget: the raise may send more than the room. Where no budget is given, the default budget (4,096) applies, so a value held to 4,096 or less is sent as 8,192 (`budget + 4,096`), the budget 4,096; the report names the sent value | Q3 "Before the raise (Recommended)" | `TestDefaultLimit_EstimatedFit_0088`'s budget case: Claude, budget-shape facts, an effort and no budget, L 128,000, W 16,000, 35,000 characters: held to 1,904, sent as 8,192 with `budget_tokens` 4,096, reported 8,192; plant: the hold applied after the raise: 1,904 sent |
+
+### Annotations (2026-11-23, twelfth)
+
+* **ST87's test, at `f4efc5e`.** The third amendment's PLAN row for `TestDefaultLimit_EstimatedFit_0088` reads "red: 8192"; since ST99 the base sends the fact, so the case sends 60,000 there, still a red on the assertion.
+* **0089-MADR DL56's test.** `TestOutputLimit_EstimateReadsLimits_0089` needs a stated output above 895,904 for the hold to show: its layer states output 1,000,000 and input 1,000,000, no window, on a Claude model in no other source.
+
+### Open for PLAN Phase 3's review (2026-11-23, twelfth)
+
+* **R4, the fallback and ST91's window cap.** `wire.ChooseLimit` sends the route's fallback without holding it to a stated window (`llmprovider/internal/wire/limit_rule.go:66` to `:68` at `f4efc5e`), where ST91 says the limit the SDK chooses is never above W. It is met only where no source states the output and one states a window below the route's fallback; ST105's hold, which is below the window, covers it whenever a window is stated. Not built in Phase 1c beyond ST105; the reviewer rules with the owner.
+
+### Every number, with its provenance (additions)
+
+| Number | Where | Provenance |
+| :--- | :--- | :--- |
+| 4,800 characters an image | ST87's count | pi's `ESTIMATED_IMAGE_CHARS` (`pi:packages/ai/src/utils/estimate.ts:16`), not measured |
+
+Counts after this amendment: 102 decided, 9 out of scope, 0 open, 111 rows (ST105 and ST106 added; ST87 amended, not a new row).
+
+## Amendment (2026-11-23, thirteenth): ST91's test under the estimate fit
+
+Annotations only; no row's decision changes. Building PLAN Phase 1c, the suite failed on the existing `TestDefaultLimit_WindowCap_0088` (ST91), its first case: `default_limit_0088_test.go:246: kilo, L 16,384, W 8,192: sent [4095]; want 8192`. ST87 holds a value the SDK chose to the window less the estimate less 4,096, which is always below the window, so ST91's cap on a chosen fact is no longer seen where a window is stated, and the third amendment's PLAN row ("8,192 sent, whatever OQ9 and OQ14 answer") could not be met.
+
+### Owner rulings (2026-11-23, thirteenth)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| ST91's first case under ST87 | "Expect 4,095; add a cap case (Recommended)" | (1): the first case expects the estimate's room, 4,095, naming ST87; a new case, a caller's `WithMaxTokens(20000)` with L 16,384 and W 8,192, sends 8,192 (ST91's ninth-amendment annotation), and the window-cap plant moves to it, caught only by it (16,384) | ST91 (annotated) |
+
+### Open for PLAN Phase 3's review (2026-11-23, thirteenth)
+
+* **R5, the wire's minimum of 16.** `ResponsesLimits.Minimum` is 16 (`llmprovider/internal/wire/limit_refusal.go:63`), and `LimitRetry.Choose` holds an estimate's room no lower than it; but no route on the Responses wire sends a limit the SDK chose, so only `TestFit_0088` (`llmprovider/internal/wire/estimate_0088_test.go`) reaches a minimum above 1, by a value it passes itself. Recorded by the builder; the reviewer rules with the owner.
+
+Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111 rows.

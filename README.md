@@ -243,7 +243,10 @@ functions over any provider, and `Stream` streams from every one.
   models, else the request is refused with a message saying how to state
   it), Kilo sends the model's stated output limit, and every other wire sends
   none, so the service's default applies; the ChatGPT routes never send
-  one. A `Generate` that names no limit is read over the service's stream
+  one. A limit the SDK chose is held to the room the model's stated window
+  (else its stated input limit) leaves the request's input, estimated from
+  its content (3.5 characters a token, an image 4,800 characters, 4,096
+  spare). A `Generate` that names no limit is read over the service's stream
   and returned whole. `Response.OutputLimit` says what was sent and why. A
   refusal that states the service's cap is resent once at it, and the cap
   is kept for the process and reported in a `WarningLimitLearned`, which

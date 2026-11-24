@@ -121,7 +121,10 @@
 //     smallest limit among the models OpenCode's route table sends to that
 //     route (DL51, DL77); with none of those, the request is refused before
 //     the network with ErrInvalidRequest, its message saying how to state
-//     the limit. A refusal of a limit the SDK chose, in Anthropic's form and
+//     the limit. The fact or that smallest limit is held to the room the
+//     stated window, else the stated input limit, leaves the request's
+//     input, estimated from its content as pi does (0088-MADR ST87, ST105).
+//     A refusal of a limit the SDK chose, in Anthropic's form and
 //     validated as 0089-MADR D4 says, is sent once more at the stated cap,
 //     which is kept for the process unless llmprovider.WithoutLimitLearning
 //     is given. The responses, chat and google routes send none unless the
@@ -153,6 +156,7 @@
 package opencode
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1052,10 +1056,13 @@ func (p *provider) observe(c call, stream bool) func(int) {
 
 // limitInput is what c's output limit is chosen from on the messages route,
 // which requires one: the request's own value, the option, the model's
-// chosen output fact, and the route's fallback (0089-MADR D6, DL51).
+// chosen output fact, and the route's fallback (0089-MADR D6, DL51), held to
+// the room the window, else the input limit, leaves the request's estimated
+// input (0088-MADR ST87, ST105).
 func (p *provider) limitInput(c call, stream bool) wire.LimitInput {
 	in := wire.LimitInput{Request: c.req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
-		Required: true, Provider: string(p.gateway), Model: c.model}
+		Required: true, Provider: string(p.gateway), Model: c.model,
+		Window: cmp.Or(c.limits.Window.Tokens, c.limits.Input.Tokens), Estimate: wire.EstimateInput(c.req)}
 	in.Output, in.Source = statedOutput(c.limits, stream)
 	in.Fallback, in.FallbackSource = p.limits.Fallback(p.memoKey(c, false))
 	return in
