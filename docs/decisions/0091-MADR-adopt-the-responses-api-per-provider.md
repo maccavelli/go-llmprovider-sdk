@@ -12,7 +12,7 @@ informed: every caller of the kilo, together, huggingface, ollama and chatcompat
 
 Associated PLAN: [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)
 
-*(2026-11-23, the owner's answers: OQ1 to OQ8 answered; every row they reach is decided, and what OQ5's opt-in needs is decided as ST50 to ST62. One new question, OQ9, raised by OQ5's and OQ8's answers together, leaves ST63 open, so the record stays `proposed`. See "Amendment (2026-11-23): the owner's answers to OQ1 to OQ8" at the end.)* *(2026-11-23, second: the review of that amendment found ST55's premise false, OQ5's losses never put to the owner, and ST51 wrong about the Chat path's facts; ST55 is reopened as OQ10, OQ5's opt-in is put back as the confirming OQ11 (ST64), and ST51 and ST62 are corrected. Three rows are open. See "Amendment (2026-11-23, second)" at the end.)* *(2026-11-23, third: the owner answered OQ9 to OQ11, deciding ST55, ST63 and ST64; no row is open, and the record is `accepted`. See "Amendment (2026-11-23, third)" at the end.)* *(2026-11-24, fourth: PLAN Phase 0 placed the records and the REPORT in the tree and re-grounded the evidence index at `dd37a87`; no row changes. See "Amendment (2026-11-24, fourth)" at the end.)*
+*(2026-11-23, the owner's answers: OQ1 to OQ8 answered; every row they reach is decided, and what OQ5's opt-in needs is decided as ST50 to ST62. One new question, OQ9, raised by OQ5's and OQ8's answers together, leaves ST63 open, so the record stays `proposed`. See "Amendment (2026-11-23): the owner's answers to OQ1 to OQ8" at the end.)* *(2026-11-23, second: the review of that amendment found ST55's premise false, OQ5's losses never put to the owner, and ST51 wrong about the Chat path's facts; ST55 is reopened as OQ10, OQ5's opt-in is put back as the confirming OQ11 (ST64), and ST51 and ST62 are corrected. Three rows are open. See "Amendment (2026-11-23, second)" at the end.)* *(2026-11-23, third: the owner answered OQ9 to OQ11, deciding ST55, ST63 and ST64; no row is open, and the record is `accepted`. See "Amendment (2026-11-23, third)" at the end.)* *(2026-11-24, fourth: PLAN Phase 0 placed the records and the REPORT in the tree and re-grounded the evidence index at `dd37a87`; no row changes. See "Amendment (2026-11-24, fourth)" at the end.)* *(2026-11-24, fifth: PLAN Phase 1 carried out ST1 to ST4 and ST28 in the four providers' package docs and `docs/architecture.md`, with twelve claims rows; no row changes. See "Amendment (2026-11-24, fifth)" at the end. After a review, pass 2 restated the reasons by their sources and the claims rows as M1 to M27: see "Annotation (2026-11-24, after the review of Phase 1)". Pass 3 (the owner's "Pass 3 with full rows") pinned every new doc line, as F1 to F41: see "Annotation (2026-11-24, after the third pass)".)*
 
 *(2026-11-23, revision 1, before any answer: the first draft was reviewed NOT READY. This revision states the cut check's reach as the evidence supports it (F2), decides where the check runs and how the limit sent reaches it, with its dependency on 0088's R3 (F4), lists every Chat-path feature Ollama's move must keep (F5), splits the cut question into which signal (OQ6) and where (OQ7) (F8), corrects Kilo's and Hugging Face's gate wording (F1) and the `include` fact (F3), adds Hugging Face's stream cut (F6), a gains column (F9), a reasoning-text replay question (OQ8, F10), conditional and plant wording (F11, F12), and plain-worded questions (F13). It folds in Ollama probe rounds 3 to 5. The first draft's rows keep their numbers; ST33 to ST46 are new.)* *(2026-11-23, revision 2, before any answer: after the delta review. Ollama's reasoning-replay gain is conditional on a round-trip probe, ST47 (N1); the gate rows ST22, ST35, ST36 and ST47 are decided as gates whose outcome the probe sets (N3); ST48 decides a cancelled, timed-out or hidden version read (N2); ST49 decides deferred tools on Ollama's Responses path; ST33 names the per-attempt limit the check reads; ST25's plants test how the cut is reported (F11). The forwarded results of the replay and thinking-refusal probes are not yet folded in.)* *(2026-11-23, revision 3, before any answer: Ollama probe round 6 (PR9). Ollama's server takes a reasoning item back even with its `encrypted_content` altered, so it does not validate it and no replay gain is claimed (ST47); and `/v1/responses` silently ignores an effort a model cannot take, where Chat refuses it in the form the SDK learns, so ST35's gate fails. Under the gates decided in revision 2, Ollama stays on Chat: OQ4's recommendation is now Chat, and under the recommended answers no provider changes its wire. It also folds in round 7 (PR10), which closes UM2: OpenAI and xAI report their cuts as `incomplete`, and xAI did not enforce `max_output_tokens` on a forced call, so the cut check would make such replies on `grok` finish `length` (OQ7 (2)'s cost).)* *(2026-11-23, revision 4, before any answer: after the second delta review. OQ4 (2)'s cost and ST35 are corrected: Ollama's listing reads each model's `thinking` capability from `/api/show` (C92), so only a model whose facts are not yet cached in the process has its effort dropped silently; the recommendation for OQ4 stays Chat, for the reasons given there. ST30 now agrees with B5 on what v1.33.0 waits for; the `grok` false positive is worded as a `length` finish with the calls kept; B3 notes that the xAI streamed text-cut defect is being fixed in 0088 Phase 1b; a stray blank line in the state table is gone.)*
 
@@ -651,3 +651,156 @@ ST33 and ST34 stand as decided: the held-call hold they rely on is in the tree a
 * C50's text on the kilocode checkout made false (`@openrouter/ai-sdk-provider` to `...-v2`): `FAIL C50 kilocode:packages/kilo-gateway/src/provider.ts:1: line 1 is 'import { createOpenRouter } from "@openrouter/ai-sdk-provider"'`.
 
 Counts after this amendment: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+## Amendment (2026-11-24, fifth): PLAN Phase 1, the claims rows of the docs of the four providers that stay
+
+Additions only; no row's decision changes. This is PLAN Phase 1 (ST1 to ST4, ST28): the owner's answers to OQ1 to OQ4 ("Chat stays (Recommended)", "Chat stays, every model (Recommended)", "Chat stays (Recommended)", "Chat stays (Recommended)") are carried out as comment-only changes to the four providers' package docs, and as the two places `docs/architecture.md` names each provider's wire. The base is `2f3c3a9`.
+
+### Re-grounding at `2f3c3a9` (2026-11-24)
+
+`python3 -B tools/claims.py docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md --rev self=2f3c3a9`: 82 of 109 pass, the same 27 rows that moved by `dd37a87` and are restated in the fourth amendment; nothing moved since. Of the rows that cite the four files, C13, C14, C16 to C25, C62, C63, C64 and C70 to C74, C81 to C83, C86 and C87 pass at `2f3c3a9`; C15 is the one that moved (`kilo.go:94` to `:96`, already C15now). Each paragraph Phase 1 changes is the one its row cites, so the re-ground holds.
+
+### The new doc sentences, as claims rows (2026-11-24)
+
+One row per new sentence, or per new line of `docs/architecture.md`, with the text it holds, each on one line of its file. Their ids end in "now" so that `tools/claims.py` does not read them against this record's `self=247b745`: the lines are those of the working tree of Phase 1, and the phase's commit re-pins them. The facts the sentences state are PR1 (Kilo: P1, P6, PR6), ~~PR3 (Together's page)~~ *(2026-11-24, after review: struck, Together's reason is a read of its docs, not PR3; see "Annotation (2026-11-24, after the review of Phase 1)" at the end)*, PR4 (Hugging Face: P3, P6, P7) and PR5, PR7 (e), PR8, PR9 (Ollama), each in the REPORT.
+
+| Id | Claim | Where (working tree, 2026-11-24) | Text |
+| :--- | :--- | :--- | :--- |
+| N1now | `kilo.go`: the 2026-11-23 findings that keep Kilo on Chat (ST1) | `llmprovider/providers/kilo/kilo.go:20` | `found its /responses undocumented,` |
+| N2now | `together.go`: four models only keep Together on Chat (ST2) | `llmprovider/providers/together/together.go:15` | `lists four models only (zai-org/GLM-5.2,` |
+| N3now | `huggingface.go`: the router documents `/responses` as beta (ST3) | `llmprovider/providers/huggingface/huggingface.go:10` | `the router's guide documents it as beta` |
+| N4now | `huggingface.go`: a bad key still answers 200 `failed` `server_error` (ST3) | `llmprovider/providers/huggingface/huggingface.go:12` | `still answers HTTP 200 with status:"failed" and the code server_error,` |
+| N5now | `huggingface.go`: a text cut answers `completed`, no encrypted reasoning (ST3) | `llmprovider/providers/huggingface/huggingface.go:15` | `"completed" with no incomplete_details; and no encrypted reasoning comes` |
+| N6now | `ollama.go`: an effort a model cannot take is silently ignored on `/v1/responses` (ST4) | `llmprovider/providers/ollama/ollama.go:16` | `found it silently ignoring an effort a model cannot take, where this route` |
+| N7now | `ollama.go`: a text cut reported `completed` on `/v1/responses` (ST4) | `llmprovider/providers/ollama/ollama.go:18` | `at the output limit as completed, where this route says length.` |
+| N8now | `architecture.md`: the four Chat providers stay on measurements (ST1 to ST4) | `docs/architecture.md:690` | `The four Chat Completions providers stay there on measurements of 2026-11-23` |
+| N9now | `architecture.md`: Kilo's line states why | `docs/architecture.md:64` | `Kilo Gateway: Chat Completions, kept on measurement (0091-MADR ST1)` |
+| N10now | `architecture.md`: Hugging Face's line states why | `docs/architecture.md:65` | `Hugging Face Inference Providers: Chat Completions, kept on measurement (0091-MADR ST3)` |
+| N11now | `architecture.md`: Together's line states why | `docs/architecture.md:66` | `Together AI: Chat Completions, kept on measurement (0091-MADR ST2)` |
+| N12now | `architecture.md`: Ollama's line states why | `docs/architecture.md:67` | `a local Ollama: Chat Completions, kept on measurement (0091-MADR ST4)` |
+
+`README.md` names no provider's wire for these four (its provider table lists package paths; the wire lines are in `docs/architecture.md`), so it gets no row and no change.
+
+### Checked (2026-11-24)
+
+Scripts: `<scratch>/p1-0091/p1.py`, which writes the 12 rows with plain ids and a marker into a scratch record.
+
+* **Red at the base.** The rows' texts were written first, before any doc changed. At `2f3c3a9`, with each row at line 1 of its file, all 12 fail on their assertion, and none finds its text on any line of its file (`found=[]`): for example `FAIL N1 llmprovider/providers/kilo/kilo.go:1: line 1 is '// Package kilo is the Kilo Gateway provider (0015-MADR D2), the inference API'`.
+* **Green after the change.** On a scratch clone holding the working tree, committed there, with each row's line found (one line each), 12 of 12 pass, exit 0.
+* **Plants.** `tools/claims.py --plants` on that record, each row's text made false (the word "(false)" appended to it): all 12 caught, for example `FAIL N4 llmprovider/providers/huggingface/huggingface.go:12: line 12 is '// still answers HTTP 200 with status:"failed" and the code server_error,'`. ST28's plant, on a scratch clone: the Hugging Face paragraph put back as it read at the base (the "undocumented" line, "chat completion tasks only", "measured 2026-08-29") and committed there: exit 1, N3, N4 and N5 fail, for example `N3 llmprovider/providers/huggingface/huggingface.go:10: line 10 is '// also exists, but it is deliberately NOT used: it is undocumented, the'`.
+
+Counts after this amendment: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+## Annotation (2026-11-24, after the review of Phase 1)
+
+Additions only; no row's decision changes. An independent review of Phase 1 (pass 1) returned FIX REQUIRED, docs only. This is PLAN Phase 1, pass 2. What it found, and what the record now says:
+
+* **The reasons were stated as one kind of evidence; they are two.** The fifth amendment above and the pass-1 docs said the four providers stay on Chat "on measurements". That is wrong for Together, and imprecise for Kilo. Together's reason is a read of its `/responses` page (the REPORT's desk research, "Per service", Together); its probes (PR3, rounds 1 and 2) reported cuts as `incomplete` and returned `encrypted_content`, so no probe supports keeping it on Chat, and the amendment's "PR3 (Together's page)" is struck above. Kilo's "undocumented" is a docs read too; its probes found no encrypted reasoning when asked (PR1 P6, round 1) and a call cut inside its arguments reported `completed` (PR6, round 2, `kilo-auto/free`); its text cut was reported `incomplete` (PR1 P3), so it is not cited. The package docs and `docs/architecture.md` now name each reason's source, docs or probe, and the round.
+* **Hugging Face's cut.** Pass 1 said "a text reply cut at the output limit answers `completed`". Round 1's P3 (`openai/gpt-oss-20b`) did answer `completed` with `incomplete_details` null at `output_tokens` equal to the limit, but where in the reply the cut fell is not recorded, and the measured hidden cut on that router is round 2's, inside a tool call on `meta-llama/Llama-3.1-8B-Instruct` (plain: `completed`, call `completed`, arguments not parseable, 160 tokens, the limit). The docs now say "a reply cut at the output limit", citing round 1 (P3) and, inside a tool call, round 2. The rows do not claim a text cut.
+* **Together's two quoted phrases** ("may return malformed output", "partial") came through a fetch tool that relays a page through a small model (the REPORT, "How it was gathered"); the doc no longer quotes them and says they were not checked against the page.
+* **Coverage.** Three sentences had no row (`kilo.go`'s first, `together.go`'s first, `ollama.go`'s first), and each multi-line sentence was pinned on one line only. Rows M1 to M27 below pin every sentence and each fact of the multi-line ones, and the architecture bullet's facts and link. *(2026-11-24, third pass: this claim was not true, eight facts were unpinned; M1now to M27now are superseded by the 41 rows F1now to F41now, one per new doc line. See "Annotation (2026-11-24, after the third pass)" at the end.)*
+* **C15now moved again.** The fourth amendment's C15now (`kilo.go:96`) has its text at `llmprovider/providers/kilo/kilo.go:102` in the tree after pass 2 (`:101` after pass 1): Phase 1's own paragraph above it (five comment lines and a blank). The pin is the fourth amendment's, at `dd37a87`, and stands; the move is recorded here, as the phase's commit re-grounds it.
+
+The table below replaces the fifth amendment's table of N1now to N12now (superseded, left as written above; ids M1now to M27now do not clash with it). Same rule: ids end in "now", so `tools/claims.py` does not read them against `self=247b745`; the lines are those of the working tree of Phase 1, pass 2.
+
+| Id | Claim | Where (working tree) | Text |
+| :--- | :--- | :--- | :--- |
+| M1now | kilo.go: Chat Completions stays the only route (ST1) | `llmprovider/providers/kilo/kilo.go:19` | `Chat Completions stays the only route (0091-MADR ST1).` |
+| M2now | kilo.go: a docs read found /responses undocumented | `llmprovider/providers/kilo/kilo.go:20` | `docs on 2026-11-23 found its /responses undocumented.` |
+| M3now | kilo.go: probe, round 1: no encrypted reasoning when asked | `llmprovider/providers/kilo/kilo.go:21` | `day (kilo-auto/free) found it returning no encrypted reasoning when asked` |
+| M4now | kilo.go: probe, round 2: a tool call cut inside its arguments reported completed | `llmprovider/providers/kilo/kilo.go:22` | `reporting a tool call cut inside its arguments as a` |
+| M5now | kilo.go: that reply's arguments do not parse (round 2) | `llmprovider/providers/kilo/kilo.go:23` | `completed reply, with arguments that do not parse (round 2).` |
+| M6now | together.go: Chat Completions stays for every model (ST2) | `llmprovider/providers/together/together.go:14` | `Chat Completions stays for every model (0091-MADR ST2).` |
+| M7now | together.go: a docs read found four models only | `llmprovider/providers/together/together.go:15` | `found it lists four models only` |
+| M8now | together.go: the two words relayed by the fetch tool, marked unchecked | `llmprovider/providers/together/together.go:18` | `page reported that other models may return malformed output and that` |
+| M9now | huggingface.go: the router's guide documents /responses as beta | `llmprovider/providers/huggingface/huggingface.go:10` | `the router's guide documents it as beta` |
+| M10now | huggingface.go: deliberately not used, by 0091-MADR ST3, on probes | `llmprovider/providers/huggingface/huggingface.go:11` | `deliberately NOT used (0091-MADR ST3). Probes of 2026-11-23 found that a` |
+| M11now | huggingface.go: round 1, P7: a bad key answers 200 failed server_error | `llmprovider/providers/huggingface/huggingface.go:12` | `bad key still answers HTTP 200 with status:"failed" and the code` |
+| M12now | huggingface.go: rounds 1 and 2: a cut reply answers completed | `llmprovider/providers/huggingface/huggingface.go:15` | `answers "completed" with no incomplete_details, in round 1 (P3) and,` |
+| M13now | huggingface.go: round 1, P6: no encrypted reasoning when asked | `llmprovider/providers/huggingface/huggingface.go:17` | `back when it is asked for (round 1, P6).` |
+| M14now | ollama.go: Chat Completions stays for generation (ST4) | `llmprovider/providers/ollama/ollama.go:14` | `Chat Completions stays for generation (0091-MADR ST4).` |
+| M15now | ollama.go: round 6: an effort a model cannot take silently ignored | `llmprovider/providers/ollama/ollama.go:16` | `found it silently ignoring an effort a model cannot take (round 6), where` |
+| M16now | ollama.go: rounds 1 and 3: a text cut reported completed | `llmprovider/providers/ollama/ollama.go:18` | `reply cut at the output limit as completed (rounds 1 and 3), where this` |
+| M17now | architecture.md: Kilo's tree line states its sources | `docs/architecture.md:64` | `Kilo Gateway: Chat Completions, kept on its docs and probes (0091-MADR ST1)` |
+| M18now | architecture.md: Hugging Face's tree line states its sources | `docs/architecture.md:65` | `Hugging Face Inference Providers: Chat Completions, kept on its docs and probes (0091-MADR ST3)` |
+| M19now | architecture.md: Together's tree line states its source | `docs/architecture.md:66` | `Together AI: Chat Completions, kept on its docs (0091-MADR ST2)` |
+| M20now | architecture.md: Ollama's tree line states its source | `docs/architecture.md:67` | `a local Ollama: Chat Completions, kept on probes (0091-MADR ST4)` |
+| M21now | architecture.md: the four stay for stated reasons, docs and probes | `docs/architecture.md:690` | `The four Chat Completions providers stay there for stated reasons, not by` |
+| M22now | architecture.md: Together's docs fact, and Kilo's round-1 probe | `docs/architecture.md:693` | `models only. Probes: Kilo's returned no encrypted reasoning when asked (round` |
+| M23now | architecture.md: Kilo's round-2 call cut | `docs/architecture.md:694` | `1) and reported a tool call cut inside its arguments as` |
+| M24now | architecture.md: Hugging Face's bad key and cut, rounds 1 and 2 | `docs/architecture.md:695` | `2); the Hugging Face router answered a bad key with HTTP 200` |
+| M25now | architecture.md: Ollama's ignored effort (round 6) and text cut | `docs/architecture.md:697` | `effort a model cannot take (round 6) and reported a text reply cut at the` |
+| M26now | architecture.md: Together's probes found no such loss | `docs/architecture.md:698` | `Together's probes found no such loss` |
+| M27now | architecture.md: the link to the REPORT | `docs/architecture.md:701` | `[0091-REPORT-responses-api-across-providers.md](reports/0091-REPORT-responses-api-across-providers.md)` |
+
+### Checked (2026-11-24, pass 2)
+
+Scripts: `<scratch>/p1-0091/p1.py` and `rows.py`; the rows are written with plain ids M1 to M27 and a marker into a scratch record.
+
+* **Red at the base.** At `2f3c3a9`, each row at line 1 of its file: all 27 fail on their assertion and none finds its text on any line (`found=[]`); the new and changed rows' texts were written before the docs were changed again.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 27 of 27 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 27 of 27 caught, for example `FAIL M4 llmprovider/providers/kilo/kilo.go:22: line 22 is '// for (round 1), and reporting a tool call cut inside its arguments as a'`. ST28's plant, the Hugging Face paragraph put back as it read at the base, committed on a scratch clone: exit 1, M9 to M13 fail, for example `M9 llmprovider/providers/huggingface/huggingface.go:10: line 10 is '// also exists, but it is deliberately NOT used: it is undocumented, the'`.
+
+Counts after this annotation: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+## Annotation (2026-11-24, after the third pass)
+
+Additions only; no row's decision changes. The delta review passed pass 2 with two findings, and the owner ruled a third pass of Phase 1, quoted exactly: "Pass 3 with full rows" (recorded in the PLAN as a dated deviation).
+
+* **Together's encrypted reasoning.** `docs/architecture.md` said Together's "reasoning" came back "encrypted". The probes (PR3 P6, round 1) found `encrypted_content` returned; Together's page, as relayed, calls that field base64 and "not encrypted" (the REPORT's desk research, Together). The bullet now says only that its probes returned `encrypted_content`.
+* **The pass-2 annotation's coverage claim was not true.** It said every fact was pinned; eight were not (`architecture.md` lines 691 to 692, 696 and 699, `huggingface.go` 13 to 14 and 16, `ollama.go` 15 and 17, `together.go` 19). Pass 3 pins every new doc line, whole: 41 rows, F1now to F41now, one per new line of the four package docs (5 in `kilo.go`, 6 in `together.go`, 8 in `huggingface.go`, 6 in `ollama.go`) and of `docs/architecture.md` (4 tree lines, 12 bullet lines). They replace the pass-2 table's M1now to M27now (superseded, left as written above; the ids do not clash). The pre-existing lines of each paragraph are not rows (C13, C14, C17, C18, C21 and C23 hold them at their pins).
+* **Same rule as before:** ids end in "now", so `tools/claims.py` does not read them against `self=247b745`; the lines are those of the working tree of Phase 1, pass 3, and the phase's commit re-pins them. A line whose text holds a backtick is cited in a double-backtick span.
+
+| Id | Claim | Where (working tree) | Text |
+| :--- | :--- | :--- | :--- |
+| F1now | kilo.go: Chat stays the only route (ST1); the docs read begins | `llmprovider/providers/kilo/kilo.go:19` | `Chat Completions stays the only route (0091-MADR ST1). A read of Kilo's` |
+| F2now | kilo.go: the docs read found /responses undocumented | `llmprovider/providers/kilo/kilo.go:20` | `docs on 2026-11-23 found its /responses undocumented. Probes of the same` |
+| F3now | kilo.go: probe, round 1: no encrypted reasoning when asked | `llmprovider/providers/kilo/kilo.go:21` | `day (kilo-auto/free) found it returning no encrypted reasoning when asked` |
+| F4now | kilo.go: probe, round 2: a tool call cut inside its arguments reported completed | `llmprovider/providers/kilo/kilo.go:22` | `for (round 1), and reporting a tool call cut inside its arguments as a` |
+| F5now | kilo.go: round 2: that reply's arguments do not parse | `llmprovider/providers/kilo/kilo.go:23` | `completed reply, with arguments that do not parse (round 2).` |
+| F6now | together.go: Chat stays for every model (ST2); the docs read begins | `llmprovider/providers/together/together.go:14` | `Chat Completions stays for every model (0091-MADR ST2). A read of` |
+| F7now | together.go: the docs read found four models only | `llmprovider/providers/together/together.go:15` | `Together's /responses page on 2026-11-23 found it lists four models only` |
+| F8now | together.go: the models, first line | `llmprovider/providers/together/together.go:16` | `(zai-org/GLM-5.2, GLM-5.3, GLM-5.3-Flash and` |
+| F9now | together.go: the last model; the relay caveat begins | `llmprovider/providers/together/together.go:17` | `deepseek-ai/DeepSeek-V4.1-Flash-1017). The fetch tool that relayed the` |
+| F10now | together.go: the relayed reading: malformed output, partial support | `llmprovider/providers/together/together.go:18` | `page reported that other models may return malformed output and that` |
+| F11now | together.go: the caveat: the words were not checked | `llmprovider/providers/together/together.go:19` | `support is partial; those two words were not checked against the page.` |
+| F12now | huggingface.go: the router's guide documents /responses as beta | `llmprovider/providers/huggingface/huggingface.go:10` | `also exists and the router's guide documents it as beta, but it is` |
+| F13now | huggingface.go: deliberately not used (ST3); the probes begin | `llmprovider/providers/huggingface/huggingface.go:11` | `deliberately NOT used (0091-MADR ST3). Probes of 2026-11-23 found that a` |
+| F14now | huggingface.go: round 1, P7: a bad key answers 200 failed | `llmprovider/providers/huggingface/huggingface.go:12` | `bad key still answers HTTP 200 with status:"failed" and the code` |
+| F15now | huggingface.go: round 1, P7: server_error, read as a retryable outage | `llmprovider/providers/huggingface/huggingface.go:13` | `server_error (round 1, P7), which the SDK reads as a retryable outage, not` |
+| F16now | huggingface.go: not as an authentication failure; the cut begins | `llmprovider/providers/huggingface/huggingface.go:14` | `as an authentication failure; that a reply cut at the output limit` |
+| F17now | huggingface.go: rounds 1 and 2: a cut reply answers completed | `llmprovider/providers/huggingface/huggingface.go:15` | `answers "completed" with no incomplete_details, in round 1 (P3) and,` |
+| F18now | huggingface.go: round 2: inside a tool call; encrypted reasoning begins | `llmprovider/providers/huggingface/huggingface.go:16` | `inside a tool call, in round 2; and that no encrypted reasoning comes` |
+| F19now | huggingface.go: round 1, P6: none when asked | `llmprovider/providers/huggingface/huggingface.go:17` | `back when it is asked for (round 1, P6). Do not "fix" this omission` |
+| F20now | ollama.go: Chat stays for generation (ST4); Ollama documents a route | `llmprovider/providers/ollama/ollama.go:14` | `Chat Completions stays for generation (0091-MADR ST4). Ollama documents a` |
+| F21now | ollama.go: the route's version, the probes' version | `llmprovider/providers/ollama/ollama.go:15` | `/v1/responses route (since v0.13.3), and probes of 2026-11-23 on v0.40.17` |
+| F22now | ollama.go: round 6: an effort a model cannot take silently ignored | `llmprovider/providers/ollama/ollama.go:16` | `found it silently ignoring an effort a model cannot take (round 6), where` |
+| F23now | ollama.go: Chat refuses it and the SDK learns the refusal | `llmprovider/providers/ollama/ollama.go:17` | `this route refuses it and the SDK learns the refusal, and reporting a text` |
+| F24now | ollama.go: rounds 1 and 3: a text cut reported completed | `llmprovider/providers/ollama/ollama.go:18` | `reply cut at the output limit as completed (rounds 1 and 3), where this` |
+| F25now | ollama.go: Chat says length | `llmprovider/providers/ollama/ollama.go:19` | `route says length.` |
+| F26now | architecture.md: Kilo's tree line | `docs/architecture.md:64` | `Kilo Gateway: Chat Completions, kept on its docs and probes (0091-MADR ST1)` |
+| F27now | architecture.md: Hugging Face's tree line | `docs/architecture.md:65` | `Hugging Face Inference Providers: Chat Completions, kept on its docs and probes (0091-MADR ST3)` |
+| F28now | architecture.md: Together's tree line | `docs/architecture.md:66` | `Together AI: Chat Completions, kept on its docs (0091-MADR ST2)` |
+| F29now | architecture.md: Ollama's tree line | `docs/architecture.md:67` | `a local Ollama: Chat Completions, kept on probes (0091-MADR ST4)` |
+| F30now | architecture.md: the bullet: stated reasons | `docs/architecture.md:690` | `The four Chat Completions providers stay there for stated reasons, not by` |
+| F31now | architecture.md: the bullet: a docs read and probes of 2026-11-23 | `docs/architecture.md:691` | `default (0091-MADR ST1 to ST4), from a docs read and probes of 2026-11-23.` |
+| F32now | architecture.md: the bullet: Kilo undocumented, Together's page lists four | `docs/architecture.md:692` | `` Docs: Kilo's `/responses` is undocumented, and Together's page lists four `` |
+| F33now | architecture.md: the bullet: four models only; Kilo's round-1 probe | `docs/architecture.md:693` | `models only. Probes: Kilo's returned no encrypted reasoning when asked (round` |
+| F34now | architecture.md: the bullet: Kilo's round-2 call cut | `docs/architecture.md:694` | `` 1) and reported a tool call cut inside its arguments as `completed` (round `` |
+| F35now | architecture.md: the bullet: Hugging Face's bad key | `docs/architecture.md:695` | `` 2); the Hugging Face router answered a bad key with HTTP 200 `failed` and a `` |
+| F36now | architecture.md: the bullet: Hugging Face's cut, rounds 1 and 2; Ollama begins | `docs/architecture.md:696` | `` reply cut at the limit as `completed` (rounds 1 and 2); Ollama's ignored an `` |
+| F37now | architecture.md: the bullet: Ollama's ignored effort (round 6), a text cut | `docs/architecture.md:697` | `effort a model cannot take (round 6) and reported a text reply cut at the` |
+| F38now | architecture.md: the bullet: rounds 1 and 3; Together's probes found no loss | `docs/architecture.md:698` | `` limit as `completed` (rounds 1 and 3). Together's probes found no such loss `` |
+| F39now | architecture.md: the bullet: Together's cuts incomplete, encrypted_content returned | `docs/architecture.md:699` | `` (its cuts came back `incomplete` and it returned `encrypted_content`), so `` |
+| F40now | architecture.md: the bullet: Together's reason is the docs alone | `docs/architecture.md:700` | `its reason is the docs alone. The facts are in` |
+| F41now | architecture.md: the bullet: the link to the REPORT | `docs/architecture.md:701` | `[0091-REPORT-responses-api-across-providers.md](reports/0091-REPORT-responses-api-across-providers.md).` |
+
+### Checked (2026-11-24, pass 3)
+
+Scripts: `<scratch>/p1-0091/p1.py` and `rows.py`; the rows are written with plain ids F1 to F41 and a marker into a scratch record.
+
+* **Red at the base.** At `2f3c3a9`, each row at line 1 of its file: all 41 fail on their assertion and none finds its text on any line (`found=[]`): the text did not exist at the base.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 41 of 41 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 41 of 41 caught, for example (F39 pins the corrected parenthesis on Together's probes, `docs/architecture.md:699`) `FAIL F24 llmprovider/providers/ollama/ollama.go:18: line 18 is '// reply cut at the output limit as completed (rounds 1 and 3), where this'`. ST28's plant, the Hugging Face paragraph put back as it read at the base, committed on a scratch clone: exit 1, F12 to F19 fail, for example `F12 llmprovider/providers/huggingface/huggingface.go:10: line 10 is '// also exists, but it is deliberately NOT used: it is undocumented, the'`.
+
+Counts after this annotation: unchanged, 64 rows: 46 decided, 18 out of scope, 0 open. The record is `accepted`.

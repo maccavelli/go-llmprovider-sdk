@@ -11,6 +11,13 @@
 // confirmed them on 2026-10-03: text, a named tool, "none", both reasoning
 // shapes and the listing (172 chat models) pass (0017-PLAN, V2).
 //
+// Chat Completions stays for every model (0091-MADR ST2). A read of
+// Together's /responses page on 2026-11-23 found it lists four models only
+// (zai-org/GLM-5.2, GLM-5.3, GLM-5.3-Flash and
+// deepseek-ai/DeepSeek-V4.1-Flash-1017). The fetch tool that relayed the
+// page reported that other models may return malformed output and that
+// support is partial; those two words were not checked against the page.
+//
 // Capabilities: tools, forced tool choice and reasoning are BestEffort, as
 // support is per model on Together (0017-MADR D1). Continuation is
 // Unsupported: Chat Completions is stateless. Native streaming is Supported:

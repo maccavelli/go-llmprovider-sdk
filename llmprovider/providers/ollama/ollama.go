@@ -11,6 +11,13 @@
 // Generation uses POST {base}/v1/chat/completions. Listing stays on the native
 // GET {base}/api/tags, which is stable; /v1/models is a compatibility shim.
 //
+// Chat Completions stays for generation (0091-MADR ST4). Ollama documents a
+// /v1/responses route (since v0.13.3), and probes of 2026-11-23 on v0.40.17
+// found it silently ignoring an effort a model cannot take (round 6), where
+// this route refuses it and the SDK learns the refusal, and reporting a text
+// reply cut at the output limit as completed (rounds 1 and 3), where this
+// route says length.
+//
 // Capabilities: tools are Supported. Forced tool choice is BestEffort: Ollama
 // does not support tool_choice, so tools are offered, never forced. Reasoning
 // is BestEffort: only thinking models reason. Continuation is Unsupported:

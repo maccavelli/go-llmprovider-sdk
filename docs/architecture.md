@@ -61,10 +61,10 @@ llmprovider/providers/claude/  Claude: the Anthropic Messages API
 llmprovider/providers/gemini/  Gemini: the Interactions API
 llmprovider/providers/grok/    Grok: the xAI Responses API
 llmprovider/providers/opencode/ OpenCode Zen and Go: four wire formats, routed per model
-llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
-llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions
-llmprovider/providers/together/ Together AI: Chat Completions
-llmprovider/providers/ollama/  a local Ollama: Chat Completions
+llmprovider/providers/kilo/    Kilo Gateway: Chat Completions, kept on its docs and probes (0091-MADR ST1)
+llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions, kept on its docs and probes (0091-MADR ST3)
+llmprovider/providers/together/ Together AI: Chat Completions, kept on its docs (0091-MADR ST2)
+llmprovider/providers/ollama/  a local Ollama: Chat Completions, kept on probes (0091-MADR ST4)
 llmprovider/providers/chatcompat/ any Chat Completions server, under the caller's id: not in Default()
 llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
@@ -687,6 +687,18 @@ for a session, from the store.
   (`claude`), Gemini Interactions (`gemini`), Chat Completions (`huggingface`,
   `kilo`, `together`, `ollama`), and, per model, all of those plus Gemini
   `generateContent` for the two OpenCode gateways.
+  The four Chat Completions providers stay there for stated reasons, not by
+  default (0091-MADR ST1 to ST4), from a docs read and probes of 2026-11-23.
+  Docs: Kilo's `/responses` is undocumented, and Together's page lists four
+  models only. Probes: Kilo's returned no encrypted reasoning when asked (round
+  1) and reported a tool call cut inside its arguments as `completed` (round
+  2); the Hugging Face router answered a bad key with HTTP 200 `failed` and a
+  reply cut at the limit as `completed` (rounds 1 and 2); Ollama's ignored an
+  effort a model cannot take (round 6) and reported a text reply cut at the
+  limit as `completed` (rounds 1 and 3). Together's probes found no such loss
+  (its cuts came back `incomplete` and it returned `encrypted_content`), so
+  its reason is the docs alone. The facts are in
+  [0091-REPORT-responses-api-across-providers.md](reports/0091-REPORT-responses-api-across-providers.md).
 - **`Provider`** is the contract above. Tools, reasoning and continuation are
   fields of `Request`, and `Capabilities` says which a provider supports.
   Listing (`ModelLister`) and native streaming (`Streamer`) are the only

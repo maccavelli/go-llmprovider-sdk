@@ -16,6 +16,12 @@
 // where the Responses decoder does not read it. One route reaches the whole
 // catalog.
 //
+// Chat Completions stays the only route (0091-MADR ST1). A read of Kilo's
+// docs on 2026-11-23 found its /responses undocumented. Probes of the same
+// day (kilo-auto/free) found it returning no encrypted reasoning when asked
+// for (round 1), and reporting a tool call cut inside its arguments as a
+// completed reply, with arguments that do not parse (round 2).
+//
 // Capabilities: tools are Supported. Forced tool choice and reasoning are
 // BestEffort: they are sent only when the model accepts them, as WithCapabilities
 // declares (all are sent when it is not given). Continuation is Unsupported:

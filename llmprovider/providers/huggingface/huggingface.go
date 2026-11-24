@@ -7,11 +7,14 @@
 // a bearer token, or in its own Header (R16).
 //
 // Only POST {base}/chat/completions is used. A POST {base}/responses endpoint
-// also exists, but it is deliberately NOT used: it is undocumented, the
-// official docs scope the OpenAI-compatible surface to "chat completion tasks
-// only", and on auth failure it returns HTTP 200 with status:"failed" and the
-// error in the body (measured 2026-08-29), which status-only classification
-// would decode as an empty, error-free success. Do not "fix" this omission
+// also exists and the router's guide documents it as beta, but it is
+// deliberately NOT used (0091-MADR ST3). Probes of 2026-11-23 found that a
+// bad key still answers HTTP 200 with status:"failed" and the code
+// server_error (round 1, P7), which the SDK reads as a retryable outage, not
+// as an authentication failure; that a reply cut at the output limit
+// answers "completed" with no incomplete_details, in round 1 (P3) and,
+// inside a tool call, in round 2; and that no encrypted reasoning comes
+// back when it is asked for (round 1, P6). Do not "fix" this omission
 // without re-measuring.
 //
 // Capabilities: tools are Supported. Forced tool choice is BestEffort: only a
