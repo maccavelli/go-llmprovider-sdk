@@ -23,7 +23,7 @@ type LimitInput struct {
 	Option int
 	Given  bool
 	// Sends reports that the route sends a limit the SDK chooses: the
-	// Messages wire, and Kilo until 0089-MADR DL65's verdict (OQ1 (1)).
+	// Messages wire, and Kilo (0089-MADR DL65, measured 2026-11-24; OQ1 (1)).
 	Sends bool
 	// Required reports that the wire requires a limit (Messages): with no
 	// fact, the fallback is sent, and with none the request is refused.

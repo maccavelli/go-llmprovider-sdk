@@ -63,7 +63,7 @@ func sentLimit(v any) (float64, bool) {
 // TestOutputLimit_Facts_0041 (R7), as 0088-MADR ST32 planned its change,
 // with ST99's values (0089-MADR DL46 to DL48): with no MaxOutputTokens, a
 // route that sends a limit the SDK chooses (Claude, OpenCode's messages
-// route, and Kilo until DL65's verdict) asks for the model's stated limit,
+// route, and Kilo, as DL65 decided) asks for the model's stated limit,
 // 4096 or 128,000, with no fixed ceiling; every other route sends none.
 func TestOutputLimit_Facts_0041(t *testing.T) {
 	for _, tc := range []struct {

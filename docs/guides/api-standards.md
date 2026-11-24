@@ -124,7 +124,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   held to the stated window and to a cap the service stated; where none is
   stated, the smallest limit of the route's current models, and where none
   of those is either, `ErrInvalidRequest` before sending. Kilo sends its
-  stated output limit until 0089 DL65's measurement decides; every other
+  stated output limit (0089 DL65, measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated); every other
   wire sends none, so the service's own default applies. A limit the SDK
   chose, the stated limit or the route's smallest, is held to the room the
   stated window (else the stated input limit) leaves the request's input,

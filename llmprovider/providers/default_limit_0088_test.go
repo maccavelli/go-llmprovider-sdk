@@ -216,7 +216,7 @@ func TestDefaultLimit_GrokSilent_0088(t *testing.T) {
 }
 
 // TestDefaultLimit_WindowCap_0088 (ST91), on Kilo, which sends the limit it
-// discovers until 0089-MADR DL65's verdict: a layer stating L 16,384 and W
+// discovers (0089-MADR DL65, measured): a layer stating L 16,384 and W
 // 8,192 sends the estimate's room, 8,192 − 1 − 4,096 = 4,095, which ST87
 // holds below the window (0088-MADR's thirteenth amendment); L 20,000 and W
 // 1,000,000 sends 20,000; a caller's WithMaxTokens(20000) with a stated W of

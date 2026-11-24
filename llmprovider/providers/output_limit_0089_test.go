@@ -105,12 +105,12 @@ func itoa(n int) string {
 // test's own source is the only one stating its limit.
 const omitModel = "claude-omit-0089"
 
-// TestOutputLimit_Omitted_0089 (OQ1 (1): DL46 to DL48, DL65's interim,
+// TestOutputLimit_Omitted_0089 (OQ1 (1): DL46 to DL48, DL65's verdict,
 // DL69; 0088-MADR ST33, ST74, ST85, ST86, ST90, ST98, ST99): a request that
 // names no limit carries the model's stated limit on a Messages route
 // (Claude, read from its listing; OpenCode's messages route, from a
-// registry) with no fixed ceiling, and Kilo its discovered limit until
-// DL65's verdict; every optional wire carries none, whatever a registry or a
+// registry) with no fixed ceiling, and Kilo its discovered limit, as
+// DL65 decided; every optional wire carries none, whatever a registry or a
 // caller's layer states; a caller's own WithMaxTokens is sent on an optional
 // wire. It reads only the wire, so it runs at a base that sends 8192.
 func TestOutputLimit_Omitted_0089(t *testing.T) {
@@ -149,7 +149,7 @@ func TestOutputLimit_Omitted_0089(t *testing.T) {
 		t.Errorf("opencode-zen messages, a registry stating 64,000: sent %v (found %t); want 64000", got, ok)
 	}
 
-	// Kilo: its discovered limit, until DL65's verdict.
+	// Kilo: its discovered limit, as DL65 decided.
 	kiloSrv := newLimitServer(t, "", canned(wirecase.ChatReply))
 	kilo, err := New(llmprovider.ProviderKilo, append(off, llmprovider.WithBaseURL(kiloSrv.URL),
 		llmprovider.WithModel("openai/gpt-6-luna"), catalog.WithModelLayer(limitLayer{"openai/gpt-6-luna", 128000}))...)
@@ -160,7 +160,7 @@ func TestOutputLimit_Omitted_0089(t *testing.T) {
 		t.Fatalf("kilo: %v", err)
 	}
 	if got, ok := sentLimit(lastPost(kiloSrv)); !ok || got != 128000 {
-		t.Errorf("kilo, a layer stating 128,000: sent %v (found %t); want 128000 (DL65's interim)", got, ok)
+		t.Errorf("kilo, a layer stating 128,000: sent %v (found %t); want 128000 (DL65's verdict)", got, ok)
 	}
 
 	// Every optional wire: none, a caller's layer stating 128,000 included.

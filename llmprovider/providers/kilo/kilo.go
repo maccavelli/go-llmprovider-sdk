@@ -91,8 +91,8 @@
 // fact (catalog.CachedLimits) is sent, held to its window and to a cap the
 // service stated, and to the room the stated window, else the stated input
 // limit, leaves the request's input, estimated from its content as pi does
-// (0088-MADR ST87), until a measurement shows Kilo's own default is not
-// lower; with no fact, none is sent. A refusal of a limit the SDK chose that
+// (0088-MADR ST87), as 0089-MADR DL65 decided (measured 2026-11-24: with none sent,
+// Kilo cut one model at 128,000 of 131,072 stated); with no fact, none is sent. A refusal of a limit the SDK chose that
 // states a cap (Anthropic's or OpenAI's form, or Kilo's range form "The
 // max_tokens parameter is illegal.：限制数值范围[1,M]", whose lower bound must
 // be 1, DL95) or a window (OpenRouter's or Kilo's form), validated as
@@ -537,8 +537,8 @@ func (p *provider) observe(req *llmprovider.Request, stream bool) func(int) {
 // option, and what the caches state of its model, read with the request's
 // token, as its facts are (0041-MADR D1), and the window, else the input
 // limit, with req's estimated input, which hold the fact (0088-MADR ST87).
-// Kilo sends the chosen fact until 0089-MADR DL65's measurement decides, and
-// requires none.
+// Kilo sends the chosen fact, as 0089-MADR DL65 decided (measured 2026-11-24: with
+// none sent, Kilo cut one model at 128,000 of 131,072 stated), and requires none.
 func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, token llmprovider.Token,
 	stream bool) wire.LimitInput {
 	model := cmp.Or(req.Model, p.model)

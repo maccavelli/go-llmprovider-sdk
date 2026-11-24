@@ -66,8 +66,8 @@ tag and its commit without notes; its notes are its section here.
   smallest limit of the route's current models (64,000 on Claude in the
   embedded extract), and where nothing states even that, the request is
   refused before sending with an error matching `ErrInvalidRequest` that
-  says how to state the limit. Kilo sends the limit its listing states, until
-  0089-MADR DL65's measurement decides. Every other wire sends none, so the
+  says how to state the limit. Kilo sends the limit its listing states (0089-MADR DL65, measured
+  2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated). Every other wire sends none, so the
   service's own default applies: Gemini, Grok, OpenAI with a key, Together,
   Hugging Face, Ollama, chatcompat and OpenCode's other routes. A request's
   own `MaxOutputTokens` is sent as given; a `WithMaxTokens` value is cut to

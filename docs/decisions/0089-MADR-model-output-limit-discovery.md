@@ -780,7 +780,7 @@ DL59's rows, PLAN Phase 4's check: one per line of R6's output-limit sentences, 
 | C64now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:124` | `held to the stated window and to a cap the service stated; where none is` |
 | C65now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:125` | `stated, the smallest limit of the route's current models, and where none` |
 | C66now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:126` | `` of those is either, `ErrInvalidRequest` before sending. Kilo sends its `` |
-| C67now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:127` | `stated output limit until 0089 DL65's measurement decides; every other` |
+| C67now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:127` | `stated output limit (0089 DL65, measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated); every other` |
 | C68now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:128` | `wire sends none, so the service's own default applies. A limit the SDK` |
 | C69now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:129` | `chose, the stated limit or the route's smallest, is held to the room the` |
 | C70now | R6's output-limit sentences (0089 DL59) | new | `docs/guides/api-standards.md:130` | `stated window (else the stated input limit) leaves the request's input,` |
@@ -947,3 +947,45 @@ One row per sentence DL95's build wrote, checked as DL94's rows were, with plain
 | C205now | `opencode`'s caller-limit sentence, every route that reads a cap form (DL94) | new | `llmprovider/providers/opencode/opencode.go:132` | `refused in a cap form, Anthropic's on the messages route, OpenAI's on` |
 
 *(2026-11-24, at the review of Phase 6b: C205now, OpenCode's caller-limit sentence (DL94), is added to the table above at the review's note, and C193now re-pointed to that paragraph's changed line; the 33 rows C173now to C205now pass against a scratch clone's commit of the tree, and each is caught planted false.)*
+
+### Annotation (2026-11-24, fourth): DL65 measured
+
+Additions only; the DL65 row above is annotated, not rewritten. The owner's ruling, relayed by the coordinator, quoted as given: "Write the plan's test, then run it". `TestLive_OmittedLimit_0089` (`llmprovider/live_0089_omitted_test.go`, with its request and verdict word in `llmprovider/omitted_0089_test.go` and an offline twin, `TestOmittedLimit_Twin_0089`, 4 of 4 plants caught) was run once per model on Kilo's `/chat/completions`, streamed, with NO limit field sent, `KILO_API_KEY` from the environment, a 20-minute deadline, one request each, output allowlisted:
+
+| Model | Stated limit (listing) | Status | Finish | Output tokens | Reasoning tokens | Verdict |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `anthropic/claude-haiku-4.5` | 64,000 | 200 | `stop` | 27,726 | 0 | undecided (a `stop` decides nothing) |
+| `z-ai/glm-5.3-flashx` | 131,072 | 200 | `length` | 128,000 | 173 | below the stated limit |
+
+Run in the order the ruling named: the second model ran because the first was undecided. `anthropic/claude-opus-4.1` (32,000) was not used: its long stream died on Kilo's gateway timeout, an in-stream 503, before any finish (a scratch probe of 2026-11-24, not a run of the test).
+
+| Row | Input or state | Status | Outcome | Decided by | Test |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| DL65 | Kilo, no limit sent, a model whose stated limit is L | decided *(2026-11-24: measured)* | a `length` finish below the stated limit means Kilo fills less, so Kilo keeps sending the discovered limit; the interim is the decision, and no code changes: `z-ai/glm-5.3-flashx` ended in `length` at 128,000 output tokens with 131,072 stated (3,072 short; the 173 reasoning tokens do not change that, whether the count includes them or not) | the measurement, under 0089-PLAN's "OQ1 (1)'s measurement" rule; OQ1 "Only where required (Recommended)" | `TestLive_OmittedLimit_0089` (live; its offline twin's plants are caught); `TestOutputLimit_Omitted_0089`'s Kilo case keeps pinning the send |
+
+What the measurement does not show: one model ended in `length`, and the other stopped by itself, so the verdict rests on one model's one run; it shows that Kilo (or the upstream behind it) handed out less than the stated limit for a request with no limit, not why. A later record decides whether a second model's `length` finish is worth a run.
+
+Counts: DL65 moves from awaiting live evidence to decided; with it the record holds 89 decided, 6 out of scope, 0 open, 0 awaiting live evidence; 95 rows.
+
+*(2026-11-24, review note: the cause.)* The run does not show why the stream ended at 128,000 of 131,072 stated. "Kilo fills less" in the PLAN's rule and in this annotation means only a `length` finish below the stated limit, with no limit sent; it does not say that Kilo, or the upstream model, applies a default lower than the listing, or that the model's real cap is 128,000, below its listing. The run cannot tell these apart: it had no control at 131,072 sent. DL65's outcome, Kilo keeps sending the discovered limit, holds on every reading. The words "because Kilo's own default is lower" and "whose default is lower" that the first pass of the docs step wrote in `kilo.go`, `limit_rule.go`, `CHANGELOG.md` and `docs/guides/api-standards.md` are replaced by the measurement alone: "measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated". Rows C67now and C206now to C211now are re-pointed to those sentences in the tables of this record, and each is caught planted false.
+
+*Follow-up, recorded and not run:* a control run of the same model, `z-ai/glm-5.3-flashx`, one streamed request with `max_tokens` 131,072 sent, billing up to 131,072 output tokens. A `length` finish at 128,000 would put the cut in the model, not Kilo; one at 131,072 would put it in what Kilo fills when none is sent. Either way the interim stands, so the run decides only whether the sentences may name the cause, and it needs the owner's word before it runs.
+
+### Evidence added (2026-11-24, fourth): DL65's docs step
+
+Additions only; no row's decision changes. The coordinator's word of 2026-11-24, "option 1", on the open docs rows of 0089-PLAN's entry "DL65 measured (executed)": every sentence that said Kilo sends its discovered limit "until DL65's measurement decides" now states DL65 as decided: Kilo keeps sending the discovered limit because, measured 2026-11-24, it cut `z-ai/glm-5.3-flashx` at 128,000 output tokens with 131,072 stated when no limit was sent. Comments and docs only; no code changes. Claims row C67now (`docs/guides/api-standards.md:127`) is re-pointed to the reworded sentence, in its own row above; C98now (`llmprovider/providers/kilo/kilo.go:88`) names DL65 as a citation only, its line is unchanged, and it still passes. Every edit keeps its file's line count, so no other row moves.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C206now | `kilo`'s package doc cites DL65's measurement | new | `llmprovider/providers/kilo/kilo.go:94` | `// (0088-MADR ST87), as 0089-MADR DL65 decided (measured 2026-11-24: with none sent,` |
+| C207now | `kilo`'s package doc, the measured cut (DL65) | new | `llmprovider/providers/kilo/kilo.go:95` | `// Kilo cut one model at 128,000 of 131,072 stated); with no fact, none is sent. A refusal of a limit the SDK chose that` |
+| C208now | `limitInput`'s doc comment cites DL65's measurement | new | `llmprovider/providers/kilo/kilo.go:540` | `// Kilo sends the chosen fact, as 0089-MADR DL65 decided (measured 2026-11-24: with` |
+| C209now | `limitInput`'s doc comment, the measured cut (DL65) | new | `llmprovider/providers/kilo/kilo.go:541` | `// none sent, Kilo cut one model at 128,000 of 131,072 stated), and requires none.` |
+| C210now | `LimitInput.Sends`'s doc comment (DL65) | new | `llmprovider/internal/wire/limit_rule.go:26` | `// Messages wire, and Kilo (0089-MADR DL65, measured 2026-11-24; OQ1 (1)).` |
+| C211now | the changelog's Kilo sentence (DL65) | new | `CHANGELOG.md:70` | `2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated). Every other wire sends none, so the` |
+| C212now | `TestOutputLimit_Facts_0041`'s doc comment (DL65) | new | `llmprovider/providers/facts_0041_test.go:66` | `// route, and Kilo, as DL65 decided) asks for the model's stated limit,` |
+| C213now | `TestDefaultLimit_WindowCap_0088`'s doc comment (DL65) | new | `llmprovider/providers/default_limit_0088_test.go:219` | `// discovers (0089-MADR DL65, measured): a layer stating L 16,384 and W` |
+| C214now | `TestOutputLimit_Omitted_0089`'s doc comment, the cited rows (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:108` | `// TestOutputLimit_Omitted_0089 (OQ1 (1): DL46 to DL48, DL65's verdict,` |
+| C215now | `TestOutputLimit_Omitted_0089`'s doc comment, Kilo's case (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:112` | `// registry) with no fixed ceiling, and Kilo its discovered limit, as` |
+| C216now | `TestOutputLimit_Omitted_0089`'s Kilo comment (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:152` | `// Kilo: its discovered limit, as DL65 decided.` |
+| C217now | `TestOutputLimit_Omitted_0089`'s Kilo assertion text (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:163` | `want 128000 (DL65's verdict)` |

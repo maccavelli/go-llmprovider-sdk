@@ -299,6 +299,18 @@ and message, redacted, written to
 once, and a second run needs the owner's word
 (`docs/decisions/0088-PLAN-default-output-limit-from-model-facts.md`, its
 first and sixth amendments).
+0089's Kilo measurement, `TestLive_OmittedLimit_0089`, is switched on by
+`LLMPROVIDER_LIVE_0089`, with `LLMPROVIDER_LIVE_0089_MODELS` naming the Kilo
+models (default `anthropic/claude-haiku-4.5`) and `KILO_API_KEY` in the
+environment: one streamed request per model that asks for more output than the
+model's stated limit and sends no limit, each with a 20-minute deadline, so
+`-timeout` must be 20 minutes per model plus 10 (`30m` for the default model;
+the test fails at once, with that text, when go test's deadline is shorter);
+it writes only
+an allowlisted line (model, status, finish reason, token counts, stated limit,
+verdict) to `tmp/live-0089/results.txt`, and only a `length` finish decides
+(`docs/decisions/0089-PLAN-model-output-limit-discovery.md`, "OQ1 (1)'s
+measurement").
 The login tests need a person to sign in. Each keeps its
 checks after the sign-in in a function in `llmprovider/live_checks_test.go`,
 which an offline twin in `llmprovider/live_twins_test.go` runs against a fake.
