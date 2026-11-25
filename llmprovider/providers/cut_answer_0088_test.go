@@ -590,25 +590,73 @@ func TestCutAnswer_OtherIncomplete_0088(t *testing.T) {
 	}
 }
 
-// TestCutAnswer_WireGeneral_0088 (the MADR's tenth amendment, R1, open for
-// the review): on every wire, a call of a reply the limit cut is the cut one
-// when its arguments are not a JSON object, or when it is the last item and
-// they are {}: on generateContent and an Interaction, whose calls arrive
-// whole, a trailing call with no arguments is dropped and named; on Chat
-// Completions, a call whose arguments are [1] is dropped and named, the
-// whole call after it kept.
+// TestCutAnswer_WireGeneral_0088 (ST107, ST110; R1 as the owner ruled it): a
+// call of a reply the limit cut is the cut one when its arguments are not a
+// JSON object, on every wire, and when it is the last item and they are {}
+// only where its arguments arrive in pieces. A trailing call with no
+// arguments is dropped and named on Chat Completions, Messages and
+// Responses, by Generate and Stream; on generateContent, by Generate and
+// Stream, and an Interaction's plain reply, whose calls arrive whole, it is a
+// whole call that takes none, returned, yielded on a stream, with no warning
+// (ST107). On an Interaction's stream what arrived decides (ST110): with no
+// arguments_delta it is dropped and named; with one delta delivering {} it is
+// kept and yielded. On Chat Completions, a call whose arguments are [1] is
+// dropped and named, the whole call after it kept.
 func TestCutAnswer_WireGeneral_0088(t *testing.T) {
 	complete := cutCall{id: "call_a", name: "lookup", args: `{"x":1}`}
 	trailing := cutCall{id: "call_z", name: "now"}
-	for _, route := range []cutRoute{cutRoutes()[2], cutRoutes()[3]} {
-		o := cutRun(t, route, false, cutReply{text: "partial", calls: []cutCall{complete, trailing}})
-		checkCutCalls(t, route.name+", a trailing call with no arguments, "+o.mode(), o, []string{`lookup {"x":1}`}, true,
-			trailing, llmprovider.WarningToolCallCut)
+	for _, route := range cutRoutes() {
+		for _, stream := range []bool{false, true} {
+			// interactionCutStream sends no arguments_delta for a call with
+			// no arguments (ST110 (a)).
+			whole := route.name == "generatecontent" || route.name == "interactions" && !stream
+			o := cutRun(t, route, stream, cutReply{text: "partial", calls: []cutCall{complete, trailing}})
+			checkTrailing(t, route.name+", a trailing call with no arguments", o, whole, trailing)
+		}
 	}
+	// ST110 (b): the trailing call's one arguments_delta delivers {}.
+	delivered := cutCall{id: "call_z", name: "now", args: "{}"}
+	o := cutRun(t, cutRoutes()[3], true, cutReply{text: "partial", calls: []cutCall{complete, delivered}})
+	checkTrailing(t, "interactions, a trailing call whose delta is {}", o, true, delivered)
+
+	// ST110 as OQ21 amends it: a delta whose piece is empty, null or white
+	// space, or carries no arguments, has not arrived, so the trailing call
+	// is the cut one.
+	for what, field := range map[string]string{`""`: `,"arguments":""`, "null": `,"arguments":null`,
+		"white space": `,"arguments":"  "`, "absent": "", `"null"`: `,"arguments":"null"`} {
+		route := cutRoutes()[3]
+		route.stream = func(r cutReply) string {
+			delta := "event: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":2," +
+				"\"delta\":{\"type\":\"arguments_delta\"" + field + "}}\n\n"
+			s := interactionCutStream(r)
+			at := strings.Index(s, "event: interaction.completed")
+			return s[:at] + delta + s[at:]
+		}
+		o := cutRun(t, route, true, cutReply{text: "partial", calls: []cutCall{complete, trailing}})
+		checkTrailing(t, "interactions, a trailing call whose delta is "+what, o, false, trailing)
+	}
+
 	notObject := cutCall{id: "call_n", name: "list", args: "[1]"}
-	o := cutRun(t, cutRoutes()[0], false, cutReply{calls: []cutCall{notObject, complete}})
+	o = cutRun(t, cutRoutes()[0], false, cutReply{calls: []cutCall{notObject, complete}})
 	checkCutCalls(t, "chat completions, arguments not an object, "+o.mode(), o, []string{`lookup {"x":1}`}, true,
 		notObject, llmprovider.WarningToolCallCut)
+}
+
+// checkTrailing checks a cut reply of text, lookup and a trailing call that
+// takes no arguments: kept, both calls returned and on a stream yielded, with
+// no warning; or not, lookup alone returned and yielded, and the trailing
+// call named in one WarningToolCallCut.
+func checkTrailing(t *testing.T, name string, o cutOutcome, kept bool, trailing cutCall) {
+	t.Helper()
+	name += ", " + o.mode()
+	want, items := []string{`lookup {"x":1}`}, "lookup"
+	if kept {
+		want, items = append(want, trailing.name+" {}"), "lookup,"+trailing.name
+	}
+	checkCutCalls(t, name, o, want, !kept, trailing, llmprovider.WarningToolCallCut)
+	if o.stream && strings.Join(o.items, ",") != items {
+		t.Errorf("%s: items %q; want %s", name, o.items, items)
+	}
 }
 
 // TestCutAnswer_ResponsesCutItem_0088 (the MADR's tenth amendment, R2, open

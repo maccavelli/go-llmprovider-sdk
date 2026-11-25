@@ -571,9 +571,10 @@ func (raw chatReply) response(provider string) (*llmprovider.Response, error) {
 
 	// A reply the output limit cut keeps its text and its whole calls; with
 	// nothing usable, only reasoning or only a cut call, it is an empty
-	// answer (0026-MADR F7; 0088-MADR ST75 to ST79, ST94).
+	// answer (0026-MADR F7; 0088-MADR ST75 to ST79, ST94). A call's arguments
+	// stream in pieces, so a last call with {} is the cut one (ST107).
 	if finish == llmprovider.FinishLength {
-		return wire.CutAnswer("chat completions", result, finish)
+		return wire.CutAnswer("chat completions", result, finish, true)
 	}
 	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("chat completions", finish)

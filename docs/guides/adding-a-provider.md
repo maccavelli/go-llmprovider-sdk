@@ -355,7 +355,12 @@ func TestConformance(t *testing.T) {
     the cut call is dropped, so nothing usable is left and the answer is
     `ErrEmptyAnswer`, beneath `ErrIncomplete`. A cut answer with text or a
     whole call is a response finishing `FinishLength`, the cut call named
-    in a `WarningToolCallCut` (0088-MADR ST75 to ST81);
+    in a `WarningToolCallCut` (0088-MADR ST75 to ST81). When your wire
+    delivers a call whole, as generateContent and a plain Gemini
+    Interaction do, write the cut call with `{}` and set
+    `TruncatedCallWhole`: the check then wants a response finishing
+    `FinishLength` that keeps the call, with no warning (0088-MADR ST107,
+    ST111);
   - `StrictTools: true` checks that a call reply finishes `tool_calls`,
     with valid JSON arguments;
   - `ReasoningCut` writes an answer cut at the output limit while the model

@@ -420,7 +420,8 @@ func decodeAs(body io.Reader, provider string, d Decoder) (*llmprovider.Response
 		refused = appendOutput(result, out, d) || refused
 	}
 	if raw.Status == statusIncomplete {
-		return wire.CutAnswer("responses", result, reasonOutputLimit)
+		// A call's arguments stream in pieces (0088-MADR ST107).
+		return wire.CutAnswer("responses", result, reasonOutputLimit, true)
 	}
 	return completed(result, refused)
 }
@@ -835,7 +836,7 @@ func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Ev
 		for _, o := range s.open {
 			result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))
 		}
-		resp, err = wire.CutAnswer("responses", result, reasonOutputLimit)
+		resp, err = wire.CutAnswer("responses", result, reasonOutputLimit, true)
 	} else {
 		resp, err = completed(result, s.refused)
 	}

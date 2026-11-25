@@ -1644,3 +1644,94 @@ Relayed by the coordinator; label quoted exactly.
 * **Follow-up, not run:** a live probe of a streamed Interaction calling a tool that takes no arguments, to see whether a delta comes (allowlisted output only: event types, delta types, counts). It runs only on the owner's word.
 
 Counts after this amendment: 106 decided, 9 out of scope, 0 open, 115 rows. R4 and R5 are not rows; they stay open for v1.34.0's review. With no open row the record is `accepted` again.
+
+## Amendment (2026-11-25, seventeenth): PLAN Phase 6's stop on three existing tests, and a conformance-harness option
+
+Additions only; no earlier row's text changes. Building PLAN Phase 6 (pass 1, base `f645c9c`), the suite failed on three existing tests that ST107 and ST110 do not name. Each holds a cut reply whose only item is a call with `{}` arguments, on a wire whose calls arrive whole, and pins it as `ErrIncomplete`; under ST107 that call is a whole call that takes none, returned. All three pass at `f645c9c`:
+
+* `TestDecode_FinishReasonAndModel` (`llmprovider/internal/wire/generatecontent/answer_test.go:33` to `:36`): `answer_test.go:35: a call cut by MAX_TOKENS = <nil>, want ErrIncomplete`.
+* llmtest's W12 cut-answer check (`checkTruncated`, `llmprovider/llmtest/llmtest.go:909`) on Gemini's Interactions harness, stored and unstored (its `Truncated` fixture, `llmprovider/providers/gemini/llmtest_test.go:51`): `llmtest.go:924: W12 (a cut answer, 0021-MADR W3): Generate returned <nil>; want an APIError of kind ErrIncomplete with Reason "incomplete"`.
+* The same check on OpenCode's `zen-google` route, generateContent (its fixture, `llmprovider/providers/opencode/llmtest_test.go:50` to `:51`): the same line with Reason `"length"`.
+
+### Owner question and ruling (2026-11-25, seventeenth)
+
+Relayed by the coordinator; the label quoted exactly.
+
+| Question | Options put | The owner's answer | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| OQ20. Three existing tests pin a cut reply whose only item is a `{}` call, on a wire whose calls arrive whole, as `ErrIncomplete`; ST107 returns the call. What changes? | (1) name the three as ST107's planned changes, the two W12 fixtures holding a call whose arguments are not a JSON object; (2) add a conformance-harness option: an exported `llmtest.Harness` field under which W12 expects the call kept on such a wire; (3) re-rule R1 so a lone last `{}` call stays an empty answer where calls arrive whole | "Add a conformance-harness option" (2) | ST111 |
+
+### Rows (2026-11-25, seventeenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST111 (new, 2026-11-25) | (a) llmtest's W12 cut-answer check (`Harness.Truncated`) on a provider whose wire delivers a call whole, its fixture a cut reply whose only item is a call with `{}` arguments; (b) the same check with the new field unset; (c) `TestDecode_FinishReasonAndModel`'s case "a call cut by MAX_TOKENS" | decided | (a) one new export, `llmtest.Harness.TruncatedCallWhole bool`. Its doc comment, as built: "TruncatedCallWhole says the provider's wire delivers a call whole, as generateContent and a plain Gemini Interaction do, and Truncated's call has the arguments {}: W12 then wants Generate to return a response finishing FinishLength that keeps the call, with no WarningToolCallCut, since a whole call that takes no arguments is not one the limit cut (0088-MADR ST107). Unset, W12 wants ErrIncomplete, as Truncated says." Set, W12 wants a response finishing `length` holding `llmtest_tool {}` and no `WarningToolCallCut`. It is set on Gemini's harness (`gemini/llmtest_test.go`) and on OpenCode's `RouteGoogle` replies (`zen-google`, `opencode/llmtest_test.go`), their fixtures unchanged. R55's call sites: those two harnesses, and a third-party provider on a wire whose calls arrive whole. (b) as today: `ErrIncomplete` with `TruncatedReason`. (c) a planned change of ST107: a response finishing `length` with `f {}` and no `WarningToolCallCut`. `tools/apidiff.py v1.33.0` lists exactly one line, the field added; `CHANGELOG.md` `[Unreleased]` gains an **Added** entry | OQ20 "Add a conformance-harness option"; ST107 | `TestRun_TruncatedCallWhole_0088` (`llmprovider/llmtest`, new): set, a whole response passes, and `ErrIncomplete`, the call dropped, or a `WarningToolCallCut` each fail W12; unset, the whole response fails W12. Gemini's and OpenCode's `TestConformance`, W12 on the two harnesses. `TestDecode_FinishReasonAndModel`'s case, red at `f645c9c` on its assertion. Plant: the field's effect flipped (W12 reads it negated), caught by W12 on the two harnesses and by `TestRun_TruncatedCallWhole_0088` |
+
+### Evidence added (2026-11-25, seventeenth)
+
+Read in the tree PLAN Phase 6 built, before its commit. The ids end in "now", as the sixth and fifteenth amendments' do; each was checked with a plain id against a scratch clone's commit of that tree, and planted false there (PLAN execution entry of 2026-11-25, twenty-first). `tools/apidiff.py v1.33.0` on that tree prints exactly `- ./llmprovider/llmtest.Harness.TruncatedCallWhole: added`, under "Compatible changes".
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C174now | the changelog's Added entry for the new field | new | `CHANGELOG.md:22` | `` - `llmtest.Harness.TruncatedCallWhole`: for a provider whose wire delivers `` |
+| C175now | the changelog's Changed entry for R1 by wire | new | `CHANGELOG.md:31` | `` - An answer the output limit cut: on generateContent and an Interaction's `` |
+| C176now | `CutAnswer` takes the wire's call form | new | `llmprovider/internal/wire/finish.go:31` | `func CutAnswer(where string, r *llmprovider.Response, reason llmprovider.FinishReason, inPieces bool) (*llmprovider.Response, error) {` |
+| C177now | "last item" only where calls arrive in pieces (supersedes C161now) | new | `llmprovider/internal/wire/finish.go:34` | `if call, ok := item.(llmprovider.FunctionCallItem); ok && CutCall(call.Arguments, inPieces && i == len(r.Output)-1) {` |
+| C178now | generateContent's calls arrive whole | new | `llmprovider/internal/wire/generatecontent/generatecontent.go:281` | `return wire.CutAnswer("generatecontent", result, finish, false)` |
+| C179now | Chat Completions' arrive in pieces | new | `llmprovider/internal/wire/chatcompletions/chatcompletions.go:577` | `return wire.CutAnswer("chat completions", result, finish, true)` |
+| C180now | Messages' arrive in pieces | new | `llmprovider/internal/wire/messages/messages.go:381` | `return wire.CutAnswer("messages", res, finish, true)` |
+| C181now | Responses', on the stream's cut path | new | `llmprovider/internal/wire/responses/responses.go:839` | `resp, err = wire.CutAnswer("responses", result, reasonOutputLimit, true)` |
+| C182now | an Interaction's last call no delta came for reads as in pieces | new | `llmprovider/providers/gemini/interactions.go:230` | `inPieces := noDeltaAt >= 0 && noDeltaAt == len(result.Output)-1` |
+| C183now | the stream records a step's `arguments_delta` | new | `llmprovider/providers/gemini/interactions.go:354` | `s.argDelta[ev.Index] = true` |
+| C184now | and carries it to the step at `completed` | new | `llmprovider/providers/gemini/interactions.go:384` | `step.noDelta = !s.argDelta[i]` |
+| C185now | the new field | new | `llmprovider/llmtest/llmtest.go:91` | `TruncatedCallWhole bool` |
+| C186now | W12 reads it | new | `llmprovider/llmtest/llmtest.go:930` | `if h.TruncatedCallWhole {` |
+| C187now | Gemini's harness sets it | new | `llmprovider/providers/gemini/llmtest_test.go:55` | `TruncatedCallWhole: true,` |
+| C188now | OpenCode's Google route sets it | new | `llmprovider/providers/opencode/llmtest_test.go:55` | `truncatedWhole: true,` |
+| C189now | the README's cut rule by wire | new | `README.md:126` | `` (0088-MADR ST75 to ST81). A last call with no arguments, `{}`, is taken `` |
+| C190now | architecture's answers bullet | new | `docs/architecture.md:742` | `` ST81, ST93, ST94, ST103). A last call with `{}` is the cut one only where `` |
+| C191now | architecture's conformance `Truncated` line | new | `docs/architecture.md:649` | `` the reason the wire reports; with `TruncatedCallWhole`, on a wire whose `` |
+| C192now | architecture's `internal/wire` row | new | `docs/architecture.md:174` | `(0088-MADR ST75 to ST81, ST94, ST107, ST109, ST110)` |
+| C193now | the standards guide's R7 | new | `docs/guides/api-standards.md:150` | `` ST94, ST103). A last call with `{}` is the cut one only on a wire whose `` |
+| C194now | the provider guide's `Truncated` | new | `docs/guides/adding-a-provider.md:359` | `delivers a call whole, as generateContent and a plain Gemini` |
+| C195now | `CutAnswer`'s doc comment | new | `llmprovider/internal/wire/finish.go:24` | `ST75 to ST79, ST94). inPieces reports whether the reply's last call` |
+| C196now | `decodeInteraction`'s doc comment | new | `llmprovider/providers/gemini/interactions.go:130` | `arrive whole, so a last call with {} is a call that takes no arguments,` |
+
+### The fifteenth amendment's evidence, moved by PLAN Phase 6 (2026-11-25)
+
+Annotated here; the fifteenth amendment's table keeps its text. In the tree Phase 6 built: C161now's text is gone, superseded by C177now; C162now is at `finish.go:62` and C167now at `finish.go:183`; C163now, C164now and C173now gained the call form's argument (C178now, `interactions.go:231`, C181now); C165now is at `interactions.go:387` and C166now at `interactions.go:353`; C172now is at `responses.go:768`. C168now to C171now stand where they are. Each was read against the clone in the PLAN's entry.
+
+Counts after this amendment: 107 decided, 9 out of scope, 0 open, 116 rows (ST111 added). The record stays `accepted`.
+
+## Amendment (2026-11-25, eighteenth): what counts as an arrived piece on an Interaction's stream, and the review's notes on ST111
+
+Additions only; ST110's text stands and is amended here. The review of PLAN Phase 6 (`code-reviewer`, relayed by the coordinator) found one case ST110 left open: as built, any `arguments_delta` event marked its call step as arrived, so a last call whose only delta carried an empty piece was kept and run with `{}`, though no argument had arrived. It also asked for two more cases of ST111's test, and a fix to `llmtest.Harness.Truncated`'s doc comment.
+
+### Owner ruling (2026-11-25, eighteenth)
+
+Relayed by the coordinator; the label quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| OQ21. On a cut, streamed Interaction, does an `arguments_delta` whose piece is empty count as arrived for ST110? | "Only a non-empty piece counts (Recommended)" | an `arguments_delta` counts only when its piece, trimmed of white space, is non-empty and not `null` | ST110 (amended) |
+
+### Rows (2026-11-25, eighteenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST110 (amended 2026-11-25, eighteenth) | A streamed Interaction the output limit cut whose last step is a `function_call` that received only `arguments_delta` events whose piece is empty: the `arguments` field absent, `""`, white space, JSON `null`, or the text `null` | decided | not arrived: read as ST110 (a), the cut call, dropped and named in a `WarningToolCallCut`, never yielded. A piece counts when, trimmed of white space, it is non-empty and not `null`: a string fragment is its decoded text (JSON `null` decodes to the empty string), an object its JSON text, so a delta delivering `{}` still counts and its call runs (ST110 (b)). The stream reader sets its per-step flag (`interactionStream.argDelta`) only for such a piece | OQ21 "Only a non-empty piece counts (Recommended)"; ST110 | `TestCutAnswer_WireGeneral_0088`'s streamed Interaction cases with a last `now` step whose one delta is `""`, `null`, white space, absent, or `"null"`: `lookup {"x":1}` alone, one warning naming `now` and `call_z`, `now` never yielded. Red on the tree before this fix (`now {}` kept). Plant: the non-empty check removed, caught by those cases |
+| ST111 (annotated 2026-11-25, eighteenth) | the review's two more cases | decided | `TestRun_TruncatedCallWhole_0088` also fails W12 when the call is kept but the response does not finish `length`, and when the kept call's arguments are not `{}`; `Harness.Truncated`'s doc says that under `TruncatedCallWhole` its reply holds a whole call with `{}`, not a partial one. No outcome of ST111 changes | the review; ST111 | plants: the `FinishLength` check removed; the `{}` check removed; each caught by its case |
+
+### Evidence (2026-11-25, eighteenth)
+
+Read in the tree after this amendment's change, checked with plain ids against a scratch clone's commit of it and planted false there (PLAN execution entry of 2026-11-25, twenty-third). The seventeenth amendment's rows this change moved: C182now is at `interactions.go:231`, C183now's text at `:368`, C184now at `:391`, C185now at `llmtest.go:92` and C186now at `:931`; the other eighteen stand.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C197now | only a non-empty piece sets the step's flag | new | `llmprovider/providers/gemini/interactions.go:367` | `if piece := strings.TrimSpace(fragment); piece != "" && piece != "null" {` |
+| C198now | `decodeInteraction`'s doc, as ruled | new | `llmprovider/providers/gemini/interactions.go:132` | `// brought a non-empty piece is dropped and named (ST110, OQ21). failed and` |
+| C199now | the changelog's Changed entry, as ruled | new | `CHANGELOG.md:35` | `` non-empty piece of the call's arguments arrived, even `{}`. A last call `` |
+| C200now | architecture's answers bullet, as ruled | new | `docs/architecture.md:747` | `` non-empty piece for it, not only empty, white space or `null` (0088-MADR `` |
+| C201now | `Harness.Truncated`'s doc names the whole `{}` call | new | `llmprovider/llmtest/llmtest.go:84` | `// set, a whole call with the arguments {}, which Generate keeps.` |
+
+Counts after this amendment: unchanged, 107 decided, 9 out of scope, 0 open, 116 rows. The record stays `accepted`.

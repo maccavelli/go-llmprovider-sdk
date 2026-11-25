@@ -79,9 +79,17 @@ type Harness struct {
 	// once: the service answered.
 	Garbled func(w http.ResponseWriter, r *http.Request)
 	// Truncated, when set, writes a reply the service cut at its output
-	// limit, holding a partial call. Generate must fail with ErrIncomplete,
-	// and Reason TruncatedReason.
+	// limit, holding one call: a partial call, and Generate must fail with
+	// ErrIncomplete and Reason TruncatedReason; or, with TruncatedCallWhole
+	// set, a whole call with the arguments {}, which Generate keeps.
 	Truncated func(w http.ResponseWriter, r *http.Request)
+	// TruncatedCallWhole says the provider's wire delivers a call whole, as
+	// generateContent and a plain Gemini Interaction do, and Truncated's call
+	// has the arguments {}: W12 then wants Generate to return a response
+	// finishing FinishLength that keeps the call, with no WarningToolCallCut,
+	// since a whole call that takes no arguments is not one the limit cut
+	// (0088-MADR ST107). Unset, W12 wants ErrIncomplete, as Truncated says.
+	TruncatedCallWhole bool
 	// TruncatedReason is the Reason a cut answer reports on the provider's
 	// wire: the service's own (APIError.Reason), such as "max_output_tokens"
 	// on the Responses wire. Empty means "length".
@@ -905,7 +913,8 @@ func checkGarbled(r reporter, h Harness) {
 }
 
 // checkTruncated sends a request whose reply was cut with a partial call: it
-// is ErrIncomplete with Reason "length".
+// is ErrIncomplete with Reason "length". With TruncatedCallWhole, the call is
+// whole and kept (0088-MADR ST107, ST111).
 func checkTruncated(r reporter, h Harness) {
 	r.Helper()
 	fs := serve(h.Truncated)
@@ -918,11 +927,40 @@ func checkTruncated(r reporter, h Harness) {
 	if want == "" {
 		want = string(llmprovider.FinishLength)
 	}
-	_, err := generate(r, p, toolRequest(llmprovider.ToolChoiceAuto))
+	resp, err := generate(r, p, toolRequest(llmprovider.ToolChoiceAuto))
+	if h.TruncatedCallWhole {
+		checkTruncatedWhole(r, resp, err)
+		return
+	}
 	var apiErr *llmprovider.APIError
 	if !errors.Is(err, llmprovider.ErrIncomplete) || !errors.As(err, &apiErr) || apiErr.Reason != want {
 		r.Errorf("W12 (a cut answer, 0021-MADR W3): Generate returned %v; want an APIError of kind ErrIncomplete with Reason %q",
 			err, want)
+	}
+}
+
+// checkTruncatedWhole checks W12's cut answer on a wire whose calls arrive
+// whole: a response finishing FinishLength that keeps the call llmtest_tool
+// with {}, and no WarningToolCallCut (0088-MADR ST107, ST111).
+func checkTruncatedWhole(r reporter, resp *llmprovider.Response, err error) {
+	r.Helper()
+	if err != nil || resp == nil || resp.FinishReason != llmprovider.FinishLength {
+		r.Errorf("W12 (a cut answer whose call arrived whole, 0088-MADR ST107): Generate returned %v; want a response finishing %q",
+			err, llmprovider.FinishLength)
+		return
+	}
+	kept := false
+	for _, item := range resp.Output {
+		call, ok := item.(llmprovider.FunctionCallItem)
+		kept = kept || ok && call.Name == llmtestTool && call.Arguments == "{}"
+	}
+	cut := false
+	for _, w := range resp.Warnings {
+		cut = cut || w.Kind == llmprovider.WarningToolCallCut
+	}
+	if !kept || cut {
+		r.Errorf("W12 (a cut answer whose call arrived whole, 0088-MADR ST107): output %+v, warnings %+v; "+
+			"want the call %s {} kept and no WarningToolCallCut", resp.Output, resp.Warnings, llmtestTool)
 	}
 }
 

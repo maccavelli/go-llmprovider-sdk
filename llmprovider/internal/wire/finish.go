@@ -21,12 +21,17 @@ import (
 // named in a WarningToolCallCut; then it finishes FinishLength, keeping its
 // output and warnings, when it holds text or a call, and otherwise it has
 // nothing usable and is EmptyAnswer with the service's reason (0088-MADR
-// ST75 to ST79, ST94). A wire drops a call it knows the limit cut, such as a
-// Messages block never closed, before it calls CutAnswer.
-func CutAnswer(where string, r *llmprovider.Response, reason llmprovider.FinishReason) (*llmprovider.Response, error) {
+// ST75 to ST79, ST94). inPieces reports whether the reply's last call
+// arrived in pieces, as on a wire that streams a call's arguments: only then
+// is a last call with "{}" the one the limit cut. Where calls arrive whole,
+// on generateContent and an Interaction's plain reply, it is a call that
+// takes no arguments, and the wire passes false (ST107, ST110). A wire drops
+// a call it knows the limit cut, such as a Messages block never closed,
+// before it calls CutAnswer.
+func CutAnswer(where string, r *llmprovider.Response, reason llmprovider.FinishReason, inPieces bool) (*llmprovider.Response, error) {
 	kept := r.Output[:0:0]
 	for i, item := range r.Output {
-		if call, ok := item.(llmprovider.FunctionCallItem); ok && CutCall(call.Arguments, i == len(r.Output)-1) {
+		if call, ok := item.(llmprovider.FunctionCallItem); ok && CutCall(call.Arguments, inPieces && i == len(r.Output)-1) {
 			r.Warnings = append(r.Warnings, ToolCallCut(r.Model, call.Name, call.CallID))
 			continue
 		}
@@ -47,11 +52,12 @@ func CutAnswer(where string, r *llmprovider.Response, reason llmprovider.FinishR
 
 // CutCall reports whether a call of a reply the output limit cut, whose
 // arguments as returned are args, is one the limit cut (0088-MADR ST78,
-// ST94): its arguments are not whole, a JSON object, or it is the reply's
-// last item, where the limit fell, and they are empty, "{}", the form a call
-// cut before its first argument takes once the SDK writes empty arguments
-// as "{}" (wire.CompactArguments). An earlier call with empty arguments is a
-// whole call that takes none.
+// ST94, ST107): its arguments are not whole, a JSON object, or last is set,
+// for the reply's last item, where the limit fell, on a wire whose calls
+// arrive in pieces, and they are empty, "{}", the form a call cut before its
+// first argument takes once the SDK writes empty arguments as "{}"
+// (wire.CompactArguments). An earlier call with empty arguments, or a last
+// one that arrived whole, is a whole call that takes none.
 func CutCall(args string, last bool) bool {
 	return !WholeObject(args) || last && noArguments(args)
 }

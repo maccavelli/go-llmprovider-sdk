@@ -10,18 +10,20 @@ import (
 
 // 0088-PLAN Phase 1b: the shared cut-answer helpers, measured in their own
 // package (R47): CutAnswer and CutCall (0088-MADR ST75 to ST79, ST94; R1 of
-// its tenth amendment), ToolCallCut (ST77) and HeldCalls (ST80; R3).
+// its tenth amendment, ruled as ST107), ToolCallCut (ST77) and HeldCalls
+// (ST80; R3, ruled as ST109).
 
 // TestCutAnswer_Helper_0088: CutAnswer drops each call CutCall reports and
 // names it, keeps text and whole calls finishing length, and with nothing
-// usable is ErrEmptyAnswer with the reason given.
+// usable is ErrEmptyAnswer with the reason given. On a wire whose calls
+// arrive whole, a last call with {} is kept (0088-MADR ST107).
 func TestCutAnswer_Helper_0088(t *testing.T) {
 	whole := llmprovider.FunctionCallItem{CallID: "a", Name: "lookup", Arguments: `{"x":1}`}
 	empty := llmprovider.FunctionCallItem{CallID: "e", Name: "now", Arguments: "{}"}
 	partial := llmprovider.FunctionCallItem{CallID: "p", Name: "fetch", Arguments: `{"path":"a"`}
 	r := &llmprovider.Response{Model: "m", Output: []llmprovider.Item{
 		llmprovider.MessageItem{Text: "partial"}, empty, whole, partial, llmprovider.FunctionCallItem{CallID: "z", Name: "last", Arguments: "{}"}}}
-	got, err := CutAnswer("w", r, "length")
+	got, err := CutAnswer("w", r, "length", true)
 	if err != nil || got.FinishReason != llmprovider.FinishLength || len(got.Output) != 3 || len(got.Warnings) != 2 {
 		t.Fatalf("CutAnswer = %+v, %v; want text, now and lookup, finishing length, two warnings", got, err)
 	}
@@ -30,15 +32,22 @@ func TestCutAnswer_Helper_0088(t *testing.T) {
 			t.Errorf("warning %d = %+v; want WarningToolCallCut on m naming %s", i, w, name)
 		}
 	}
-	got, err = CutAnswer("w", &llmprovider.Response{Output: []llmprovider.Item{whole}}, "length")
+	got, err = CutAnswer("w", &llmprovider.Response{Output: []llmprovider.Item{whole}}, "length", true)
 	if err != nil || len(got.Output) != 1 {
 		t.Errorf("a whole call alone: %+v, %v; want it returned", got, err)
+	}
+	// ST107: where calls arrive whole, the last {} call takes no arguments;
+	// a call whose arguments are not an object is still the cut one.
+	got, err = CutAnswer("w", &llmprovider.Response{Model: "m", Output: []llmprovider.Item{whole, partial, empty}}, "length", false)
+	if err != nil || len(got.Output) != 2 || got.Output[1] != empty || len(got.Warnings) != 1 ||
+		!strings.Contains(got.Warnings[0].Detail, "fetch") {
+		t.Errorf("calls that arrive whole: %+v, %v; want lookup and now kept, fetch alone dropped and named", got, err)
 	}
 	for name, output := range map[string][]llmprovider.Item{
 		"only reasoning":  {llmprovider.ReasoningItem{Text: "thinking"}},
 		"only a cut call": {partial},
 	} {
-		got, err := CutAnswer("w", &llmprovider.Response{Output: output}, "max_output_tokens")
+		got, err := CutAnswer("w", &llmprovider.Response{Output: output}, "max_output_tokens", true)
 		apiErr, ok := errors.AsType[*llmprovider.APIError](err)
 		if got != nil || !errors.Is(err, llmprovider.ErrEmptyAnswer) || !ok || apiErr.Reason != "max_output_tokens" {
 			t.Errorf("%s: %+v, %v; want ErrEmptyAnswer with reason max_output_tokens", name, got, err)

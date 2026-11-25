@@ -147,7 +147,11 @@ tool that holds a rule, where one does. For how the code is laid out, read
   whole tool calls, each call the limit cut dropped and named in a
   `WarningToolCallCut` and never yielded; with nothing usable it is
   `ErrEmptyAnswer` with the service's reason (0088 ST75 to ST81, ST93,
-  ST94, ST103).
+  ST94, ST103). A last call with `{}` is the cut one only on a wire whose
+  calls' arguments arrive in pieces; where they arrive whole, on
+  generateContent and an Interaction's plain reply, it is a call that takes
+  none, kept, and on an Interaction's stream what arrived decides (0088
+  ST107, ST110).
   In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
   and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
   convention. (0015 D3, D4, and its amendment "what `Usage` counts")

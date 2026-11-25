@@ -590,6 +590,60 @@ func TestRun_W12ChecksAreOptional(t *testing.T) {
 	}
 }
 
+// TestRun_TruncatedCallWhole_0088 (0088-MADR ST111): with TruncatedCallWhole
+// set, W12's cut answer is a response finishing length that keeps the call
+// llmtest_tool {}, with no WarningToolCallCut; ErrIncomplete, the call
+// dropped, a WarningToolCallCut, another finish reason, or the call kept with
+// other arguments each fail it. Unset, that response fails it, as Truncated
+// says.
+func TestRun_TruncatedCallWhole_0088(t *testing.T) {
+	call := llmprovider.FunctionCallItem{CallID: "call_1", Name: llmtestTool, Arguments: "{}"}
+	whole := func() (*llmprovider.Response, error) {
+		return &llmprovider.Response{FinishReason: llmprovider.FinishLength, Output: []llmprovider.Item{call}}, nil
+	}
+	cutErr := &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
+	for _, c := range []struct {
+		name  string
+		set   bool
+		gen   func() (*llmprovider.Response, error)
+		fails bool
+	}{
+		{"set, the call kept", true, whole, false},
+		{"set, ErrIncomplete", true, func() (*llmprovider.Response, error) { return nil, cutErr }, true},
+		{"set, the call dropped", true, func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{FinishReason: llmprovider.FinishLength,
+				Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}}}, nil
+		}, true},
+		{"set, a cut warning", true, func() (*llmprovider.Response, error) {
+			resp, _ := whole()
+			resp.Warnings = []llmprovider.Warning{{Kind: llmprovider.WarningToolCallCut}}
+			return resp, nil
+		}, true},
+		{"set, the call kept, not finishing length", true, func() (*llmprovider.Response, error) {
+			resp, _ := whole()
+			resp.FinishReason = llmprovider.FinishToolCalls
+			return resp, nil
+		}, true},
+		{"set, the kept call's arguments not {}", true, func() (*llmprovider.Response, error) {
+			kept := call
+			kept.Arguments = `{"city":"x"}`
+			return &llmprovider.Response{FinishReason: llmprovider.FinishLength, Output: []llmprovider.Item{kept}}, nil
+		}, true},
+		{"unset, the call kept", false, whole, true},
+		{"unset, ErrIncomplete", false, func() (*llmprovider.Response, error) { return nil, cutErr }, false},
+	} {
+		h := refHarness(flaws{})
+		h.TruncatedCallWhole = c.set
+		h.New = func(string, ...llmprovider.Option) (llmprovider.Provider, error) { return canned{c.gen}, nil }
+		rec := newRecorder()
+		checkTruncated(rec, h)
+		if got := rec.failures(); (len(got) != 0) != c.fails ||
+			c.fails && !strings.HasPrefix(got[0], "W12 (a cut answer") {
+			t.Errorf("%s: failures %q; want a W12 failure: %t", c.name, got, c.fails)
+		}
+	}
+}
+
 // TestRun_FlagChecksAreOptional (0032-MADR D4): with Fidelity set and
 // neither SendsStrict nor SendsIsError, the flags are not checked, so a
 // provider that drops them, or sends a different body each time, passes.

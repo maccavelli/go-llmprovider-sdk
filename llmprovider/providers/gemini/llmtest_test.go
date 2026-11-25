@@ -50,6 +50,9 @@ func TestConformance(t *testing.T) {
 				Truncated: func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"incomplete","steps":[{"type":"function_call","id":"call_llmtest","name":"llmtest_tool","arguments":{}}]}`)
 				},
+				// A plain Interaction's steps arrive whole, so its cut call
+				// with {} is kept (0088-MADR ST107, ST111).
+				TruncatedCallWhole: true,
 				ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"incomplete","steps":[{"type":"thought","signature":"sig","summary":[{"type":"text","text":"thinking about it"}]}]}`)
 				},

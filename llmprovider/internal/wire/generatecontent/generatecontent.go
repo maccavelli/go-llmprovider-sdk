@@ -275,8 +275,10 @@ func (raw reply) response() (*llmprovider.Response, error) {
 	}
 	// An answer cut while it was still thinking has nothing usable
 	// (0026-MADR F7; 0088-MADR ST79); a cut answer keeps its text and calls.
+	// A functionCall part arrives whole, plain and streamed, so a last call
+	// with no arguments is one that takes none (ST107).
 	if finish == llmprovider.FinishLength {
-		return wire.CutAnswer("generatecontent", result, finish)
+		return wire.CutAnswer("generatecontent", result, finish, false)
 	}
 	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("generatecontent", finish)

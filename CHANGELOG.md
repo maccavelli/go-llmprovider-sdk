@@ -17,6 +17,27 @@ listed under **Removed** below.)*
 
 ## [Unreleased]
 
+### Added
+
+- `llmtest.Harness.TruncatedCallWhole`: for a provider whose wire delivers
+  a call whole, its `Truncated` reply's call with `{}` is a whole call that
+  takes no arguments, and W12 wants a response finishing `FinishLength`
+  that keeps it, with no `WarningToolCallCut`; unset, W12 wants
+  `ErrIncomplete` as before. Gemini's and OpenCode's Google-route
+  conformance harnesses set it (0088-MADR ST111).
+
+### Changed
+
+- An answer the output limit cut: on generateContent and an Interaction's
+  plain reply, a last tool call that takes no arguments, `{}`, is now
+  returned as a whole call, and on generateContent's stream yielded, with
+  no `WarningToolCallCut`; so is it on an Interaction's stream when a
+  non-empty piece of the call's arguments arrived, even `{}`. A last call
+  on an Interaction's stream that got no `arguments_delta`, or only pieces
+  that are empty, white space or `null`, and a last `{}` call on Messages,
+  Responses and Chat Completions, whose arguments stream in pieces, is
+  still dropped and named (0088-MADR ST107, ST110, OQ21).
+
 ## [v1.33.0] - 2026-11-24
 
 ### Added

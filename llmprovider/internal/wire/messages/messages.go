@@ -376,9 +376,9 @@ func (m message) response() (*llmprovider.Response, error) {
 
 	// An answer cut while it was still thinking, or with only a cut call, has
 	// nothing usable (0026-MADR F7; 0088-MADR ST79); a cut text answer keeps
-	// its text.
+	// its text. A tool_use's input streams in pieces (ST107).
 	if finish == llmprovider.FinishLength {
-		return wire.CutAnswer("messages", res, finish)
+		return wire.CutAnswer("messages", res, finish, true)
 	}
 	if len(res.Output) == 0 {
 		return nil, wire.EmptyAnswer("messages", finish)

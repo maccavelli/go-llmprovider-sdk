@@ -19,6 +19,9 @@ type routeReplies struct {
 	// truncatedReason is the Reason the route's wire reports for a cut
 	// answer; empty is "length".
 	truncatedReason string
+	// truncatedWhole says the route's wire delivers a call whole, so its cut
+	// call with {} is kept (0088-MADR ST107, ST111).
+	truncatedWhole bool
 }
 
 // conformanceReplies holds each route's replies. The google and responses
@@ -49,6 +52,7 @@ var conformanceReplies = map[Route]routeReplies{
 		text: `{"modelVersion":"llmtest-model","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"hello"}]}}]}`,
 		truncated: `{"modelVersion":"llmtest-model","candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[` +
 			`{"functionCall":{"name":"llmtest_tool","args":{}}}]}}]}`,
+		truncatedWhole: true,
 		reasoningCut: `{"modelVersion":"llmtest-model","candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[` +
 			`{"text":"thinking about it","thought":true}]}}]}`,
 		toolCall: func(tool string) any {
@@ -137,13 +141,14 @@ func TestConformance(t *testing.T) {
 				Fidelity: true,
 				// Each route carries the flags its wire has (0032-MADR D2, D3;
 				// 0034-MADR D4 adds strict on the messages route).
-				SendsStrict:     tc.route != RouteGoogle,
-				SendsIsError:    tc.route == RouteMessages || tc.route == RouteGoogle,
-				StrictTools:     true,
-				Garbled:         write(`{"garbled`),
-				Truncated:       write(replies.truncated),
-				TruncatedReason: replies.truncatedReason,
-				ReasoningCut:    write(replies.reasoningCut),
+				SendsStrict:        tc.route != RouteGoogle,
+				SendsIsError:       tc.route == RouteMessages || tc.route == RouteGoogle,
+				StrictTools:        true,
+				Garbled:            write(`{"garbled`),
+				Truncated:          write(replies.truncated),
+				TruncatedReason:    replies.truncatedReason,
+				TruncatedCallWhole: replies.truncatedWhole,
+				ReasoningCut:       write(replies.reasoningCut),
 				// OpenCode refuses a model or a route with 403 (0012-MADR,
 				// amendment 2026-10-05).
 				NotPermitted: func(w http.ResponseWriter, _ *http.Request) {

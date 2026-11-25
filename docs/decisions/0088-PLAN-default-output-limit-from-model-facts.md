@@ -996,7 +996,7 @@ Additions only; every step above stands. The owner's rulings of 2026-11-25, rela
    * The streamed Interaction (`interactions.go:369`, through the same `response()`) passes what OQ19 decides: under (1), "in pieces", so `response()` learns its path; under (3), "in pieces" for a call step that received no `arguments_delta`, with one flag a step in `interactionStream`.
    * Chat Completions, Messages and Responses pass "in pieces".
 
-   Nothing exported changes.
+   Nothing exported changes. *(2026-11-25, deviation 13: except `llmtest.Harness.TruncatedCallWhole`, ST111.)*
 4. **Plants**, each by `python3 -B tools/plant.py` on a scratch clone, with `-run` naming its test alone, each caught on an assertion (quote the line):
    * ST107, the wire distinction removed: every wire's last `{}` call the cut one, as at `4fc5211`. Caught by the keep cases of `TestCutAnswer_WireGeneral_0088` and by `TestCutAnswer_Helper_0088`'s whole-wire case, and by no other row's test.
    * ST110's plant as OQ19's answer names it.
@@ -1062,7 +1062,7 @@ Additions only; Phase 6's steps above stand. Read them with the following. The o
 * **Step 3, the change** (OQ19 (3)). `interactionStream` records, for each call step, whether any `arguments_delta` arrived (`interactions.go:337`).
   * On the stream, a call step with none reads as a wire that streams in pieces; a call step that received one reads as whole.
   * The plain reply reads as whole (ST107).
-  * Nothing exported changes.
+  * Nothing exported changes. *(2026-11-25, deviation 13: except `llmtest.Harness.TruncatedCallWhole`, ST111.)*
 * **Step 4, ST110's plant:** the delta check removed, so the streamed step reads as the plain reply. It is caught by the no-delta case.
 * **Step 5, the changelog:** "an Interaction's stream (as OQ19 decides)" reads "an Interaction's stream when the call's arguments arrived, even as `{}`; a last call for which no arguments arrived is still dropped and named".
 * **Unmeasured, recorded in the MADR:** whether Google sends a delta for a call that takes no arguments. If it sends none, such a call that ends a cut stream is dropped, the safe direction.
@@ -1075,3 +1075,115 @@ Additions only; Phase 6's steps above stand. Read them with the following. The o
   * The Phase 6 reading above.
   * Dated notes on 0091-MADR lines 84, 130 and 812, each pointing to ST107 to ST110, with their text and line numbers unchanged.
 * Nothing staged; no code changed.
+
+### Execution record entry (2026-11-25, twenty-first): Phase 6 started, pass 1
+
+* **The owner's approval**, relayed by the coordinator, quoted exactly: "Approve; do phase 6 (Recommended)". Recorded here before any test or code.
+* **Base `f645c9c`** (the commit the tree held at the start: `4fc5211` plus the records of the nineteenth and twentieth entries, no code); `git status --porcelain` empty at the start. No live call; the ST110 probe stays a follow-up.
+* **Re-ground (step 1), at `f645c9c`.** `tools/claims.py` on the MADR at its pins: exit 0, 140 of 140; at `self=f645c9c`: exit 1, 62 of 140, the rows earlier phases moved, none this phase rests on. C161now to C173now with plain ids at `f645c9c` (a scratch record): 13 of 13 pass, and each planted false is caught, 13 of 13. Every line step 1 lists reads as cited at `f645c9c`: `finish.go:26`, `:29`, `:55`, `:56`, `:66` to `:111`, `:174` to `:177`; the five callers (`generatecontent.go:279`, `interactions.go:217`, `chatcompletions.go:576`, `messages.go:381`, `responses.go:423`, `:838`); `messages.go:586`; `interactions.go:337`, `:351`, `:369`; `cut_answer_0088_test.go:58` to `:71`, `:600` to `:612`; `cut_0088_test.go:18`. `TestCutCall_0088`'s declaration is at `cut_0088_test.go:51` (step 1's `:52` is its first body line); not a MADR claim, so no annotation. No text is gone.
+* **Red (step 2).** `TestCutAnswer_WireGeneral_0088` amended to ST107's rows and ST110's two streamed Interaction cases; `TestCutAnswer_Helper_0088` gains a wire whose calls arrive whole. `tools/redgreen.py --expect fail --rev f645c9c` (the Helper test dropped, as step 2 says): exit 0, 1 of 1 fails on its assertion, `cut_answer_0088_test.go:614: generatecontent, a trailing call with no arguments, Generate: calls ["lookup {\"x\":1}"]; want ["lookup {\"x\":1}" "now {}"], ...`, and so generateContent's `Stream` and the plain Interaction, and `:620: interactions, a trailing call whose delta is {}, Stream: calls ["lookup {\"x\":1}"]; ...`. The drop cases (Chat Completions, Messages, Responses, both modes; the streamed Interaction with no delta) are green there.
+* **The change (step 3)**, as written: `wire.CutAnswer` takes `inPieces bool`; generateContent passes false, Chat Completions, Messages and Responses true; an Interaction passes true only when its last output item is a call from a streamed step no `arguments_delta` came for (`interactionStream.argDelta`, one flag a step, carried to `response()` as the step's unexported `noDelta`). Nothing exported outside `internal` changes. The two tests green on this Mac.
+* **Plants (step 4), so far:** ST107's, caught by `TestCutAnswer_WireGeneral_0088` (`:614` and `:620`, the keep cases) and `TestCutAnswer_Helper_0088` (`cut_0088_test.go:44`); ST110's, caught by `TestCutAnswer_WireGeneral_0088` alone (`:614: interactions, a trailing call with no arguments, Stream: calls ["lookup {\"x\":1}" "now {}"]; want ["lookup {\"x\":1}"], ...`).
+* **Stopped** at the suite (`run-heavy -- go test -count=1 ./...`, exit 1, three packages failing): three existing tests that ST107 and ST110 do not name pin a cut generateContent reply, or a cut plain Interaction, whose only item is a call with `{}` as an empty answer, which ST107 now returns as a whole call. They pass at `f645c9c`. `llmprovider/internal/wire/generatecontent/answer_test.go:35: a call cut by MAX_TOKENS = <nil>, want ErrIncomplete` (`TestDecode_FinishReasonAndModel`); `llmtest.go:924: W12 (a cut answer, 0021-MADR W3): Generate returned <nil>; want an APIError of kind ErrIncomplete with Reason "incomplete"` (`gemini`'s `TestConformance`, stored and unstored, its `Truncated` fixture `llmprovider/providers/gemini/llmtest_test.go:51`); the same with Reason `"length"` (`opencode`'s `TestConformance/zen-google`, its fixture `llmprovider/providers/opencode/llmtest_test.go:50` to `:51`). Put to the owner; no gate beyond the suite, no doc and no record row written yet. Evidence: `<scratch>/b0088p6/`.
+
+### Deviation 13 (2026-11-25): the owner's ruling on Phase 6's stop
+
+Recorded before the change; pass 1 continues (a ruling after a stop for the owner, not a new pass). Relayed by the coordinator, quoted exactly: "Add a conformance-harness option". The MADR's seventeenth amendment holds it as OQ20 and ST111.
+
+* **Scope widened.** Phase 6 adds one export, `llmtest.Harness.TruncatedCallWhole` (`llmprovider/llmtest/llmtest.go`): set, W12's cut-answer check wants a response finishing `length` that keeps the call `llmtest_tool {}`, with no `WarningToolCallCut`; unset, `ErrIncomplete` as before. Files added to the phase: `llmprovider/llmtest/llmtest.go` and `llmtest_test.go` (`TestRun_TruncatedCallWhole_0088`, new), `llmprovider/providers/gemini/llmtest_test.go` and `llmprovider/providers/opencode/llmtest_test.go` (the field set; their fixtures unchanged), and `llmprovider/internal/wire/generatecontent/answer_test.go` (`TestDecode_FinishReasonAndModel`'s cut-call case, ST107's planned change).
+* **Step 3's "Nothing exported changes"**, and the "Phase 6 with ST110 decided" reading's, hold for every name but this one (annotated where they stand). The gate row "`tools/apidiff.py v1.33.0`: no line" reads: exactly one line, the field added; any other line is a stop.
+* **Step 4 gains** ST111's plant: the field's effect flipped, caught by W12 on Gemini's and OpenCode's `zen-google` harnesses and by `TestRun_TruncatedCallWhole_0088`.
+* **Step 5 gains** a `CHANGELOG.md` `[Unreleased]` **Added** entry for the field, and every doc that describes W12's `Truncated`.
+
+### Execution record entry (2026-11-25, twenty-second): Phase 6 built, pass 1 after deviation 13
+
+Base `f645c9c`; unstaged; no live call, every reply the tests' own. Scripts and outputs: `<scratch>/b0088p6/`.
+
+**Tests**, each exit taken before any filter:
+
+| Row | Test | At `f645c9c` | On the tree |
+| :--- | :--- | :--- | :--- |
+| ST107 | `TestCutAnswer_WireGeneral_0088`, the trailing-call case on all five wires by `Generate` and `Stream` | red on its assertion (`redgreen --expect fail`, 1 of 1): `cut_answer_0088_test.go:614: generatecontent, a trailing call with no arguments, Generate: calls ["lookup {\"x\":1}"]; want [... "now {}"]`, and generateContent's `Stream`, the plain Interaction | green |
+| ST107 | `TestCutAnswer_Helper_0088`, the case of calls that arrive whole | new parameter, dropped; its red is its plant | green |
+| ST110 | the two streamed Interaction cases | the `{}`-delta case red, `:620: interactions, a trailing call whose delta is {}, Stream: calls ["lookup {\"x\":1}"]; ...`; the no-delta case a green pin | green |
+| ST111 (c) | `TestDecode_FinishReasonAndModel`'s cut-call case | red (`redgreen --expect fail`, 1 of 1): `answer_test.go:37: a call with {} cut by MAX_TOKENS = <nil>, llmprovider: empty answer: length: generatecontent: the answer has no content; want the call f {} kept, ...` | green |
+| ST111 (a), (b) | `TestRun_TruncatedCallWhole_0088`; Gemini's and OpenCode's `TestConformance` W12 | new API; its red is its plants | green |
+
+`tools/redgreen.py --expect pass` on the tree, the nineteen cut, decoder, llmtest and conformance tests: exit 0, 19 of 19.
+
+**Plants**, by `tools/plant.py` on scratch clones, one spec per test with `-run` naming it, 26 in all, each caught on an assertion and none by a build failure:
+
+| Plant | Caught by | Its failing line |
+| :--- | :--- | :--- |
+| ST107 the wire distinction removed | `WireGeneral`; `Helper` | `:614: generatecontent, a trailing call with no arguments, Generate: calls ["lookup {\"x\":1}"]; ...` (and `:620`, ST110 (b)'s case in the same test); `cut_0088_test.go:44: calls that arrive whole: ...` |
+| ST110 the delta check removed | `WireGeneral` | `:614: interactions, a trailing call with no arguments, Stream: calls ["lookup {\"x\":1}" "now {}"]; want ["lookup {\"x\":1}"], ...` |
+| ST111 the field's effect flipped | `TestRun_TruncatedCallWhole_0088`; Gemini's and OpenCode's W12 | `llmtest_test.go:631: set, the call kept: failures ["W12 (a cut answer, 0021-MADR W3): ..."]; want a W12 failure: false`; `llmtest.go:936: W12 (a cut answer, 0021-MADR W3): Generate returned <nil>; want ... Reason "incomplete"` |
+| ST111 the kept call not checked; the cut warning not checked | `TestRun_TruncatedCallWhole_0088` | `:631: set, the call dropped: failures []; want a W12 failure: true`; `:631: set, a cut warning: failures []; ...` |
+| Re-run: ST76 (a), ST77 (b), ST78 (c), ST94 (d), ST103 | `CompleteCalls` | each caught (ST76's "old" now reads `inPieces && i == len(r.Output)-1`) |
+| Re-run: R1 (a), (b); R1 in `TestCutCall_0088`; R2 (a), (b); R3's three; ST104 (a) to (d) | their tests as Phase 1b's entry records | each caught |
+
+Across `./llmprovider/...` and `./internal/...`, ST107's plant fails only `WireGeneral` and `Helper`. ST110's, run there before deviation 13, also failed the three tests the stop names, which fail without it; on the tree it fails only `WireGeneral`. ST111's flip fails W12 on every harness that sets `Truncated`, as a flip of W12 must.
+
+**`apidiff`** (`python3 -B tools/apidiff.py v1.33.0`), exit 0: `Compatible changes:` and `- ./llmprovider/llmtest.Harness.TruncatedCallWhole: added`, nothing else.
+
+**Checks**, each exit taken before any filter:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the 13 Go files>"` | this Mac | 0, `13 file(s) clean` |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 packages ok |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/internal/wire/... ./llmprovider/providers/... ./llmprovider/llmtest/...` | the Linux machine (linux/amd64), not WSL | 0, 18 packages ok (a first call run from the wrong directory synced the wrong tree and failed at setup; not counted) |
+| `run-heavy -- make -k api-check records-check changelog-check docs-check tables-check links-check markdownlint lint vuln generate-check` | this Mac | 0 (197 records, 47 sections, 0 issues each) |
+| `run-heavy -- make gate-selftest` | this Mac | 0, 73 tests OK |
+| `run-heavy -- tools/gate.py` | this Mac | 0, 30 of 30 checks passed |
+| `tools/goldendiff.py --rev f645c9c` | this Mac | 0, 0 findings, 301 goldens unchanged |
+| `tools/claims.py` on 0088-MADR; on 0092-MADR at its marker | this Mac | 0, 140 of 140; 0, 92 of 92 |
+| C174now to C196now, plain ids, on a scratch clone's commit of the tree | this Mac | 0, 23 of 23; `--plants`, 23 caught |
+| `tools/recordlint.py --changed`; `tools/denyscan.py --changed` | this Mac | 0 (no rule rose); 0 (0 hits) |
+| `github-disclosure.py redact` (dry run) | this Mac | 0, would edit 0 files |
+
+**0092-MADR's rows this phase moves** (read against the clone; 0092-PLAN Phase 1's step 1 re-grounds them): `responses.go` E1 `:834`, E2 `:835`, E3 `:841`, E4 `:444`, E5 `:790`, E6 `:794`, E7 `:739`, E8 `:722`, E9 `:735`, E10 `:846`, E11 `:850`, E28 `:775`, E75 `:546`, E76 `:569`, E78 `:830`, E79 `:882`, E81 `:837`, E87 `:586`, E95 `:469`; `finish.go` E13 `:108`, E80 `:62`, E83 `:80`; `chatcompletions.go` E43 `:665`, E44 `:675`; `generatecontent.go` E45 `:329`, E46 `:339`; `interactions.go` E47 `:369`, E48 `:376`, E49 `:348`; `cut_answer_0088_test.go` E84 `:713`, E85 `:649`, E86 `:664`. Ten more (E19 to E24, E50, E59, E91 to E94) had moved before this phase.
+
+**Docs.** `CHANGELOG.md` `[Unreleased]` **Added** and **Changed**; `README.md` (the cut rule by wire); `docs/architecture.md` (`internal/wire`'s row, the conformance `Truncated` line, the answers bullet); `docs/guides/api-standards.md` R7; `docs/guides/adding-a-provider.md` (`Truncated` and the new field); the doc comments of `CutAnswer`, `CutCall`, `Harness.Truncated`, `Harness.TruncatedCallWhole` and `decodeInteraction`, and the callers' comments.
+
+**Not done:** the ST110 live probe (a follow-up, on the owner's word); staging (the coordinator's).
+
+### Deviation 14 (2026-11-25): the review's notes and the owner's ruling on an empty piece
+
+Recorded before the change; pass 1 continues (review notes and a ruling, not a new pass). `code-reviewer` passed Phase 6 with notes; relayed by the coordinator, the owner's answer quoted exactly: "Only a non-empty piece counts (Recommended)". The MADR's eighteenth amendment holds it as OQ21, ST110 amended, and ST111 annotated.
+
+* **ST110, an empty piece.** `interactionStream.delta` (`llmprovider/providers/gemini/interactions.go:354`) sets `argDelta` only for a piece that, trimmed, is non-empty and not `null`: a string fragment's decoded text (JSON `null` decodes to the empty string), or an object's JSON text. Tests: `TestCutAnswer_WireGeneral_0088` gains the streamed Interaction cases `""`, `null`, white space, absent and `"null"`, each dropped and named; red on the tree before the fix. Plant: the non-empty check removed.
+* **ST111, two more cases.** `TestRun_TruncatedCallWhole_0088` gains a kept call in a response not finishing `length`, and a kept call whose arguments are not `{}`. Plants: `resp.FinishReason != llmprovider.FinishLength` removed (`llmtest.go:946`); `call.Arguments == "{}"` removed (`:954`).
+* **Docs.** `Harness.Truncated`'s doc (`llmtest.go:81` to `:82`) names the whole `{}` call under `TruncatedCallWhole`; `CHANGELOG.md:34` to `:35` and `docs/architecture.md:742` to `:743` take the ruled wording.
+* **Files:** no new file joins the phase.
+
+### Execution record entry (2026-11-25, twenty-third): deviation 14 built, pass 1 continuing
+
+* **Red, on the tree before the fix:** `go test -run '^TestCutAnswer_WireGeneral_0088$' ./llmprovider/providers/`, exit 1, all five new cases (`""`, `null`, white space, absent, `"null"`) red on the assertion, for example `cut_answer_0088_test.go:636: interactions, a trailing call whose delta is "", Stream: calls ["lookup {\"x\":1}" "now {}"]; want ["lookup {\"x\":1}"], ...`. ST111's two new cases pass against the code as it stood; their red is their plants.
+* **The change.** `interactionStream.delta` keeps the step's assembled arguments as before and sets `argDelta` only when the piece, trimmed of white space, is non-empty and not `null` (`interactions.go:367`). A string fragment is its decoded text, so JSON `null`, which decodes to the empty string, and an absent `arguments` field are empty; an object is its JSON text, so `{}` counts. `Harness.Truncated`'s doc names the whole `{}` call under `TruncatedCallWhole`.
+* **Plants**, by `tools/plant.py`, each caught on an assertion: the non-empty check removed, `:636` on the `""`, `null`, white space and absent cases (and `"null"`); `resp.FinishReason != llmprovider.FinishLength` removed, `llmtest_test.go:642: set, the call kept, not finishing length: failures []; want a W12 failure: true`; `call.Arguments == "{}"` removed, `:642: set, the kept call's arguments not {}: ...`. Re-run on the changed tree: ST107's, ST110's, ST111's flip on the llmtest test and on W12, and its two check plants: all caught.
+* **Checks**, each exit taken before any filter: `run-heavy -- make pre-add-check FILES="<the 4 changed Go files>"`: 0; `run-heavy -- go test -count=1 ./...`: 0, 46 packages; `run-on-host --need linux --race` on `providers/...`, `llmtest/...` and `internal/wire/...`, the Linux machine, not WSL: see below; the CI make set through `run-heavy`: 0; `tools/apidiff.py v1.33.0`: 0, the one line `- ./llmprovider/llmtest.Harness.TruncatedCallWhole: added`; `tools/goldendiff.py --rev f645c9c`: 0, 0 findings; `tools/claims.py` on 0088-MADR and 0092-MADR at their markers: 140 of 140, 92 of 92; C197now to C201now on a scratch clone's commit: 5 of 5, 5 plants caught.
+* **0092-MADR's rows moved again** by this change (read against the clone): E47 `interactions.go:376`, E48 `:383`, E49 `:349`; E84 `cut_answer_0088_test.go:730`, E85 `:666`, E86 `:681`. The twenty-second entry's other lines stand.
+
+### Execution record entry (2026-11-25, twenty-fourth): deviation 14 re-checked after the owner's halt, pass 1 continuing
+
+The owner halted all work while the twenty-third entry's heavy runs were waiting; its Linux `-race` run ("see below") and its `make gate-selftest` and `tools/gate.py` runs never reported (the gate run was ended at exit 143 and is not counted). Pass 1 continues; no new pass. Base `f645c9c`, the tree unstaged, the same 20 paths.
+
+* **State found:** deviation 14's three items had all landed in the tree, in full: the non-empty check (`interactions.go:367`) with its five test cases; `TestRun_TruncatedCallWhole_0088`'s two cases; `Harness.Truncated`'s doc; `CHANGELOG.md:34` to `:35` and `docs/architecture.md:742` to `:747` in the ruled wording; the MADR's eighteenth amendment and the twenty-third entry above.
+* **Docs closed in this resumption**, comment and prose only, no line moved: the comments on `interactionStep.noDelta` (`interactions.go:160` to `:161`), `noDeltaAt` (`:184`), the cut branch (`:229` to `:230`) and `interactionStream.argDelta` (`:274`) said "an `arguments_delta`" where OQ21 makes it "a non-empty piece"; `README.md:130` to `:131` said "no arguments arrived" and now says "no non-empty piece of its arguments arrived", citing OQ21. `tools/claims.py` re-run after the edit: 140 of 140, 92 of 92; C197now to C201now on a scratch clone's commit of the edited tree: 5 of 5, 5 plants caught.
+* **Checks**, each exit taken before any filter; every heavy run through `run-heavy` or `run-on-host`:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the 13 Go files>"`, and again on `interactions.go` after the comment edit | this Mac | 0, 13 clean; 0, 1 clean |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 packages ok, 0 FAIL |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/internal/wire/... ./llmprovider/llmtest/... ./llmprovider/providers/...` | the Linux machine (linux/amd64), not WSL | 0, 18 packages ok |
+| `run-heavy -- make -k api-check records-check changelog-check docs-check tables-check links-check markdownlint lint vuln generate-check` | this Mac | 0 |
+| `run-heavy -- make gate-selftest` | this Mac | 0, 73 tests OK |
+| `run-heavy -- tools/gate.py`, started after the comment edit | this Mac | 0, 30 of 30 passed |
+| `tools/apidiff.py v1.33.0` | this Mac | 0, exactly `- ./llmprovider/llmtest.Harness.TruncatedCallWhole: added` |
+| `tools/goldendiff.py --rev f645c9c` | this Mac | 0, 0 findings, 301 unchanged |
+| `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; `github-disclosure.py redact` (dry run) | this Mac | 0, no rule rose; 0, 0 hits in 20 files; 0, would edit 0 files |
+
+* **Plants**, every Phase 6 spec re-run by `tools/plant.py` on scratch clones of the final tree, each caught on an assertion, none by a build failure: Phase 6's own, 10 of 10 (ST107 2, ST110 1, ST110/OQ21 1, ST111 6); Phase 1b's re-run, 17 of 17. 27 of 27 in all.
+* **Not done:** the ST110 live probe (a follow-up, on the owner's word); staging (the coordinator's).

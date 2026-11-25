@@ -123,7 +123,12 @@ functions over any provider, and `Stream` streams from every one.
   only reasoning or only a cut call, is `ErrEmptyAnswer`, beneath
   `ErrIncomplete`, with the service's reason (`length`, `max_output_tokens`
   on the Responses wire, `incomplete` on Gemini's) in `APIError.Reason`
-  (0088-MADR ST75 to ST81). An empty answer is `ErrEmptyAnswer` too, with
+  (0088-MADR ST75 to ST81). A last call with no arguments, `{}`, is taken
+  as the cut one only where a call's arguments stream in pieces (Messages,
+  Responses and Chat Completions); on generateContent and a Gemini
+  Interaction, whose calls arrive whole, it is returned as a call that
+  takes none, except on an Interaction's stream when no non-empty piece
+  of its arguments arrived (0088-MADR ST107, ST110, OQ21). An empty answer is `ErrEmptyAnswer` too, with
   the service's reason, such as a refusal's `content_filter`. A Responses
   answer incomplete for another reason, such as a content filter, is
   `ErrIncomplete` with that reason.

@@ -126,7 +126,10 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 // cause measured: its usable steps finish FinishLength, a call whose
 // arguments are not whole is dropped and named in a WarningToolCallCut, and
 // with nothing usable it is ErrEmptyAnswer with the reason "incomplete"
-// (0088-MADR ST93, which replaces MADR 0012 §1.5's error for it); failed and
+// (0088-MADR ST93, which replaces MADR 0012 §1.5's error for it). Its steps
+// arrive whole, so a last call with {} is a call that takes no arguments,
+// returned (ST107); on a stream, such a call for which no arguments_delta
+// brought a non-empty piece is dropped and named (ST110, OQ21). failed and
 // cancelled are retryable failures.
 func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	var raw interaction
@@ -154,6 +157,9 @@ type interactionStep struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
+	// noDelta marks a streamed step no arguments_delta brought a non-empty piece
+	// for; a plain reply's steps arrive whole and leave it false (0088-MADR ST110, OQ21).
+	noDelta bool
 }
 
 // stepText is one typed text of a step's summary or content.
@@ -175,6 +181,7 @@ func (raw interaction) response() (*llmprovider.Response, error) {
 	}
 	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, Usage: raw.Usage.counts()}
 	signature := ""
+	noDeltaAt := -1 // the output index of the last call no non-empty arguments_delta piece came for
 	for _, step := range raw.Steps {
 		switch step.Type {
 		case interactionStepThought:
@@ -211,10 +218,18 @@ func (raw interaction) response() (*llmprovider.Response, error) {
 			}
 			result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: step.ID, Name: step.Name,
 				Arguments: args, Signature: signature})
+			if step.noDelta {
+				noDeltaAt = len(result.Output) - 1
+			}
 		}
 	}
 	if cut {
-		return wire.CutAnswer("gemini interaction", result, statusIncomplete)
+		// A plain reply's calls arrive whole, so a last call with {} takes no
+		// arguments (0088-MADR ST107); on a stream, what arrived decides: a
+		// last call no non-empty arguments_delta piece came for is read as one
+		// cut before its first piece (ST110, OQ21).
+		inPieces := noDeltaAt >= 0 && noDeltaAt == len(result.Output)-1
+		return wire.CutAnswer("gemini interaction", result, statusIncomplete, inPieces)
 	}
 	if len(result.Output) == 0 {
 		return nil, wire.EmptyAnswer("gemini interaction", "")
@@ -256,6 +271,7 @@ type interactionStream struct {
 	text     []*strings.Builder // each step's text deltas
 	args     []*strings.Builder // each step's argument fragments
 	sig      []*strings.Builder // each step's signature deltas (0053-MADR D1)
+	argDelta []bool             // whether a non-empty arguments_delta piece reached each step (0088-MADR ST110, OQ21)
 	yield    func(llmprovider.Event) bool
 }
 
@@ -316,6 +332,7 @@ func (s *interactionStream) step(index int) (*interactionStep, error) {
 		s.text = append(s.text, &strings.Builder{})
 		s.args = append(s.args, &strings.Builder{})
 		s.sig = append(s.sig, &strings.Builder{})
+		s.argDelta = append(s.argDelta, false)
 	}
 	return &s.raw.Steps[index], nil
 }
@@ -335,6 +352,7 @@ func (s *interactionStream) delta(ev interactionEvent) (bool, error) {
 	case "thought_signature":
 		s.sig[ev.Index].WriteString(ev.Delta.Signature)
 	case "arguments_delta":
+		// A text fragment, its decoded text; JSON null decodes to "".
 		var fragment string
 		if err := json.Unmarshal(ev.Delta.Arguments, &fragment); err == nil {
 			s.args[ev.Index].WriteString(fragment)
@@ -342,6 +360,12 @@ func (s *interactionStream) delta(ev interactionEvent) (bool, error) {
 			// The whole object, in place of any fragments.
 			s.args[ev.Index].Reset()
 			s.args[ev.Index].Write(ev.Delta.Arguments)
+			fragment = string(ev.Delta.Arguments)
+		}
+		// Only a non-empty piece has arrived: one that, trimmed, is neither
+		// empty nor the text null (0088-MADR ST110, OQ21).
+		if piece := strings.TrimSpace(fragment); piece != "" && piece != "null" {
+			s.argDelta[ev.Index] = true
 		}
 	}
 	return false, nil
@@ -364,6 +388,7 @@ func (s *interactionStream) completed(final interaction) (bool, error) {
 		if s.args[i].Len() > 0 {
 			step.Arguments = json.RawMessage(s.args[i].String())
 		}
+		step.noDelta = !s.argDelta[i]
 		step.Signature += s.sig[i].String()
 	}
 	resp, err := s.raw.response()
