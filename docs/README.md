@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-195 records. Cite them by full filename.
+197 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -203,6 +203,8 @@ documents a reader follows to do something.
 | 0091 | MADR | [Adopt the Responses API Per Provider Where It Loses Nothing Chat Completions Gives, and Read a Cut a Service Reports as Complete](decisions/0091-MADR-adopt-the-responses-api-per-provider.md) | accepted |
 | 0091 | PLAN | [Implement: Adopt the Responses API Per Provider](decisions/0091-PLAN-adopt-the-responses-api-per-provider.md) | in-progress |
 | 0091 | REPORT | [The Responses API Across the SDK's Providers, Recorded for 0091](reports/0091-REPORT-responses-api-across-providers.md) | observation |
+| 0092 | MADR | [Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md) | accepted |
+| 0092 | PLAN | [Implement: Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md) | in-progress |
 | 0093 | MADR | [The SDK Takes a models.dev Document From Its Caller and Fetches None: `catalog.WithMetadata` In; the Download, Its Cache, Its Options and the Embedded Extract Out](decisions/0093-MADR-take-model-metadata-from-the-caller.md) | accepted |
 | 0093 | PLAN | [Implement: The SDK Takes a models.dev Document From Its Caller and Fetches None](decisions/0093-PLAN-take-model-metadata-from-the-caller.md) | in-progress |
 

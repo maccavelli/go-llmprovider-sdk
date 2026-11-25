@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-24
+date: 2026-11-25
 decision-makers: repository owner
 consulted: "the owner's answers of 2026-11-21 to OQ1 to OQ8, relayed by the coordinator; the coordinator's brief of 2026-11-21, which relays a gobble-cli report and the owner's choice among three options (its label quoted below), with facts the coordinator verified; record review 1 of this pair (2026-11-21), each finding re-verified against the code before it was written in; this repository at 55a5dca, read only; gobble-cli at 4c3e397, read only; the read-only upstream checkouts kilocode at 58072bd696, opencode at 4ce137b39e, codex at 57e64682f8 and grok-build at 2bdd1d6a; Anthropic's API reference as bundled with the drafting agent's tools, read 2026-11-21"
 informed: every caller of Generate and Stream that sends a request with no MaxOutputTokens and no WithMaxTokens; gobble-cli first, whose agent turns name no limit; prepare-commit-msg and magic-cli-remote
@@ -12,7 +12,7 @@ informed: every caller of Generate and Stream that sends a request with no MaxOu
 
 Associated PLAN: [0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md)
 
-*(2026-11-22: reopened by the research amendment, whose open rows ST63, ST65, ST66, ST67, ST71 and ST74 make the record `proposed` by the records rule; the owner's 2026-11-21 answers stand. It was `accepted` on 2026-11-21. See "Amendment (2026-11-22)" at the end.)* *(2026-11-22, second: the owner answered OQ10 to OQ12, deciding ST65, ST66, ST67 and ST71; OQ9 is reworked from evidence, with ST63, ST74 and ST85 to ST89 open; still `proposed`. See "Amendment (2026-11-22, second)".)* *(2026-11-22, third: after record review 2, OQ9 is split into OQ9, OQ14, OQ15 and OQ17, and the new export is OQ16; ST63 is decided from xAI's schema; still `proposed`. See "Amendment (2026-11-22, third)".)* *(2026-11-22, fourth: the owner answered OQ14 to OQ16 and replied on OQ9 by asking for model output-limit discovery, now 0089-MADR; OQ9's rows wait for 0089's OQ1, and the release is OQ18; still `proposed`. See "Amendment (2026-11-22, fourth)".)* *(2026-11-22, fifth: the owner answered OQ18 and 0089-MADR's OQ1 to OQ4, which decide every open row; `accepted`. See "Amendment (2026-11-22, fifth)".)*
+*(2026-11-22: reopened by the research amendment, whose open rows ST63, ST65, ST66, ST67, ST71 and ST74 make the record `proposed` by the records rule; the owner's 2026-11-21 answers stand. It was `accepted` on 2026-11-21. See "Amendment (2026-11-22)" at the end.)* *(2026-11-22, second: the owner answered OQ10 to OQ12, deciding ST65, ST66, ST67 and ST71; OQ9 is reworked from evidence, with ST63, ST74 and ST85 to ST89 open; still `proposed`. See "Amendment (2026-11-22, second)".)* *(2026-11-22, third: after record review 2, OQ9 is split into OQ9, OQ14, OQ15 and OQ17, and the new export is OQ16; ST63 is decided from xAI's schema; still `proposed`. See "Amendment (2026-11-22, third)".)* *(2026-11-22, fourth: the owner answered OQ14 to OQ16 and replied on OQ9 by asking for model output-limit discovery, now 0089-MADR; OQ9's rows wait for 0089's OQ1, and the release is OQ18; still `proposed`. See "Amendment (2026-11-22, fourth)".)* *(2026-11-22, fifth: the owner answered OQ18 and 0089-MADR's OQ1 to OQ4, which decide every open row; `accepted`. See "Amendment (2026-11-22, fifth)".)* *(2026-11-25, fifteenth: the owner ruled R1 to R3, now rows ST107 to ST109; R1's ruling leaves one case open, the streamed Interaction (ST110, OQ19), so by the records rule the record is `proposed` again until OQ19 is answered. See "Amendment (2026-11-25, fifteenth)".)* *(2026-11-25, sixteenth: OQ19 answered, "Decide by what arrived"; ST110 decided; 0 rows open; `accepted`. See "Amendment (2026-11-25, sixteenth)".)*
 
 ## Context and Problem Statement
 
@@ -1417,7 +1417,7 @@ Built in Phase 1b by the owner's ruling "Defer to the review", each with a test 
 * **R2, Responses' cut call.** On the Responses wire, a cut reply's call whose item has `status` `incomplete` (plain or streamed), or that a stream added (`response.output_item.added`) and never finished (`response.output_item.done`), is the cut call, dropped and named.
 * **R3, streamed calls held back.** On the Responses stream, whose items are yielded as each ends, a call whose arguments are `{}` or not whole is held, not yielded, until a later item shows it was not the last (a `{}` call is then yielded) or the stream ends (a call the finished response kept is then yielded just before `EventDone`) (`wire.HeldCalls`), so that a cut call is never yielded (ST80). On the Messages stream every `tool_use` item is held until a later block starts, as ST103 needs, and one whose input is not a whole object is then held until the stream ends, by the same rule. A call is yielded later than before on those streams: on Messages every call, on Responses one taking no arguments.
 
-Their tests, each with plants recorded in PLAN Phase 1b's execution entry: R1 `TestCutAnswer_WireGeneral_0088` and `TestCutCall_0088`; R2 `TestCutAnswer_ResponsesCutItem_0088`; R3 `TestCutAnswer_HeldCalls_0088` and `TestHeldCalls_0088`.
+Their tests, each with plants recorded in PLAN Phase 1b's execution entry: R1 `TestCutAnswer_WireGeneral_0088` and `TestCutCall_0088`; R2 `TestCutAnswer_ResponsesCutItem_0088`; R3 `TestCutAnswer_HeldCalls_0088` and `TestHeldCalls_0088`. *(2026-11-25: R1 to R3 are ruled, no longer open: R1 "Keep, except where calls arrive whole (Recommended)" is ST107, with ST110 open under OQ19; R2 "Keep as built (Recommended)" is ST108; R3 "Keep as built (Recommended)" is ST109. See "Amendment (2026-11-25, fifteenth)". The list above keeps its text.)*
 
 ### Evidence added (2026-11-23, tenth)
 
@@ -1510,7 +1510,7 @@ Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111
 
 Annotations only; no row's decision changes. The owner's ruling of 2026-11-24, relayed by the coordinator, quoted as given: "Yes, re-scope v1.33.0 (Recommended)". v1.33.0 is cut from what `33e6f09` holds after the joint gates and a short release review whose findings are blockers only (PLAN amendment of 2026-11-24, seventh).
 
-* **R1 to R5** (the tenth amendment's R1 to R3, the cut-answer choices Phase 1b deferred; the twelfth's R4; the thirteenth's R5) are not ruled before v1.33.0. Each ships as built, with the tests and plants PLAN Phases 1b and 1c record, and stays open for v1.34.0's review, where the reviewer rules on each with the owner. Where the tenth, twelfth and thirteenth amendments say "PLAN Phase 3's review", read v1.34.0's.
+* **R1 to R5** (the tenth amendment's R1 to R3, the cut-answer choices Phase 1b deferred; the twelfth's R4; the thirteenth's R5) are not ruled before v1.33.0. Each ships as built, with the tests and plants PLAN Phases 1b and 1c record, and stays open for v1.34.0's review, where the reviewer rules on each with the owner. Where the tenth, twelfth and thirteenth amendments say "PLAN Phase 3's review", read v1.34.0's. *(2026-11-25: R1 to R3 are ruled before that review, at the owner's "Rule R1–R3 first" on 0092-MADR's Q-B1: ST107 to ST109, with ST110 open; R1's change is built in PLAN Phase 6, for v1.34.0. R4 and R5 stay open for v1.34.0's review, as this bullet says. See "Amendment (2026-11-25, fifteenth)". The bullet keeps its text.)*
 
 ### Evidence added (2026-11-24, fourteenth)
 
@@ -1558,3 +1558,89 @@ Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111
 * C158now (`CHANGELOG.md:101`): `CHANGELOG.md:124`; already failing at `cfc911d`
 * C159now (`CHANGELOG.md:104`): `CHANGELOG.md:127`; already failing at `cfc911d`
 * C160now (`CHANGELOG.md:107`): `CHANGELOG.md:130`; already failing at `cfc911d`
+
+## Amendment (2026-11-25, fifteenth): R1 to R3 ruled, and the streamed Interaction put to the owner
+
+Additions only; no earlier row's text changes. On [0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md](0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md)'s Q-B1 (whether 0092 builds with R1 to R3 unruled), the owner chose to rule them first, and ruled them. The tenth amendment's list and the fourteenth amendment's bullet are annotated where they stand. R4 and R5 (the twelfth and thirteenth amendments) were read again: neither is ruled here, and each stays open for v1.34.0's review, as the fourteenth amendment says.
+
+### Owner rulings (2026-11-25, fifteenth)
+
+Relayed by the coordinator; labels quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| 0092-MADR Q-B1, whether 0092 builds with R1 to R3 unruled | "Rule R1–R3 first" | (2): R1 to R3 are ruled before 0092-PLAN Phase 1; this PLAN's Phase 6 (R1's change) runs first, then 0092-PLAN Phase 1 | none here; 0092's order |
+| R1, the wire-general cut rule | "Keep, except where calls arrive whole (Recommended)" | as relayed: the rule "a cut reply's last call with `{}` arguments is the cut call" applies only on the wires that stream arguments in pieces, Claude Messages, OpenAI Responses and Chat Completions; on generateContent and Interactions, whose call parts arrive whole (ST78), a last `{}` call is a whole call and runs; a call whose arguments are not a JSON object is still the cut call on every wire | ST107; ST110 left open (below) |
+| R2, Responses' cut call | "Keep as built (Recommended)" | as built | ST108 |
+| R3, streamed calls held back | "Keep as built (Recommended)" | as built | ST109 |
+
+### What R1's ruling meets in the tree (read at `4fc5211`)
+
+* **Today every wire applies the last-`{}` rule.** `wire.CutAnswer` passes "last item" to `CutCall` whatever the wire (C161now, C162now), and generateContent and Interactions finish a cut reply through it (C163now, C164now). Measured on a scratch clone at `4fc5211` (`<scratch>/r1/measure-r1.txt`, a test that ran the existing `cutRun` fixtures): a cut reply of text, `lookup {"x":1}` and a last call `now` with no arguments returns `lookup` alone with one `tool_call_cut` warning on all five wires, by `Generate` and by `Stream`, ten of ten.
+* **generateContent** sends a `functionCall` part whole (C170now), plain and streamed: the ruling's ground holds.
+* **An Interaction's plain reply** carries its steps whole (ST93): the ground holds.
+* **An Interaction's stream does not.** It sends a call's arguments as `arguments_delta` events, which the reader assembles (C169now, C166now), and finishes through the same `response()` as the plain reply (C165now, C164now). A call whose stream is cut after its `step.start` and before its first delta has no arguments, which `CompactArguments` writes as `{}` (C167now). The SDK's own cut fixtures count the Interactions stream as one that can carry a cut call (C168now). There the ruling's words ("on generateContent and Interactions ... a last `{}` call is a whole call and runs") and its ground ("only on wires that stream arguments in pieces") disagree: under the words, a call cut before its first argument runs with none. No service was measured cutting a streamed Interaction call. That case is ST110, open, put to the owner as OQ19.
+* **Messages, Responses and Chat Completions** keep R1 as built. `wire.HeldCalls` (R3) runs only on the Messages and Responses streams (C171now, C172now), both wires the rule still covers, so R1's ruling changes nothing R3 does.
+* **Read with ST107:** ST94 (the empty last call) holds on Messages, Responses and Chat Completions; ST78's generateContent and Interactions cells ("a function-call part, whole in those formats") hold for generateContent and the plain Interaction; ST104's "its calls under the cut rules as built (ST77, ST78, R1, R2)" reads ST107 and ST108, and on Responses nothing changes. Their text is unchanged.
+
+### Rows (2026-11-25, fifteenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST107 (new, 2026-11-25; R1) | A reply the output limit cut, carrying calls: (a) its last item a call whose arguments are `{}`; (b) a call whose arguments are not a JSON object; (c) an earlier call with `{}`; on every wire and mode except the streamed Interaction (ST110) | decided | (a) on Messages, Responses and Chat Completions, plain and streamed: the cut call, dropped and named in a `WarningToolCallCut`, as built (ST94); on generateContent, plain and streamed, and an Interaction's plain reply: a whole call that takes no arguments, returned (and on generateContent's stream yielded), with no warning. (b) the cut call on every wire, as built. (c) a whole call on every wire, as built. The wire decides, at `wire.CutAnswer`'s callers; `CutCall`'s rule and `HeldCalls` are unchanged. Amends R1 as built for generateContent and the plain Interaction | R1 "Keep, except where calls arrive whole (Recommended)"; ST78; ST93; C170now | `TestCutAnswer_WireGeneral_0088`, amended in PLAN Phase 6: its trailing-call case on all five wires by `Generate` and `Stream` (the streamed Interaction as ST110 decides): generateContent's two modes and the plain Interaction return `lookup {"x":1}` and `now {}` with no warning; Chat Completions, Messages and Responses, both modes, return `lookup {"x":1}` alone, with one warning naming `now` and `call_z`; its not-an-object case unchanged. Red at `4fc5211` on its assertion (all ten modes drop `now` there, measured above). Plant: the wire distinction removed (every wire's last `{}` call the cut one, as at `4fc5211`), caught by ST107's keep cases and by no other row's test; ST94's plant (d), the empty last call kept, re-run and still caught by `TestCutAnswer_CompleteCalls_0088` |
+| ST108 (new, 2026-11-25; R2) | On the Responses wire, a cut reply's call whose item has `status` `incomplete` (plain or streamed), or that a stream added (`response.output_item.added`) and never finished (`response.output_item.done`) | decided | the cut call, dropped and named, its arguments whole or not; as built (the tenth amendment's R2) | R2 "Keep as built (Recommended)" | `TestCutAnswer_ResponsesCutItem_0088`, unchanged; plants as PLAN Phase 1b's entry records them: (a) the incomplete-status check removed, `:624: responses, an incomplete call item, Generate: calls ["lookup {\"x\":1}" "fetch {\"y\":2}"]; ...`; (b) a call added and never done not named, `:624: responses, an incomplete call item, Stream: warnings []; want one WarningToolCallCut naming fetch and call_b` |
+| ST109 (new, 2026-11-25; R3) | A streamed call a cut could still drop: on the Responses stream, a call whose arguments are `{}` or not whole; on the Messages stream, every `tool_use` until a later block starts, and one whose input is not a whole object until the stream ends | decided | held, not yielded, until a later item shows it was not the last (a `{}` call is then yielded) or the stream ends (a call the finished response kept is then yielded just before `EventDone`), so a cut call is never yielded (ST80); a call is yielded later than before on those streams; as built (`wire.HeldCalls`, the tenth amendment's R3) | R3 "Keep as built (Recommended)" | `TestCutAnswer_HeldCalls_0088` and `TestHeldCalls_0088`, unchanged; plants as PLAN Phase 1b's entry records them: no call held, `:639: responses, Stream: items ["first" "lookup" "now"]; want first, then lookup, and never the last {} call`; `Later` releases nothing, `cut_0088_test.go:100: Later yielded []; want now alone, the partial call kept`; `Done` yields a dropped call, `cut_0088_test.go:109: Done yielded ["now"]; want nothing: the response dropped the call` |
+| ST110 (new, 2026-11-25) | A streamed Interaction the output limit cut whose last step is a `function_call` that received no `arguments_delta`, so its arguments read `{}` (C167now) | open *(2026-11-25: decided by OQ19's answer, "Decide by what arrived"; restated in the sixteenth amendment)* | OQ19; recommended (1): the cut call, dropped and named, as on the other wires that stream arguments in pieces, while the plain Interaction keeps it (ST107) | OQ19; R1's ruling; C164now to C169now | under OQ19 (1) or (3): `TestCutAnswer_WireGeneral_0088`'s streamed Interaction case, `now` dropped and named (under (3), with no `arguments_delta`; a second case with a whole `{}` delta keeps it); plant: the stream read as the plain reply, `now {}` yielded. Under (2): `now {}` returned and yielded; plant: the stream read as a wire that streams in pieces |
+
+### Owner question (2026-11-25, fifteenth)
+
+| Question | Options (recommended first) | Cost of each | Rows |
+| :--- | :--- | :--- | :--- |
+| OQ19. R1's ruling names Interactions among the wires whose call parts arrive whole, and that holds for an Interaction's plain reply. Its stream, though, sends a call's arguments in pieces (`arguments_delta`), like Messages, Responses and Chat Completions, so a call cut after it started and before its first piece reads as `{}`, a call with no arguments. On a streamed Interaction the limit cut, what is a last call with `{}`? | (1) **The cut call, as on the other wires that stream arguments**: dropped and named; the plain Interaction keeps it. (2) **A whole call, as the ruling's words say**: kept and run on both paths. (3) **Decide by what arrived**: the cut call when no `arguments_delta` came for it; a whole call when one delivered `{}`. | (1) the same reply shape reads two ways on one wire, plain and streamed; `interaction.response()`, which both paths share, learns which path it reads (internal, no export); a zero-argument call that ends a cut streamed Interaction is dropped and named, never run, as on Messages, Responses and Chat Completions. (2) the simplest code; a call cut before its first argument runs with none, the failure R1 guards against elsewhere; no service was measured sending such a cut. (3) the reader records whether each call step received a delta (one flag a step); right whether or not Google sends a delta for a call that takes no arguments, but unmeasured: if it sends none, a zero-argument call that ends a cut stream is dropped, as under (1). | ST110 |
+
+### Evidence added (2026-11-25, fifteenth)
+
+Read at `4fc5211`. The ids end in "now", as the sixth amendment's do, so that `tools/claims.py` does not read them against this record's `self=55a5dca`. Each was checked with a plain id against a scratch clone at `4fc5211`, and planted false there (PLAN execution entry of 2026-11-25, nineteenth).
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| C161now | `CutAnswer` gives `CutCall` "last item" on every wire | new | `llmprovider/internal/wire/finish.go:29` | `ok && CutCall(call.Arguments, i == len(r.Output)-1) {` |
+| C162now | R1 as built | new | `llmprovider/internal/wire/finish.go:56` | `return !WholeObject(args) \|\| last && noArguments(args)` |
+| C163now | generateContent finishes a cut reply through `CutAnswer` | new | `llmprovider/internal/wire/generatecontent/generatecontent.go:279` | `return wire.CutAnswer("generatecontent", result, finish)` |
+| C164now | and so does an Interaction | new | `llmprovider/providers/gemini/interactions.go:217` | `return wire.CutAnswer("gemini interaction", result, statusIncomplete)` |
+| C165now | an Interaction's stream finishes through the plain reply's `response()` | new | `llmprovider/providers/gemini/interactions.go:369` | `resp, err := s.raw.response()` |
+| C166now | an Interaction's stream assembles `arguments_delta` | new | `llmprovider/providers/gemini/interactions.go:337` | `case "arguments_delta":` |
+| C167now | empty arguments are written `{}` | new | `llmprovider/internal/wire/finish.go:177` | `return "{}", nil` |
+| C168now | the cut fixtures: an Interaction's stream can carry a cut call | new | `llmprovider/providers/cut_answer_0088_test.go:67` | `streamCuts: true, plain: interactionCutPlain, stream: interactionCutStream},` |
+| C169now | measured: an Interaction's stream sends its arguments in pieces | new | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:447` | `` `signature`, and sends its arguments as `arguments_delta`, which are `` |
+| C170now | measured: generateContent sends a `functionCall` part whole | new | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:441` | `` * generateContent: text parts, and `functionCall` parts sent whole `` |
+| C171now | `HeldCalls` on the Messages stream | new | `llmprovider/internal/wire/messages/messages.go:574` | `held wire.HeldCalls` |
+| C172now | and on the Responses stream | new | `llmprovider/internal/wire/responses/responses.go:767` | `held wire.HeldCalls` |
+| C173now | the Responses wire's cut paths, plain and streamed, through `CutAnswer` | new | `llmprovider/internal/wire/responses/responses.go:838` | `resp, err = wire.CutAnswer("responses", result, reasonOutputLimit)` |
+
+Counts after this amendment: 105 decided, 9 out of scope, 1 open (ST110), 115 rows (ST107 to ST110 added). R4 and R5 are not rows; they stay open for v1.34.0's review. By the records rule the record is `proposed` until OQ19 is answered.
+
+## Amendment (2026-11-25, sixteenth): OQ19 answered, the streamed Interaction decided
+
+Additions only; ST110 is annotated where it stands. The owner's answer was given after the coordinator corrected a premise. The owner had been told earlier that Interactions calls arrive whole, but a streamed Interaction sends a call's arguments as `arguments_delta` pieces (the fifteenth amendment; C166now, C169now).
+
+### Owner rulings (2026-11-25, sixteenth)
+
+Relayed by the coordinator; label quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| OQ19 | "Decide by what arrived" | (3): on a cut, streamed Interaction, the last call is judged by whether any `arguments_delta` came for it | ST110 |
+
+### Rows (2026-11-25, sixteenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST110 (decided 2026-11-25, sixteenth) | A streamed Interaction the output limit cut whose last step is a `function_call`: (a) no `arguments_delta` came for it, so its arguments read `{}` (C167now); (b) its deltas delivered `{}` | decided | (a) the cut call: dropped and named in a `WarningToolCallCut`, never yielded; (b) a whole call that takes no arguments: returned and yielded, no warning. An Interaction's plain reply keeps ST107 (a last `{}` call is whole). The stream reader records, for each call step, whether any `arguments_delta` arrived | OQ19 "Decide by what arrived"; ST107 | `TestCutAnswer_WireGeneral_0088`'s two streamed Interaction cases (PLAN Phase 6): a last `now` step with no delta, `lookup {"x":1}` alone and one warning naming `now` and `call_z`; a last `now` step whose one delta is `{}`, `lookup {"x":1}` and `now {}` returned and yielded, no warning. Red at `4fc5211`: the `{}`-delta case (every mode drops `now` there); the no-delta case is a green pin. Plant: the delta check removed (the streamed step read as the plain reply), caught by the no-delta case |
+
+### What is unmeasured
+
+* Whether Google sends an `arguments_delta` for a call that takes no arguments. If it sends none, such a call that ends a cut streamed Interaction is dropped and named under (a). That is the safe direction: the call never runs with arguments it did not get, and the model asks again on the next turn. A call that is not last, or a reply that was not cut, is unaffected.
+* **Follow-up, not run:** a live probe of a streamed Interaction calling a tool that takes no arguments, to see whether a delta comes (allowlisted output only: event types, delta types, counts). It runs only on the owner's word.
+
+Counts after this amendment: 106 decided, 9 out of scope, 0 open, 115 rows. R4 and R5 are not rows; they stay open for v1.34.0's review. With no open row the record is `accepted` again.

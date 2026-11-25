@@ -958,3 +958,120 @@ Base `33e6f09`, the tree clean at the start (`git status --porcelain` empty); no
 **Findings, recorded:** `make changelog-check` does not read the compare links at the file's end (a missing `[v1.33.0]:` link and an `[Unreleased]:` link left at `v1.32.0` both passed); a follow-up for v1.34.0. C146now and C147now are superseded by C160now and C153now (their lines moved with Phase 1c's entry).
 
 **Not done:** Phase 3's short release review; the caller-limit refusal report's phase and the gates again on its commit; the date step; Phase 4's tag and GitHub Release (the owner's word); 0089's DL70 regeneration and DL65 measurement, put to the owner.
+
+## Amendment (2026-11-25, eighth): R1 to R3 ruled; Phase 6 builds R1 by wire for v1.34.0
+
+Additions only; every step above stands. The owner's rulings of 2026-11-25, relayed by the coordinator, quoted exactly: on 0092-MADR's Q-B1, "Rule R1–R3 first"; R1 "Keep, except where calls arrive whole (Recommended)"; R2 "Keep as built (Recommended)"; R3 "Keep as built (Recommended)". The MADR's fifteenth amendment holds them as ST107 (R1), ST108 (R2) and ST109 (R3), and leaves one case open: ST110, the streamed Interaction, put to the owner as OQ19.
+
+* **Phase 3's step 4** (R1 to R3), moved to v1.34.0 by the seventh amendment, is met by these rulings. v1.34.0's review rules R4 and R5 only.
+* **R2 and R3 need no code:** ST108 and ST109 keep them as built, with Phase 1b's tests and plants.
+* **R1 needs one change,** Phase 6 below: on generateContent and the plain Interaction a cut reply's last call with `{}` becomes a whole call.
+* **The order** (0092's Q-B1): this PLAN's Phase 6, then [0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md](0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md)'s Phase 1, serially in the same tree, both in v1.34.0.
+
+### Phase 6 (v1.34.0): R1 by wire (ST107, ST110)
+
+**Waits for:** OQ19 answered and ST110 decided, the MADR `accepted` again (`python3 -B tools/records.py status`), and the owner's approval of this phase and `do phase 6`. Base: `4fc5211`, or the commit the tree holds at the start, re-grounded as step 1 says.
+
+1. **Re-ground** at the base. Run `python3 -B tools/claims.py docs/decisions/0088-MADR-default-output-limit-from-model-facts.md --rev self=<base>`. Check the fifteenth amendment's C161now to C173now with plain ids at the base (a scratch copy). Read the lines this phase rests on, each read at `4fc5211`:
+   * `wire.CutAnswer` and `CutCall` (`llmprovider/internal/wire/finish.go:26`, `:29`, `:55`, `:56`);
+   * `HeldCalls` (`finish.go:66` to `:111`) and `CompactArguments` (`finish.go:174` to `:177`);
+   * `CutAnswer`'s five callers: `generatecontent/generatecontent.go:279`, `providers/gemini/interactions.go:217`, `chatcompletions/chatcompletions.go:576`, `messages/messages.go:381` and `responses/responses.go:423`, `:838`;
+   * `messages.go:586` (`CutCall(..., false)`);
+   * the Interaction stream's `arguments_delta` (`interactions.go:337`) and `completed` (`interactions.go:351`, `:369`);
+   * the tests: `TestCutAnswer_WireGeneral_0088` (`llmprovider/providers/cut_answer_0088_test.go:600` to `:612`), `cutRoutes` (`:58` to `:71`), `TestCutAnswer_Helper_0088` (`llmprovider/internal/wire/cut_0088_test.go:18`) and `TestCutCall_0088` (`:52`).
+
+   A moved line is a dated annotation in the MADR; a text gone is a stop.
+2. **Red first.** Amend `TestCutAnswer_WireGeneral_0088`'s trailing-call case to ST107's rows, and add ST110's streamed Interaction case as OQ19 decides:
+   * generateContent by `Generate` and `Stream`, and the plain Interaction, return `lookup {"x":1}` and `now {}` with no `WarningToolCallCut`;
+   * Chat Completions, Messages and Responses, both modes, return `lookup {"x":1}` alone, with one warning naming `now` and `call_z`;
+   * its not-an-object case stands.
+
+   Run `python3 -B tools/redgreen.py <spec> --expect fail --rev 4fc5211`. The test must fail on its assertion, the keep cases red: `generatecontent, a trailing call with no arguments, Generate: calls ["lookup {\"x\":1}"]; want ...`, and so `Stream` and the plain Interaction (the fifteenth amendment's measurement: all ten modes drop `now` at `4fc5211`). Under OQ19 (2), the streamed Interaction case is red there too; under (1) it is a green pin.
+
+   `TestCutAnswer_Helper_0088` gains a case of a wire whose calls arrive whole: a last `{}` call kept. That test is internal and calls the new parameter, so it does not compile at the base: it goes in the spec's `drop` list, and its red is its plant.
+
+   The only existing tests that change are the two above, and ST107 names both. Any other test that needs a change is a stop.
+3. **The change.** The wire knows whether its calls arrive whole, so the distinction lives at `wire.CutAnswer` (`finish.go:26`). It takes the wire's call form as one more internal parameter and passes `last` to `CutCall` only on a wire that streams arguments in pieces. `CutCall`'s rule (`finish.go:55`) and `HeldCalls` (Messages and Responses only) do not change.
+   * Callers: `generatecontent.go:279` and the plain Interaction (`interactions.go:217`) pass "whole".
+   * The streamed Interaction (`interactions.go:369`, through the same `response()`) passes what OQ19 decides: under (1), "in pieces", so `response()` learns its path; under (3), "in pieces" for a call step that received no `arguments_delta`, with one flag a step in `interactionStream`.
+   * Chat Completions, Messages and Responses pass "in pieces".
+
+   Nothing exported changes.
+4. **Plants**, each by `python3 -B tools/plant.py` on a scratch clone, with `-run` naming its test alone, each caught on an assertion (quote the line):
+   * ST107, the wire distinction removed: every wire's last `{}` call the cut one, as at `4fc5211`. Caught by the keep cases of `TestCutAnswer_WireGeneral_0088` and by `TestCutAnswer_Helper_0088`'s whole-wire case, and by no other row's test.
+   * ST110's plant as OQ19's answer names it.
+   * Re-run, each still caught by its own test: ST94's (d), the empty last call kept (`TestCutAnswer_CompleteCalls_0088`); R1 (b), any JSON taken as whole; ST108's two; ST109's three; ST103's; ST104's four.
+   * The plant total is recorded.
+5. **Docs**, each returned as `path:line — fixed` or `— open: <reason>`, then `docs: searched <paths>`:
+   * `CHANGELOG.md` `[Unreleased]` **Changed**: on generateContent and an Interaction's plain reply (and its stream, as OQ19 decides), a cut answer's last tool call that takes no arguments is now returned as a whole call; on Messages, Responses and Chat Completions it is still dropped and named.
+   * The doc comments of `CutAnswer` and `CutCall` (`finish.go:19` to `:25`, `:48` to `:54`).
+   * The comment at `generatecontent.go:276` to `:277`, and `decodeInteraction`'s doc (`interactions.go:122` to `:130`).
+   * `docs/architecture.md:174` (`internal/wire`'s row: "R1 and R3 of its tenth amendment" now reads ST107 and ST109) and `:733` to `:740` (the cut answer).
+   * `docs/guides/api-standards.md:143` to `:148`, and `README.md:117` to `:124`, where each states the cut rule.
+6. **Records.** Add claims rows ("now" ids) on the changelog entry and each changed doc sentence, checked with plain ids on a scratch clone's commit of the tree and planted false there. Annotate C161now, C162now and C167now by date where they moved. Write this PLAN's execution entry, with each pass numbered.
+
+   `finish.go` lines move under 0092-MADR's E13, E80 and E83; 0092-PLAN Phase 1's step 1 re-grounds them, and this phase names the new lines in its entry.
+
+**Gates**, each exit status taken before any filter:
+
+| Command | Host |
+| :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the phase's Go files>"` | this Mac |
+| `run-heavy -- go test -count=1 ./...` | this Mac |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/internal/wire/... ./llmprovider/providers/...` | the Linux machine, not WSL; a fallback to this Mac does not count |
+| `run-heavy -- make -k lint vuln parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest tools-test` (the CI set) | this Mac |
+| `python3 -B tools/apidiff.py v1.33.0`: no line (no exported change expected); a line is a stop | this Mac |
+| `python3 -B tools/claims.py` on 0088-MADR, and on 0092-MADR at its marker; the new "now" rows with plain ids and their plants | this Mac |
+| `python3 -B tools/recordlint.py --changed`; `python3 -B tools/denyscan.py --changed` | this Mac |
+
+`run-heavy` and `run-on-host` are `~/.agents/skills/available-dev-hosts/scripts/`'s, one heavy run at a time per host.
+
+**Stop conditions:**
+
+* an existing test, golden or fixture needs a change ST107 or ST110 does not name;
+* `apidiff` reports a name;
+* the red is a build error rather than an assertion (`TestCutAnswer_Helper_0088` excepted, as step 2 says);
+* a plant is caught only by a build failure, or by another row's test alone;
+* a row cannot be met as written;
+* the same step fails twice;
+* a third build pass.
+
+**Exit criterion:** no blocker, ST107 and ST110 tested, every plant caught, the docs rows `fixed`, staged by the coordinator. Then 0092-PLAN Phase 1 starts on this phase's commit.
+
+### Execution record entry (2026-11-25, nineteenth): R1 to R3 ruled, records only
+
+* **Base `4fc5211`.** The tree held 0092's placed records (`docs/README.md`, and the 0092 pair untracked); they were kept. Records only: no code, test, changelog or doc outside `docs/` changed, and nothing was staged.
+* **Measurement, scratch clone at `4fc5211`.** A test using the existing `cutRun` fixtures, a cut reply of text, `lookup {"x":1}` and a last `now` call with no arguments, on all five wires by `Generate` and `Stream`: ten of ten return `lookup` alone with one `tool_call_cut` warning (`<scratch>/r1/measure-r1.txt`). On this Mac, at the tree: `go test -count=1 -run 'TestCutAnswer_(WireGeneral|ResponsesCutItem|HeldCalls|XAIShapes|CompleteCalls)_0088' ./llmprovider/providers`, exit 0, 5 of 5 pass; `go test -count=1 -run 'TestCutCall_0088|TestCutAnswer_Helper_0088|TestHeldCalls_0088' ./llmprovider/internal/wire`, exit 0.
+* **Records.**
+  * The MADR's fifteenth amendment: rows ST107 to ST110, OQ19, and C161now to C173now. The "now" rows were checked with plain ids in a scratch record on the scratch clone at `4fc5211`: `tools/claims.py`, exit 0, 13 of 13 pass. Three were planted false (a line moved by one), and each was caught, exit 1: C161, C166 and C169. For example: `FAIL C161 llmprovider/internal/wire/finish.go:30: line 30 is 'r.Warnings = append(r.Warnings, ToolCallCut(r.Model, call.Name, call.CallID))'; text found at [29]`.
+  * Dated annotations on the tenth amendment's list, the fourteenth amendment's bullet and the status line. The MADR is `proposed` again (ST110 open), set by `tools/records.py status`.
+  * This amendment.
+  * 0092-MADR and 0092-PLAN annotated with Q-B1's answer and the order.
+* **Not done, and why:** Phase 6 waits for OQ19 and the owner's word. R4 and R5 wait for v1.34.0's review. 0091-MADR and its PLAN, which also wait on R1 to R3 (0091-MADR lines 84, 130 and 812), are not annotated here: a follow-up for 0091's own records. *(2026-11-25, twentieth entry: OQ19 is answered, and 0091-MADR is annotated.)*
+
+### Phase 6 with ST110 decided (2026-11-25)
+
+Additions only; Phase 6's steps above stand. Read them with the following. The owner's answer to OQ19, relayed by the coordinator, quoted exactly: "Decide by what arrived". The MADR's sixteenth amendment decides ST110.
+
+* **Waits for:** the owner's approval of this phase and `do phase 6`. OQ19 is answered, and the MADR is `accepted`.
+* **Step 2, red first.** `TestCutAnswer_WireGeneral_0088` gains two streamed Interaction cases:
+  * a last `now` step that receives no `arguments_delta`: dropped and named;
+  * a last `now` step whose one delta is `{}`: kept and yielded, with no warning.
+
+  At `4fc5211` the `{}`-delta case is red on its assertion, since every mode drops `now` there; the no-delta case is a green pin.
+* **Step 3, the change** (OQ19 (3)). `interactionStream` records, for each call step, whether any `arguments_delta` arrived (`interactions.go:337`).
+  * On the stream, a call step with none reads as a wire that streams in pieces; a call step that received one reads as whole.
+  * The plain reply reads as whole (ST107).
+  * Nothing exported changes.
+* **Step 4, ST110's plant:** the delta check removed, so the streamed step reads as the plain reply. It is caught by the no-delta case.
+* **Step 5, the changelog:** "an Interaction's stream (as OQ19 decides)" reads "an Interaction's stream when the call's arguments arrived, even as `{}`; a last call for which no arguments arrived is still dropped and named".
+* **Unmeasured, recorded in the MADR:** whether Google sends a delta for a call that takes no arguments. If it sends none, such a call that ends a cut stream is dropped, the safe direction.
+* **Follow-up, not run:** a live probe of that case, allowlisted output only, on the owner's word.
+
+### Execution record entry (2026-11-25, twentieth): OQ19 answered, records only
+
+* **Records.**
+  * The MADR's sixteenth amendment: ST110 decided, with the unmeasured case and the probe follow-up. `tools/records.py status` set the MADR `accepted`.
+  * The Phase 6 reading above.
+  * Dated notes on 0091-MADR lines 84, 130 and 812, each pointing to ST107 to ST110, with their text and line numbers unchanged.
+* Nothing staged; no code changed.
