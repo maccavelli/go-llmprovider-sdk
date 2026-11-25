@@ -78,7 +78,7 @@ func TestLive_ToolRoundTripClaude(t *testing.T) {
 	key := llmprovider.LiveEnvKey(t, "ANTHROPIC_API_KEY")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	res, err := liveClaude(t, key, "claude-haiku-5-5").Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
+	res, err := liveClaude(t, key, "claude-haiku-5-5", extractDoc(t)).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 		llmprovider.MessageItem{Role: "user", Text: "What is the weather in Paris? Use the tool."},
 		llmprovider.FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 		llmprovider.FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
@@ -99,7 +99,7 @@ func TestLive_SystemMessageClaude(t *testing.T) {
 	key := llmprovider.LiveEnvKey(t, "ANTHROPIC_API_KEY")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	res, err := liveClaude(t, key, "claude-haiku-5-5").Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
+	res, err := liveClaude(t, key, "claude-haiku-5-5", extractDoc(t)).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 		llmprovider.MessageItem{Role: "system", Text: "You only ever reply in French."},
 		llmprovider.MessageItem{Role: "user", Text: "Say hello in one word, nothing else."},
 	}})

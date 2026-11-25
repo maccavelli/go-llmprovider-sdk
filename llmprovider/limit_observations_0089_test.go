@@ -30,10 +30,9 @@ func observed(model string, tokens int, ago time.Duration) llmprovider.LimitObse
 // output; otherwise it is kept as evidence and the stated source chosen.
 func TestLimitObservations_PassBack_0089(t *testing.T) {
 	ctx := context.Background()
-	off := llmprovider.WithoutModelMetadata()
 	zen := func(opts ...llmprovider.Option) catalog.Limits {
 		return catalog.CachedLimits(ctx, llmprovider.ProviderOpencodeZen, passBackModel,
-			append([]llmprovider.Option{off, catalog.WithCache(new(catalog.Cache))}, opts...)...)
+			append([]llmprovider.Option{catalog.WithCache(new(catalog.Cache))}, opts...)...)
 	}
 
 	// (1) OpenCode's messages route, a model no source states.
@@ -69,7 +68,7 @@ func TestLimitObservations_PassBack_0089(t *testing.T) {
 	inOrg := observed("anthropic/claude-sonnet-4.5", 30000, time.Hour)
 	inOrg.Scope = "org-a"
 	kilo := func(org string) catalog.Fact {
-		return catalog.CachedLimits(ctx, llmprovider.ProviderKilo, "anthropic/claude-sonnet-4.5", off,
+		return catalog.CachedLimits(ctx, llmprovider.ProviderKilo, "anthropic/claude-sonnet-4.5",
 			catalog.WithCache(new(catalog.Cache)), catalog.WithKiloOrganization(org), llmprovider.WithLimitObservations(inOrg)).Output
 	}
 	if f := kilo("org-b"); hasSource(f, "remembered") {

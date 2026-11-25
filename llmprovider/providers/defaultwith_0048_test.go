@@ -48,7 +48,7 @@ func TestDefaultWith_CallerOptionWins_0048(t *testing.T) {
 	t.Cleanup(srv.Close)
 	r := providers.DefaultWith(llmprovider.WithAPIKey("default-0048"))
 	p, err := r.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("caller-0048"), llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithModel("claude-x"), llmprovider.WithoutModelMetadata())
+		llmprovider.WithModel("claude-x"), extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}

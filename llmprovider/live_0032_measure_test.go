@@ -154,7 +154,7 @@ func TestLive_0032Strict(t *testing.T) {
 			rec := &flagRecorder{rewrite: target.rewrite}
 			p, err := providers.New(target.id, append([]llmprovider.Option{llmprovider.WithAPIKey(key),
 				llmprovider.WithModel(target.model), llmprovider.WithMaxTokens(64), llmprovider.WithModelProbes(false),
-				llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, target.opts...)...)
+				llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, target.opts...)...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -259,7 +259,7 @@ func TestLive_0032ResultError(t *testing.T) {
 			rec := &flagRecorder{rewrite: target.rewrite}
 			p, err := providers.New(target.id, append([]llmprovider.Option{llmprovider.WithAPIKey(key),
 				llmprovider.WithModel(target.model), llmprovider.WithMaxTokens(target.maxTokens), llmprovider.WithModelProbes(false),
-				llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, target.opts...)...)
+				llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, target.opts...)...)
 			if err != nil {
 				t.Fatal(err)
 			}

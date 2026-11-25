@@ -107,7 +107,7 @@ func e88Provider(t *testing.T, id llmprovider.ProviderID, model string, srv *e88
 	opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
 	p, err := New(id, append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+		llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
 		testCache(t)}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
@@ -736,7 +736,7 @@ func TestDefaultLimit_EstimatedFit_0088(t *testing.T) {
 			estimateLayer{model: claudeModel, output: 60000, window: 131072}, nil,
 			messagesStream, plainMessages, withImage, 25604, llmprovider.LimitBasisFact, 0},
 		{"claude, the fallback (ST105)", llmprovider.ProviderClaude,
-			estimateLayer{model: "claude-fallback-0088", window: 50000}, nil,
+			estimateLayer{model: "claude-fallback-0088", window: 50000}, []llmprovider.Option{extractDoc()},
 			messagesStream, plainMessages, estimateRequest(35000), 35904, llmprovider.LimitBasisFallback, 0},
 		{"claude, the budget raise (ST106)", llmprovider.ProviderClaude,
 			estimateLayer{model: "claude-budget-0088", output: 128000, window: 16000, budgetMin: 1024}, nil,

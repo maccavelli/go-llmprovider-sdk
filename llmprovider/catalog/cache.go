@@ -11,16 +11,17 @@ import (
 )
 
 // Cache holds what the catalog and a provider keep in memory between calls:
-// the listings and their models' metadata, the models.dev document, the
-// models that answered a probe (0048-MADR D1), and the models a provider
-// learned refuse a forced tool choice (0049-MADR D3). Without WithCache, every
+// the listings and their models' metadata, the models that answered a probe
+// (0048-MADR D1), and the models a provider learned refuse a forced tool
+// choice (0049-MADR D3). It holds no models.dev document: a caller hands one
+// in with WithMetadata (0093-MADR D2). Without WithCache, every
 // listing and provider of the process shares one; a Cache given with WithCache
 // is shared only by the calls and providers that are given it, so a test or a
 // process with more than one configuration can keep them apart.
 //
 // A Cache has a lifetime that its owner ends with Close (0071-MADR D1). Until
 // then, the calls given it may start work in the background, detached from
-// their own contexts: listing fetches, models.dev refreshes and probe runs.
+// their own contexts: listing fetches and probe runs.
 // Close stops new work, cancels the work in flight, and waits for it, so a
 // test or a configuration can end with nothing of the cache still running.
 // The process's cache has no lifetime.
@@ -52,7 +53,7 @@ func (c *Cache) value() *cacheref.Value {
 // the process's cache, as no option is. The last WithCache given wins.
 //
 // A c that has been closed is still given. List, LookupModel and
-// LookupMetadataWith refuse it with an error matching
+// LookupLimits refuse it with an error matching
 // llmprovider.ErrInvalidRequest. The cached reads answer from what it holds.
 // ListRaw, which reads and writes no cache, is unaffected (0071-MADR D2).
 func WithCache(c *Cache) llmprovider.Option {
@@ -63,8 +64,7 @@ func WithCache(c *Cache) llmprovider.Option {
 	return llmprovider.SharedOption("catalog.WithCache", v)
 }
 
-// store is one cache's listings and metadata documents, each under its
-// own lock.
+// store is one cache's listings and their reads, each under its own lock.
 type store struct {
 	listingMu sync.Mutex
 	listing   map[listingKey]listingEntry
@@ -86,20 +86,10 @@ type store struct {
 	// listingFetching counts the background fetches, so tests can wait.
 	listingFetching sync.WaitGroup
 
-	metadataMu sync.Mutex
-	metadata   map[string]modelMetadataCacheEntry
-	// metadataFetches holds each URL's fetch in flight, under metadataMu.
-	metadataFetches map[string]*metadataFetch
-	// metadataFetching counts the fetches in flight, so that tests can wait
-	// for a background refresh.
-	metadataFetching sync.WaitGroup
-
-	// listingClosed and metadataClosed are set by close, each under its own
-	// lock, where each start reads it. A start takes its count under the
-	// same lock, so none is counted after close has set the flag
-	// (0071-MADR D1).
-	listingClosed  bool
-	metadataClosed bool
+	// listingClosed is set by close, under listingMu, where each start reads
+	// it. A start takes its count under the same lock, so none is counted
+	// after close has set the flag (0071-MADR D1).
+	listingClosed bool
 	// life is cancelled by close and ends the background work in flight. The
 	// process's store is never closed.
 	life context.Context
@@ -115,8 +105,6 @@ func newStore() *store {
 		ollamaShows:     map[listingKey]map[string]showReply{},
 		listingExtras:   map[listingKey]extrasEntry{},
 		limitReads:      map[limitReadKey]limitRead{},
-		metadata:        map[string]modelMetadataCacheEntry{},
-		metadataFetches: map[string]*metadataFetch{},
 		life:            life,
 		end:             end,
 	}
@@ -165,9 +153,6 @@ func (c *store) close() {
 	c.listingMu.Lock()
 	c.listingClosed = true
 	c.listingMu.Unlock()
-	c.metadataMu.Lock()
-	c.metadataClosed = true
-	c.metadataMu.Unlock()
 	c.end()
 }
 
@@ -175,20 +160,18 @@ func (c *store) close() {
 // is called after close, so no count is taken while it waits.
 func (c *store) wait() {
 	c.listingFetching.Wait()
-	c.metadataFetching.Wait()
 }
 
 // Close ends c's life (0071-MADR D1, D2). No call given c starts background
-// work after Close begins: no listing fetch, models.dev refresh or probe
-// run. Close cancels the work in flight, which ends at its next network
+// work after Close begins: no listing fetch or probe run. Close cancels the work in flight, which ends at its next network
 // wait, and waits for it. It returns nil once that work has ended, or
 // ctx.Err() if ctx ends first. A Close that returned ctx.Err() can be called
 // again to wait longer: closing happens once, and each call waits under its
 // own ctx (0071-MADR Q5).
 //
-// After Close, CachedModel, CachedFacts and CachedMetadataWith given c
-// answer from what c holds and start nothing. List, LookupModel and
-// LookupMetadataWith given c refuse before the network with an error
+// After Close, CachedModel, CachedFacts and CachedLimits given c answer from
+// what c holds and start nothing. List, LookupModel and LookupLimits given c
+// refuse before the network with an error
 // matching llmprovider.ErrInvalidRequest. A provider given c takes its own
 // path for a failed listing. Ollama's and a chatcompat provider's
 // ListModels return the error. Every other built-in provider's returns its

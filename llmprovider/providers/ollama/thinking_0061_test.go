@@ -75,7 +75,7 @@ func thinkingRefuser(t *testing.T) (*httptest.Server, func() []string) {
 // request to it sends none, in one send.
 func TestLearn_NoThinking_0061(t *testing.T) {
 	srv, sent := thinkingRefuser(t)
-	p := build(t, local(srv.URL, "gemma3:12b", llmprovider.WithoutModelMetadata())...)
+	p := build(t, local(srv.URL, "gemma3:12b")...)
 	ask := func(effort llmprovider.Effort) *llmprovider.Response {
 		t.Helper()
 		resp, err := p.Generate(context.Background(), &llmprovider.Request{Input: text("hi").Input,

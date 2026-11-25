@@ -17,11 +17,6 @@ type providerConfig struct {
 	// 8192 is told from the default (0088-MADR A7, ST35).
 	MaxTokensGiven bool
 	BaseURL        string // For Ollama URL and test injection
-	// ModelMetadataURL overrides the models.dev-format document the open
-	// catalogs are ranked with, and OpenCode's chat route reads
-	// reasoning_options from. Empty uses https://models.opencode.ai/api.json;
-	// catalog.OptionsFromEnv sets it from LLMPROVIDER_MODELS_METADATA_URL.
-	ModelMetadataURL string
 	// ClientName and ClientVersion name the consuming application in
 	// User-Agent (MADR 0012 §1.4); see WithClientInfo.
 	ClientName    string
@@ -32,9 +27,6 @@ type providerConfig struct {
 	// DisableModelProbes stops ListModels probing each listed model; the
 	// zero value probes. See WithModelProbes and ModelProbesFromEnv.
 	DisableModelProbes bool
-	// DisableModelMetadata stops the metadata fetch; see
-	// WithoutModelMetadata.
-	DisableModelMetadata bool
 	// ForcedChoiceFallback and ModelForcedChoice are what a provider does
 	// with a forced tool choice a model refuses, and the caller's per-model
 	// facts; see WithForcedChoiceFallback and WithModelForcedChoice
@@ -126,26 +118,4 @@ func ModelProbesFromEnv() Option {
 		return Option{name: "ModelProbesFromEnv"}
 	}
 	return WithModelProbes(enabled)
-}
-
-// WithModelMetadataURL overrides the model metadata document (MADR 0009 §2)
-// that the open-catalog providers read: OpenCode, Hugging Face, Kilo and
-// Together. Every provider takes it; one that reads no metadata ignores it
-// (0015-MADR, amendment "the OpenCode family"). WithoutModelMetadata turns
-// the fetch off whatever the URL.
-func WithModelMetadataURL(url string) Option {
-	return commonOption("WithModelMetadataURL", func(cfg *providerConfig) {
-		cfg.ModelMetadataURL = url
-	})
-}
-
-// WithoutModelMetadata turns the model metadata fetch off, for every provider
-// and listing: the open catalogs rank without it, and OpenCode routes by its
-// table. It is how a caller, or a test, keeps a listing off the network
-// (0015-MADR amendment "no ambient state, in detail"); catalog.OptionsFromEnv
-// sets it from LLMPROVIDER_DISABLE_MODELS_METADATA.
-func WithoutModelMetadata() Option {
-	return commonOption("WithoutModelMetadata", func(cfg *providerConfig) {
-		cfg.DisableModelMetadata = true
-	})
 }

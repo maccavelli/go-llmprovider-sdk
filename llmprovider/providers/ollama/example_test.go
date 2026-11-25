@@ -26,7 +26,6 @@ func ExampleNew() {
 
 	p, err := ollama.New(
 		llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(),
 	)
 	if err != nil {
 		fmt.Println(err)

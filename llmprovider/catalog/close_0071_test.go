@@ -91,23 +91,21 @@ func closeWithin0071(c *Cache, d time.Duration) error {
 }
 
 // inFlight0071 counts what the cache's store has in flight: background
-// listing fetches, claimed listings and models.dev fetches.
-func inFlight0071(c *Cache) (fetches, claims, metadata int) {
+// listing fetches and claimed listings. It fetches no document (0093-MADR
+// D6).
+func inFlight0071(c *Cache) (fetches, claims int) {
 	c.value()
 	s := c.st
 	s.listingMu.Lock()
 	fetches, claims = len(s.listingInFlight), len(s.listingClaims)
 	s.listingMu.Unlock()
-	s.metadataMu.Lock()
-	metadata = len(s.metadataFetches)
-	s.metadataMu.Unlock()
-	return fetches, claims, metadata
+	return fetches, claims
 }
 
 // listingOpts0071 point Together's listing at s, through c, without the
 // models.dev document.
 func listingOpts0071(s *lookupServer, c *Cache, more ...llmprovider.Option) []llmprovider.Option {
-	return append([]llmprovider.Option{llmprovider.WithBaseURL(s.URL), llmprovider.WithoutModelMetadata(), WithCache(c)},
+	return append([]llmprovider.Option{llmprovider.WithBaseURL(s.URL), WithCache(c)},
 		more...)
 }
 
@@ -122,23 +120,8 @@ func TestCacheClose_WaitsForFetch_0071(t *testing.T) {
 	if err := closeWithin0071(c, 2*time.Second); err != nil {
 		t.Fatalf("Close = %v; want nil once the fetch has ended", err)
 	}
-	if fetches, _, _ := inFlight0071(c); fetches != 0 {
+	if fetches, _ := inFlight0071(c); fetches != 0 {
 		t.Errorf("Close returned with %d fetch(es) in flight; want 0", fetches)
-	}
-}
-
-// TestCacheClose_MetadataFetch_0071: the same for a models.dev fetch.
-func TestCacheClose_MetadataFetch_0071(t *testing.T) {
-	c := new(Cache)
-	client, entered := newSlowClient0071()
-	CachedMetadataWith(context.Background(), llmprovider.ProviderTogether, WithCache(c),
-		llmprovider.WithModelMetadataURL("http://127.0.0.1:1/api.json"), llmprovider.WithHTTPClient(client))
-	waitEntered0071(t, entered, "the models.dev fetch")
-	if err := closeWithin0071(c, 2*time.Second); err != nil {
-		t.Fatalf("Close = %v; want nil once the fetch has ended", err)
-	}
-	if _, _, metadata := inFlight0071(c); metadata != 0 {
-		t.Errorf("Close returned with %d models.dev fetch(es) in flight; want 0", metadata)
 	}
 }
 
@@ -165,8 +148,8 @@ func TestCacheClose_Deadline_0071(t *testing.T) {
 	}
 }
 
-// TestCacheClose_NoStartAfter_0071: after Close, CachedModel and
-// CachedMetadataWith start nothing (0071-MADR D2).
+// TestCacheClose_NoStartAfter_0071: after Close, CachedModel starts nothing
+// (0071-MADR D2).
 func TestCacheClose_NoStartAfter_0071(t *testing.T) {
 	s := newLookupServer(t, lookupDoc, http.StatusOK, togetherListing0033)
 	c := new(Cache)
@@ -174,13 +157,9 @@ func TestCacheClose_NoStartAfter_0071(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := newGatedSource0071(1, false)
-	client, _ := newSlowClient0071()
 	CachedModel(context.Background(), llmprovider.ProviderTogether, src, "org/together-x", listingOpts0071(s, c)...)
-	CachedMetadataWith(context.Background(), llmprovider.ProviderTogether, WithCache(c),
-		llmprovider.WithModelMetadataURL("http://127.0.0.1:1/api.json"), llmprovider.WithHTTPClient(client))
-	if fetches, claims, metadata := inFlight0071(c); fetches+claims+metadata != 0 {
-		t.Errorf("after Close: %d fetch(es), %d claim(s), %d models.dev fetch(es) started; want none",
-			fetches, claims, metadata)
+	if fetches, claims := inFlight0071(c); fetches+claims != 0 {
+		t.Errorf("after Close: %d fetch(es), %d claim(s) started; want none", fetches, claims)
 	}
 	// Anything a broken start began ends before the test does.
 	_ = closeWithin0071(c, 2*time.Second)
@@ -189,9 +168,9 @@ func TestCacheClose_NoStartAfter_0071(t *testing.T) {
 	}
 }
 
-// TestCacheClose_Refuses_0071: after Close, List, LookupModel and
-// LookupMetadataWith given the cache refuse before the network, even with
-// a fresh listing and document cached (0071-MADR D2, Q1, Q4).
+// TestCacheClose_Refuses_0071: after Close, List and LookupModel given the
+// cache refuse before the network, even with a fresh listing cached
+// (0071-MADR D2, Q1, Q4).
 func TestCacheClose_Refuses_0071(t *testing.T) {
 	s := newLookupServer(t, lookupDoc, http.StatusOK, togetherListing0033)
 	c := new(Cache)
@@ -206,17 +185,13 @@ func TestCacheClose_Refuses_0071(t *testing.T) {
 	if _, err := LookupModel(ctx, llmprovider.ProviderTogether, src, "org/together-x", opts...); err != nil {
 		t.Fatalf("LookupModel before Close: %v", err)
 	}
-	if _, err := LookupMetadataWith(ctx, llmprovider.ProviderTogether, opts...); err != nil {
-		t.Fatalf("LookupMetadataWith before Close: %v", err)
-	}
 	before := s.listings.Load()
 	if err := closeWithin0071(c, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	_, listErr := List(ctx, llmprovider.ProviderTogether, src, opts...)
 	_, lookupErr := LookupModel(ctx, llmprovider.ProviderTogether, src, "org/together-x", opts...)
-	_, metaErr := LookupMetadataWith(ctx, llmprovider.ProviderTogether, opts...)
-	for name, err := range map[string]error{"List": listErr, "LookupModel": lookupErr, "LookupMetadataWith": metaErr} {
+	for name, err := range map[string]error{"List": listErr, "LookupModel": lookupErr} {
 		if !errors.Is(err, llmprovider.ErrInvalidRequest) || err.Error() != errCacheClosed.Error() {
 			t.Errorf("%s after Close = %v; want %v", name, err, errCacheClosed)
 		}
@@ -237,8 +212,8 @@ func TestCacheClose_CountUnderLock_0071(t *testing.T) {
 			s := newLookupServer(t, lookupDoc, http.StatusOK, togetherListing0033)
 			c := new(Cache)
 			type result struct {
-				err                       error
-				fetches, claims, metadata int
+				err             error
+				fetches, claims int
 			}
 			closed := make(chan result, 1)
 			var once sync.Once
@@ -247,8 +222,8 @@ func TestCacheClose_CountUnderLock_0071(t *testing.T) {
 					returned := make(chan struct{})
 					go func() {
 						err := closeWithin0071(c, 2*time.Second)
-						f, cl, m := inFlight0071(c)
-						closed <- result{err, f, cl, m}
+						f, cl := inFlight0071(c)
+						closed <- result{err, f, cl}
 						close(returned)
 					}()
 					// Under the lock, Close cannot run until the start has
@@ -278,9 +253,8 @@ func TestCacheClose_CountUnderLock_0071(t *testing.T) {
 			if r.err != nil {
 				t.Fatalf("Close = %v; want nil", r.err)
 			}
-			if r.fetches+r.claims+r.metadata != 0 {
-				t.Errorf("Close returned with %d fetch(es), %d claim(s), %d models.dev fetch(es) in flight; want none",
-					r.fetches, r.claims, r.metadata)
+			if r.fetches+r.claims != 0 {
+				t.Errorf("Close returned with %d fetch(es), %d claim(s) in flight; want none", r.fetches, r.claims)
 			}
 		})
 	}
@@ -326,12 +300,12 @@ func TestCacheClose_Race_0071(t *testing.T) {
 	}
 	closedFlag.Store(true)
 	sent := s.listings.Load()
-	if fetches, claims, metadata := inFlight0071(c); fetches+claims+metadata != 0 {
-		t.Errorf("Close returned with %d fetch(es), %d claim(s), %d models.dev fetch(es) in flight", fetches, claims, metadata)
+	if fetches, claims := inFlight0071(c); fetches+claims != 0 {
+		t.Errorf("Close returned with %d fetch(es), %d claim(s) in flight", fetches, claims)
 	}
 	wg.Wait()
-	if fetches, claims, metadata := inFlight0071(c); fetches+claims+metadata != 0 {
-		t.Errorf("after Close, %d fetch(es), %d claim(s), %d models.dev fetch(es) started", fetches, claims, metadata)
+	if fetches, claims := inFlight0071(c); fetches+claims != 0 {
+		t.Errorf("after Close, %d fetch(es), %d claim(s) started", fetches, claims)
 	}
 	if n := s.listings.Load(); n != sent {
 		t.Errorf("%d listing request(s) sent after Close returned", n-sent)

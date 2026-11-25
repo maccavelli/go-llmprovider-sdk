@@ -91,7 +91,7 @@ func TestEffortMax_Mapping_0061(t *testing.T) {
 		}{{"rule 1", withMax, tc.rule1}, {"rule 2", toHigh, tc.rule2}, {"no facts", nil, tc.noFacts}} {
 			srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 			opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false)}
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false), extractDoc()}
 			if run.efforts != nil {
 				opts = append(opts, catalog.WithModelLayer(effortLayer{tc.model, run.efforts}))
 			}

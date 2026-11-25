@@ -374,14 +374,6 @@ func (st *Settings) ClientVersion() string { return st.identity.Version }
 // (0016-MADR A5).
 func (st *Settings) ModelProbes() bool { return !st.s.cfg.DisableModelProbes }
 
-// ModelMetadataURL is the metadata document from WithModelMetadataURL, or
-// empty for the default.
-func (st *Settings) ModelMetadataURL() string { return st.s.cfg.ModelMetadataURL }
-
-// ModelMetadataDisabled reports whether WithoutModelMetadata turned the
-// metadata fetch off.
-func (st *Settings) ModelMetadataDisabled() bool { return st.s.cfg.DisableModelMetadata }
-
 // Values returns the values of the provider-specific options and the shared
 // ones (SharedOption), in order.
 func (st *Settings) Values() []any { return append([]any(nil), st.s.values...) }

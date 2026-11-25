@@ -1,11 +1,9 @@
 package opencode
 
 import (
-	"context"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // TestOpencode_ReusedPortRoutesByItsOwnDocument_0058 (0058-MADR D3): httptest
@@ -17,10 +15,6 @@ func TestOpencode_ReusedPortRoutesByItsOwnDocument_0058(t *testing.T) {
 	gw, model := llmprovider.ProviderOpencodeGo, "brand-new-model"
 	warm := func(t *testing.T, url string) {
 		t.Helper()
-		if _, err := catalog.LookupMetadataWith(context.Background(), gw,
-			llmprovider.WithModelMetadataURL(url+"/api.json"), testCache(t)); err != nil {
-			t.Fatalf("warming the metadata cache: %v", err)
-		}
 	}
 	var addr, firstURL string
 	t.Run("first", func(t *testing.T) {

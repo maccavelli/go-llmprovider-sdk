@@ -21,8 +21,8 @@ func TestStream_IndexOutOfRange_0053(t *testing.T) {
 			"\n\ndata: [DONE]\n\n")
 	}))
 	t.Cleanup(srv.Close)
-	p, err := New(append([]llmprovider.Option{llmprovider.WithAPIKey("hf_0053"), llmprovider.WithModel("openai/gpt-oss-120b"),
-		llmprovider.WithBaseURL(srv.URL)}, metadataOff()...)...)
+	p, err := New(llmprovider.WithAPIKey("hf_0053"), llmprovider.WithModel("openai/gpt-oss-120b"),
+		llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatal(err)
 	}

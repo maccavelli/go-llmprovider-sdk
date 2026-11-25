@@ -20,8 +20,8 @@ func TestConformance(t *testing.T) {
 		// limit, since one whose limit the SDK chose or left out is read over the
 		// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
-			return New(append(append([]llmprovider.Option{llmprovider.WithAPIKey("hf_llmtest"),
-				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...), metadataOff()...)...)
+			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("hf_llmtest"),
+				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192)}, opts...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, fxHFChat)
@@ -66,8 +66,8 @@ func TestStreamTextDeltas_0051(t *testing.T) {
 		_, _ = io.WriteString(w, llmtestChatStream)
 	}))
 	defer srv.Close()
-	p, err := New(append([]llmprovider.Option{llmprovider.WithAPIKey("hf_llmtest"), llmprovider.WithModel("openai/gpt-oss-120b"),
-		llmprovider.WithBaseURL(srv.URL)}, metadataOff()...)...)
+	p, err := New(llmprovider.WithAPIKey("hf_llmtest"), llmprovider.WithModel("openai/gpt-oss-120b"),
+		llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -53,7 +53,7 @@ func ExampleWithCache() {
 	var a, b catalog.Cache
 	list := func(c *catalog.Cache) {
 		_, err := catalog.List(context.Background(), llmprovider.ProviderTogether, llmprovider.NewStaticToken("your-key"),
-			llmprovider.WithBaseURL(srv.URL+"/v1"), llmprovider.WithoutModelMetadata(), catalog.WithCache(c))
+			llmprovider.WithBaseURL(srv.URL+"/v1"), catalog.WithCache(c))
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -81,7 +81,7 @@ func ExampleCache_Close() {
 
 	var cache catalog.Cache
 	key := llmprovider.NewStaticToken("your-key")
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/v1"), llmprovider.WithoutModelMetadata(),
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/v1"),
 		catalog.WithCache(&cache)}
 	catalog.CachedModel(context.Background(), llmprovider.ProviderTogether, key, "org/model-a", opts...)
 	fmt.Println(cache.Close(context.Background()))

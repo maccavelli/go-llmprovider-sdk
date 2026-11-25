@@ -316,6 +316,25 @@ class GateSelfTest(unittest.TestCase):
         (planted / "plant.go").write_text("// Package zzplanted is planted.\npackage zzplanted\n\n// X is planted.\nconst X = 1\n")
         self.assertFails("api-check", "zzplanted")
 
+    def test_api_check_accepts_the_0093_removals(self) -> None:
+        """0093-MADR MH39 (D10, Q1): against v1.32.0, each of D10's eight
+        removals is accepted by name, citing the record, and the gate passes;
+        any other incompatible change still fails (the cases above). The copy
+        loses one of the eight, catalog.OptionsFromEnv, where the tree still
+        holds it, with the two imports only it used."""
+        path = self.tree / "llmprovider/catalog/model_metadata.go"
+        text = path.read_text(encoding="utf-8")
+        start = text.find("// OptionsFromEnv returns")
+        if start != -1:
+            end = text.index("\n}\n", start) + len("\n}\n")
+            text = text[:start] + text[end:]
+            text = text.replace('\t"os"\n', "", 1).replace('\t"strconv"\n', "", 1)
+            path.write_text(text, encoding="utf-8")
+        proc = run_gate(self.tree, "api-check")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 0, f"api-check exit {proc.returncode}, want 0:\n{out}")
+        self.assertIn("accepted (0093-MADR D10): ./llmprovider/catalog.OptionsFromEnv: removed", out)
+
     def test_records_check_plan_status(self) -> None:
         """A complete PLAN given a decision's status (0025-MADR)."""
         plan = self.tree / "docs/decisions/0024-PLAN-opencode-live-system-message-test.md"

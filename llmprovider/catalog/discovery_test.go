@@ -351,8 +351,7 @@ func TestListHuggingFaceModels_MetadataCuration(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t),
-		llmprovider.WithoutModelMetadata())
+	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}

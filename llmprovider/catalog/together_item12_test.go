@@ -34,13 +34,13 @@ const togetherItem12Metadata = `{"togetherai":{"models":{
 // another provider the same id is ranked.
 func TestTogetherMeasuredUnserved(t *testing.T) {
 	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	listing := serveBody(t, togetherItem12Listing)
 	meta, _ := metadataServer(t, http.StatusOK, togetherItem12Metadata)
 	const unserved = "MiniMaxAI/MiniMax-M2.7"
 	for _, profile := range []Profile{ProfileUtility, ProfileCapable} {
 		cat := listCatalog(context.Background(), t, llmprovider.ProviderTogether,
-			llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(profile))
+			llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL), WithProfile(profile))
 		if slices.Contains(cat.Recommended, unserved) {
 			t.Errorf("profile %d: Recommended %v holds %s, which Together does not serve", profile, cat.Recommended, unserved)
 		}

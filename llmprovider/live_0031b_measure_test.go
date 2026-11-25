@@ -273,7 +273,7 @@ func TestLive_0031bStreamReplies(t *testing.T) {
 					rec := &wireRecorder{wire: target.wire, usageOption: usageOption}
 					p, err := providers.New(target.id, append(slices.Clone(opts), llmprovider.WithModel(target.model),
 						llmprovider.WithMaxTokens(r.maxTokens), llmprovider.WithModelProbes(false),
-						llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec}))...)
+						llmprovider.WithHTTPClient(&http.Client{Transport: rec}))...)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -337,7 +337,7 @@ func TestLive_0031bGeminiShapes(t *testing.T) {
 				rec := &wireRecorder{wire: target.wire}
 				p, err := providers.New(target.id, append(slices.Clone(target.opts), llmprovider.WithAPIKey(key),
 					llmprovider.WithModel(model), llmprovider.WithMaxTokens(1024), llmprovider.WithModelProbes(false),
-					llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec}))...)
+					llmprovider.WithHTTPClient(&http.Client{Transport: rec}))...)
 				if err != nil {
 					t.Fatal(err)
 				}

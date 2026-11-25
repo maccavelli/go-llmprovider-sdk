@@ -219,11 +219,11 @@ func listFixture(t *testing.T, doc string, opts ...llmprovider.Option) Catalog {
 	t.Helper()
 	resetLookupCaches(t)
 	srv := ollamaFixtureServer(t)
-	meta := []llmprovider.Option{llmprovider.WithoutModelMetadata()}
+	meta := []llmprovider.Option{}
 	if doc != "" {
 		docSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(doc)) }))
 		t.Cleanup(docSrv.Close)
-		meta = []llmprovider.Option{llmprovider.WithModelMetadataURL(docSrv.URL)}
+		meta = []llmprovider.Option{servedDoc(t, docSrv.URL)}
 	}
 	cat, err := List(context.Background(), "acme", llmprovider.NewStaticToken(""), append(append([]llmprovider.Option{
 		withCompatID("acme"), llmprovider.WithBaseURL(srv.URL + "/v1"), WithCache(&Cache{})}, meta...), opts...)...)
@@ -343,7 +343,7 @@ func TestMenu_DefaultRank_0061(t *testing.T) {
 	}))
 	t.Cleanup(plain.Close)
 	listed, err := List(context.Background(), "acme", llmprovider.NewStaticToken(""), withCompatID("acme"),
-		llmprovider.WithBaseURL(plain.URL), WithCache(&Cache{}), llmprovider.WithoutModelMetadata())
+		llmprovider.WithBaseURL(plain.URL), WithCache(&Cache{}))
 	if got := menuIDs(listed.Menu); err != nil || !slices.Equal(got, []string{"b", "d", "a", "c"}) {
 		t.Errorf("a plain server's menu = %v, %v; want b, d, a, then c with no created", got, err)
 	}

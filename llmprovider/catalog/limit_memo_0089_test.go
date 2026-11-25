@@ -68,7 +68,7 @@ func TestLimitMemo_StreamedOutput_0089(t *testing.T) {
 	ctx := context.Background()
 	const model = "gemini-stream-0089"
 	cache := new(Cache)
-	opts := []llmprovider.Option{WithCache(cache), llmprovider.WithoutModelMetadata(),
+	opts := []llmprovider.Option{WithCache(cache),
 		WithModelLayer(outputLayer("test", 65536))}
 	read := func() Limits { return CachedLimits(ctx, llmprovider.ProviderGemini, model, opts...) }
 	if l := read(); l.Output.Tokens != 65536 || l.StreamedOutput.Tokens != 65536 {

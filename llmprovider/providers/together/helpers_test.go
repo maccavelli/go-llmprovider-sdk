@@ -73,8 +73,8 @@ func metadataServer(t *testing.T, status int, body string) (*httptest.Server, *a
 
 // apiKey is the options for a key "k" against url, with the given model.
 func apiKey(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
-	return append(append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(url)}, metadataOff()...), opts...)
+	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
+		llmprovider.WithBaseURL(url)}, opts...)
 }
 
 // caches holds each running test's catalog cache, by *testing.T.
@@ -98,7 +98,7 @@ func testCache(t *testing.T) llmprovider.Option {
 // that a test's own WithCache wins.
 func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	p, err := New(append(append([]llmprovider.Option{testCache(t)}, metadataOff()...), opts...)...)
+	p, err := New(append([]llmprovider.Option{testCache(t)}, opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -122,25 +122,4 @@ func list(t *testing.T, p llmprovider.Provider) ([]string, error) {
 		t.Fatal("the provider is not a ModelLister")
 	}
 	return lister.ListModels(t.Context())
-}
-
-// metadataOn is set by enableMetadata for one test, which serves its own
-// metadata document. Otherwise the helpers turn the fetch off, so no test
-// reaches models.opencode.ai (0015-PLAN S10). No test here runs in parallel.
-var metadataOn bool
-
-// enableMetadata leaves the metadata fetch on for one test.
-func enableMetadata(t *testing.T) {
-	t.Helper()
-	metadataOn = true
-	t.Cleanup(func() { metadataOn = false })
-}
-
-// metadataOff is WithoutModelMetadata, unless enableMetadata turned the fetch
-// on.
-func metadataOff() []llmprovider.Option {
-	if metadataOn {
-		return nil
-	}
-	return []llmprovider.Option{llmprovider.WithoutModelMetadata()}
 }

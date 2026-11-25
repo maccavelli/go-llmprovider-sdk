@@ -38,7 +38,7 @@ func TestList_GivesASessionItsClient(t *testing.T) {
 	client := &http.Client{}
 	src := &clientTakingSource{}
 	if _, err := List(context.Background(), llmprovider.ProviderGrok, src, llmprovider.WithBaseURL(srv.URL), testCache(t),
-		llmprovider.WithHTTPClient(client), llmprovider.WithoutModelMetadata()); err != nil {
+		llmprovider.WithHTTPClient(client)); err != nil {
 		t.Fatal(err)
 	}
 	if src.client != client {

@@ -76,8 +76,9 @@ func ChooseLimit(in LimitInput) (llmprovider.SentLimit, error) {
 			Source: in.FallbackSource}, nil
 	}
 	return llmprovider.SentLimit{}, fmt.Errorf("%w: %s: no source states an output limit for model %q, and the wire requires "+
-		"one: state the model's limit, for example as maxTokens in models.json, or in a layer given with "+
-		"catalog.WithModelLayer, or pass WithMaxTokens or Request.MaxOutputTokens", llmprovider.ErrInvalidRequest,
+		"one: pass WithMaxTokens, or hand in a models.dev document with catalog.WithMetadata; or state the "+
+		"model's limit, for example as maxTokens in models.json, or in a layer given with catalog.WithModelLayer, "+
+		"or pass Request.MaxOutputTokens", llmprovider.ErrInvalidRequest,
 		in.Provider, in.Model)
 }
 

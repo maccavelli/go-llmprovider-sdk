@@ -232,6 +232,7 @@ documents a reader follows to do something.
 | know how native streaming is being added, starting with the Responses wire | [0031-MADR](decisions/0031-MADR-native-streaming-on-the-responses-wire.md) |
 | opt a tool out of OpenAI's strict mode, or mark a tool result as failed | [0032-MADR](decisions/0032-MADR-tool-strict-and-result-error-flags.md) |
 | read a model's context window, output limit, prices or modalities | [0033-MADR](decisions/0033-MADR-public-model-metadata-and-current-catalogs.md) |
+| hand the SDK a models.dev document, and know why it fetches none | [0093-MADR-take-model-metadata-from-the-caller.md](decisions/0093-MADR-take-model-metadata-from-the-caller.md) |
 | know why a model is or is not in a provider's menu | [0033-PLAN-refresh-the-curated-catalogs.md](decisions/0033-PLAN-refresh-the-curated-catalogs.md) |
 | ask a provider to cache a prompt | [0039-MADR-request-side-prompt-caching.md](decisions/0039-MADR-request-side-prompt-caching.md) |
 | offer many tools but load only the ones a search finds, keeping the cache | [0040-MADR-native-tool-deferral.md](decisions/0040-MADR-native-tool-deferral.md) |

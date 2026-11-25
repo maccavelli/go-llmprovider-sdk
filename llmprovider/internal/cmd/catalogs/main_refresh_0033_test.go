@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -48,7 +47,7 @@ func allKeys() map[llmprovider.ProviderID]string {
 func TestRun_PublicListings(t *testing.T) {
 	f := &fakeFetcher{}
 	var out, errOut bytes.Buffer
-	if rc := run(nil, &out, &errOut, allKeys(), f); rc != 0 {
+	if rc := run(docArgs(t), &out, &errOut, allKeys(), f); rc != 0 {
 		t.Fatalf("run = %d; stderr %s", rc, errOut.String())
 	}
 	for _, p := range []llmprovider.ProviderID{llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo,
@@ -73,7 +72,7 @@ func TestRun_Snapshot(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "ranking-test")
 	f := &fakeFetcher{bodies: rankedBodies()}
 	var out, errOut bytes.Buffer
-	if rc := run([]string{"-snapshot", dir}, &out, &errOut, allKeys(), f); rc != 0 {
+	if rc := run(docArgs(t, "-snapshot", dir), &out, &errOut, allKeys(), f); rc != 0 {
 		t.Fatalf("run -snapshot = %d; stderr %s", rc, errOut.String())
 	}
 	var manifest struct {
@@ -122,7 +121,7 @@ func TestRun_SnapshotRefusesAnExistingDir(t *testing.T) {
 	dir := t.TempDir()
 	f := &fakeFetcher{bodies: rankedBodies()}
 	var out, errOut bytes.Buffer
-	if rc := run([]string{"-snapshot", dir}, &out, &errOut, allKeys(), f); rc != 2 {
+	if rc := run(docArgs(t, "-snapshot", dir), &out, &errOut, allKeys(), f); rc != 2 {
 		t.Fatalf("run -snapshot into an existing directory = %d, want 2", rc)
 	}
 	if len(f.asked) != 0 {
@@ -143,7 +142,7 @@ func TestRun_SnapshotNeedsEveryRankedListing(t *testing.T) {
 	bodies := rankedBodies()
 	delete(bodies, llmprovider.ProviderTogether)
 	var out, errOut bytes.Buffer
-	if rc := run([]string{"-snapshot", dir}, &out, &errOut, allKeys(), &fakeFetcher{bodies: bodies}); rc != 2 {
+	if rc := run(docArgs(t, "-snapshot", dir), &out, &errOut, allKeys(), &fakeFetcher{bodies: bodies}); rc != 2 {
 		t.Fatalf("run -snapshot without Together's listing = %d, want 2", rc)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -211,15 +210,15 @@ func TestLiveFetcher(t *testing.T) {
 	}))
 	defer srv.Close()
 	ctx := context.Background()
-	// Metadata reads into the process's cache, which takes no option of the
-	// test's, so the document's URL is the run's own (0058-PLAN Phase 2).
-	f := &liveFetcher{metadataURL: srv.URL + "/" + rand.Text() + "/api.json",
-		extra: []llmprovider.Option{llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(srv.URL + "/api.json"),
-			catalog.WithCache(new(catalog.Cache))}}
-	meta, err := f.Metadata(ctx)
+	// The document is -doc's, read by run and given to the fetcher; the
+	// fetcher fetches none (0093-MADR D6). The test hands it the bytes its
+	// server serves.
+	f := &liveFetcher{extra: []llmprovider.Option{llmprovider.WithBaseURL(srv.URL), catalog.WithCache(new(catalog.Cache))}}
+	meta, err := catalog.ParseMetadata(strings.NewReader(doc))
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.useMetadata(meta)
 	if _, ok := meta.Model(llmprovider.ProviderOpencodeZen, "zen-a"); !ok {
 		t.Error("the document read has no zen-a")
 	}

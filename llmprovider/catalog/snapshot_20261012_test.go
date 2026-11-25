@@ -57,7 +57,7 @@ func replaySnapshot(t *testing.T, dir string, provider llmprovider.ProviderID, p
 		t.Fatalf("recorded_at %q: %v", manifest.RecordedAt, err)
 	}
 	pinRankingNow(t, at)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	serve := func(name string) string {
 		body, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
@@ -66,7 +66,7 @@ func replaySnapshot(t *testing.T, dir string, provider llmprovider.ProviderID, p
 		return serveBody(t, string(body)).URL
 	}
 	return listCatalog(context.Background(), t, provider, append([]llmprovider.Option{
-		llmprovider.WithBaseURL(serve(snapshotFile[provider])), llmprovider.WithModelMetadataURL(serve("metadata.json")),
+		llmprovider.WithBaseURL(serve(snapshotFile[provider])), servedDoc(t, serve("metadata.json")),
 		WithProfile(profile)}, opts...)...)
 }
 

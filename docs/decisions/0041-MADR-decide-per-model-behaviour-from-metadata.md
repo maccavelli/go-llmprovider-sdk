@@ -1289,3 +1289,5 @@ passed every row.
 * magic-cli-remote `docs/decisions/0043-MADR-model-selection.md`,
   `0096-MADR-kilo-model-catalog-scope-and-order.md` and
   `0052-MADR-thinking-levels-and-settings.md`: the menu design §6 follows.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D1, D3, D4, A3 and D7: the models.dev layer is the document the call hands in, and a provider's requests read only the one given to its `New` (D2, Q4); with none, the name curators rank, as with the fetch off (D3). The text above is unchanged.)*

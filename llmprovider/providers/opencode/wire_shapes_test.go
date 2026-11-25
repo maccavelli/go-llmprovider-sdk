@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -278,7 +277,7 @@ func replayConversation() *llmprovider.Request {
 func TestOpencodeChat_ReplaysInterleavedReasoning(t *testing.T) {
 	srv, body := replayServer(t, `,"interleaved":{"field":"reasoning_content"}`)
 	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "kimi-k2.6",
-		llmprovider.WithModelMetadataURL(srv.URL+"/api.json"), WithRoute(RouteChatCompletions))...)
+		servedDoc(t, srv.URL+"/api.json"), WithRoute(RouteChatCompletions))...)
 	if _, err := p.Generate(context.Background(), replayConversation()); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -298,7 +297,7 @@ func TestOpencodeChat_ReplaysInterleavedReasoning(t *testing.T) {
 func TestOpencodeChat_NoReplayWithoutInterleaved(t *testing.T) {
 	srv, body := replayServer(t, "")
 	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "kimi-k2.6",
-		llmprovider.WithModelMetadataURL(srv.URL+"/api.json"), WithRoute(RouteChatCompletions))...)
+		servedDoc(t, srv.URL+"/api.json"), WithRoute(RouteChatCompletions))...)
 	if _, err := p.Generate(context.Background(), replayConversation()); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -306,57 +305,6 @@ func TestOpencodeChat_NoReplayWithoutInterleaved(t *testing.T) {
 		if _, ok := m.(map[string]any)["reasoning_content"]; ok {
 			t.Fatalf("message %v carries reasoning_content for a non-interleaved model", m)
 		}
-	}
-}
-
-// TestChatReasoningEffort_FailureBackoff pins MADR 0013 A6: with the metadata
-// host failing, three chat-route reasoning calls make one fetch, not three,
-// and send the effort asked (0062-MADR Q7 (a)).
-func TestChatReasoningEffort_FailureBackoff(t *testing.T) {
-	enableMetadata(t)
-	meta, hits := metadataServer(t, http.StatusServiceUnavailable, "")
-	var body map[string]any
-	srv := captureServer(t, &body, fxChat)
-	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "glm-5.3-flash",
-		llmprovider.WithModelMetadataURL(meta.URL), effort(llmprovider.EffortLow))...)
-	for range 3 {
-		if _, err := p.Generate(context.Background(), thinking(text("hi"))); err != nil {
-			t.Fatalf("Generate: %v", err)
-		}
-		if got := body["reasoning_effort"]; got != "low" {
-			t.Fatalf("reasoning_effort = %v with metadata down, want low, as asked", got)
-		}
-	}
-	// One request makes two lookups (route, effort); the failure is cached.
-	if n := hits.Load(); n != 1 {
-		t.Errorf("3 reasoning calls made %d metadata fetches, want 1", n)
-	}
-}
-
-// TestChatReasoningEffort_LookupHasDeadline pins MADR 0013 A6: the metadata
-// fetch a request starts carries its own deadline, whatever the caller's
-// context. The fetch is shared and detached, bounded by catalog's
-// metadataFetchTimeout of 10 s; the request waits for it at most 5 s
-// (0021-MADR amendment "F15 and A6 under the shared fetch").
-func TestChatReasoningEffort_LookupHasDeadline(t *testing.T) {
-	enableMetadata(t)
-	meta, _ := metadataServer(t, http.StatusOK, `{"opencode-go":{"models":{"glm-5.3-flash":{"id":"glm-5.3-flash","reasoning":true}}}}`)
-	var body map[string]any
-	srv := captureServer(t, &body, fxChat)
-	rec := &deadlineTransport{}
-	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "glm-5.3-flash", llmprovider.WithModelMetadataURL(meta.URL+"/api.json"),
-		effort(llmprovider.EffortLow), llmprovider.WithHTTPClient(&http.Client{Transport: rec}))...)
-	if _, err := p.Generate(context.Background(), thinking(text("hi"))); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	left, ok := rec.left("GET /api.json")
-	switch {
-	case !ok:
-		t.Fatal("no metadata request was made")
-	case left < 0:
-		t.Error("metadata fetch ran without a deadline, want one within 10s")
-	case left > 10*time.Second:
-		t.Errorf("metadata fetch had %v left, want at most 10s", left.Round(time.Second))
 	}
 }
 

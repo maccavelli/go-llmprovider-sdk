@@ -989,3 +989,82 @@ Additions only; no row's decision changes. The coordinator's word of 2026-11-24,
 | C215now | `TestOutputLimit_Omitted_0089`'s doc comment, Kilo's case (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:112` | `// registry) with no fixed ceiling, and Kilo its discovered limit, as` |
 | C216now | `TestOutputLimit_Omitted_0089`'s Kilo comment (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:152` | `// Kilo: its discovered limit, as DL65 decided.` |
 | C217now | `TestOutputLimit_Omitted_0089`'s Kilo assertion text (DL65) | new | `llmprovider/providers/output_limit_0089_test.go:163` | `want 128000 (DL65's verdict)` |
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D1 to D3 (the registry is the handed-in document; the extract is gone), D5 (the memo no longer carries the route's fallback: `Limits.RouteFallback` does, per call, D7), DL23, DL24 and DL29 (no extract, no fetch age), DL50, DL51 (the refusal also names `catalog.WithMetadata`, D9), DL70 (its annotation "One fetch, then ship (Recommended)" is moot: nothing is fetched or shipped), DL71, DL74, DL77, the OQ2 ruling's "reads the cache and the embedded extract" (no extract remains), and the claims rows C62now and C63now, whose text 0093 rewrote (the note below). The text above is unchanged.)*
+
+*(2026-11-24, from 0093-PLAN-take-model-metadata-from-the-caller.md's Phase 5: this record's "now" rows on a file 0093's Phase 4 edited were re-run with plain ids against a scratch clone's commit of the tree (`dc96bf0ce4e6`, 0093's build, uncommitted), and against `cfc911d`, its base. 74 fail there: 58 moved by 0093's build (55 found on a new line, 3 whose text 0093 rewrote), and 16 already failing at `cfc911d` (13 found on another line, 3 on none). Each row's text is now where this note says; the rows above are unchanged.)*
+
+* C33now (`docs/guides/api-standards.md:371`): `docs/guides/api-standards.md:418`; already failing at `cfc911d`
+* C51now (`docs/guides/api-standards.md:104`): on no line; already failing at `cfc911d`
+* C56now (`docs/guides/api-standards.md:116`): `docs/guides/api-standards.md:117`; moved by 0093's build
+* C57now (`docs/guides/api-standards.md:117`): `docs/guides/api-standards.md:118`; moved by 0093's build
+* C58now (`docs/guides/api-standards.md:118`): `docs/guides/api-standards.md:119`; moved by 0093's build
+* C59now (`docs/guides/api-standards.md:119`): `docs/guides/api-standards.md:120`; moved by 0093's build
+* C60now (`docs/guides/api-standards.md:120`): `docs/guides/api-standards.md:121`; moved by 0093's build
+* C61now (`docs/guides/api-standards.md:121`): `docs/guides/api-standards.md:122`; moved by 0093's build
+* C62now (`docs/guides/api-standards.md:122`): on no line; moved by 0093's build
+* C63now (`docs/guides/api-standards.md:123`): on no line; moved by 0093's build
+* C64now (`docs/guides/api-standards.md:124`): `docs/guides/api-standards.md:125`; moved by 0093's build
+* C65now (`docs/guides/api-standards.md:125`): `docs/guides/api-standards.md:126`; moved by 0093's build
+* C66now (`docs/guides/api-standards.md:126`): `docs/guides/api-standards.md:127`; moved by 0093's build
+* C67now (`docs/guides/api-standards.md:127`): on no line; moved by 0093's build
+* C68now (`docs/guides/api-standards.md:128`): `docs/guides/api-standards.md:130`; moved by 0093's build
+* C69now (`docs/guides/api-standards.md:129`): `docs/guides/api-standards.md:131`; moved by 0093's build
+* C70now (`docs/guides/api-standards.md:130`): `docs/guides/api-standards.md:132`; moved by 0093's build
+* C71now (`docs/guides/api-standards.md:131`): `docs/guides/api-standards.md:133`; moved by 0093's build
+* C72now (`docs/guides/api-standards.md:132`): `docs/guides/api-standards.md:134`; moved by 0093's build
+* C73now (`docs/guides/api-standards.md:133`): `docs/guides/api-standards.md:135`; moved by 0093's build
+* C74now (`docs/guides/api-standards.md:134`): `docs/guides/api-standards.md:136`; moved by 0093's build
+* C75now (`docs/guides/api-standards.md:135`): `docs/guides/api-standards.md:137`; moved by 0093's build
+* C76now (`docs/guides/api-standards.md:139`): `docs/guides/api-standards.md:141`; moved by 0093's build
+* C77now (`docs/guides/api-standards.md:140`): `docs/guides/api-standards.md:142`; moved by 0093's build
+* C78now (`docs/guides/api-standards.md:141`): `docs/guides/api-standards.md:143`; moved by 0093's build
+* C79now (`docs/guides/api-standards.md:142`): `docs/guides/api-standards.md:144`; moved by 0093's build
+* C80now (`docs/guides/api-standards.md:427`): `docs/guides/api-standards.md:440`; already failing at `cfc911d`
+* C81now (`docs/guides/api-standards.md:428`): `docs/guides/api-standards.md:441`; already failing at `cfc911d`
+* C82now (`docs/guides/api-standards.md:429`): `docs/guides/api-standards.md:442`; already failing at `cfc911d`
+* C83now (`docs/guides/api-standards.md:430`): `docs/guides/api-standards.md:443`; already failing at `cfc911d`
+* C84now (`docs/guides/api-standards.md:431`): `docs/guides/api-standards.md:444`; already failing at `cfc911d`
+* C85now (`docs/guides/api-standards.md:432`): `docs/guides/api-standards.md:445`; already failing at `cfc911d`
+* C86now (`docs/guides/api-standards.md:433`): `docs/guides/api-standards.md:446`; already failing at `cfc911d`
+* C87now (`docs/guides/api-standards.md:434`): `docs/guides/api-standards.md:447`; already failing at `cfc911d`
+* C88now (`docs/guides/api-standards.md:435`): `docs/guides/api-standards.md:448`; already failing at `cfc911d`
+* C89now (`docs/guides/api-standards.md:436`): on no line; already failing at `cfc911d`
+* C90now (`docs/guides/api-standards.md:437`): on no line; already failing at `cfc911d`
+* C91now (`docs/guides/api-standards.md:456`): `docs/guides/api-standards.md:470`; already failing at `cfc911d`
+* C92now (`llmprovider/catalog/doc.go:44`): `llmprovider/catalog/doc.go:46`; moved by 0093's build
+* C94now (`llmprovider/providers/claude/claude.go:116`): `llmprovider/providers/claude/claude.go:117`; moved by 0093's build
+* C95now (`llmprovider/providers/gemini/gemini.go:78`): `llmprovider/providers/gemini/gemini.go:79`; moved by 0093's build
+* C96now (`llmprovider/providers/grok/grok.go:93`): `llmprovider/providers/grok/grok.go:94`; moved by 0093's build
+* C97now (`llmprovider/providers/huggingface/huggingface.go:80`): `llmprovider/providers/huggingface/huggingface.go:81`; moved by 0093's build
+* C98now (`llmprovider/providers/kilo/kilo.go:88`): `llmprovider/providers/kilo/kilo.go:89`; moved by 0093's build
+* C99now (`llmprovider/providers/ollama/ollama.go:86`): `llmprovider/providers/ollama/ollama.go:87`; moved by 0093's build
+* C100now (`llmprovider/providers/openai/openai.go:109`): `llmprovider/providers/openai/openai.go:110`; moved by 0093's build
+* C101now (`llmprovider/providers/opencode/opencode.go:116`): `llmprovider/providers/opencode/opencode.go:117`; moved by 0093's build
+* C102now (`llmprovider/providers/together/together.go:77`): `llmprovider/providers/together/together.go:79`; moved by 0093's build
+* C166now (`llmprovider/providers/claude/claude.go:343`): `llmprovider/providers/claude/claude.go:347`; already failing at `cfc911d`
+* C170now (`docs/guides/api-standards.md:251`): `docs/guides/api-standards.md:254`; moved by 0093's build
+* C171now (`docs/guides/api-standards.md:274`): `docs/guides/api-standards.md:279`; already failing at `cfc911d`
+* C173now (`docs/guides/api-standards.md:254`): `docs/guides/api-standards.md:257`; moved by 0093's build
+* C174now (`docs/guides/api-standards.md:438`): `docs/guides/api-standards.md:449`; moved by 0093's build
+* C185now (`llmprovider/providers/huggingface/huggingface.go:85`): `llmprovider/providers/huggingface/huggingface.go:86`; moved by 0093's build
+* C186now (`llmprovider/providers/ollama/ollama.go:91`): `llmprovider/providers/ollama/ollama.go:92`; moved by 0093's build
+* C187now (`llmprovider/providers/together/together.go:82`): `llmprovider/providers/together/together.go:84`; moved by 0093's build
+* C188now (`llmprovider/providers/gemini/gemini.go:83`): `llmprovider/providers/gemini/gemini.go:84`; moved by 0093's build
+* C189now (`llmprovider/providers/grok/grok.go:98`): `llmprovider/providers/grok/grok.go:99`; moved by 0093's build
+* C190now (`llmprovider/providers/openai/openai.go:114`): `llmprovider/providers/openai/openai.go:115`; moved by 0093's build
+* C191now (`llmprovider/providers/claude/claude.go:133`): `llmprovider/providers/claude/claude.go:134`; moved by 0093's build
+* C192now (`llmprovider/providers/kilo/kilo.go:103`): `llmprovider/providers/kilo/kilo.go:104`; moved by 0093's build
+* C193now (`llmprovider/providers/opencode/opencode.go:131`): `llmprovider/providers/opencode/opencode.go:132`; moved by 0093's build
+* C194now (`README.md:254`): `README.md:256`; moved by 0093's build
+* C195now (`CHANGELOG.md:49`): `CHANGELOG.md:66`; moved by 0093's build
+* C196now (`docs/architecture.md:779`): `docs/architecture.md:775`; moved by 0093's build
+* C197now (`docs/architecture.md:627`): `docs/architecture.md:623`; moved by 0093's build
+* C202now (`llmprovider/providers/kilo/kilo.go:96`): `llmprovider/providers/kilo/kilo.go:97`; moved by 0093's build
+* C203now (`CHANGELOG.md:87`): `CHANGELOG.md:105`; moved by 0093's build
+* C205now (`llmprovider/providers/opencode/opencode.go:132`): `llmprovider/providers/opencode/opencode.go:133`; moved by 0093's build
+* C206now (`llmprovider/providers/kilo/kilo.go:94`): `llmprovider/providers/kilo/kilo.go:95`; moved by 0093's build
+* C207now (`llmprovider/providers/kilo/kilo.go:95`): `llmprovider/providers/kilo/kilo.go:96`; moved by 0093's build
+* C208now (`llmprovider/providers/kilo/kilo.go:540`): `llmprovider/providers/kilo/kilo.go:541`; moved by 0093's build
+* C209now (`llmprovider/providers/kilo/kilo.go:541`): `llmprovider/providers/kilo/kilo.go:542`; moved by 0093's build
+* C211now (`CHANGELOG.md:70`): `CHANGELOG.md:88`; moved by 0093's build

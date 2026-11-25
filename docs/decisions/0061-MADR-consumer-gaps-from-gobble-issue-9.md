@@ -1451,3 +1451,5 @@ Ollama server learns the refusal the same way; the others' services were
 not seen to send it. A refusal of the field is passed back with
 `WithReasoningRefusals` as the effort sent, as 0062 left Grok's: a later
 process sends another effort once, and learns again.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): E2 and its options amendment: `catalog.WithMetadata` joins the shared options, and a chatcompat server's facts by canonical id come from the document handed in (D1, D5; MH1, MH14). The text above is unchanged.)*

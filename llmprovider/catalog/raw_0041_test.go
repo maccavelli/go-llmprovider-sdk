@@ -344,9 +344,9 @@ func TestListRaw_NoFallback_0041(t *testing.T) {
 // and leaves nothing CachedFacts can read (0041-MADR D9).
 func TestListRaw_NoSideEffects_0041(t *testing.T) {
 	resetLookupCaches(t)
-	meta, served := metadataServer(t, http.StatusOK, `{}`)
+	_, served := metadataServer(t, http.StatusOK, `{}`)
 	s := newPagedServer(t, []byte(`{"data":[{"id":"vendor/raw-x","context_length":131072,"pricing":{"prompt":"0.000001"}}]}`))
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(s.URL), llmprovider.WithModelMetadataURL(meta.URL)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(s.URL), handed(t, `{}`)}
 	if _, err := ListRaw(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), opts...); err != nil {
 		t.Fatal(err)
 	}

@@ -235,10 +235,13 @@ unique to the run (0058-MADR D1, D6). `tools/gate.py`'s `test-repeat` and
 `tools/cachecensus.py --any-url` find a test that does not.
 
 No test sends a request off the machine: a test serves its own replies,
-and one that lists or looks up models serves its own models.dev document
-(`llmprovider.WithModelMetadataURL`) or turns it off
-(`llmprovider.WithoutModelMetadata()`), as `catalog`'s `listT` and each
-provider package's `build` do. In `catalog`, `wizard` and the `claude`,
+and one that needs a models.dev document parses one and hands it in with
+`catalog.WithMetadata`, as the `extractDoc` helper of `llmprovider`,
+`llmprovider/providers`, `claude`, `kilo`, `opencode` and
+`internal/wiretest`, and the `servedDoc` helper of `catalog`,
+`llmprovider/providers`, `grok`, `huggingface`, `opencode` and `together`,
+do (`gemini`, `openai`, `ollama` and `chatcompat` have neither); the SDK
+fetches none (0093-MADR D12). In `catalog`, `wizard` and the `claude`,
 `gemini`, `grok`, `openai` and `chatcompat` packages, a `TestMain` runs the
 tests behind `internal/localonly`'s guard, which fails the run, naming each host,
 when one is sent; a package whose tests list models opts in the same way.

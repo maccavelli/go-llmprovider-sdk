@@ -62,7 +62,7 @@ func (f *fakeFetcher) Listing(p llmprovider.ProviderID) ([]byte, bool) {
 func TestRun_Proposes_0033(t *testing.T) {
 	f := &fakeFetcher{listed: map[llmprovider.ProviderID][]string{llmprovider.ProviderClaude: {"claude-haiku-5-5", "claude-next"}}}
 	var out, errOut bytes.Buffer
-	rc := run(nil, &out, &errOut, map[llmprovider.ProviderID]string{llmprovider.ProviderClaude: testKey}, f)
+	rc := run(docArgs(t), &out, &errOut, map[llmprovider.ProviderID]string{llmprovider.ProviderClaude: testKey}, f)
 	if rc != 0 {
 		t.Fatalf("run = %d; stderr %s", rc, errOut.String())
 	}
@@ -108,7 +108,7 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk ful
 // TestRun_WriteFails_0033: a failed write is a tool error.
 func TestRun_WriteFails_0033(t *testing.T) {
 	var errOut bytes.Buffer
-	if rc := run(nil, failingWriter{}, &errOut, nil, &fakeFetcher{}); rc != 2 {
+	if rc := run(docArgs(t), failingWriter{}, &errOut, nil, &fakeFetcher{}); rc != 2 {
 		t.Errorf("a failed write: run = %d, want 2", rc)
 	}
 }

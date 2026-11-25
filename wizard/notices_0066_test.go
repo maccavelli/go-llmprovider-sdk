@@ -56,7 +56,7 @@ func TestEndpointCheck_NoServerText_0066(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFake(t, fakePrompter{inputs: []string{tc.endpoint}, confirms: []bool{false}})
 			_, _, err := ResolveCredential(context.Background(), f, Options{HTTPClient: tc.client,
-				ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}, llmprovider.ProviderOllama)
+				ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderOllama)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestBaseURL_QueryNotShown_0066(t *testing.T) {
 		f := newFake(t, fakePrompter{inputs: []string{"https://proxy.example/v1?key=" + secret, "https://proxy.example/v1"},
 			secrets: []string{"tgp_v1_made-up-0066"}})
 		res, _, err := ResolveCredential(context.Background(), f, Options{
-			ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}, llmprovider.ProviderTogether)
+			ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderTogether)
 		if err != nil || res.BaseURL != "https://proxy.example/v1" {
 			t.Fatalf("BaseURL %q, %v; want the second endpoint", res.BaseURL, err)
 		}
@@ -123,7 +123,7 @@ func TestDescribe_Offline_0066(t *testing.T) {
 	}
 	f := newFake(t, fakePrompter{secrets: []string{"sk-ant-api03-made-up-0066"}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{Discover: true, DiscoverLimit: 2 * time.Second,
-		HTTPClient: refusedDial0066, ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}},
+		HTTPClient: refusedDial0066, ProviderOptions: []llmprovider.Option{testCache(t)}},
 		llmprovider.ProviderClaude)
 	if err != nil {
 		t.Fatal(err)

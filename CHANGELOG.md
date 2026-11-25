@@ -9,6 +9,12 @@ holds this file to the release tags, and the six newest tags' GitHub Releases
 carry their sections. An older tag's Release page still opens, showing the
 tag and its commit without notes; its notes are its section here.
 
+*(2026-11-24: one recorded exception to that promise. v1.33.0 removes eight
+v1 names, as [0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)
+D10 and its Q1 decided, an exception to the standards guide's R42 and R48;
+`make api-check` accepts exactly those eight against `v1.32.0`. They are
+listed under **Removed** below.)*
+
 ## [Unreleased]
 
 ### Added
@@ -25,13 +31,24 @@ tag and its commit without notes; its notes are its section here.
   model (and a chatcompat server's of Ollama's dialect), the ChatGPT
   backend's `context_window`, Together's `config.max_output_length`, Hugging
   Face's per-provider `context_length` and Kilo's `per_request_limits`, and
-  an embedded, limits-only extract of models.dev, below the fetched
-  document, so offline a model models.dev knows still has its limits. A
+  the models.dev document the call hands in with `catalog.WithMetadata`,
+  as the registry (0093-MADR D5, D7). A
   Claude workspace is read from `catalog.WithClaudeWorkspace`. `LookupModel`
   and `ModelInfo` are unchanged (0089-MADR D1 to D3). `Limits.StreamedOutput`
   is the output limit for a streamed request beside `Output`'s for a plain
   one, each held to the cap the service stated for its own kind of call
-  (0089-MADR DL76).
+  (0089-MADR DL76). `Limits.RouteFallback` is the Messages route's
+  fallback, the smallest limit a current model on the route is stated to
+  take, found with the call's own options and carried in its `Limits`
+  (0093-MADR D7).
+- `catalog.WithMetadata`: a shared option that hands in a models.dev
+  document the caller parsed with `catalog.ParseMetadata`. Every listing,
+  lookup and limits call reads the document its options hand in, and a
+  provider's requests read only the one given to its `New`
+  ([0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md) D1, D2).
+- `NOTICE` and `LICENSE.models.dev`: the models.dev data the module holds
+  (OpenCode's route snapshot and the test fixtures), credited under
+  models.dev's MIT licence (0093-MADR D11).
 - `llmprovider.Response.OutputLimit`, a `llmprovider.SentLimit`: the output
   limit a request carried, after a thinking budget raised it, whether one
   was sent, its `llmprovider.LimitBasis` (`LimitBasisRequest`,
@@ -63,8 +80,9 @@ tag and its commit without notes; its notes are its section here.
   OpenCode's messages route, whose wire requires one, it sends the model's
   output limit as `catalog.CachedLimits` states it, held to the stated
   window and to a cap the service stated; where nothing states it, the
-  smallest limit of the route's current models (64,000 on Claude in the
-  embedded extract), and where nothing states even that, the request is
+  smallest limit of the route's current models, as the cached listing or
+  the handed-in document states them, and where nothing states even that,
+  the request is
   refused before sending with an error matching `ErrInvalidRequest` that
   says how to state the limit. Kilo sends the limit its listing states (0089-MADR DL65, measured
   2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated). Every other wire sends none, so the
@@ -120,6 +138,45 @@ tag and its commit without notes; its notes are its section here.
   `ErrIncomplete`, with the service's reason (`length`, `max_output_tokens`,
   `incomplete`). A Responses answer incomplete for another reason is
   `ErrIncomplete` as before (0088-MADR ST75 to ST81, ST93, ST94, ST103).
+- Model metadata comes only from the caller. A listing's ranking and its
+  menu's facts, `Catalog.Search`, `LookupModel`, `CachedModel`,
+  `CachedFacts`, `LookupLimits` and `CachedLimits` read the document the
+  call hands in with `catalog.WithMetadata`, and none when none is handed
+  in: the curated order and the name rules then rank, as with the fetch
+  off before. A provider's requests read only the document given to its
+  `New`, never one handed to a lookup on the same cache. The document's
+  evidence has no `Seen` and is never `Stale`: its age is the caller's
+  (0093-MADR D2 to D5, Q4).
+- OpenCode's request route is the pinned route, else the handed-in
+  document's `provider.npm`, else the route table, else the name rule, at
+  once: it never waits for a document (0093-MADR D6).
+- A request on a Messages route (Claude, OpenCode's messages route) whose
+  model no source states a limit for, with nothing listed, no document, no
+  layer and no limit given, is refused before sending with an error
+  matching `ErrInvalidRequest`, where v1.32.0 sent `max_tokens` 8192, the
+  default of `WithMaxTokens`; a Kilo request in that state sends no limit,
+  where v1.32.0 sent 8192. The refusal names
+  `WithMaxTokens` or `catalog.WithMetadata` as the fix (0093-MADR D8, D9,
+  Q2).
+
+### Removed
+
+- `catalog.LookupMetadata`, `catalog.LookupMetadataWith`,
+  `catalog.CachedMetadataWith`, `catalog.OptionsFromEnv`,
+  `llmprovider.WithModelMetadataURL`, `llmprovider.WithoutModelMetadata`,
+  `(*llmprovider.Settings).ModelMetadataURL` and
+  `(*llmprovider.Settings).ModelMetadataDisabled`, in a minor release, as
+  the exception at the top of this file says: the SDK no longer downloads
+  model metadata. Download a models.dev document, such as
+  `https://models.dev/api.json`, read it with `catalog.ParseMetadata`, and
+  hand it in with `catalog.WithMetadata`; `catalog.WithMetadata(catalog.Metadata{})`
+  given last drops one an earlier option carried, where
+  `WithoutModelMetadata` turned the fetch off (0093-MADR D10, Q1).
+- The download of `https://models.opencode.ai/api.json`, its ten-minute
+  cache in `catalog.Cache` and the process's, its background refresh and
+  `ETag`, and its one-minute memory of a failure. The variables
+  `LLMPROVIDER_MODELS_METADATA_URL` and `LLMPROVIDER_DISABLE_MODELS_METADATA`
+  have no effect (0093-MADR D6, D10).
 
 ### Fixed
 

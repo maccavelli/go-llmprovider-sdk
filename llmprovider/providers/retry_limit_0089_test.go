@@ -30,9 +30,9 @@ func opusRefusal(sent, capped int) string {
 }
 
 // limitOpts are a provider's options against url for model, with its own
-// cache.
+// cache and the extract fixture (0093-MADR D12, MH55).
 func limitOpts(url, model string, cache *catalog.Cache, extra ...llmprovider.Option) []llmprovider.Option {
-	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), extractDoc(),
 		llmprovider.WithModelProbes(false), catalog.WithCache(cache), llmprovider.WithBaseURL(url),
 		llmprovider.WithModel(model)}, extra...)
 }

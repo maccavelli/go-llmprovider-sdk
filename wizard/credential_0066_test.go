@@ -86,7 +86,7 @@ func TestResolve_FailedListingErr_0066(t *testing.T) {
 		{"Claude offline", func(t *testing.T) (catalog.Catalog, error) {
 			f := newFake(t, fakePrompter{secrets: []string{"sk-ant-api03-made-up-0066"}})
 			_, cat, err := ResolveCredential(context.Background(), f, Options{Discover: true, DiscoverLimit: 2 * time.Second,
-				HTTPClient: offline, ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}},
+				HTTPClient: offline, ProviderOptions: []llmprovider.Option{testCache(t)}},
 				llmprovider.ProviderClaude)
 			return cat, err
 		}, llmprovider.ErrOffline},
@@ -127,7 +127,7 @@ func TestResolve_LiveMeans_0066(t *testing.T) {
 		t.Helper()
 		f := newFake(t, fakePrompter{selects: []int{0}, secrets: []string{"xai-made-up-key-0066"}})
 		_, cat, err := ResolveCredential(context.Background(), f, Options{Discover: true, HTTPClient: client,
-			ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}, llmprovider.ProviderGrok)
+			ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderGrok)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +176,7 @@ func keptGrok0066(t *testing.T, client *http.Client) (*store0059, Options) {
 	return store, Options{TokenStore: store, Discover: true, HTTPClient: client,
 		Providers:       []llmprovider.ProviderID{llmprovider.ProviderGrok},
 		Existing:        Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // assertKeptRefused0066 checks the one keep question, the one notice and
@@ -252,7 +252,7 @@ func TestKept_KiloRefusedLeadsToSignIn_0066(t *testing.T) {
 	store.held[llmprovider.ProviderKilo] = &auth.OAuthSession{Provider: llmprovider.ProviderKilo, Access: keptAccess0066}
 	o := Options{TokenStore: store, Discover: true, HTTPClient: accepting0066(kiloWizardToken),
 		Existing:        Result{Provider: llmprovider.ProviderKilo, Kind: CredOAuth, Organization: "org-kept"},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 	d, _ := o.registry().Descriptor(llmprovider.ProviderKilo)
 	f := newFake(t, fakePrompter{confirms: []bool{true}, inputs: []string{acceptDefault},
 		selects: []int{methodIdx0059(t, o, llmprovider.ProviderKilo, llmprovider.AuthDeviceCode)}})

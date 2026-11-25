@@ -75,7 +75,7 @@ func TestLive_OpencodeMessagesStreams(t *testing.T) {
 	for _, id := range []llmprovider.ProviderID{llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo} {
 		t.Run(string(id), func(t *testing.T) {
 			liveStreamWith(t, id, "qwen3.8-flash", &llmprovider.Reasoning{Budget: 1024}, 1040,
-				opencode.WithRoute(opencode.RouteMessages), llmprovider.WithoutModelMetadata())
+				opencode.WithRoute(opencode.RouteMessages))
 		})
 	}
 }
@@ -106,7 +106,7 @@ func TestLive_OpencodeChatStreams(t *testing.T) {
 	for _, id := range []llmprovider.ProviderID{llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo} {
 		t.Run(string(id), func(t *testing.T) {
 			liveStreamWith(t, id, "glm-5.3-flash", nil, chatLiveTokens,
-				opencode.WithRoute(opencode.RouteChatCompletions), llmprovider.WithoutModelMetadata())
+				opencode.WithRoute(opencode.RouteChatCompletions))
 		})
 	}
 }
@@ -153,12 +153,11 @@ func TestLive_OpencodeGoogleStreams(t *testing.T) {
 	low := &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
 	t.Run("google-endpoint", func(t *testing.T) {
 		liveStreamKey(t, llmprovider.ProviderOpencodeZen, "GEMINI_API_KEY", catalog.Static(llmprovider.ProviderGemini)[0], low, 1024,
-			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithBaseURL("https://generativelanguage.googleapis.com/v1beta"),
-			llmprovider.WithoutModelMetadata())
+			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithBaseURL("https://generativelanguage.googleapis.com/v1beta"))
 	})
 	t.Run("opencode-zen", func(t *testing.T) {
 		liveStreamWith(t, llmprovider.ProviderOpencodeZen, "gemini-3.5-flash-lite", low, 1024,
-			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithoutModelMetadata())
+			opencode.WithRoute(opencode.RouteGoogle))
 	})
 }
 

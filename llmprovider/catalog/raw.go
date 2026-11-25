@@ -63,7 +63,7 @@ type RawModel struct {
 // (0043-MADR D5).
 //
 // It does none of List's curation: no usability filter, ranking, caveat or
-// static fallback; no models.dev fetch; no listing cache read or write, so
+// static fallback; no models.dev document read; no listing cache read or write, so
 // CachedFacts and CachedModel never see what it fetched; no de-duplication,
 // sorting or id rewriting. Its errors are returned, never degraded: a failed
 // page gives a zero RawListing and the classified error, naming the page, and

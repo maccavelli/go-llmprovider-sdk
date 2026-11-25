@@ -1043,3 +1043,17 @@ on the monotonic clock; "the time left" is the deadline less now.
 ## Release note (2026-11-22)
 
 `CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entry is under `Fixed`, with its consumer note kept. The probe's R3 second-half request in `llmprovider/live_raw_enter_0087_windows_test.go` says "type one letter", since the case ends on the letter; the owner-steps file is outside the repository and is the coordinator's.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): this record's "now" rows on files 0093's docs phase edited were re-checked; see the note below. The text above is unchanged.)*
+
+*(2026-11-24, from 0093-PLAN-take-model-metadata-from-the-caller.md's Phase 5: this record's "now" rows on a file 0093's Phase 4 edited were re-run with plain ids against a scratch clone's commit of the tree (`dc96bf0ce4e6`, 0093's build, uncommitted), and against `cfc911d`, its base. 9 fail there: 1 moved by 0093's build (1 found on a new line, 0 whose text 0093 rewrote), and 8 already failing at `cfc911d` (7 found on another line, 1 on none). Each row's text is now where this note says; the rows above are unchanged.)*
+
+* C21bnow (`wizard/configure.go:1051`): `wizard/configure.go:1067`; already failing at `cfc911d`
+* C21now (`wizard/configure.go:1018`): `wizard/configure.go:1034`; already failing at `cfc911d`
+* C24now (`wizard/configure.go:647`): `wizard/configure.go:650`; already failing at `cfc911d`
+* C25now (`wizard/configure.go:436`): `wizard/configure.go:439`; already failing at `cfc911d`
+* C26now (`wizard/configure.go:688`): `wizard/configure.go:691`; already failing at `cfc911d`
+* C36now (`docs/guides/api-standards.md:67`): `docs/guides/api-standards.md:74`; already failing at `cfc911d`
+* C42now (`docs/architecture.md:200`): `docs/architecture.md:204`; already failing at `cfc911d`
+* C43now (`docs/architecture.md:1495`): on no line; already failing at `cfc911d`
+* C47now (`AGENTS.md:286`): `AGENTS.md:289`; moved by 0093's build; re-placed 2026-11-24 (the review's notes closed)

@@ -1396,3 +1396,41 @@ changes.
 ## Release note (2026-11-22)
 
 `CHANGELOG.md`'s `[Unreleased]` became the `v1.32.0` section dated 2026-11-22 (R53: a section is dated by its tag's commit, so the date is re-checked by `make changelog-check` once the owner's commit exists); `[Unreleased]` is empty. `python3 -B tools/apidiff.py v1.31.0` lists additions only (`APIError.Tool`, `ErrToolSchemaRefused`, `x/signin.VerifyKilo`, `wizard.Options.NoBrowserQuestion`, `wizard.Options.NoLoopback`): a minor version. The tag is the owner's. This record's status stays as it is and goes to `complete` when the tag exists, its CI has passed, and `tools/consumer.py` and `tools/offline.py` are recorded (`tools/records.py status`). This record's entries are under `Changed` and `Fixed`.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): this record's "now" rows on files 0093's docs phase edited were re-checked; see the note below. The text above is unchanged.)*
+
+*(2026-11-24, from 0093-PLAN-take-model-metadata-from-the-caller.md's Phase 5: this record's "now" rows on a file 0093's Phase 4 edited were re-run with plain ids against a scratch clone's commit of the tree (`dc96bf0ce4e6`, 0093's build, uncommitted), and against `cfc911d`, its base. 33 fail there: 1 moved by 0093's build (1 found on a new line, 0 whose text 0093 rewrote), and 32 already failing at `cfc911d` (22 found on another line, 10 on none). Each row's text is now where this note says; the rows above are unchanged.)*
+
+* C1now (`wizard/configure.go:855`): on no line; already failing at `cfc911d`
+* C2now (`wizard/configure.go:856`): on no line; already failing at `cfc911d`
+* C3now (`wizard/configure.go:860`): on no line; already failing at `cfc911d`
+* C4now (`wizard/configure.go:862`): `wizard/configure.go:1039`; already failing at `cfc911d`
+* C5now (`wizard/configure.go:834`): on no line; already failing at `cfc911d`
+* C6now (`wizard/configure.go:563`): on no line; already failing at `cfc911d`
+* C7now (`wizard/configure.go:567`): `wizard/configure.go:695`; already failing at `cfc911d`
+* C8now (`wizard/configure.go:816`): on no line; already failing at `cfc911d`
+* C9now (`wizard/configure.go:823`): `wizard/configure.go:994`; already failing at `cfc911d`
+* C10now (`wizard/configure.go:841`): on no line; already failing at `cfc911d`
+* C11now (`wizard/configure.go:849`): `wizard/configure.go:1022`; already failing at `cfc911d`
+* C25now (`wizard/configure.go:348`): `wizard/configure.go:447`; already failing at `cfc911d`
+* C26now (`wizard/configure.go:726`): `wizard/configure.go:893`; already failing at `cfc911d`
+* C27now (`wizard/configure.go:515`): `wizard/configure.go:643`; already failing at `cfc911d`
+* C28now (`wizard/configure.go:560`): `wizard/configure.go:688`; already failing at `cfc911d`
+* C29now (`wizard/configure.go:550`): `wizard/configure.go:678`; already failing at `cfc911d`
+* C30now (`wizard/configure.go:802`): `wizard/configure.go:973`; already failing at `cfc911d`
+* C31now (`wizard/configure.go:804`): `wizard/configure.go:975`; already failing at `cfc911d`
+* C33now (`wizard/configure.go:332`): on no line; already failing at `cfc911d`
+* C45now (`llmprovider/providers/kilo/kilo.go:203`): `llmprovider/providers/kilo/kilo.go:234`; already failing at `cfc911d`
+* C46now (`llmprovider/providers/opencode/opencode.go:238`): `llmprovider/providers/opencode/opencode.go:291`; already failing at `cfc911d`
+* C47now (`llmprovider/providers/claude/claude.go:214`): `llmprovider/providers/claude/claude.go:256`; already failing at `cfc911d`
+* C48now (`README.md:84`): on no line; already failing at `cfc911d`
+* C49now (`README.md:434`): on no line; already failing at `cfc911d`
+* C50now (`docs/architecture.md:1249`): `docs/architecture.md:1374`; already failing at `cfc911d`
+* C51now (`docs/architecture.md:1223`): `docs/architecture.md:1342`; already failing at `cfc911d`
+* C52now (`docs/guides/adding-a-provider.md:282`): `docs/guides/adding-a-provider.md:301`; already failing at `cfc911d`
+* C53now (`CHANGELOG.md:12`): `CHANGELOG.md:18`; moved by 0093's build
+* C54now (`docs/guides/api-standards.md:318`): `docs/guides/api-standards.md:363`; already failing at `cfc911d`
+* C61now (`wizard/configure.go:398`): `wizard/configure.go:505`; already failing at `cfc911d`
+* C67now (`llmprovider/providers/claude/claude.go:213`): `llmprovider/providers/claude/claude.go:255`; already failing at `cfc911d`
+* C68now (`llmprovider/providers/kilo/kilo.go:205`): `llmprovider/providers/kilo/kilo.go:236`; already failing at `cfc911d`
+* C69now (`llmprovider/providers/opencode/opencode.go:240`): `llmprovider/providers/opencode/opencode.go:293`; already failing at `cfc911d`

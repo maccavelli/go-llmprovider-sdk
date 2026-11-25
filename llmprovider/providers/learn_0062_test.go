@@ -150,8 +150,8 @@ func TestLearn_Effort_0062(t *testing.T) {
 		name := string(tc.id) + "/" + tc.model
 		build := func(srv *learnServer, more ...llmprovider.Option) llmprovider.Provider {
 			opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
-				testCache(t)}, tc.opts...)
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
+				testCache(t), extractDoc()}, tc.opts...)
 			p, err := New(tc.id, append(opts, more...)...)
 			if err != nil {
 				t.Fatalf("%s: %v", name, err)
@@ -272,8 +272,8 @@ func TestLearn_Shape_0062(t *testing.T) {
 		tc.refused.Model = tc.model
 		build := func(srv *learnServer, more ...llmprovider.Option) llmprovider.Provider {
 			opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
-				testCache(t)}, tc.opts...)
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
+				testCache(t), extractDoc()}, tc.opts...)
 			p, err := New(tc.id, append(opts, more...)...)
 			if err != nil {
 				t.Fatalf("%s: %v", name, err)
@@ -319,7 +319,7 @@ func TestLearn_Shape_0062(t *testing.T) {
 	// Both shapes refused: the second refusal is returned, after two sends.
 	both := newLearnServer(t, refusedAdaptive, refusedBudget)
 	p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-x"),
-		llmprovider.WithBaseURL(both.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+		llmprovider.WithBaseURL(both.URL), llmprovider.WithModelProbes(false), testCache(t), extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,8 +334,8 @@ func TestLearn_Shape_0062(t *testing.T) {
 	// A stream learns before its first event.
 	streamed := newLearnServer(t, refusedAdaptive)
 	sp, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-sonnet-4-5-20250929"),
-		llmprovider.WithBaseURL(streamed.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
-		testCache(t))
+		llmprovider.WithBaseURL(streamed.URL), llmprovider.WithModelProbes(false),
+		testCache(t), extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,8 +376,8 @@ func TestProbeReasoning_Provider_0062(t *testing.T) {
 	} {
 		srv := newLearnServer(t, tc.refusals...)
 		p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-default"),
-			llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
-			testCache(t))
+			llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
+			testCache(t), extractDoc())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -394,7 +394,7 @@ func TestProbeReasoning_Provider_0062(t *testing.T) {
 
 	both := newLearnServer(t, refusedAdaptive, refusedBudget)
 	p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-x"),
-		llmprovider.WithBaseURL(both.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+		llmprovider.WithBaseURL(both.URL), llmprovider.WithModelProbes(false), testCache(t), extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}

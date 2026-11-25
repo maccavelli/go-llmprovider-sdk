@@ -59,7 +59,7 @@ func TestLive_OllamaWritesText_0042(t *testing.T) {
 		shows[tag.Name] = info
 	}
 	cat, err := List(ctx, llmprovider.ProviderOllama, llmprovider.NewStaticToken(""),
-		llmprovider.WithBaseURL(liveOllamaURL), llmprovider.WithoutModelMetadata())
+		llmprovider.WithBaseURL(liveOllamaURL))
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

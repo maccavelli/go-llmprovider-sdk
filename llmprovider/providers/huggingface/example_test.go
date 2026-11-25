@@ -27,7 +27,6 @@ func ExampleNew() {
 	p, err := huggingface.New(
 		llmprovider.WithAPIKey("your-api-key"),
 		llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(),
 	)
 	if err != nil {
 		fmt.Println(err)

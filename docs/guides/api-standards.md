@@ -108,9 +108,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   thinking shape and its budget bounds, the efforts or levels a model
   takes, and the Chat Completions field that reasoning is replayed under.
   The facts are the caller's layers, then the provider's listing, then
-  models.dev, read only from what is cached (`catalog.CachedFacts`). A
-  request never waits for them or fetches them. Without them, and with
-  `WithoutModelMetadata`, the request decides. A model's refusal of an
+  the models.dev document given to the provider's `New` with
+  `catalog.WithMetadata`, read only from that document and what is cached
+  (`catalog.CachedFacts`). A request never waits for them or fetches them.
+  Without them, and with no document, the request decides (0093 D2, Q4). A model's refusal of an
   effort or a thinking shape, learned, outranks the facts and the request.
   (0041 D1, D2, A3; 0062 D2, D3)
   The output limit follows R57. `MaxOutputTokens` is sent as given; a
@@ -119,12 +120,13 @@ tool that holds a rule, where one does. For how the code is laid out, read
   (0088 ST4). With neither, a Messages route (Claude, OpenCode's messages
   route), whose wire requires a limit, sends the model's output limit as
   `catalog.CachedLimits` states it: the caller's layers, then the service,
-  then the registry (the fetched models.dev document, then the SDK's
-  embedded extract), then a cap passed back with `WithLimitObservations`,
+  then the registry (a layer named "models.dev", then the document given
+  to `New`; the SDK embeds none, 0093 D7), then a cap passed back with `WithLimitObservations`,
   held to the stated window and to a cap the service stated; where none is
   stated, the smallest limit of the route's current models, and where none
   of those is either, `ErrInvalidRequest` before sending. Kilo sends its
-  stated output limit (0089 DL65, measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated); every other
+  stated output limit (0089 DL65, measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated), and none when nothing
+  states one (0093 D8, Q2); every other
   wire sends none, so the service's own default applies. A limit the SDK
   chose, the stated limit or the route's smallest, is held to the room the
   stated window (else the stated input limit) leaves the request's input,
@@ -211,14 +213,15 @@ tool that holds a rule, where one does. For how the code is laid out, read
   (0016 D2, A6)
 - **R17. Options live where they apply.** The common ones (model, HTTP client,
   base URL, logger, client identity, session id, max tokens, default
-  reasoning, listing probes, the model metadata URL and turning its fetch
-  off) are in `llmprovider`. A
+  reasoning and listing probes) are in `llmprovider`; the model metadata
+  URL and turning its fetch off went with the fetch (0093 D10). A
   provider-specific one is in its provider's package, for example
   `kilo.WithOrganization`; one that several ids of a family take is scoped
   to all of them, as `opencode.WithRoute` is to both gateways. One that every
   provider takes, whatever its id, is a shared option
   (`llmprovider.SharedOption`), as `catalog.WithCache`,
-  `catalog.WithModelLayer` and `chatcompat.WithID` are. (0015 D5, and its
+  `catalog.WithModelLayer`, `catalog.WithMetadata` (0093 D1) and
+  `chatcompat.WithID` are. (0015 D5, and its
   amendment "the OpenCode family"; 0061, amendments "Phase 4's options" and
   "E2 and E4's menu, made exact before Phase 4c")
 - **R18. A foreign option is an error from `New`,** never ignored, unless
@@ -282,7 +285,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   variable names is returned as a copy by a function. Error sentinels are
   the only exported package-level variables. (0015 D9)
 - **R30. Library code reads no environment variable.** A caller that wants the
-  environment calls an opt-in helper, such as `catalog.OptionsFromEnv()` or
+  environment calls an opt-in helper, such as `llmprovider.ModelProbesFromEnv()` or
   `auth.GrokFlowFromEnv()`: an exported function whose name ends `FromEnv`.
   The one other exemption is `http.ProxyFromEnvironment` on the default
   transport, which is the standard library's read. `internal/ambientcheck`
@@ -330,7 +333,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R41. Every exported identifier has a doc comment,** and every package a
   package comment. `golangci-lint`'s `revive` rules check both. (0015 D13)
 - **R42. Deprecation is `Deprecated:`** in the doc comment. The identifier stays
-  until a major version. (0015 D13)
+  until a major version. (0015 D13) *(2026-11-24: one recorded exception:
+  v1.33.0 removes eight v1 names, by
+  [0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md)
+  D10 and its Q1.)*
 - **R43. An API change updates the user docs in the same change:**
   [migrating-from-mcplib.md](migrating-from-mcplib.md) for anything that
   replaces an `mcplib` identifier, and `docs/architecture.md` for layout.
@@ -356,7 +362,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   with S7b, and its amendment "the coverage of a test-support package")
 - **R48. From `v1.0.0`, every non-internal package outside `llmprovider/x/` is
   under the compatibility promise,** and `apidiff` against the latest `v1.*`
-  tag fails an incompatible change. (0015 D13)
+  tag fails an incompatible change. (0015 D13) *(2026-11-24: one recorded
+  exception, 0093 D10 and Q1: against `v1.32.0`, `make api-check` accepts
+  exactly the eight removals that record names; any other incompatible
+  change still fails.)*
 
 ## Go SDK practice
 
@@ -365,8 +374,8 @@ These rules are
 ("0048 D*n*"), which measured the module against Go SDK practice.
 
 - **R49. A caller can own the caches.** What the catalog and the providers
-  keep in memory between calls, the listings and their models' metadata, the
-  models.dev document, the models that answered a probe and the models a
+  keep in memory between calls, the listings and their models' metadata,
+  the models that answered a probe and the models a
   provider learned refuse a forced tool choice (0034 D3), is held in a
   `catalog.Cache`: its zero value is ready, and it is safe for concurrent
   use. `catalog.WithCache` gives one to a listing or to a provider's `New`,
@@ -376,7 +385,9 @@ These rules are
   replace. `Close` ends a `Cache`'s life: it stops new background work and
   waits for running work. The process's cache has no lifetime. Background
   work a new cache starts is counted on the cache, under the lock its start
-  takes, so that `Close` waits for it. (0048 D1 and its A5; 0049 D3; 0071 D1)
+  takes, so that `Close` waits for it. It holds no models.dev document: a
+  caller hands one in with `catalog.WithMetadata`. (0048 D1 and its A5;
+  0049 D3; 0071 D1; 0093 D2)
 - **R50. Every public package has an example** that runs offline, over
   `llmtest.Fake` or `httptest`, with an `// Output:` comment, so that `go
   test` runs it. The package comments of `llmprovider`, `providers` and

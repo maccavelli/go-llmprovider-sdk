@@ -70,8 +70,9 @@ func hasListingLayer(id llmprovider.ProviderID, cfg config) bool {
 
 // LookupModel returns what is known of model, merged field by field from its
 // layers: the caller's (WithModelLayer), the provider's listing when src is
-// not nil, and models.dev unless WithoutModelMetadata turns it off
-// (0033-MADR D2, D3). It fetches what it needs, bounded as a listing is (R40).
+// not nil, and the models.dev document WithMetadata hands in, when one is
+// (0033-MADR D2, D3; 0093-MADR D2, D5). It fetches the listing it needs,
+// bounded as a listing is (R40), and never a document.
 // provider is a built-in's id, or a chatcompat provider's that opts name with
 // chatcompat.WithID, whose listing is its one layer besides the caller's
 // (0061-MADR, amendment "chatcompat, provider-agnostic", E1); any other is
@@ -98,13 +99,8 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	var errs []error
 	var dev, lst ModelInfo
 	var devOK, lstOK bool
-	if !cfg.metadataOff {
-		doc, err := loadModelMetadata(ctx, cfg)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			dev, devOK = Metadata{doc: doc}.modelFor(cfg, id, model)
-		}
+	if m, ok := cfg.document(); ok {
+		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if nilsource.Is(src) {
 		errs = append(errs, fmt.Errorf("model metadata: listing %s: %w: a nil %T is not a TokenSource", id,
@@ -118,9 +114,10 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	return mergeLayers(id, model, cfg.layers, dev, devOK, lst, lstOK), errors.Join(errs...)
 }
 
-// CachedModel is LookupModel without the wait: what the caches and the
-// caller's layers hold now, and whether anything is known of model. It starts
-// any fetch that is missing or stale, so a later call finds it. It asks src
+// CachedModel is LookupModel without the wait: what the caches, the
+// caller's layers and its document hold now, and whether anything is known
+// of model. It starts any listing fetch that is missing or stale, so a later
+// call finds it. It asks src
 // for its token as the source gives it.
 // Before it asks src for its token, it gives a session WithClientInfo's name, as List does (0079-MADR D4).
 // A typed-nil src, such as a nil
@@ -134,7 +131,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	}
 	var dev, lst ModelInfo
 	var devOK, lstOK bool
-	if m, ok := cachedMetadata(ctx, cfg); ok {
+	if m, ok := cfg.document(); ok {
 		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if src != nil && !nilsource.Is(src) && hasListingLayer(id, cfg) {
@@ -156,10 +153,10 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // read of model at request time (0041-MADR D1). It merges, field by field,
 // the caller's layers, a listing a List or ListModels call already read for
 // the provider, base URL and credential opts give, where no base URL is the
-// provider's default (0041-MADR A8), and the cached models.dev
-// document, and reports whether anything is known of model. It starts no
-// fetch: catalog.List, ListModels and LookupModel warm the caches it reads
-// (0041-MADR A3). WithoutModelMetadata leaves the document out. It asks the
+// provider's default (0041-MADR A8), and the models.dev document opts hand
+// in with WithMetadata, and reports whether anything is known of model. It
+// starts no fetch: catalog.List, ListModels and LookupModel warm the listing
+// it reads (0041-MADR A3). It asks the
 // credential opts give for its token, to find the listing: a provider passes
 // its request's own token, as WithAPIKey(token.Value) after its options, so
 // that its token source is not asked a second time.
@@ -172,7 +169,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 	}
 	var dev, lst ModelInfo
 	var devOK, lstOK bool
-	if m, ok := peekMetadata(cfg); ok {
+	if m, ok := cfg.document(); ok {
 		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if cfg.tokens != nil && hasListingLayer(id, cfg) {

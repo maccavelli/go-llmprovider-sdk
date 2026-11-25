@@ -12,7 +12,6 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from llmprovider's opencode_metadata_route_test.go (0015-PLAN S7).
@@ -92,7 +91,7 @@ func routeServerAt(t *testing.T, addr string, gateway llmprovider.ProviderID, mo
 // generatePath runs one Generate and returns the single request path it sent.
 func generatePath(t *testing.T, srv *httptest.Server, paths func() []string, gateway llmprovider.ProviderID, model string, opts ...llmprovider.Option) string {
 	t.Helper()
-	opts = append([]llmprovider.Option{llmprovider.WithModelMetadataURL(srv.URL + "/api.json")}, opts...)
+	opts = append([]llmprovider.Option{servedDoc(t, srv.URL+"/api.json")}, opts...)
 	if _, err := build(t, gateway, apiKey(srv.URL, model, opts...)...).Generate(context.Background(), text("hi")); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -114,28 +113,26 @@ func TestOpencode_RoutesFromMetadata(t *testing.T) {
 		model   string
 		npm     string
 		want    string
+		opts    []llmprovider.Option
 	}{
-		{"anthropic", goGW, "brand-new-model", "@ai-sdk/anthropic", "/messages"},
-		{"openai", goGW, "brand-new-model", "@ai-sdk/openai", "/responses"},
+		// The served document states no limit, and the messages route
+		// requires one: the test gives it (0093-MADR D12 (f), MH59).
+		{"anthropic", goGW, "brand-new-model", "@ai-sdk/anthropic", "/messages", []llmprovider.Option{llmprovider.WithMaxTokens(1024)}},
+		{"openai", goGW, "brand-new-model", "@ai-sdk/openai", "/responses", nil},
 		// A Generate that names no limit is read over the route's stream
 		// (0088-MADR ST88, ST88e).
-		{"google", zen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:streamGenerateContent"},
-		{"compatible", goGW, "brand-new-model", "@ai-sdk/openai-compatible", "/chat/completions"},
-		{"unset", goGW, "brand-new-model", "", "/chat/completions"},
+		{"google", zen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:streamGenerateContent", nil},
+		{"compatible", goGW, "brand-new-model", "@ai-sdk/openai-compatible", "/chat/completions", nil},
+		{"unset", goGW, "brand-new-model", "", "/chat/completions", nil},
 		// The table says messages; the metadata wins.
-		{"over table", goGW, "minimax-m3", "@ai-sdk/openai-compatible", "/chat/completions"},
+		{"over table", goGW, "minimax-m3", "@ai-sdk/openai-compatible", "/chat/completions", nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, paths := routeServer(t, tc.gateway, tc.model, tc.npm, true)
-			// The document is cached first: a cold cache routes a model the
-			// table knows by the table (0028-MADR D-A1; 0028-PLAN Phase 6,
-			// step 3).
-			if _, err := catalog.LookupMetadataWith(context.Background(), tc.gateway,
-				llmprovider.WithModelMetadataURL(srv.URL+"/api.json"), testCache(t)); err != nil {
-				t.Fatalf("warming the metadata cache: %v", err)
-			}
-			if got := generatePath(t, srv, paths, tc.gateway, tc.model); got != tc.want {
+			// The served document is handed to New and read at once
+			// (0093-MADR D2, D6).
+			if got := generatePath(t, srv, paths, tc.gateway, tc.model, tc.opts...); got != tc.want {
 				t.Errorf("path = %q, want %q", got, tc.want)
 			}
 		})
@@ -155,15 +152,19 @@ func TestOpencode_RouteOverrideBeatsMetadata(t *testing.T) {
 // that does not list the model, leaves the table's route.
 func TestOpencode_RouteWithoutMetadataUsesTable(t *testing.T) {
 	t.Run("absent from document", func(t *testing.T) {
+		// The served document states no limit, and the messages route
+		// requires one: the test gives it (0093-MADR D12 (f), MH59).
 		srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "minimax-m3", "", false)
-		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
+		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3", llmprovider.WithMaxTokens(1024)); got != "/messages" {
 			t.Errorf("path = %q, want the table's /messages", got)
 		}
 	})
 	t.Run("disabled", func(t *testing.T) {
+		// The served document is dropped by a later one (0093-MADR MH3): the
+		// extract fixture, what a request read with the document off before
+		// 0093 (D12, MH55).
 		srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "minimax-m3", "@ai-sdk/openai-compatible", true)
-		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3",
-			llmprovider.WithoutModelMetadata()); got != "/messages" {
+		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3", extractDoc()); got != "/messages" {
 			t.Errorf("path = %q, want the table's /messages", got)
 		}
 	})

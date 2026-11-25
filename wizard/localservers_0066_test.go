@@ -79,7 +79,7 @@ func listing0066(key string, ids ...string) portReply0066 {
 // in t's own cache.
 func localOptions0066(t *testing.T, p *ports0066) Options {
 	return Options{LocalServers: true, Discover: true, HTTPClient: &http.Client{Transport: p},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // menuLabels0066 is the first menu's labels.

@@ -97,7 +97,7 @@ func TestLimitRefusal_WindowForms_0089(t *testing.T) {
 	} {
 		srv := newLimitServer(t, "", refuseFirst(chatError(tc.refusal), wirecase.ChatReply))
 		cache := new(catalog.Cache)
-		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
 			llmprovider.WithModelProbes(false), catalog.WithCache(cache), llmprovider.WithBaseURL(srv.URL),
 			llmprovider.WithModel(tc.model)}, tc.opts...)
 		p, err := New(tc.id, opts...)
@@ -164,7 +164,7 @@ func TestLimitRefusal_CallerLimit_0089(t *testing.T) {
 		srv := newLimitServer(t, "", refuseFirst(messagesError("max_tokens: "+tc.sent+
 			" > 128000, which is the maximum allowed number of output tokens for "+model), wirecase.MessagesReply))
 		cache := new(catalog.Cache)
-		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
 			llmprovider.WithModelProbes(false), catalog.WithCache(cache), llmprovider.WithBaseURL(srv.URL),
 			llmprovider.WithModel(model)}, tc.opts...)
 		p, err := New(llmprovider.ProviderClaude, opts...)
@@ -202,7 +202,7 @@ func TestLimitMemo_Concurrent_0089(t *testing.T) {
 		return http.StatusOK, wirecase.MessagesReply
 	})
 	cache := new(catalog.Cache)
-	opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+	opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), extractDoc(),
 		llmprovider.WithModelProbes(false), catalog.WithCache(cache), llmprovider.WithBaseURL(srv.URL),
 		llmprovider.WithModel(model)}
 	p, err := New(llmprovider.ProviderClaude, opts...)
@@ -268,7 +268,7 @@ func TestLimitLearning_Default_0089(t *testing.T) {
 	refusal := messagesError("max_tokens: 128000 > 64000, which is the maximum allowed number of output tokens for " + model)
 	for _, off := range []bool{false, true} {
 		srv := newLimitServer(t, "", refuseFirst(refusal, wirecase.MessagesReply))
-		opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+		opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), extractDoc(),
 			llmprovider.WithModelProbes(false), catalog.WithCache(new(catalog.Cache)), llmprovider.WithBaseURL(srv.URL),
 			llmprovider.WithModel(model)}
 		if off {

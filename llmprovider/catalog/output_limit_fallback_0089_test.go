@@ -72,32 +72,35 @@ func fallbackRefusal(msg string) string {
 
 // TestOutputLimit_Fallback_0089 (OQ2 (1): DL50, DL51, DL77; 0088-MADR ST11,
 // ST12, ST34, ST54): a request never waits for a listing: on a fresh cache
-// it reads the embedded extract; a model no source states takes the
+// it reads the document it was given, here the extract fixture (0093-MADR
+// D12); a model no source states takes the
 // smallest limit any current model on the route is stated to take, basis
 // fallback, the retired not counted; a refusal stating its cap resends at
 // it, and one stating no number is returned; on OpenCode's messages route
 // the fallback counts only the models the shared route table sends there;
 // and where no source states any limit, the request is refused before the
 // network, saying how to state one. It is in catalog's external test
-// package, which can build the Claude and OpenCode providers and replace
-// the extract (0089-PLAN, annotated 2026-11-23).
+// package, which can build the Claude and OpenCode providers (0089-PLAN,
+// annotated 2026-11-23).
 func TestOutputLimit_Fallback_0089(t *testing.T) {
 	ctx := context.Background()
 	hi := func() *llmprovider.Request {
 		return &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}}}
 	}
 	base := func(url string, cache *catalog.Cache, model string) []llmprovider.Option {
-		return []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+		return []llmprovider.Option{llmprovider.WithAPIKey("k"),
 			llmprovider.WithModelProbes(false), catalog.WithCache(cache), llmprovider.WithBaseURL(url), llmprovider.WithModel(model)}
 	}
 	ok := func(int) (int, string) { return http.StatusOK, fallbackOK }
+
+	fixture := catalog.WithMetadata(catalog.ExtractFixture(t))
 
 	// (1) A fresh cache: the first request reads the extract, and sends no
 	// listing request.
 	listing := `{"data":[{"id":"claude-haiku-4-5","max_tokens":32000},{"id":"claude-sonnet-fb-0089","max_tokens":64000},` +
 		`{"id":"claude-opus-fb-0089","max_tokens":128000}],"has_more":false}`
 	fresh := newFallbackServer(t, listing, ok)
-	p, err := claude.New(base(fresh.URL, new(catalog.Cache), "claude-opus-4-6")...)
+	p, err := claude.New(append(base(fresh.URL, new(catalog.Cache), "claude-opus-4-6"), fixture)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +110,7 @@ func TestOutputLimit_Fallback_0089(t *testing.T) {
 		t.Errorf("a fresh cache: sent %v, %d listing request(s), err %v; want 128000 from the extract, no listing request",
 			sent, lists, err)
 	}
-	if want := "models.dev (bundled 2026-10-12)"; err == nil && (resp.OutputLimit.Basis != llmprovider.LimitBasisFact ||
+	if want := "models.dev"; err == nil && (resp.OutputLimit.Basis != llmprovider.LimitBasisFact ||
 		resp.OutputLimit.Source != want) {
 		t.Errorf("a fresh cache: OutputLimit = %+v; want basis fact from %s", resp.OutputLimit, want)
 	}
@@ -171,7 +174,7 @@ func TestOutputLimit_Fallback_0089(t *testing.T) {
 	} {
 		srv := newFallbackServer(t, "", ok)
 		p, err := gw.build(append(base(srv.URL, new(catalog.Cache), "claude-unlisted-0089"),
-			opencode.WithRoute(opencode.RouteMessages))...)
+			opencode.WithRoute(opencode.RouteMessages), fixture)...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +187,6 @@ func TestOutputLimit_Fallback_0089(t *testing.T) {
 
 	// (4) No source states any limit for the model or the route's models:
 	// refused before the network, saying how to state one (DL51).
-	catalog.ReplaceExtract(t, `{"date":"2026-10-12","sections":{}}`)
 	srv := newFallbackServer(t, "", ok)
 	p, err = opencode.NewZen(append(base(srv.URL, new(catalog.Cache), "claude-nosource-0089"),
 		opencode.WithRoute(opencode.RouteMessages))...)

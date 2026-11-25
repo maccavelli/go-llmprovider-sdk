@@ -176,7 +176,7 @@ func TestDeferral_PerProvider_0040(t *testing.T) {
 		t.Run(string(tc.id)+"/"+tc.model, func(t *testing.T) {
 			provider := func(srv *wiretest.Server) llmprovider.Provider {
 				p, err := New(tc.id, llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL),
-					llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false))
+					llmprovider.WithModelProbes(false), extractDoc())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -263,7 +263,7 @@ func TestAppend_PreviousResponseID_0040(t *testing.T) {
 	} {
 		srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 		p, err := New(tc.id, append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-			llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false)}, tc.opts...)...)
+			llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false)}, tc.opts...)...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -299,7 +299,7 @@ func TestDeferral_NoWarningWithoutDeferral_0040(t *testing.T) {
 	} {
 		srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 		p, err := New(tc.id, llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL),
-			llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false))
+			llmprovider.WithModelProbes(false), extractDoc())
 		if err != nil {
 			t.Fatal(err)
 		}

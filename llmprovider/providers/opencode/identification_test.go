@@ -78,7 +78,7 @@ func TestOpencode_ClientInfoAndSession(t *testing.T) {
 func TestOpencode_ListingCarriesSession(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(rec.srv.URL, "glm-5.3-flash",
-		llmprovider.WithModelMetadataURL(rec.srv.URL+"/api.json"))...)
+		servedDoc(t, rec.srv.URL+"/api.json"))...)
 	if _, err := list(t, p); err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}

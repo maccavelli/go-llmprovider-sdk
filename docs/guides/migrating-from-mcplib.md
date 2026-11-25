@@ -31,7 +31,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
   revocation.
 - **Environment (§6).** `MCPLIB_*` variables are now `LLMPROVIDER_*`.
   Since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S10 the library reads none of them by itself:
-  - pass `catalog.OptionsFromEnv()` for the metadata variables;
+  - the metadata variables have no effect since v1.33.0: download a
+    models.dev document and hand it in with `catalog.WithMetadata`
+    ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md));
   - pass `auth.GrokFlowFromEnv()` for `GROK_OAUTH2_ISSUER` and
     `GROK_OAUTH2_CLIENT_ID`;
   - pass `os.Getenv` as the wizard's `Options.LookupEnv`.
@@ -290,7 +292,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderConfig.KiloDataCollection` | `kilo.WithDataCollection` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ProviderConfig.KiloOrganization` | `kilo.WithOrganization`, `catalog.WithKiloOrganization` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, commit 2. |
 | `llmprovider.ProviderConfig.MaxTokens` | `Settings.MaxTokens` | Set with `WithMaxTokens`. |
-| `llmprovider.ProviderConfig.ModelMetadataURL` | `Settings.ModelMetadataURL` | Set with `WithModelMetadataURL`. |
+| `llmprovider.ProviderConfig.ModelMetadataURL` | `catalog.WithMetadata` | The SDK fetches no document since v1.33.0: hand in a parsed one ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md) D10). |
 | `llmprovider.ProviderConfig.ModelProfile` | `catalog.WithProfile` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, commit 2. |
 | `llmprovider.ProviderConfig.OpencodeRoute` | `opencode.WithRoute` | Removed with the old provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.ProviderConfig.ReasoningEffort` | `Reasoning.Effort` | Through `WithReasoning` or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
@@ -392,7 +394,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithKiloOrganization` | `kilo.WithOrganization`, and `catalog.WithKiloOrganization` for a listing | `kilo`'s `ListModels` passes its organization on ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.WithMaxTokens` | `WithMaxTokens` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. |
-| `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
+| `llmprovider.WithModelMetadataURL` | `catalog.WithMetadata` | Removed in v1.33.0: the SDK fetches no document; download one, read it with `catalog.ParseMetadata` and hand it in ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md) D10). |
 | `llmprovider.WithModelProfile` | `catalog.WithProfile` | Every built-in provider's `New` takes it; the open catalogs rank with it. |
 | `llmprovider.WithOpencodeRoute` | `opencode.WithRoute` | Scoped to both gateways ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithReasoningEffort` | `WithReasoning(&Reasoning{Effort: …})` | Or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |

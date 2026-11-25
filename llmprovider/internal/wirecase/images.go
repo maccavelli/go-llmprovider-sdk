@@ -61,7 +61,7 @@ func Images(t *testing.T, c Case, check ImageCheck) {
 	run := func(name string, body func(*testing.T, llmprovider.Provider, func() []wiretest.Request), facts ...llmprovider.Option) {
 		t.Run(c.Name+"/"+name, func(t *testing.T) {
 			srv := wiretest.NewServer(t, c.Reply)
-			p, err := c.Build(srv.URL, append([]llmprovider.Option{llmprovider.WithoutModelMetadata()}, facts...)...)
+			p, err := c.Build(srv.URL, facts...)
 			must(t, err)
 			body(t, p, func() []wiretest.Request { return posts(srv.Requests()) })
 		})

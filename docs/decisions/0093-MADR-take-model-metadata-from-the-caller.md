@@ -26,6 +26,17 @@ of D3, D7, D12, MH4, MH11, MH23, MH32 and MH43. No row is open; the record is `p
 
 *(2026-11-24, accepted. Owner ruling, quoted exactly, given for this MADR and its PLAN together: "Accept; approve; build next (Recommended)".)*
 
+*(2026-11-24, amendment A1, after the build's Phase 0 stopped on two findings (0093-PLAN's execution record, "Phase 0,
+pass 1"). The owner's rulings, quoted exactly, relayed by the coordinator: on the OpenCode route, "Limits plus OpenCode's
+route field (Recommended)"; on the listing goldens, "Regenerate the 5 goldens (Recommended)", chosen over keeping them so
+that the goldens show listings ranked by the document, as a real caller (gobble) sees them. D12 and MH55 are annotated, D12
+gains (e), and MH58 is added; the text they had stands above each annotation.)*
+
+*(2026-11-24, amendment A2, after the build's Phase 2 stopped on three cases the record did not decide and put four of its
+applications up for review (0093-PLAN's execution record, "pass 1 continuing, second run"). The owner's answers, quoted
+exactly, relayed by the coordinator, are in "Owner questions at the build's second stop" below. D12 gains (f) and (g),
+MH30 is annotated, and MH59 to MH61 are added; the text they had stands above each annotation.)*
+
 ## Context and Problem Statement
 
 The SDK downloads a models.dev-format document itself. By default it reads `https://models.opencode.ai/api.json` (C1), once
@@ -56,6 +67,18 @@ Each is the owner's, relayed by the coordinator, its label quoted as given.
 | Q2. A cold request on a wire that requires an output limit, now the extract is gone | "Refuse required, Kilo sends none (Recommended)" | (1): a cold Claude or OpenCode messages-route request is refused before sending, its message naming `WithMaxTokens` or `catalog.WithMetadata` as the fix; a cold Kilo request sends no limit | MH18, MH19, MH51 |
 | Q3. models.dev-derived data that stays in the module (F6) | "Keep both, add the MIT notice (Recommended)" | (1): the route table and the test fixtures stay; a `NOTICE` and `LICENSE.models.dev` are added | MH25, MH55 (its fixture) |
 | Q4 (new, after review). Whether a provider's requests read a document handed only to a lookup | "Requests read only New's document (Recommended)"; and, of gobble's provider, "for both 0093 and here, i want to hand to provider.New" | a request reads only the document given to its provider's `New`; a lookup never warms a request; `LookupLimits`' doc comment (`limits.go:139-141`) is corrected | MH21, MH53, MH54; MH47's cross-reference |
+
+### Owner questions at the build's second stop, answered (2026-11-24, A2)
+
+Put by the coordinator in one prompt, each with three resolutions as 0093-PLAN's entry "pass 1 continuing, second run"
+states them; each answer quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| A. Two route tests that serve their own document (no limit in it) and read the extract for their request's limit: `TestOpencode_RoutesFromMetadata/anthropic` and `TestOpencode_RouteWithoutMetadataUsesTable/absent_from_document` | "Give them WithMaxTokens (Recommended)" | (1): each gives an output limit with `WithMaxTokens`; its served document and its path assertion are unchanged; D12 gains (f) naming them | MH59; D12 (f) |
+| B. Served tests whose assertion counted the fetch, met by `servedDoc`'s own read: `wizard`'s `TestConfigureLLM_ProviderOptionsReachTheListing`, and the `metaHits` assertion of `TestListModels_HonoursTheMetadataURLOption` in `opencode`, `huggingface` and `together` | "Delete as fetch tests (Recommended)" | (1): the count is an observation of the fetch and goes with it: the wizard test is deleted (0015-PLAN S10; MH22 holds `ProviderOptions` reaching the listing) and the three assertions (0013-MADR A4); the three provider tests keep their ListModels-against-catalog comparison under a name for the handed document | MH60; MH30 |
+| C. `TestCachedModel_NeverWaits_0033`'s cold call, "ok false", which MH15 contradicts once the document is handed in | "Cold call hands in no document (Recommended)" | (1): the cold call hands in no document, keeping 0033's "a cold lookup never waits" (false within 50 ms); the later calls hand it in; MH15 keeps its own test; D12 gains (g) | MH61; D12 (g) |
+| D. Four applications of the record put up for review: Claude's `TestListModels_DefaultBaseShape_0041`, `claude.ExampleNew`, `TestOpencode_RouteWithoutMetadataUsesTable/disabled` and `TestListRaw_NoSideEffects_0041` | "Accept, noted in the PLAN (Recommended)" | accepted as applications of MH55, D3, MH3 and MH29, as 0093-PLAN's list states them; the list is annotated there; no row changes | none new (MH3, MH29, MH55 as written) |
 
 ### Facts read at b2917f0
 
@@ -215,6 +238,21 @@ the caller's data in the SDK's state, which D2 takes out of R49. D keeps the SDK
   on purpose and asserted the extract's value now asserts MH16's, MH17's, MH18's or MH51's outcome; (d) `limitmemo`'s
   fallback cases go with the note (MH53). `AGENTS.md`'s test rule and `localonly`'s message say a test serves its own replies
   and hands in a document when it needs one.
+  *(Amended 2026-11-24, A1. The fixture also carries, in its `opencode` and `opencode-go` sections, `provider.npm` for each
+  model BASE's route table or heuristic routes off chat completions (73 entries: `@ai-sdk/anthropic` for messages,
+  `@ai-sdk/openai` for responses, `@ai-sdk/google` for Google; none for chat completions), so that OpenCode routes every
+  model as BASE did with no document (D6) and every request golden holds; the script that writes it checks both the limits
+  and the routes against BASE. And (e): the five listing goldens `claude/listing.json` and
+  `opencode-zen-{responses,messages,google,chat}/listing.json` are regenerated with the fixture handed in, their `result`
+  the document's ranking (D5, MH11); `tools/goldendiff.py --rev BASE` takes them as a named exception, a change to their
+  `result` only, and nothing else may differ (MH58). The no-document listing path stays held by MH11's ranking tests.)*
+  *(Amended 2026-11-24, A2. (f): `TestOpencode_RoutesFromMetadata/anthropic` and
+  `TestOpencode_RouteWithoutMetadataUsesTable/absent_from_document` serve a document with no limit in it and send a
+  request on OpenCode's messages route, which read the extract's limit at BASE; a call has one document (D2), so each gives
+  `WithMaxTokens`, its served document and its path assertion unchanged (MH59, question A). (g): the cold call of
+  `TestCachedModel_NeverWaits_0033` hands in no document, its expectation "ok false within 50 ms" unchanged; its later
+  calls hand the served document in (MH61, question C). A served test's assertion that counted the fetch is a test of the
+  fetch, and goes as the third sentence says (MH60, question B).)*
 * **D13. Tools and gates.** `tools/offline.py`'s program hands the document in with `WithMetadata` and nothing else; its
   plants become "no document handed in" and "a listing asked for"; for a `VERSION` before `v1.33.0` it exits 2, naming the
   revision whose copy of the tool checks that tag (b2917f0). `tools/cachecensus.py` drops its metadata anchor.
@@ -284,7 +322,7 @@ row's plant is the PLAN's, one to one; the test named first is the row's red tes
 | MH27 | The two environment variables | decided | no non-test Go file names them | `TestNoMetadataEnv_0093` | D10 |
 | MH28 | Tests that only turned the fetch off | decided | the option deleted, nothing else changed | the PLAN's diff check | D12 |
 | MH29 | Tests that served a document by URL | decided | the same bytes parsed and handed in; expectations unchanged | their own names; the PLAN's diff check | D12 |
-| MH30 | Tests of the fetch itself | decided | deleted with it, each named in the PLAN with the record row it pinned | the PLAN's before-and-after test list | D12 |
+| MH30 | Tests of the fetch itself | decided | deleted with it, each named in the PLAN with the record row it pinned *(A2: the list gains one test and three assertions, MH60)* | the PLAN's before-and-after test list | D12 |
 | MH31 | Tests that name the extract | decided | MH55's fixture handed in; their expected values change only as D12 (a) to (c) say | their own names | D12 |
 | MH32 | Live tests that rely on a document | decided | Phase 0 names each live assertion that needs one, with the fixture it will hand in, and checks the fixture's value against the assertion by hand (no live run unless the owner asks); a live test that needs none hands in none | the Phase 0 table; `go vet -tags live_gateways ./...` | D12 |
 | MH33 | Coverage | decided | no package below its floor (R47); a fall stops the build | `make coverage-check` | R47 |
@@ -309,11 +347,16 @@ row's plant is the PLAN's, one to one; the test named first is the row's red tes
 | MH52 | A document with sections, but none for the provider | decided | a document: the canonical stage across sections, a chatcompat server's canonical facts and the first-party price fill read it; the provider's ranking and exact and family stages find nothing | `TestWithMetadata_OtherSectionsOnly_0093` (one `anthropic` section; an OpenCode model whose canonical id is in it) | D3 |
 | MH53 | Two calls on one `Cache`, one with a document and one without, under `-race` | decided | each `Limits` carries its own `RouteFallback`; the memo holds no fallback; a request reads the fallback of the `Limits` it read | `TestLimits_RouteFallbackPerCall_0093` | D7; Q4 |
 | MH54 | A document handed to `LookupLimits` (or any lookup), then a request of a provider built without one, on the same `Cache` | decided | the request sees no fact or fallback from that document (on Claude, refused as MH18); `LookupLimits`' doc names what it warms: the listing, the one-model and the served reads, not a document | `TestLookupLimits_DocumentNotSeenByRequest_0093` | D2; Q4 |
-| MH55 | Tests and G-wire goldens that depend on the extract without naming it | decided | listed by a run at BASE with the extract emptied; each hands in `llmprovider/catalog/testdata/extract-2026-10-12/api.json`, the extract's limits as a document; every golden unchanged | `tools/goldendiff.py --rev BASE`, 0 findings; the listed tests | D12; Q3 |
+| MH55 | Tests and G-wire goldens that depend on the extract without naming it | decided | listed by a run at BASE with the extract emptied; each hands in `llmprovider/catalog/testdata/extract-2026-10-12/api.json`, the extract's limits as a document; every golden unchanged *(amended 2026-11-24, A1: the fixture's OpenCode sections also carry BASE's route as `provider.npm`; every request golden unchanged; the five listing goldens of D12 (e) regenerated)* | `tools/goldendiff.py --rev BASE`, 0 findings *(A1: with `--ranked-listings`, MH58)*; the listed tests | D12; Q3; A1 |
 | MH56 | `tools/offline.py VERSION` with a tag before `v1.33.0` | decided | exit 2, naming b2917f0's copy of the tool for such a tag; nothing built | `test_offline_refuses_before_v1_33_0` | D13 |
 | MH57 | The changelog's preamble (`CHANGELOG.md:5-7`) and `docs/architecture.md:1572-1576` | decided | each gains a dated note of D10's exception, naming this record | claims rows on both notes, planted false | D10; Q1 |
+| MH58 | The G-wire goldens after the build, against BASE (added 2026-11-24, A1) | decided | `tools/goldendiff.py --rev BASE --ranked-listings` accepts a change to the `result` of exactly the five listing goldens of D12 (e); a change to any other golden, or to a request of one of the five, is a finding | `TestGoldenDiff.test_ranked_listings_0093` (`tools/test_tools.py`) | D12 (e); A1 |
+| MH59 | A route test that serves its own document, with no limit in it, and sends a request on OpenCode's messages route: `TestOpencode_RoutesFromMetadata/anthropic` and `TestOpencode_RouteWithoutMetadataUsesTable/absent_from_document` (added 2026-11-24, A2) | decided | each gives `WithMaxTokens`; its served document and its path assertion unchanged: the document's `provider.npm` routes a model outside the table to `/messages`, and a model the document does not list keeps the table's `/messages` | `TestOpencode_RoutesFromMetadata/anthropic`; `TestOpencode_RouteWithoutMetadataUsesTable/absent_from_document` | D12 (f); A2, question A |
+| MH60 | A served test's assertion that counted the fetch (added 2026-11-24, A2) | decided | deleted with the fetch, as MH30: `wizard`'s `TestConfigureLLM_ProviderOptionsReachTheListing` (it pinned 0015-PLAN S10; MH22 holds `ProviderOptions` reaching the listing) and the `metaHits` assertion of `TestListModels_HonoursTheMetadataURLOption` in `opencode`, `huggingface` and `together` (it pinned 0013-MADR A4); those three keep their ListModels-against-catalog comparison, renamed `TestListModels_HonoursTheHandedDocument` | MH30's before-and-after test list; the PLAN's assertion check of the three | D12; MH30; A2, question B |
+| MH61 | `TestCachedModel_NeverWaits_0033`'s cold call (added 2026-11-24, A2) | decided | it hands in no document, and `CachedModel` returns `ok` false within 50 ms, waiting for nothing; MH15's test holds a handed document's answer | `TestCachedModel_NeverWaits_0033` | D12 (g); A2, question C |
 
-Counts: 53 decided, 4 out of scope (MH47 to MH50), 0 open; 57 rows.
+Counts: 53 decided, 4 out of scope (MH47 to MH50), 0 open; 57 rows. *(2026-11-24, A1: 54 decided, 4 out of scope, 0 open;
+58 rows.)* *(2026-11-24, A2: 57 decided, 4 out of scope, 0 open; 61 rows.)*
 
 ### The expected apidiff lines
 
@@ -484,3 +527,95 @@ Each row's text is on its line at the named revision (`tools/claims.py`).
 | C61 | Claude reads it back | `llmprovider/providers/claude/limit.go:68` | `in.Fallback, in.FallbackSource = memo.Fallback(key)` |
 | C62 | OpenCode reads it back | `llmprovider/providers/opencode/opencode.go:1073` | `in.Fallback, in.FallbackSource = p.limits.Fallback(p.memoKey(c, false))` |
 | C63 | `LookupLimits` says it warms a request | `llmprovider/catalog/limits.go:140` | `LookupModel is, warms the caches a request reads, and returns what they` |
+
+### Execution amendment (2026-11-24): the lines the docs phase wrote
+
+0093-PLAN's Phase 5: one row for each edit its Phase 4 made, on a line that edit wrote; one for each changelog entry it added; and the two dated exception notes (MH57), the `NOTICE` and the licence (MH25) and `ExampleWithMetadata`. The ids end in "now", so that `tools/claims.py` does not read them against this record's `self=b2917f0`: each was checked with a plain id against a scratch clone's commit of the build's tree (`dc96bf0ce4e6`, uncommitted), 85 of 85, and planted false there with `tools/claims.py --plants`, 85 of 85 caught (MH40, MH45, MH57).
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| E1now | README.md: corrected by Phase 4 (D14, MH40) | `README.md:190` | `itself. Pass` |
+| E2now | README.md: corrected by Phase 4 (D14, MH40) | `README.md:210` | `metadata" below), and a request reads only that document and what is` |
+| E3now | README.md: corrected by Phase 4 (D14, MH40) | `README.md:277` | `wizard asks for a search; a blank search then offers the saved model, if` |
+| E4now | README.md: corrected by Phase 4 (D14, MH40) | `README.md:292` | `[0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)). Your` |
+| E5now | CHANGELOG.md: the dated exception note (D10, MH57) | `CHANGELOG.md:12` | `2026-11-24: one recorded exception to that promise. v1.33.0 removes eight` |
+| E6now | CHANGELOG.md: corrected by Phase 4 (D14, MH40) | `CHANGELOG.md:34` | `the models.dev document the call hands in with` |
+| E7now | CHANGELOG.md: corrected by Phase 4 (D14, MH40) | `CHANGELOG.md:48` | `[0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md) D1, D2).` |
+| E8now | CHANGELOG.md: corrected by Phase 4 (D14, MH40) | `CHANGELOG.md:84` | `the handed-in document states them, and where nothing states even that,` |
+| E9now | CHANGELOG.md: corrected by Phase 4 (D14, MH40) | `CHANGELOG.md:153` | `- A request on a Messages route (Claude, OpenCode's messages route) whose` |
+| E10now | AGENTS.md: corrected by Phase 4 (D14, MH40) | `AGENTS.md:238` | `and one that needs a models.dev document parses one and hands it in with` |
+| E11now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:180` | `, the models.dev document a caller hands in (0093-MADR D1),` |
+| E12now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:180` | `the models.dev document the call hands in (0093-MADR D2, D7),` |
+| E13now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:180` | `0093-MADR D7), the smallest limit a current model on the route is stated to take,` |
+| E14now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:197` | `names, required (0093-MADR D6), and each keyed listing,` |
+| E15now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:265` | `, with the models.dev document the call hands in with` |
+| E16now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:290` | `It filters, ranks and caveats nothing, reads no metadata document,` |
+| E17now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:298` | `Listing pages are read up to 8 MiB. The SDK fetches no metadata document` |
+| E18now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:311` | `1. **models.dev's document,** the one the call hands in with` |
+| E19now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:315` | `- A parsed document keeps each section's bytes.` |
+| E20now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:320` | `decoding every section now; it is the only way to make one.` |
+| E21now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:357` | `layers and its document without waiting,` |
+| E22now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:359` | `from the caches, the layers and the document given to the provider's` |
+| E23now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:370` | `These caches, and the probes', are the` |
+| E24now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:373` | `listings, probe results,` |
+| E25now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:378` | `fetches and probe runs that the cache would start,` |
+| E26now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:1134` | `the SDK fetches none and reads no variable for it (0093-MADR D6, D10).` |
+| E27now | docs/architecture.md: corrected by Phase 4 (D14, MH40) | `docs/architecture.md:1157` | `auth.GrokFlowFromEnv` |
+| E28now | docs/architecture.md: the dated exception note (D10, MH57) | `docs/architecture.md:1571` | `2026-11-24: one recorded exception. Against` |
+| E29now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:114` | `Without them, and with no document, the request decides (0093 D2, Q4).` |
+| E30now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:123` | `then the registry (a layer named "models.dev", then the document given` |
+| E31now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:128` | `Kilo cut one model at 128,000 of 131,072 stated), and none when nothing` |
+| E32now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:217` | `URL and turning its fetch off went with the fetch (0093 D10). A` |
+| E33now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:223` | `catalog.WithModelLayer` |
+| E34now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:288` | `environment calls an opt-in helper, such as` |
+| E35now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:336` | `until a major version. (0015 D13) *(2026-11-24: one recorded exception:` |
+| E36now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:365` | `tag fails an incompatible change. (0015 D13) *(2026-11-24: one recorded` |
+| E37now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:377` | `keep in memory between calls, the listings and their models' metadata,` |
+| E38now | docs/guides/api-standards.md: corrected by Phase 4 (D14, MH40) | `docs/guides/api-standards.md:388` | `waits for it. It holds no models.dev document: a` |
+| E39now | docs/guides/adding-a-provider.md: corrected by Phase 4 (D14, MH40) | `docs/guides/adding-a-provider.md:97` | `[0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md` |
+| E40now | docs/guides/migrating-from-mcplib.md: corrected by Phase 4 (D14, MH40) | `docs/guides/migrating-from-mcplib.md:36` | `[0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md));` |
+| E41now | docs/guides/migrating-from-mcplib.md: corrected by Phase 4 (D14, MH40) | `docs/guides/migrating-from-mcplib.md:295` | `The SDK fetches no document since v1.33.0: hand in a parsed one ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md) D10).` |
+| E42now | docs/guides/migrating-from-mcplib.md: corrected by Phase 4 (D14, MH40) | `docs/guides/migrating-from-mcplib.md:397` | `and hand it in ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md) D10).` |
+| E43now | tools/README.md: corrected by Phase 4 (D14, MH40) | `tools/README.md:29` | `of exactly the five listing goldens 0093-MADR D12 (e) regenerated (MH58); it prints each finding's path and values, and changes nothing` |
+| E44now | tools/README.md: corrected by Phase 4 (D14, MH40) | `tools/README.md:32` | `, with no request, built for six platforms; two built-in plants must each fail it; a` |
+| E45now | llmprovider/providers/claude/claude.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/claude/claude.go:111` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E46now | llmprovider/providers/gemini/gemini.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/gemini/gemini.go:74` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E47now | llmprovider/providers/grok/grok.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/grok/grok.go:89` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E48now | llmprovider/providers/kilo/kilo.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/kilo/kilo.go:86` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E49now | llmprovider/providers/ollama/ollama.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/ollama/ollama.go:84` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E50now | llmprovider/providers/openai/openai.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/openai/openai.go:107` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E51now | llmprovider/providers/together/together.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/together/together.go:76` | `that ListModels or catalog.List read, and the models.dev document given` |
+| E52now | llmprovider/providers/huggingface/huggingface.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/huggingface/huggingface.go:79` | `// models.dev document given to New with catalog.WithMetadata (0093-MADR` |
+| E53now | llmprovider/providers/huggingface/huggingface.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/huggingface/huggingface.go:60` | `// ListModels returns the curated router listing, ranked by the models.dev` |
+| E54now | llmprovider/providers/together/together.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/together/together.go:56` | `// ListModels returns the curated chat models, ranked by the models.dev` |
+| E55now | llmprovider/providers/opencode/opencode.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/opencode/opencode.go:16` | `// models.dev document given to New with catalog.WithMetadata (0093-MADR D6),` |
+| E56now | llmprovider/providers/opencode/opencode.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/opencode/opencode.go:62` | `//     document is handed in (0062-MADR Q7 (a); it sent none, MADR 0009 §6).` |
+| E57now | llmprovider/providers/opencode/opencode.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/opencode/opencode.go:113` | `//     document given to New (0093-MADR D2), and never fetches.` |
+| E58now | llmprovider/providers/chatcompat/chatcompat.go: corrected by Phase 4 (D14, MH40) | `llmprovider/providers/chatcompat/chatcompat.go:85` | `// given to New with catalog.WithMetadata (0093-MADR D2). The listing reads` |
+| E59now | llmprovider/catalog/doc.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/doc.go:34` | `// caveat, static fallback or models.dev document, and nothing written to the` |
+| E60now | llmprovider/catalog/doc.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/doc.go:41` | `// provider's requests read only the document given to its New. ModelInfo is one` |
+| E61now | llmprovider/catalog/doc.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/doc.go:52` | `// backend's listing), then the registry (a layer named "models.dev", then` |
+| E62now | llmprovider/catalog/doc.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/doc.go:56` | `// and OpenCode's messages route (0089-MADR D1 to D3); Limits.RouteFallback` |
+| E63now | llmprovider/catalog/raw.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/raw.go:66` | `// static fallback; no models.dev document read; no listing cache read or write, so` |
+| E64now | llmprovider/catalog/discovery.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/discovery.go:116` | `// modelListingTimeout bounds one model listing (MADR 0009 §2).` |
+| E65now | llmprovider/catalog/cache.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/cache.go:67` | `// store is one cache's listings and their reads, each under its own lock.` |
+| E66now | llmprovider/catalog/metadata_document.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/metadata_document.go:20` | `// Encode, and makes no request (0033-MADR D3). The document is the caller's:` |
+| E67now | llmprovider/llmtest/llmtest.go: corrected by Phase 4 (D14, MH40) | `llmprovider/llmtest/llmtest.go:1011` | `// (R44, R40; 0026-MADR F57). The SDK fetches no metadata document` |
+| E68now | internal/localonly/localonly.go: corrected by Phase 4 (D14, MH40) | `internal/localonly/localonly.go:95` | `// count: "example.com:443 (3)".` |
+| E69now | internal/localonly/localonly.go: corrected by Phase 4 (D14, MH40) | `internal/localonly/localonly.go:115` | `"; a test serves its own replies, and hands in a models.dev document with catalog.WithMetadata when it " +` |
+| E70now | wizard/configure.go: corrected by Phase 4 (D14, MH40) | `wizard/configure.go:126` | `// listings by a models.dev document; the wizard fetches none (0093-MADR` |
+| E71now | llmprovider/catalog/listing_cache.go: corrected by Phase 4 (D14, MH40) | `llmprovider/catalog/listing_cache.go:16` | `// a refresh in the background past them. It is keyed as the probe cache is: by provider,` |
+| E72now | NOTICE credits models.dev under MIT (D11, MH25); reworded 2026-11-24 (the review's notes closed, note 7): the data originates from models.dev, and the licence of models.opencode.ai's copy is not asserted (it stays unestablished, "What could not be established") | `NOTICE:11` | `the MIT License:` |
+| E73now | LICENSE.models.dev holds models.dev's MIT text (D11, MH25) | `LICENSE.models.dev:1` | `MIT License` |
+| E74now | ExampleWithMetadata's output (R50) | `llmprovider/catalog/example_metadata_0093_test.go:31` | `// Output: 200000 models.dev` |
+| E75now | CHANGELOG Added: catalog.WithMetadata (D1, D2) | `CHANGELOG.md:44` | `: a shared option that hands in a models.dev` |
+| E76now | CHANGELOG Added: NOTICE and LICENSE.models.dev (D11) | `CHANGELOG.md:50` | `(OpenCode's route snapshot and the test fixtures), credited under` |
+| E77now | CHANGELOG Added: Limits.RouteFallback (D7) | `CHANGELOG.md:41` | `fallback, the smallest limit a current model on the route is stated to` |
+| E78now | CHANGELOG Changed: only a handed-in document is read (D2 to D5, Q4) | `CHANGELOG.md:141` | `- Model metadata comes only from the caller. A listing's ranking and its` |
+| E79now | CHANGELOG Changed: OpenCode's route never waits (D6) | `CHANGELOG.md:150` | `- OpenCode's request route is the pinned route, else the handed-in` |
+| E80now | CHANGELOG Removed: the eight names (D10, Q1) | `CHANGELOG.md:169` | `the exception at the top of this file says: the SDK no longer downloads` |
+| E81now | CHANGELOG Removed: the download, its cache and the two variables (D6, D10) | `CHANGELOG.md:175` | `- The download of` |
+| E82now | CHANGELOG Changed: the cold-call refusal, against v1.32.0's `max_tokens` 8192 (D8, D9, Q2); re-based 2026-11-24 (the review's notes closed): this row held the Removed bullet for the extract, which is dropped, since the extract was never released | `CHANGELOG.md:158` | `where v1.32.0 sent 8192. The refusal names` |
+| E83now | README: the model metadata section (D14, MH45) | `README.md:289` | `## Model metadata` |
+| E84now | README: the SDK fetches and ships none (D6, D7) | `README.md:291` | `The SDK fetches no model metadata and ships none` |
+| E85now | README: what happens without a document (MH4, MH18, MH51) | `README.md:312` | `models.dev facts. A Claude request, or one on OpenCode's messages route,` |

@@ -35,7 +35,7 @@ func TestRefusalRecorder_Fields_0062(t *testing.T) {
 		provider: llmprovider.ProviderClaude, model: "claude-sonnet-5",
 		set:  map[string]any{"thinking": map[string]any{"type": "adaptive"}, "output_config.effort": "bogus"},
 		drop: []string{"max_tokens", "no.such.field"}}
-	r, err := recordCase(context.Background(), c, "k", llmprovider.WithBaseURL(srv.URL))
+	r, err := recordCase(context.Background(), c, "k", llmprovider.WithBaseURL(srv.URL), extractDoc(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestRefusalRecorder_Accepted_0062(t *testing.T) {
 	srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 	c := refusalCase{id: "offline-tool", cause: causeOther, wire: wireMessages,
 		provider: llmprovider.ProviderClaude, model: "claude-sonnet-5", tool: true}
-	r, err := recordCase(context.Background(), c, "k", llmprovider.WithBaseURL(srv.URL))
+	r, err := recordCase(context.Background(), c, "k", llmprovider.WithBaseURL(srv.URL), extractDoc(t))
 	if err != nil {
 		t.Fatal(err)
 	}

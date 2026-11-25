@@ -187,7 +187,7 @@ functions over any provider, and `Stream` streams from every one.
   that did not use the service's own form carries
   `WarningDeferralEmulated`.
 - **No ambient state.** The library reads no environment variable by
-  itself. Pass `catalog.OptionsFromEnv()`, `auth.GrokFlowFromEnv()` or
+  itself. Pass `auth.GrokFlowFromEnv()` or
   `llmprovider.ModelProbesFromEnv()` to opt in, and give logging a logger
   with `WithLogger`. `auth.GrokFlowFromEnv()`'s client id and issuer take
   effect only on your own `auth.OAuthFlowOptions`, given to
@@ -206,7 +206,9 @@ functions over any provider, and `Stream` streams from every one.
   model's facts decide: its thinking shape and budget bounds, the efforts
   or levels it takes, and an output limit that cuts the default. The facts
   are the caller's `catalog.WithModelLayer`, then the provider's listing,
-  then models.dev, and a request reads only what is already cached.
+  then the models.dev document handed to the provider's `New` (see "Model
+  metadata" below), and a request reads only that document and what is
+  already cached.
   Without them the request decides: its effort is sent as asked, and a
   `Budget` asks for a fixed budget. A model's refusal of an effort or a
   thinking shape outranks both: it is remembered for the process, the
@@ -268,18 +270,13 @@ functions over any provider, and `Stream` streams from every one.
   still finds all of these.
   `catalog.WithProfile(catalog.ProfileCapable)`, or `wizard.Options.Profile`,
   ranks the strongest first instead. Kilo ranks from its own listing. The
-  others read `https://models.opencode.ai/api.json`, cached for ten minutes
-  and refreshed in the background after that; a failed fetch is not retried
-  for a minute. When every model in a listing has a caveat, the
-  recommendations are empty and the wizard asks for a search; a blank search
-  then offers the saved model, if any, or a typed id, never the same prompt
-  again. `WithModelMetadataURL` points
-  elsewhere, and `WithoutModelMetadata` turns the fetch off. That restores
-  the curated order for the four gateways, and the name rules for OpenAI,
-  Claude, Gemini and Grok. `catalog.OptionsFromEnv()` maps
-  `LLMPROVIDER_MODELS_METADATA_URL` and
-  `LLMPROVIDER_DISABLE_MODELS_METADATA=1` onto those options. Search still
-  covers every usable model. For commit-message-sized work, ask for the
+  others rank by the models.dev document the call hands in with
+  `catalog.WithMetadata`; with none, the four gateways keep the curated
+  order, and OpenAI, Claude, Gemini and Grok the name rules. When every
+  model in a listing has a caveat, the recommendations are empty and the
+  wizard asks for a search; a blank search then offers the saved model, if
+  any, or a typed id, never the same prompt again. Search still covers
+  every usable model. For commit-message-sized work, ask for the
   profile's effort and retry:
 
   ```go
@@ -289,9 +286,37 @@ functions over any provider, and `Stream` streams from every one.
   p = llmprovider.WithRetry(p, llmprovider.RetryPolicy{})
   ```
 
+## Model metadata
+
+The SDK fetches no model metadata and ships none
+([0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)). Your
+program downloads a models.dev document, such as
+`https://models.dev/api.json`, keeps it as long as it likes, reads it with
+`catalog.ParseMetadata`, and hands it in with `catalog.WithMetadata`: to
+each `catalog.List`, lookup and limits call, and to each provider's `New`.
+A provider's requests read only the document given to its `New`, never
+one handed to a lookup. `catalog.WithMetadata(catalog.Metadata{})` given
+last drops one an earlier option carried.
+
+```go
+doc, err := catalog.ParseMetadata(f) // f: the document you downloaded
+if err != nil {
+    return err
+}
+p, err := providers.Default().New(llmprovider.ProviderClaude,
+    llmprovider.WithAPIKey(key), catalog.WithMetadata(doc))
+```
+
+Without one, the listings rank by the curated order and the name rules,
+the lookups read the listing and your layers, and a request reads no
+models.dev facts. A Claude request, or one on OpenCode's messages route,
+whose model no source states a limit for, with nothing listed and no
+`WithMaxTokens`, is refused before it is sent with an error matching
+`ErrInvalidRequest`; a Kilo request in that state sends no limit.
+
 ## Caches
 
-A listing's models, the models.dev document and the models that answered a
+A listing's models and the models that answered a
 probe are kept in memory, shared by every listing and provider of the
 process. A `catalog.Cache` keeps them apart: the listings and providers
 given `catalog.WithCache(&c)` share `c`, and no other cache. A test, or a

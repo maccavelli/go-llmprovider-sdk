@@ -114,7 +114,7 @@ func grok0059(t *testing.T, store auth.TokenStore, client *http.Client, discover
 	f := newFake(t, fakePrompter{selects: []int{1}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, Discover: discover,
 		DiscoverLimit: limit, HTTPClient: client, NoBrowserQuestion: true,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}, llmprovider.ProviderGrok)
+		ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderGrok)
 	return f, err
 }
 
@@ -193,7 +193,7 @@ func TestSession_KiloRefusedNotSaved_0059(t *testing.T) {
 	f := newFake(t, fakePrompter{inputs: []string{acceptDefault}, selects: []int{1}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, Discover: true,
 		HTTPClient:      client0059(http.StatusUnauthorized, http.StatusOK, nil),
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}, llmprovider.ProviderKilo)
+		ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderKilo)
 	if !errors.Is(err, llmprovider.ErrAuthFailure) {
 		t.Fatalf("err %v; want the refusal", err)
 	}

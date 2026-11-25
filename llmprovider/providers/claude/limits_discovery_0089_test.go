@@ -46,7 +46,7 @@ func TestDiscover_RequestReadsDiscovery_0089(t *testing.T) {
 	t.Cleanup(srv.Close)
 	cache := new(catalog.Cache)
 	t.Cleanup(func() { _ = cache.Close(context.Background()) })
-	shared := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/v1"), llmprovider.WithoutModelMetadata(),
+	shared := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/v1"),
 		catalog.WithCache(cache), catalog.WithClaudeWorkspace(workspace)}
 
 	l, err := catalog.LookupLimits(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"),

@@ -91,8 +91,11 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
   malformed `For`, with `ErrInvalidRequest` (R18). Return its error as it is.
 - **What `Settings` gives you:** `Model`, `BaseURL`, `HTTPClient`,
   `TokenSource`, `UserAgent`, `Logger`, `MaxTokens`, `MaxTokensGiven`,
-  `Reasoning`, `SessionID`, `ModelProbes`, `ModelMetadataURL`,
-  `ModelMetadataDisabled`, and `Values` for your own options.
+  `Reasoning`, `SessionID`, `ModelProbes`, and `Values` for your own
+  options; a `catalog.Metadata` is among them when the caller hands one in
+  with `catalog.WithMetadata`
+  ([0093-MADR](../decisions/0093-MADR-take-model-metadata-from-the-caller.md)
+  D1).
   - `MaxTokens` is 8192 when the caller gave no `WithMaxTokens`;
     `MaxTokensGiven` tells the two apart. Send `MaxTokens` only when it is
     given (R6, R57; 0088-MADR OQ5).

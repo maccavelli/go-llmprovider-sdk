@@ -383,7 +383,7 @@ func cutRun(t *testing.T, route cutRoute, stream bool, reply cutReply) cutOutcom
 	t.Helper()
 	srv := newCutServer(t, route.plain(reply), route.stream(reply))
 	p, err := New(route.id, append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(route.model),
-		llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+		llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
 		llmprovider.WithMaxTokens(8192), testCache(t)}, route.opts...)...)
 	if err != nil {
 		t.Fatal(err)

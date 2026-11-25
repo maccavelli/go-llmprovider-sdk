@@ -4,16 +4,15 @@ package catalog
 // which build providers through llmprovider/providers: an in-package test
 // cannot, as the providers import catalog.
 var (
-	PinRankingNow           = pinRankingNow
-	RefNow                  = refNow
-	EnableModelMetadata     = enableModelMetadata
-	ResetModelMetadataCache = resetModelMetadataCache
-	MetadataServer          = metadataServer
-	ServeBody               = serveBody
-	KiloRankEntry           = kiloRankEntry
-	ZenStyleListing         = zenStyleListing
-	MDModel                 = mdModel
-	MDSection               = mdSection
-	HFRankListing           = hfRankListing
-	HFRankMetadata          = hfRankMetadata
+	PinRankingNow   = pinRankingNow
+	RefNow          = refNow
+	Handed          = handed
+	MetadataServer  = metadataServer
+	ServeBody       = serveBody
+	KiloRankEntry   = kiloRankEntry
+	ZenStyleListing = zenStyleListing
+	MDModel         = mdModel
+	MDSection       = mdSection
+	HFRankListing   = hfRankListing
+	HFRankMetadata  = hfRankMetadata
 )

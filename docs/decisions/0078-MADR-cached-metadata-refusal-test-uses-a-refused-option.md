@@ -254,3 +254,5 @@ decides them, if a failure or `tools/cachecensus.py` points at one.
 | C18 | started beside every listing but Kilo's and Ollama's | `llmprovider/catalog/discovery.go:341` | `meta = startModelMetadata(ctx, cfg)` |
 | C19 | The static path reads the cache, not that goroutine | `llmprovider/catalog/discovery.go:538` | `if m, ok := peekMetadata(cfg); ok {` |
 | C20 | O2: a test's cache is only forgotten | `llmprovider/catalog/model_metadata_test.go:60` | `t.Cleanup(func() { caches.Delete(t) })` |
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): superseded as to the fetch: `CachedMetadataWith` is removed (D10), and the test this record changed went with it (MH30). The text above is unchanged.)*

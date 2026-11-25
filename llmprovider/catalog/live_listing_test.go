@@ -70,25 +70,3 @@ func TestLive_TogetherListing(t *testing.T) {
 	}
 	t.Logf("%d chat models; first %v", len(usable), usable[:min(len(usable), 5)])
 }
-
-// TestLive_ModelMetadataDocument checks the shape MADR 0009 §2 depends on:
-// models.opencode.ai still publishes the three sections, and a known Zen
-// model still carries its reasoning flag.
-func TestLive_ModelMetadataDocument(t *testing.T) {
-	enableModelMetadata(t)
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	doc, err := loadModelMetadata(ctx, defaultConfig())
-	if err != nil {
-		t.Skipf("metadata unreachable: %v", err)
-	}
-	for _, key := range []string{metadataKeyZen, metadataKeyGo, metadataKeyHF} {
-		if len(doc.all()[key]) == 0 {
-			t.Errorf("DRIFT: %s no longer publishes section %q", defaultModelMetadataURL, key)
-		}
-	}
-	m, ok := doc.all()[metadataKeyZen]["glm-5.3-flash"]
-	if !ok || m.Reasoning == nil || !*m.Reasoning {
-		t.Errorf("DRIFT: %s/glm-5.3-flash reasoning = %v (present %v), want true", metadataKeyZen, m.Reasoning, ok)
-	}
-}

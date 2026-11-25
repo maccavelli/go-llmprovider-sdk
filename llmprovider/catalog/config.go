@@ -47,7 +47,6 @@ type config struct {
 	BaseURL          string
 	HTTPClient       *http.Client
 	ModelProfile     Profile
-	ModelMetadataURL string
 	KiloOrganization string
 	ClaudeWorkspace  string
 	userAgent        string
@@ -58,10 +57,12 @@ type config struct {
 	// the version nameSession gives a session with the name (0079-MADR D4).
 	clientVersion string
 	session       string
-	metadataOff   bool         // WithoutModelMetadata
-	limit         int          // WithLimit's n; zero or less, the default, is no limit
-	logger        *slog.Logger // Settings.Logger
-	layers        []Layer      // WithModelLayer's, in the order given
+	// meta is the last WithMetadata's document, read once for the call
+	// (0093-MADR D2, D4); the zero Metadata is none.
+	meta   Metadata
+	limit  int          // WithLimit's n; zero or less, the default, is no limit
+	logger *slog.Logger // Settings.Logger
+	layers []Layer      // WithModelLayer's, in the order given
 	// observations are llmprovider.WithLimitObservations', in the order
 	// given (0089-MADR D5).
 	observations []llmprovider.LimitObservation
@@ -85,6 +86,16 @@ type config struct {
 	// which the options' chatcompat.WithID names (0061-MADR, amendment
 	// "chatcompat, provider-agnostic", E1).
 	compat bool
+}
+
+// document is the call's models.dev document, and whether it has one: a
+// document holding none of the sections the SDK reads is none (0093-MADR
+// D3).
+func (c config) document() (Metadata, bool) {
+	if !c.meta.has() {
+		return Metadata{}, false
+	}
+	return c.meta, true
 }
 
 // emit hands one listed model's metadata to the sink, if there is one.
@@ -211,17 +222,15 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		return config{}, err
 	}
 	cfg := config{
-		BaseURL:          st.BaseURL(),
-		HTTPClient:       st.HTTPClient(),
-		ModelMetadataURL: st.ModelMetadataURL(),
-		userAgent:        st.UserAgent(),
-		clientName:       st.ClientName(),
-		clientVersion:    st.ClientVersion(),
-		session:          st.SessionID(),
-		metadataOff:      st.ModelMetadataDisabled(),
-		logger:           st.Logger(),
-		tokens:           st.TokenSource(),
-		workload:         defaultWorkload,
+		BaseURL:       st.BaseURL(),
+		HTTPClient:    st.HTTPClient(),
+		userAgent:     st.UserAgent(),
+		clientName:    st.ClientName(),
+		clientVersion: st.ClientVersion(),
+		session:       st.SessionID(),
+		logger:        st.Logger(),
+		tokens:        st.TokenSource(),
+		workload:      defaultWorkload,
 	}
 	for _, v := range st.Values() {
 		switch v := v.(type) {
@@ -238,6 +247,9 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.ClaudeWorkspace = workspace
 		case modelLayerOption:
 			cfg.layers = append(cfg.layers, v.layer)
+		case Metadata:
+			// The last given wins (0093-MADR D2).
+			cfg.meta = v
 		case []llmprovider.LimitObservation:
 			cfg.observations = append(cfg.observations, v...)
 		case lastGoodOption:

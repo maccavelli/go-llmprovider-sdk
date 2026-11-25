@@ -18,7 +18,7 @@ func TestList_RefusedDialIsOffline_0061(t *testing.T) {
 	for _, id := range []llmprovider.ProviderID{llmprovider.ProviderOpenAI, llmprovider.ProviderOllama} {
 		t.Run(string(id), func(t *testing.T) {
 			cat, err := List(context.Background(), id, token, llmprovider.WithHTTPClient(nettest.Refusing()),
-				llmprovider.WithBaseURL(nettest.RefusedURL), llmprovider.WithoutModelMetadata(), testCache(t))
+				llmprovider.WithBaseURL(nettest.RefusedURL), testCache(t))
 			if !errors.Is(err, llmprovider.ErrOffline) && !errors.Is(cat.Err, llmprovider.ErrOffline) {
 				t.Errorf("List: err %v, Catalog.Err %v; want ErrOffline in one", err, cat.Err)
 			}

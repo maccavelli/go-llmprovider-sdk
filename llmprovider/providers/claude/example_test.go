@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 )
 
@@ -28,10 +30,26 @@ func ExampleNew() {
 	}))
 	defer srv.Close()
 
+	// The models.dev document the caller downloads from
+	// https://models.dev/api.json and hands in, here the module's test
+	// fixture. With none, and no WithMaxTokens, the request is refused: the
+	// Messages API requires an output limit (0093-MADR D8).
+	f, err := os.Open("../../catalog/testdata/extract-2026-10-12/api.json")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = f.Close() }()
+	meta, err := catalog.ParseMetadata(f)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	p, err := claude.New(
 		llmprovider.WithAPIKey("your-api-key"),
 		llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(),
+		catalog.WithMetadata(meta),
 	)
 	if err != nil {
 		fmt.Println(err)

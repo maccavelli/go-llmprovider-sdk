@@ -517,3 +517,5 @@ under its question, and the options are kept as they were weighed.
     `thinkingLevel`) and `:1852-1864` (`anthropicEffort`).
 
 No source changes accompany this MADR.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): A6 is superseded as to the fetch: there is no metadata fetch, cache or failure memory left to bound (D6). The text above is unchanged.)*

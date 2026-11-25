@@ -62,7 +62,7 @@ func cacheBody(t *testing.T, id llmprovider.ProviderID, model string, cached boo
 	t.Helper()
 	srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 	p, err := New(id, llmprovider.WithAPIKey("cache-key"), llmprovider.WithModel(model), llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithSessionID(cacheSession), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false))
+		llmprovider.WithSessionID(cacheSession), llmprovider.WithModelProbes(false), extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}

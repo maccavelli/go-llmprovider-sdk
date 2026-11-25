@@ -62,12 +62,12 @@ type wireCase struct {
 
 func base(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
 	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model), llmprovider.WithBaseURL(url),
-		llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), catalog.WithCache(new(catalog.Cache))}, opts...)
+		llmprovider.WithModelProbes(false), catalog.WithCache(new(catalog.Cache))}, opts...)
 }
 
 var wires = []wireCase{
 	{"messages", messagesReply, func(url string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
-		return claude.New(base(url, "claude-sonnet-5", opts...)...)
+		return claude.New(base(url, "claude-sonnet-5", append([]llmprovider.Option{extractDoc()}, opts...)...)...)
 	}},
 	{"responses", responsesReply, func(url string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		return openai.New(base(url, "gpt-6-luna", opts...)...)

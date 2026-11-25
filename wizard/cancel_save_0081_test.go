@@ -223,7 +223,7 @@ func run0081(t *testing.T, ctx context.Context, entry string, id llmprovider.Pro
 func opts0081(t *testing.T, store auth.TokenStore, client *http.Client) Options {
 	t.Helper()
 	return Options{TokenStore: store, Discover: true, NoEndpointPrompt: true, HTTPClient: client,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // issuerKey0081 signs the in-process issuer's ID tokens: one key for the whole
@@ -1288,7 +1288,7 @@ var errListingDown0081 = errors.New("listing down")
 // thirdSite0081 is the options of a typed key at a third party's provider.
 func thirdSite0081(t *testing.T, takesKey bool, static []string, build func() llmprovider.Provider) (Options, llmprovider.ProviderID, fakePrompter) {
 	o := Options{Registry: registry0081(t, takesKey, static, build), Discover: true,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 	return o, thirdPartyID, fakePrompter{secrets: []string{"acme-key"}}
 }
 

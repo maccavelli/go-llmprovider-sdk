@@ -133,7 +133,7 @@ func (k *kilo0080) RoundTrip(r *http.Request) (*http.Response, error) {
 func (k *kilo0080) options(t *testing.T) Options {
 	t.Helper()
 	return Options{Discover: true, HTTPClient: &http.Client{Transport: k},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // profileTokens is the bearer of each profile request, in order.
@@ -632,7 +632,7 @@ func TestKiloVerify_OtherProvidersReadNoProfile_0080(t *testing.T) {
 			f := newFake(t, fakePrompter{inputs: []string{acceptDefault}, secrets: []string{"fake-other-key-0080"}})
 			if _, _, err := ResolveCredential(context.Background(), f, Options{Discover: true,
 				HTTPClient:      &http.Client{Transport: hosts},
-				ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}, id); err != nil {
+				ProviderOptions: []llmprovider.Option{testCache(t)}}, id); err != nil {
 				t.Fatalf("ResolveCredential: %v", err)
 			}
 			hosts.mu.Lock()

@@ -84,11 +84,12 @@ func TestMemo_KeyAndValue(t *testing.T) {
 	}
 }
 
-// TestMemo_Notes: a model's notes, the id a one-model read resolved it to
-// (0089-MADR V6) and its route's fallback (DL51), are kept under the model's
-// key whatever its Stream, normalised as a cap's key is; an empty id is not
-// kept; a fallback below 1 clears it; the notes hold at most Bound models,
-// the oldest dropped; a nil memo's are the process's.
+// TestMemo_Notes: a model's note, the id a one-model read resolved it to
+// (0089-MADR V6), is kept under the model's key whatever its Stream,
+// normalised as a cap's key is; an empty id is not kept; the notes hold at
+// most Bound models, the oldest dropped; a nil memo's are the process's. The
+// route's fallback is no note: it is a call's, in catalog.Limits (0093-MADR
+// D7, D12 (d)).
 func TestMemo_Notes(t *testing.T) {
 	m := New()
 	k := Key{Provider: "Claude", Model: " Claude-Sonnet-4-5 ", Stream: true}
@@ -98,22 +99,11 @@ func TestMemo_Notes(t *testing.T) {
 	if got := m.Resolved(plain); got != "claude-sonnet-4-5-20250929" {
 		t.Errorf("Resolved = %q; want the id kept, the empty one ignored", got)
 	}
-	m.SetFallback(plain, 64000, "models.dev (bundled 2026-10-12)")
-	if n, src := m.Fallback(k); n != 64000 || src != "models.dev (bundled 2026-10-12)" {
-		t.Errorf("Fallback = %d, %q; want 64000 from the extract", n, src)
-	}
-	if got := m.Resolved(k); got != "claude-sonnet-4-5-20250929" {
-		t.Errorf("after SetFallback, Resolved = %q; want it kept", got)
-	}
-	m.SetFallback(plain, 0, "ignored")
-	if n, src := m.Fallback(plain); n != 0 || src != "" {
-		t.Errorf("a fallback of 0: %d, %q; want it cleared", n, src)
-	}
 	for i := range Bound + 1 {
-		m.SetFallback(key("note-"+strconv.Itoa(i)), 1000, "s")
+		m.KeepResolved(key("note-"+strconv.Itoa(i)), "r")
 	}
-	if n, _ := m.Fallback(key("note-0")); n != 0 || len(m.notes) != Bound {
-		t.Errorf("after %d more models: note-0 %d, %d notes; want the oldest dropped, %d held", Bound+1, n,
+	if got := m.Resolved(key("note-0")); got != "" || len(m.notes) != Bound {
+		t.Errorf("after %d more models: note-0 %q, %d notes; want the oldest dropped, %d held", Bound+1, got,
 			len(m.notes), Bound)
 	}
 	var none *Memo

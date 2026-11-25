@@ -64,7 +64,7 @@ func TestEveryProvider_TrailingSlashBaseURL(t *testing.T) {
 	for _, d := range Default().Descriptors() {
 		t.Run(string(d.ID), func(t *testing.T) {
 			common := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/"), llmprovider.WithHTTPClient(srv.Client()),
-				llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata()}
+				llmprovider.WithModelProbes(false)}
 			p, err := New(d.ID, append([]llmprovider.Option{llmprovider.WithAPIKey("slash-key"),
 				llmprovider.WithModel(firstModel(d))}, common...)...)
 			if err != nil {
@@ -102,7 +102,7 @@ func TestEveryProvider_NilHTTPClient(t *testing.T) {
 				}
 			}()
 			p, err := New(d.ID, llmprovider.WithAPIKey("nil-client-key"), llmprovider.WithModel(firstModel(d)),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithHTTPClient(nil), llmprovider.WithoutModelMetadata())
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithHTTPClient(nil), extractDoc())
 			if err != nil {
 				t.Fatal(err)
 			}

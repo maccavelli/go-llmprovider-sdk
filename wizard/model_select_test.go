@@ -55,7 +55,7 @@ func zenServer(t *testing.T, status int, body string) *httptest.Server {
 // listing reaches models.opencode.ai, into t's own cache (0058-MADR D1).
 func zenOptions(t *testing.T) Options {
 	return Options{Discover: true, DiscoverLimit: 5 * time.Second,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 func labels(choices []Choice) []string {

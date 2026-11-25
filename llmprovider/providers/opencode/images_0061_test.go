@@ -41,7 +41,7 @@ func TestImages_0061(t *testing.T) {
 func TestImages_Drops_0061(t *testing.T) {
 	c := wireCases[googleCase(t)]
 	srv := wiretest.NewServer(t, c.Reply)
-	p, err := c.Build(srv.URL, llmprovider.WithoutModelMetadata())
+	p, err := c.Build(srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}

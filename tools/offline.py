@@ -4,14 +4,20 @@
 Defined by docs/decisions/0035-MADR-maintainer-tools-in-python.md D5 (amended
 2026-10-12), from the post-tag check of
 docs/decisions/0033-PLAN-public-model-metadata.md Phase 5. A scratch program
-parses a metadata document with catalog.ParseMetadata, adds it with
-catalog.WithModelLayer, turns models.dev off, passes no token source, and gives
-an HTTP client whose transport counts each request and refuses it. It reads one
+parses a metadata document with catalog.ParseMetadata, hands it in with
+catalog.WithMetadata and nothing else, passes no token source, and gives an
+HTTP client whose transport counts each request and refuses it. It reads one
 model through LookupModel and CachedModel, and requires every field the
-document sets, from the layer, with no request.
+document sets, from the document, with no request
+(docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md D13).
 
 After go vet, go run and a build for each platform, each plant is applied to a
-fresh copy of the program, which must then fail.
+fresh copy of the program, which must then fail: "no document handed in", and
+"a listing asked for" (a token source given, so a listing is requested).
+
+A VERSION before v1.33.0 is refused, exit 2, with nothing built: its SDK fetched
+the document itself and took WithoutModelMetadata, so it is checked with this
+tool's copy at b2917f0 (0093-MADR D13, MH56).
 
 Usage:
   tools/offline.py VERSION [--metadata FILE] [--provider ID] [--model ID] [--platforms LIST] [--out DIR]
@@ -21,12 +27,13 @@ LIST is comma-separated GOOS/GOARCH pairs, or "host"; six by default.
 
 Exit codes: 0 every step passed and every plant was caught, 1 a step failed or
 a plant was not caught, 2 tool error (a plant that does not match the program
-exactly once).
+exactly once, or a VERSION before v1.33.0).
 """
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -36,6 +43,12 @@ from _common import ROOT, out_dir, run
 from consumer import MODULE, PLATFORMS, Steps, go_version, platforms
 
 FIXTURE = ROOT / "llmprovider" / "catalog" / "testdata" / "metadata-0033" / "fixture.json"
+
+# The first release whose SDK takes the document from its caller, and the revision whose copy of this tool
+# checks a release before it (0093-MADR D13, MH56).
+FIRST_HANDED = (1, 33, 0)
+OLDER_TOOL = "b2917f0"
+SEMVER = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
 
 PROGRAM = """\
 // Command offline reads a ModelInfo with no request (0035-MADR D5).
@@ -90,8 +103,7 @@ func run(path string, provider llmprovider.ProviderID, model string) int {
 	ct := &counting{}
 	opts := []llmprovider.Option{
 		llmprovider.WithHTTPClient(&http.Client{Transport: ct}),
-		llmprovider.WithoutModelMetadata(),
-		catalog.WithModelLayer(meta),
+		catalog.WithMetadata(meta),
 	}
 	ctx := context.Background()
 	failures := 0
@@ -143,11 +155,18 @@ func run(path string, provider llmprovider.ProviderID, model string) int {
 }
 """
 
-# Each plant removes what keeps the read offline; the program must then fail.
+# Each plant breaks what the read relies on, or what keeps it offline; the program must then fail.
 PLANTS: dict[str, tuple[str, str]] = {
-    "models.dev left on": ("\t\tllmprovider.WithoutModelMetadata(),\n", ""),
-    "no caller layer": ("\t\tcatalog.WithModelLayer(meta),\n", ""),
+    "no document handed in": ("\t\tcatalog.WithMetadata(meta),\n", ""),
+    "a listing asked for": ("catalog.LookupModel(ctx, provider, nil, model, opts...)",
+                            "catalog.LookupModel(ctx, provider, llmprovider.NewStaticToken(\"k\"), model, opts...)"),
 }
+
+
+def before_handed(version: str) -> bool:
+    """Whether version is a release before v1.33.0, whose SDK fetched the document itself."""
+    m = SEMVER.match(version)
+    return bool(m) and tuple(int(x) for x in m.groups()) < FIRST_HANDED
 
 
 def check_plants(plants: dict[str, tuple[str, str]]) -> None:
@@ -209,6 +228,11 @@ def main(argv: list[str] | None = None, plants: dict[str, tuple[str, str]] | Non
     args = parser.parse_args(argv)
     if bool(args.version) == args.replace:
         parser.error("give a VERSION, or --replace, not both")
+    if args.version and before_handed(args.version):
+        print(f"offline: {args.version} is before v1.33.0, whose SDK fetched the models.dev document itself; check it "
+              f"with this tool as of {OLDER_TOOL} (git show {OLDER_TOOL}:tools/offline.py), 0093-MADR D13",
+              file=sys.stderr)
+        return 2
     plants = PLANTS if plants is None else plants
     steps = Steps()
     try:

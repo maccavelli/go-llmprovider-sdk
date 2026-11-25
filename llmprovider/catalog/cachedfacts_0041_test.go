@@ -12,30 +12,27 @@ import (
 // and never starts a listing fetch.
 
 // TestCachedFacts_NoListingFetch_0041: with a cold cache, CachedFacts makes no
-// listing request, where CachedModel makes one, and starts no document fetch
-// either (0041-MADR A3): it reads the document only once something else has
-// fetched it.
+// listing request, where CachedModel makes one (0041-MADR A3). It reads the
+// document its options hand in, and none otherwise (0093-MADR D2): the cold
+// calls hand in none.
 func TestCachedFacts_NoListingFetch_0041(t *testing.T) {
 	resetLookupCaches(t)
 	s := newLookupServer(t, lookupDoc, 200, claudeListing0033)
+	bare := []llmprovider.Option{llmprovider.WithBaseURL(s.URL), llmprovider.WithAPIKey("k")}
 	opts := append(lookupOpts(s), llmprovider.WithAPIKey("k"))
 	for range 2 {
-		if _, ok := CachedFacts(context.Background(), llmprovider.ProviderClaude, "claude-x", opts...); ok {
+		if _, ok := CachedFacts(context.Background(), llmprovider.ProviderClaude, "claude-x", bare...); ok {
 			t.Error("CachedFacts on a cold cache knew the model")
 		}
-		// A fetch it had started would have finished, and cached the document.
+		// A fetch it had started would have finished, and cached the listing.
 		waitListingFetches()
-		waitMetadataFetches()
 	}
 	if n := s.listings.Load(); n != 0 {
 		t.Fatalf("CachedFacts made %d listing requests; want 0", n)
 	}
-	if _, err := LookupMetadataWith(context.Background(), llmprovider.ProviderClaude, opts...); err != nil {
-		t.Fatal(err)
-	}
 	info, ok := CachedFacts(context.Background(), llmprovider.ProviderClaude, "claude-x", opts...)
 	if !ok || info.MaxOutputTokens != 128000 || info.SourceOf(FieldMaxOutputTokens) != sourceModelsDev {
-		t.Errorf("CachedFacts once the document is fetched: %+v, %t; want models.dev's 128000", info, ok)
+		t.Errorf("CachedFacts with the document handed in: %+v, %t; want models.dev's 128000", info, ok)
 	}
 	CachedModel(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), "claude-x", opts...)
 	waitListingFetches()
@@ -101,9 +98,6 @@ func TestModelReasoning_ReplayField_0041(t *testing.T) {
 	s := newLookupServer(t, `{"togetherai":{"models":{"a":{"name":"A","interleaved":{"field":"reasoning_content"}}}}}`,
 		200, "[]")
 	opts := lookupOpts(s)
-	if _, err := LookupMetadataWith(context.Background(), llmprovider.ProviderTogether, opts...); err != nil {
-		t.Fatal(err)
-	}
 	layer := staticLayer{name: "caller", info: ModelInfo{ID: "a",
 		Reasoning: ModelReasoning{ReplayField: "reasoning"}}.Known(FieldReasoningReplay)}
 	for _, tc := range []struct {

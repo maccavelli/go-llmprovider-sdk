@@ -54,7 +54,7 @@ func key0048(t *testing.T) string {
 // listOpts are a listing's options for srv, with the test's key.
 func listOpts(t *testing.T, srv *httptest.Server, more ...llmprovider.Option) []llmprovider.Option {
 	return append([]llmprovider.Option{llmprovider.WithAPIKey(key0048(t)),
-		llmprovider.WithBaseURL(srv.URL + "/v1"), llmprovider.WithoutModelMetadata()}, more...)
+		llmprovider.WithBaseURL(srv.URL + "/v1")}, more...)
 }
 
 func list(t *testing.T, opts []llmprovider.Option) {

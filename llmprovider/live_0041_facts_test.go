@@ -190,7 +190,7 @@ func TestLive_0041Facts(t *testing.T) {
 		t.Run(pt.name, func(t *testing.T) {
 			key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[pt.id])
 			rec := &bodyRecorder{base: http.DefaultTransport}
-			p, err := providers.New(pt.id, llmprovider.WithAPIKey(key), llmprovider.WithModel(pt.model),
+			p, err := providers.New(pt.id, llmprovider.WithAPIKey(key), llmprovider.WithModel(pt.model), rankingDoc(t),
 				llmprovider.WithModelProbes(false), llmprovider.WithMaxTokens(pt.maxTokens),
 				llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
 			if err != nil {
@@ -206,7 +206,7 @@ func TestLive_0041Facts(t *testing.T) {
 				llmprovider.SkipIfTransient(t, err)
 				t.Fatalf("ListModels: %v", err)
 			}
-			info, cached := catalog.CachedFacts(ctx, pt.id, pt.model, llmprovider.WithAPIKey(key))
+			info, cached := catalog.CachedFacts(ctx, pt.id, pt.model, llmprovider.WithAPIKey(key), rankingDoc(t))
 			run := factsRun{known: cached && info.Has(pt.want.fact)}
 			resp, err := p.Generate(ctx, &llmprovider.Request{
 				Reasoning: &pt.reasoning,

@@ -65,6 +65,9 @@ func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, tok
 	if out.Known {
 		in.Output, in.Source = out.Tokens, out.Evidence[0].Source
 	}
-	in.Fallback, in.FallbackSource = memo.Fallback(key)
+	// The route's fallback is this request's own read's (0093-MADR D7).
+	if f := limits.RouteFallback; f.Known {
+		in.Fallback, in.FallbackSource = f.Tokens, f.Evidence[0].Source
+	}
 	return in
 }

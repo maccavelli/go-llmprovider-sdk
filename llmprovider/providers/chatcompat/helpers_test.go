@@ -83,7 +83,7 @@ func testCache(t *testing.T) llmprovider.Option {
 func build(t *testing.T, url string, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
 	p, err := New(append([]llmprovider.Option{testCache(t), WithID(testID), llmprovider.WithBaseURL(url),
-		llmprovider.WithModel("m"), llmprovider.WithoutModelMetadata()}, opts...)...)
+		llmprovider.WithModel("m")}, opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -15,6 +15,11 @@ layer D). The goldens regenerated with -update may differ from REV only:
   the header Accept: text/event-stream added, and a generateContent path
   becoming :streamGenerateContent with the query alt=sse. Nothing else of a
   request, and nothing of a result, may change.
+* with --ranked-listings, the result of exactly the five listing goldens
+  that 0093-MADR D12 (e) regenerated with the extract fixture handed in, now
+  ranked by that document (MH58): claude/listing.json and
+  opencode-zen-{responses,messages,google,chat}/listing.json. A change to
+  their requests, or to any other golden's result, is still a finding.
 
 A golden absent at REV is new: only an explicit-8192.json is allowed, each of
 its POST bodies carrying 8192 in an output-limit field or none (the ChatGPT
@@ -24,7 +29,7 @@ a route that streams every request, as the ChatGPT backend does. A golden at
 REV missing in the tree is a finding.
 
 Usage:
-  tools/goldendiff.py --rev REV [--stream] [--repo DIR] [--root DIR]
+  tools/goldendiff.py --rev REV [--stream] [--ranked-listings] [--repo DIR] [--root DIR]
 
 --repo is the git repository REV is read from (this one by default); --root
 the tree the goldens are read from (--repo by default).
@@ -52,6 +57,15 @@ STREAM_BODY = {"stream": True, "stream_options": {"include_usage": True}}
 STREAM_ACCEPT = "text/event-stream"
 STREAM_QUERY = {"alt": ["sse"]}
 PLAIN_PATH, STREAM_PATH = ":generateContent", ":streamGenerateContent"
+
+# 0093-MADR D12 (e), MH58: the listing goldens ranked by the extract fixture, by exact path.
+RANKED_LISTINGS = frozenset({
+    "llmprovider/providers/claude/testdata/wire/claude/listing.json",
+    "llmprovider/providers/opencode/testdata/wire/opencode-zen-responses/listing.json",
+    "llmprovider/providers/opencode/testdata/wire/opencode-zen-messages/listing.json",
+    "llmprovider/providers/opencode/testdata/wire/opencode-zen-google/listing.json",
+    "llmprovider/providers/opencode/testdata/wire/opencode-zen-chat/listing.json",
+})
 
 
 class _Missing:
@@ -98,6 +112,11 @@ def stream_change(path, before, after) -> bool:
         return (isinstance(before, str) and isinstance(after, str) and before.endswith(PLAIN_PATH)
                 and after == before[:-len(PLAIN_PATH)] + STREAM_PATH)
     return False
+
+
+def ranked_listing_change(rel: str, path) -> bool:
+    """A change to the result of one of the five listing goldens of 0093-MADR D12 (e)."""
+    return rel in RANKED_LISTINGS and len(path) >= 1 and path[0] == "result"
 
 
 def streamed(request: dict) -> bool:
@@ -151,6 +170,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--rev", required=True, help="the revision the goldens are compared with")
     ap.add_argument("--stream", action="store_true", help="allow ST88's stream form (0088-MADR ST88)")
+    ap.add_argument("--ranked-listings", action="store_true",
+                    help="allow a change to the result of the five listing goldens of 0093-MADR D12 (e) (MH58)")
     ap.add_argument("--repo", type=Path, default=ROOT, help="the repository REV is read from")
     ap.add_argument("--root", type=Path, help="the tree the goldens are read from; --repo by default")
     args = ap.parse_args(argv)
@@ -184,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
             continue
         counts[(provider, "changed")] += 1
         for path, before, after in found:
+            if args.ranked_listings and ranked_listing_change(rel, path):
+                continue
             if not any(ok(path, before, after) for ok in allowed):
                 findings.append(f"{rel}: {'/'.join(map(str, path))}: {before!r} -> {after!r}")
     for provider in sorted({p for p, _ in counts}):

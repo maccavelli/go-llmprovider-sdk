@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -128,7 +127,7 @@ func listCatalog(ctx context.Context, t *testing.T, provider llmprovider.Provide
 // does not cover is ranked with every field unknown, ahead of the fill.
 func TestListModelCatalog_HuggingFaceRanksWithMetadata(t *testing.T) {
 	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	listing := serveBody(t, hfRankListing)
 	meta, _ := metadataServer(t, http.StatusOK, hfRankMetadata)
 	for _, tc := range []struct {
@@ -141,53 +140,31 @@ func TestListModelCatalog_HuggingFaceRanksWithMetadata(t *testing.T) {
 		{ProfileCapable, []string{"a/large", "d/uncovered", "c/flash", "b/mid", "v/no-reason"}},
 	} {
 		cat := listCatalog(context.Background(), t, llmprovider.ProviderHuggingFace,
-			llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(tc.profile))
+			llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL), WithProfile(tc.profile))
 		assertRanked(t, cat.Recommended, tc.want)
 	}
 }
 
-// TestListModelCatalog_MetadataFallback pins MADR 0009 §2's degradation: any
-// failure of the metadata source leaves today's curation in place.
+// TestListModelCatalog_MetadataFallback pins MADR 0009 §2's degradation, as
+// 0093-MADR D3 leaves it: a document with no section for the provider, or
+// none at all, leaves today's curation in place. (The failed-fetch cases went
+// with the fetch, 0093-MADR MH30.)
 func TestListModelCatalog_MetadataFallback(t *testing.T) {
-	blocking := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done()
-	}))
-	t.Cleanup(blocking.Close)
 	for _, tc := range []struct {
-		name    string
-		enable  bool
-		status  int
-		body    string
-		timeout time.Duration
+		name string
+		doc  string // "" hands in none
 	}{
-		{"500", true, http.StatusInternalServerError, "", 0},
-		{"bad JSON", true, http.StatusOK, "{", 0},
-		{"missing key", true, http.StatusOK, `{"opencode":{"models":{}}}`, 0},
-		{"disabled", false, http.StatusOK, hfRankMetadata, 0},
-		{"timeout", true, 0, "", 300 * time.Millisecond},
+		{"missing key", `{"opencode":{"models":{}}}`},
+		{"disabled", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pinRankingNow(t, refNow)
-			if tc.enable {
-				enableModelMetadata(t)
-			}
-			metaURL := blocking.URL
-			if tc.timeout == 0 {
-				meta, _ := metadataServer(t, tc.status, tc.body)
-				metaURL = meta.URL
-			}
-			ctx := context.Background()
-			if tc.timeout > 0 {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, tc.timeout)
-				defer cancel()
-			}
 			listing := serveBody(t, hfRankListing)
-			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(metaURL)}
-			if !tc.enable {
-				opts = append(opts, llmprovider.WithoutModelMetadata())
+			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL)}
+			if tc.doc != "" {
+				opts = append(opts, handed(t, tc.doc))
 			}
-			cat := listCatalog(ctx, t, llmprovider.ProviderHuggingFace, opts...)
+			cat := listCatalog(context.Background(), t, llmprovider.ProviderHuggingFace, opts...)
 			assertRanked(t, cat.Recommended, hfFallbackOrder)
 			assertRanked(t, cat.Recommended, curateHuggingFace(cat.Usable, MaxListed))
 		})
@@ -195,31 +172,11 @@ func TestListModelCatalog_MetadataFallback(t *testing.T) {
 }
 
 func TestListModelCatalog_MetadataFallbackZen(t *testing.T) {
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	listing := serveBody(t, opencodeListingFixture)
-	meta, _ := metadataServer(t, http.StatusInternalServerError, "")
-	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL))
+	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, llmprovider.WithBaseURL(listing.URL))
 	want := curateFromCatalog(llmprovider.ProviderOpencodeZen, staticOpencodeCatalog(llmprovider.ProviderOpencodeZen), cat.Usable, isUsableOpencodeModel, rankOpencodeModel, MaxListed)
 	assertRanked(t, cat.Recommended, want)
-}
-
-// TestListModelCatalog_MetadataIsolation proves WithoutModelMetadata works:
-// with the fetch off no request reaches the metadata URL, and without the
-// option it makes exactly one. It proved TestMain's environment switch until
-// 0015-PLAN S10.
-func TestListModelCatalog_MetadataIsolation(t *testing.T) {
-	listing := serveBody(t, opencodeListingFixture)
-	meta, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
-	listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, append(opts, llmprovider.WithoutModelMetadata())...)
-	if n := hits.Load(); n != 0 {
-		t.Fatalf("disabled: metadata requests = %d, want 0", n)
-	}
-	enableModelMetadata(t)
-	listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, opts...)
-	if n := hits.Load(); n != 1 {
-		t.Errorf("enabled: metadata requests = %d, want 1", n)
-	}
 }
 
 // TestListModelCatalog_OpencodeGoGates pins MADR 0009 §3 items 7–8: the
@@ -227,7 +184,7 @@ func TestListModelCatalog_MetadataIsolation(t *testing.T) {
 // and the region gate is Go-only.
 func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	models := []string{
 		mdModel("deepseek-v4-flash", "deepseek-flash", true, 0.05, 0.1, "2026-09-01"),
 		mdModel("muse-spark-1.3-contributor", "muse", true, 0.06, 0.1, "2026-09-01"),
@@ -242,7 +199,7 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 		`{`+mdSection("opencode-go", models...)+`,`+mdSection("opencode", models...)+`}`)
 	listing := serveBody(t, zenStyleListing(opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor", "glm-5.3-flash",
 		"qwen3.8-flash", "kimi-k2.6", "mimo-v2.6-flash", "gpt-6-luna", "hy3"))
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithLimit(MaxListed)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL), WithLimit(MaxListed)}
 
 	goCat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, opts...)
 	// gpt-6-luna's 0.20 blend makes it small (0041-MADR D4), so the
@@ -296,7 +253,7 @@ func serveTestdata(t *testing.T, name string) *httptest.Server {
 // rule change must update §7 and this test together.
 func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	meta := serveTestdata(t, "metadata.json")
 	for _, tc := range []struct {
 		provider         llmprovider.ProviderID
@@ -334,7 +291,7 @@ func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 			want    []string
 		}{{ProfileUtility, tc.utility}, {ProfileCapable, tc.capable}} {
 			cat := listCatalog(context.Background(), t, tc.provider,
-				llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(p.profile),
+				llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL), WithProfile(p.profile),
 				WithLimit(MaxListed))
 			if !slices.Equal(cat.Recommended, p.want) {
 				t.Errorf("%s profile %d:\n got  %v\n want %v", tc.provider, p.profile, cat.Recommended, p.want)

@@ -906,3 +906,5 @@ allocations for 100 plain messages where `HEAD` made 1,008.
   refresh hold.
 
 The text above is not rewritten.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D-A1 is superseded as to the fetch: OpenCode routes at once by the document given to its `New`, else the table, else the name rule, and never waits (D6; MH20). The text above is unchanged.)*

@@ -52,7 +52,7 @@ func TestList_ControlIDsDropped_0066(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		cat, err := List(context.Background(), "acme", llmprovider.NewStaticToken(""), withCompatID("acme"),
-			llmprovider.WithBaseURL(srv.URL+"/v1"), WithCache(&Cache{}), llmprovider.WithoutModelMetadata())
+			llmprovider.WithBaseURL(srv.URL+"/v1"), WithCache(&Cache{}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestList_ControlIDsDropped_0066(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		cat, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""),
-			llmprovider.WithBaseURL(srv.URL), WithCache(&Cache{}), llmprovider.WithoutModelMetadata())
+			llmprovider.WithBaseURL(srv.URL), WithCache(&Cache{}))
 		if err != nil {
 			t.Fatal(err)
 		}

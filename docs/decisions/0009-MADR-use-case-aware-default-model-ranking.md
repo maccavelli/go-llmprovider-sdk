@@ -1124,3 +1124,5 @@ Why, by the snapshot's prices:
 
 §7's own table is the record of what this ranking gave on 2026-09-26, and
 is kept.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): §2's fetch beside a listing, and OpenCode's default document URL, are superseded. The SDK fetches no models.dev document; a caller hands one in with `catalog.WithMetadata`, and a listing ranks by it (D1, D6). The text above is unchanged.)*

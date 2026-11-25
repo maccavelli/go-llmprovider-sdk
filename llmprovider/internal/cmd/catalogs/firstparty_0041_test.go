@@ -74,7 +74,7 @@ func firstPartyPages() map[llmprovider.ProviderID][][]byte {
 func TestFirstParty_0041(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "firstparty-2026-10-14")
 	var out, errOut bytes.Buffer
-	if code := run([]string{"-firstparty", dir}, &out, &errOut, allKeys(),
+	if code := run(docArgs(t, "-firstparty", dir), &out, &errOut, allKeys(),
 		&pagedFetcher{pages: firstPartyPages()}); code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut.String())
 	}
@@ -114,14 +114,14 @@ func TestFirstParty_0041(t *testing.T) {
 			t.Errorf("openai.json lost %s: %s", kept, openai)
 		}
 	}
-	if code := run([]string{"-firstparty", dir}, &out, &errOut, allKeys(),
+	if code := run(docArgs(t, "-firstparty", dir), &out, &errOut, allKeys(),
 		&pagedFetcher{pages: firstPartyPages()}); code == 0 {
 		t.Error("an existing directory was not refused")
 	}
 	missing := firstPartyPages()
 	delete(missing, llmprovider.ProviderGemini)
 	other := filepath.Join(t.TempDir(), "firstparty-missing")
-	if code := run([]string{"-firstparty", other}, &out, &errOut, allKeys(),
+	if code := run(docArgs(t, "-firstparty", other), &out, &errOut, allKeys(),
 		&pagedFetcher{pages: missing}); code == 0 {
 		t.Error("a listing not read was not refused")
 	}

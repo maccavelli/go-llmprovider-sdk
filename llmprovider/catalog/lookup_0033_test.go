@@ -68,16 +68,15 @@ type lookupServer struct {
 	mu       sync.Mutex
 	auths    []string
 	block    chan struct{} // when set, the listing waits for it to close
+	// handed is the document the server once served, handed in with
+	// WithMetadata (0093-MADR D12, MH29).
+	handed llmprovider.Option
 }
 
 func newLookupServer(t *testing.T, doc string, status int, reply string) *lookupServer {
 	t.Helper()
-	s := &lookupServer{}
+	s := &lookupServer{handed: handed(t, doc)}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api.json" {
-			_, _ = io.WriteString(w, doc)
-			return
-		}
 		s.listings.Add(1)
 		s.mu.Lock()
 		s.auths = append(s.auths, r.Header.Get("Authorization")+r.Header.Get("x-api-key")+r.Header.Get("x-goog-api-key"))
@@ -110,14 +109,14 @@ func resetListingCache() {
 // resetLookupCaches empties both caches on both sides of a test.
 func resetLookupCaches(t *testing.T) {
 	t.Helper()
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	resetListingCache()
 	t.Cleanup(resetListingCache)
 }
 
-// lookupOpts point the listing and the document at s.
+// lookupOpts point the listing at s, and hand in s's document.
 func lookupOpts(s *lookupServer) []llmprovider.Option {
-	return []llmprovider.Option{llmprovider.WithBaseURL(s.URL), llmprovider.WithModelMetadataURL(s.URL + "/api.json")}
+	return []llmprovider.Option{llmprovider.WithBaseURL(s.URL), s.handed}
 }
 
 // listingCase is one listing's reply, model, and the fields it must set.
@@ -364,21 +363,23 @@ func TestLookupModel_Offline_0033(t *testing.T) {
 	}
 	ct := &requestCounter0033{}
 	info, err := LookupModel(context.Background(), llmprovider.ProviderClaude, nil, "claude-x",
-		llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: ct}), WithModelLayer(doc))
+		llmprovider.WithHTTPClient(&http.Client{Transport: ct}), WithModelLayer(doc))
 	if err != nil || ct.n.Load() != 0 || info.ContextWindow != 1000000 || info.SourceOf(FieldContextWindow) != "models.dev" {
 		t.Errorf("offline: %d requests, window %d from %q, %v", ct.n.Load(), info.ContextWindow, info.SourceOf(FieldContextWindow), err)
 	}
 }
 
 // TestCachedModel_NeverWaits_0033: cold, it returns at once and starts the
-// fetches; once they end it answers; warm, it sends nothing.
+// listing; once it ends it answers; warm, it sends nothing. The cold call
+// hands in no document, so nothing but the listing could answer it
+// (0093-MADR D12 (g), MH61); MH15's test holds a handed document's answer.
 func TestCachedModel_NeverWaits_0033(t *testing.T) {
 	resetLookupCaches(t)
 	s := newLookupServer(t, lookupDoc, http.StatusOK, grokListing0033)
 	s.block = make(chan struct{})
 	src := llmprovider.NewStaticToken("key-1")
 	start := time.Now()
-	_, ok := CachedModel(context.Background(), llmprovider.ProviderGrok, src, "grok-x", lookupOpts(s)...)
+	_, ok := CachedModel(context.Background(), llmprovider.ProviderGrok, src, "grok-x", llmprovider.WithBaseURL(s.URL))
 	if took := time.Since(start); ok || took > 50*time.Millisecond {
 		t.Errorf("cold: ok %v after %v; want false within 50 ms", ok, took)
 	}
@@ -387,7 +388,6 @@ func TestCachedModel_NeverWaits_0033(t *testing.T) {
 	s.block = nil
 	s.mu.Unlock()
 	waitListingFetches()
-	waitMetadataFetches()
 	info, ok := CachedModel(context.Background(), llmprovider.ProviderGrok, src, "grok-x", lookupOpts(s)...)
 	if !ok || info.ContextWindow != 500000 || info.Name != "Grok X" {
 		t.Errorf("after the fetch: %+v, %v; want the listing's window and models.dev's name", info.public(), ok)

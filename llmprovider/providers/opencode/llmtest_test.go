@@ -128,7 +128,7 @@ func TestConformance(t *testing.T) {
 				// stream (0088-MADR ST88, ST88e). The stream is checked through Stream.
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 					return newFor(tc.gateway)(append(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
-						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192), WithRoute(tc.route)}, opts...), metadataOff()...)...)
+						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), llmprovider.WithMaxTokens(8192), WithRoute(tc.route)}, opts...), baseDoc()...)...)
 				},
 				Text: write(replies.text),
 				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
@@ -209,7 +209,7 @@ func TestStreamTextDeltas_0051(t *testing.T) {
 			}))
 			defer srv.Close()
 			p, err := newFor(tc.gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
-				llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL), WithRoute(tc.route)}, metadataOff()...)...)
+				llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL), WithRoute(tc.route)}, baseDoc()...)...)
 			if err != nil {
 				t.Fatal(err)
 			}

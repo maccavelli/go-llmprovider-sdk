@@ -49,18 +49,3 @@ func TestScopedOptionFor_CopiesTheList(t *testing.T) {
 		t.Fatalf("opencode-zen after the caller's slice changed: %v", err)
 	}
 }
-
-// TestResolveOptions_ModelMetadataURLIsCommon: the metadata URL reaches
-// every provider (0015-MADR amendment "the OpenCode family").
-func TestResolveOptions_ModelMetadataURLIsCommon(t *testing.T) {
-	st, err := ResolveOptions(ProviderOpencodeGo, []Option{WithModelMetadataURL("http://meta.invalid/api.json")})
-	if err != nil {
-		t.Fatalf("ResolveOptions: %v", err)
-	}
-	if got := st.ModelMetadataURL(); got != "http://meta.invalid/api.json" {
-		t.Errorf("ModelMetadataURL() = %q, want the option's URL", got)
-	}
-	if st, _ := ResolveOptions(ProviderOpenAI, nil); st.ModelMetadataURL() != "" {
-		t.Errorf("default ModelMetadataURL() = %q, want empty", st.ModelMetadataURL())
-	}
-}

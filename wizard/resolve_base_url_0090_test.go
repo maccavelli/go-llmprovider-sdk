@@ -46,7 +46,7 @@ func answered0090(r *http.Request, status int) *http.Response {
 // options0090 are the run's options with a client whose transport is rt.
 func options0090(t *testing.T, rt roundTripFunc) Options {
 	return Options{HTTPClient: &http.Client{Transport: rt},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // assertEnded0090 fails t unless err matches want and nothing was shown or

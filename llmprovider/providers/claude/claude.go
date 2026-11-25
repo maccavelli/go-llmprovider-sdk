@@ -108,8 +108,9 @@
 //
 // Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
 // already hold of its model: a caller's catalog.WithModelLayer, a listing
-// that ListModels or catalog.List read, and the models.dev document once
-// something has fetched it. A request never fetches, and never waits.
+// that ListModels or catalog.List read, and the models.dev document given
+// to New with catalog.WithMetadata (0093-MADR D2). A request never
+// fetches, and never waits.
 // From them comes the thinking shape: a budget bound means an enabled
 // budget within it, efforts mean adaptive thinking with the effort, and a
 // toggle alone means adaptive thinking with none.

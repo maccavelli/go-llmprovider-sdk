@@ -177,7 +177,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning`; `MatchRefusal`, its refusals of a thinking shape or an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `ThinkingConfigFor`; `MatchRefusal`, its refusal of a level (0062-MADR D4, amendment "Phase 3's google-route levels, and 0013's B9") | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Listed`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `SortByRank` (0070-MADR D1), `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `LabelName` and `LabelNote` (0070-MADR D2), `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood`, `WithKiloOrganization` and `WithClaudeWorkspace`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache`, its `Close` (0071-MADR D1, D2) and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a model's limits with every source's evidence (0089-MADR D1 to D3): `Limits`, `Fact`, `Evidence`, `LookupLimits` and `CachedLimits`, read from the caller's layers, the listing, Claude's one-model read, Ollama's `/api/ps`, the ChatGPT backend's listing, the models.dev document and the embedded limits-only extract `limits_snapshot.json` (`tools/limitsnapshot.py`), `Limits.Required` from OpenCode's route table in `internal/opencoderoute`, and a cap passed back with `llmprovider.WithLimitObservations` as the evidence "remembered" (0089-MADR D5), a cap the memo keeps as "observed", bounding `Limits.Output` and, for a streamed call, `Limits.StreamedOutput` (DL76), and the Messages route's fallback, the smallest limit a current model on the route is stated to take, the retired list excluded (DL51, DL77); a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `auth`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute`, `internal/limitmemo`, `internal/retired` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `SortByRank` (0070-MADR D1), `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `LabelName` and `LabelNote` (0070-MADR D2), `Profile`, `Metadata` and `WithMetadata`, the models.dev document a caller hands in (0093-MADR D1), `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood`, `WithKiloOrganization` and `WithClaudeWorkspace`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache`, its `Close` (0071-MADR D1, D2) and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a model's limits with every source's evidence (0089-MADR D1 to D3): `Limits`, `Fact`, `Evidence`, `LookupLimits` and `CachedLimits`, read from the caller's layers, the listing, Claude's one-model read, Ollama's `/api/ps`, the ChatGPT backend's listing, the models.dev document the call hands in (0093-MADR D2, D7), `Limits.Required` from OpenCode's route table in `internal/opencoderoute`, and a cap passed back with `llmprovider.WithLimitObservations` as the evidence "remembered" (0089-MADR D5), a cap the memo keeps as "observed", bounding `Limits.Output` and, for a streamed call, `Limits.StreamedOutput` (DL76), and the Messages route's fallback, carried in the call's own `Limits.RouteFallback` (0093-MADR D7), the smallest limit a current model on the route is stated to take, the retired list excluded (DL51, DL77); a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `auth`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute`, `internal/limitmemo`, `internal/retired` |
 | `internal/kiloendpoint` | `Resolve`, `Route`, `Organization` and Kilo's base URL, for `catalog`, `providers/kilo`, the Kilo device login and `internal/signinflow`; it is in the module's own `internal` directory, not `llmprovider`'s, so that `internal/signinflow`, and through it `wizard` and `llmprovider/x/signin`, decide whether a credential has an organization by the rule the listing's URL is built by (0080-MADR D4) | the standard library |
 | `llmprovider/internal/toolschema` | `Form` (`None`, `Grok`, `OpenAI`, `Anthropic`, `Google`), `Read`, `References` and its result `Refs`: whether a reply is a service's refusal of a tool's schema in one of the four forms recorded (Grok's tag, OpenAI's code, Anthropic's `tools.N.` path, the Google route's phrase), and the names and positions its message gives, for `llmprovider`'s classification and `internal/wire`'s `NameRefusedTool` (0084-MADR D3) | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
@@ -194,7 +194,7 @@ standard library is left out.
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `llmprovider/internal/retired` | `IDs`, the retired model ids by provider, each with why (0033-MADR D4) | `llmprovider` |
 | `llmprovider/internal/catalogtool` | `Propose`, the maintainer tool's proposals: ids to remove from a static list, and models to add | `llmprovider`, `catalog`, `internal/retired` |
-| `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads models.dev and each keyed listing, and prints the proposals; `-snapshot` records the ranked listings, and `-firstparty` the first-party listings, every page, redacted | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |
+| `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads the models.dev document `-doc` names, required (0093-MADR D6), and each keyed listing, and prints the proposals; `-snapshot` records the ranked listings, and `-firstparty` the first-party listings, every page, redacted | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |
 | `llmprovider/internal/cmd/sdkaudit` | the API audit, `go run ./llmprovider/internal/cmd/sdkaudit`: the measures of 0048-MADR as JSON, or with `-check` the violations of R50–R52, from the source by `go/ast`; it changes nothing | the standard library |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
@@ -262,7 +262,8 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/listlimi
 
 `catalog.List(ctx, id, src, opts...)` resolves the same options, fetches the
 provider's model list, and curates it into a `Catalog`. Every provider ranks
-by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
+by `Profile`, with the models.dev document the call hands in with
+`WithMetadata`, if any (0093-MADR D2);
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
 document (0041-MADR D4). A listing read in the last ten minutes, for the
 same provider, base URL, Kilo organization or Claude workspace, and
@@ -286,7 +287,7 @@ provider probes.
 the same code, with a recording transport over the caller's, and returns
 the listing as the provider sent it: every page byte for byte, and each
 entry of the pages' model arrays with the provider's own id (0041-MADR D9).
-It filters, ranks and caveats nothing, fetches no metadata document,
+It filters, ranks and caveats nothing, reads no metadata document,
 neither reads nor writes the listing cache, and never falls back: a failed
 page is its error. It renews a refused credential once, as `List` does.
 A ChatGPT session lists the Codex backend, with the request the openai
@@ -294,16 +295,10 @@ provider sends (`internal/chatgpt`); a ChatGPT plan session reads the
 `models` array of the platform's `/models`; Ollama's listing is `/api/tags`
 alone.
 
-The metadata document is fetched once per URL at a time, detached from the
-callers that wait for it and bounded at 10 s; each lookup waits under its
-own context, a request's for at most 5 s. Past the ten-minute cache the
-cached document is served while one refresh runs in the background. A failed
-fetch is remembered for a minute; a caller's own deadline is not. A refresh
-sends the cached document's `ETag` as `If-None-Match`, and a 304 renews the
-entry without a download or a decode. Listing pages are read up to 8 MiB,
-and the document up to 32 MiB, decoded as it streams in.
-`CachedMetadataWith` returns the cached document without waiting, and
-starts the fetch when none is cached.
+Listing pages are read up to 8 MiB. The SDK fetches no metadata document
+(0093-MADR D6): a caller downloads one, such as
+`https://models.dev/api.json`, reads it with `ParseMetadata`, up to 32 MiB,
+decoded as it streams in, and hands it in with `WithMetadata`.
 
 ### Model metadata
 
@@ -313,16 +308,16 @@ descriptor, prices in USD per million tokens (with a list of tiers), and
 lifecycle. It is merged field by field from three kinds of layer, a later one
 winning (0033-MADR D1 to D3):
 
-1. **models.dev's document,** unless `WithoutModelMetadata` is set. Nine
+1. **models.dev's document,** the one the call hands in with
+   `WithMetadata` (0093-MADR D2); with none, this layer is empty. Nine
    sections are read: the four open catalogs', and `openai`, `anthropic`,
    `google`, `xai` and `kilo`.
-   - A fetched document keeps each section's bytes, and decodes a section
-     the first time it is read, once.
+   - A parsed document keeps each section's bytes.
    - `canonical_model_id` is `CanonicalID`. A gateway model's missing
      `cache_read` comes from its canonical model's first-party entry
      (0041-MADR D1).
-   - `ParseMetadata` decodes every section of a document a caller
-     persisted.
+   - `ParseMetadata` reads a document the caller downloaded or persisted,
+     decoding every section now; it is the only way to make one.
    - `Metadata.Encode` writes the sections back as they were read,
      losslessly.
 2. **The provider's listing,** when a `TokenSource` is given: the fields
@@ -358,10 +353,11 @@ fingerprint of the credential, never the credential itself (0064-MADR D2).
 No base URL is the provider's default, so a `List` with none and a
 provider's request, which names its default, share an entry.
 Claude's lister reads `/v1/models` under a base with or without `/v1`
-(0041-MADR A8). `List` fills the cache too. `CachedModel` answers from the caches and the caller's
-layers without waiting, and starts a refresh where one is missing or stale.
+(0041-MADR A8). `List` fills the cache too. `CachedModel` answers from the caches, the caller's
+layers and its document without waiting, and starts a refresh where one is missing or stale.
 `CachedFacts` is what a request reads (0041-MADR D1, A3): the same merge,
-from the caches alone, starting no fetch. A provider passes its request's
+from the caches, the layers and the document given to the provider's `New`
+(0093-MADR D2, Q4), starting no fetch. A provider passes its request's
 own token, so its token source is asked once per request. Every built-in
 provider reads it once per request for its output limit and the efforts
 the model takes; Claude and OpenCode's messages and google routes for the
@@ -371,15 +367,15 @@ refusal the model returned outranks the facts: the effort and the thinking
 shape sent are those it has not refused, then those its facts list, then
 the request's (0062-MADR D2, D3). With no facts, the request decides.
 
-These caches, and the models.dev document's and the probes', are the
+These caches, and the probes', are the
 process's, shared by every listing and provider, unless a caller gives
 `catalog.WithCache(&c)` (0048-MADR D1). A `catalog.Cache` holds its own
-listings, metadata documents, probe results, learned forced-choice
+listings, probe results, learned forced-choice
 refusals (0049-MADR D3) and refused thinking settings (0062-MADR D5), shared
 only by the listings and providers given it;
 `providers.DefaultWith(catalog.WithCache(&c))` gives it to every built-in a
 `Registry` builds. `c.Close(ctx)` ends its life. It stops the listing
-fetches, models.dev refreshes and probe runs that the cache would start,
+fetches and probe runs that the cache would start,
 cancels those in flight, and waits for them. After it, `List` and the
 lookups refuse, and the cached reads answer from what the cache holds
 (0071-MADR D1, D2). An `OAuthSession`'s refresh is the session's, so a
@@ -1133,11 +1129,9 @@ for a session, from the store.
   package reads the variable nowhere else.
 - `catalog.Profile` (`ProfileUtility`, `ProfileCapable`, `ProfileAgent`),
   passed with `catalog.WithProfile`, ranks every provider's catalog,
-  using models.dev-format metadata from `https://models.opencode.ai/api.json`.
-  `WithModelMetadataURL` names another document, and `WithoutModelMetadata`
-  turns the fetch off. `catalog.OptionsFromEnv()` sets either from
-  `LLMPROVIDER_MODELS_METADATA_URL` and `LLMPROVIDER_DISABLE_MODELS_METADATA`
-  for a caller who passes its result.
+  using the models.dev document the caller downloads, such as
+  `https://models.dev/api.json`, and hands in with `catalog.WithMetadata`;
+  the SDK fetches none and reads no variable for it (0093-MADR D6, D10).
 - **`ProfileAgent`** (0041-MADR D5) is for long agent sessions with prompt
   caching on. Its band holds `ProfileCapable`'s six, reordered by signal,
   bench, preferred index, release quarter (90 days), then the cheaper
@@ -1160,7 +1154,7 @@ for a session, from the store.
     `family`; the gateways keep the vendor prefix.
 - **No ambient state.** Library code reads the environment only in
   exported `…FromEnv` helpers a caller opts into (`ModelProbesFromEnv`,
-  `catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`). The default transport
+  `auth.GrokFlowFromEnv`). The default transport
   also reads the proxy settings. Nothing logs to the global logger. The test
   in `internal/ambientcheck` fails on any other read.
 
@@ -1574,6 +1568,11 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   fails on an incompatible change outside `llmprovider/x/` and the internal
   packages. Before the first such tag it reports that there is nothing to
   compare, and passes.
+  *(2026-11-24: one recorded exception. Against `v1.32.0` it accepts
+  exactly the eight removals of
+  [0093-MADR](decisions/0093-MADR-take-model-metadata-from-the-caller.md)
+  D10 and Q1, each by name in `ACCEPTED`, printed as accepted with the
+  record; any other incompatible change still fails.)*
 - **`generate-check`** (`scripts/check_generated.py`) reruns each
   `//go:generate` line that names `-output` (as `-output X` or `-output=X`),
   into a temporary file, and fails when the committed file differs, or when

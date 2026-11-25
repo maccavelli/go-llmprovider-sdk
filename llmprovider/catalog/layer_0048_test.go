@@ -50,7 +50,7 @@ func TestLayer_CalledByConcurrentRequests_0048(t *testing.T) {
 	t.Cleanup(srv.Close)
 	layer := &meetingLayer0048{met: make(chan struct{})}
 	p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("key-0048"), llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithModel("claude-x"), llmprovider.WithoutModelMetadata(), catalog.WithModelLayer(layer))
+		llmprovider.WithModel("claude-x"), catalog.WithModelLayer(layer), catalog.WithMetadata(catalog.ExtractFixture(t)))
 	if err != nil {
 		t.Fatal(err)
 	}

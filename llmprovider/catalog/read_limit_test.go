@@ -46,13 +46,6 @@ func TestListing_PageLimit(t *testing.T) {
 	}
 }
 
-// TestModelMetadata_DocumentLimit (0021-MADR C3): a 33 MiB metadata document
-// is an error naming the 32 MiB limit.
-func TestModelMetadata_DocumentLimit(t *testing.T) {
-	enableModelMetadata(t)
-	srv := paddedServer(t, 33<<20)
-	cfg := testConfig(t, llmprovider.WithModelMetadataURL(srv.URL))
-	if _, err := loadModelMetadata(context.Background(), cfg); err == nil || !strings.Contains(err.Error(), "32 MiB") {
-		t.Errorf("a 33 MiB document: err = %v, want an error naming the 32 MiB limit", err)
-	}
-}
+// The document's own limit, 0021-MADR C3, is ParseMetadata's, held by
+// TestDecodeModelMetadata_StreamedLimit; its fetch test went with the fetch
+// (0093-MADR D12, MH30, MH44).

@@ -391,7 +391,7 @@ func (c toolCase) send(key string, base http.RoundTripper) (rep toolReply, built
 	defer cancel()
 	cp := &toolCapture{base: base}
 	opts := []llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithModel(c.model),
-		llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+		llmprovider.WithModelProbes(false),
 		llmprovider.WithHTTPClient(&http.Client{Transport: cp})}
 	if c.via != "" {
 		opts = append(opts, opencode.WithRoute(c.via))

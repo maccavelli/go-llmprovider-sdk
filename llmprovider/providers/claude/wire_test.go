@@ -9,11 +9,12 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
 
-// wireOpts is wirecase.Opts with a cache of the scenario's own. Each scenario
+// wireOpts is wirecase.Opts with the extract fixture (0093-MADR D12, MH55)
+// and a cache of the scenario's own. Each scenario
 // builds once, against a server of its own that it closes before the next
 // starts, so no listing may outlive its server (0058-MADR D1).
 func wireOpts(u string, extra ...llmprovider.Option) []llmprovider.Option {
-	return append(wirecase.Opts(u, extra...), catalog.WithCache(new(catalog.Cache)))
+	return append(wirecase.Opts(u, append([]llmprovider.Option{extractDoc()}, extra...)...), catalog.WithCache(new(catalog.Cache)))
 }
 
 // updateWire rewrites this package's G-wire goldens, only for a difference a

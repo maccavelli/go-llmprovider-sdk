@@ -34,7 +34,7 @@ func claudeListing0059(status int, calls *atomic.Int32) *http.Client {
 // metadata document.
 func options0059(t *testing.T, client *http.Client, discover bool) Options {
 	return Options{Discover: discover, HTTPClient: client,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // TestShape_AcceptedKeyNoWarning_0059 (P1): a Claude key the listing accepts

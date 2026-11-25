@@ -496,3 +496,5 @@ R54's version is raised by its own rule, which raises the floor with each Go
 security patch, to `go 1.27.4` for GO-2026-6859 in `net/http`, by
 [0077-MADR-go-1-27-4-for-go-2026-6859.md](0077-MADR-go-1-27-4-for-go-2026-6859.md).
 A1's reasons for Go 1.27 stand.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D1 (R49): `catalog.Cache` holds no models.dev document; a caller hands one in with `catalog.WithMetadata` (D2). The text above is unchanged.)*

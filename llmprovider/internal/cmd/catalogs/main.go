@@ -12,9 +12,11 @@
 //
 // Usage:
 //
-//	go run ./llmprovider/internal/cmd/catalogs [-doc FILE] [-snapshot DIR]
+//	go run ./llmprovider/internal/cmd/catalogs -doc FILE [-snapshot DIR]
 //
-// -doc reads a models.dev-format document from FILE instead of fetching one.
+// -doc, required, reads the models.dev-format document from FILE, which the
+// maintainer downloads from https://models.dev/api.json; the command fetches
+// none, and without -doc it is a usage error, exit 2 (0093-MADR D6).
 // -snapshot writes DIR, which must not exist: each ranked list's listing body
 // as it was read, the document's sections the SDK reads (Metadata.Encode), and
 // snapshot.json, with the time of the run and each file's SHA-256.
@@ -78,12 +80,11 @@ var snapshotFiles = map[llmprovider.ProviderID]string{
 	llmprovider.ProviderTogether: "together.json",
 }
 
-// fetcher reads the sources: the document, and one provider's catalog, with
-// the listing body it was built from.
+// fetcher reads one provider's catalog, with the listing body it was built
+// from.
 type fetcher interface {
-	Metadata(ctx context.Context) (catalog.Metadata, error)
 	// Catalog lists provider with key, "" for a public listing. A ranked list
-	// is ranked with the utility profile and metadata.
+	// is ranked with the utility profile and the document -doc read.
 	Catalog(ctx context.Context, provider llmprovider.ProviderID, key string, ranked bool) (catalog.Catalog, error)
 	// Listing is the listing body provider's catalog was built from, when it
 	// was one page.
@@ -95,23 +96,20 @@ type fetcher interface {
 // liveFetcher reads the sources from the network, and keeps each listing body.
 // Its zero value reads the real endpoints; a test points it at its own.
 type liveFetcher struct {
-	metadataURL string               // "" is models.dev's default
-	extra       []llmprovider.Option // appended to each catalog.List
-	mu          sync.Mutex
-	listings    map[llmprovider.ProviderID][][]byte // every page
+	doc      catalog.Metadata     // -doc's, which a ranked list is ranked with
+	extra    []llmprovider.Option // appended to each catalog.List
+	mu       sync.Mutex
+	listings map[llmprovider.ProviderID][][]byte // every page
 }
 
-func (f *liveFetcher) Metadata(ctx context.Context) (catalog.Metadata, error) {
-	return catalog.LookupMetadata(ctx, f.metadataURL, nil)
-}
+// useMetadata gives f the document a ranked list is ranked with.
+func (f *liveFetcher) useMetadata(m catalog.Metadata) { f.doc = m }
 
 func (f *liveFetcher) Catalog(ctx context.Context, provider llmprovider.ProviderID, key string, ranked bool) (catalog.Catalog, error) {
 	rec := newListingRecorder()
 	opts := append([]llmprovider.Option{llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, f.extra...)
 	if ranked {
-		opts = append(opts, catalog.WithProfile(catalog.ProfileUtility))
-	} else {
-		opts = append(opts, llmprovider.WithoutModelMetadata())
+		opts = append(opts, catalog.WithProfile(catalog.ProfileUtility), catalog.WithMetadata(f.doc))
 	}
 	cat, err := catalog.List(ctx, provider, llmprovider.NewStaticToken(key), opts...)
 	if err == nil {
@@ -231,7 +229,7 @@ func run(args []string, stdout, stderr io.Writer, keys map[llmprovider.ProviderI
 func runTo(args []string, out, errOut *writer, stderr io.Writer, keys map[llmprovider.ProviderID]string, f fetcher) int {
 	flags := flag.NewFlagSet("catalogs", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	doc := flags.String("doc", "", "read a models.dev-format document from this file instead of fetching one")
+	doc := flags.String("doc", "", "read the models.dev-format document from this file (required)")
 	snapshot := flags.String("snapshot", "", "write the ranked listings and the document to this new directory")
 	firstParty := flags.String("firstparty", "",
 		"write the first-party listings (OpenAI, Anthropic, Gemini, xAI), every page, redacted, to this new directory")
@@ -250,10 +248,18 @@ func runTo(args []string, out, errOut *writer, stderr io.Writer, keys map[llmpro
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	meta, err := readMetadata(ctx, *doc, f)
+	if *doc == "" {
+		errOut.printf("catalogs: -doc FILE is required: the command fetches no document; download models.dev's " +
+			"and pass it (0093-MADR D6)\n")
+		return 2
+	}
+	meta, err := readMetadata(*doc)
 	if err != nil {
 		errOut.printf("catalogs: %v\n", err)
 		return 2
+	}
+	if d, ok := f.(interface{ useMetadata(catalog.Metadata) }); ok {
+		d.useMetadata(meta)
 	}
 	vars := llmprovider.ProviderEnvVars()
 	providers := make([]llmprovider.ProviderID, 0, len(vars))
@@ -465,11 +471,8 @@ func writeFirstParty(dir string, f fetcher, now time.Time) error {
 	return nil
 }
 
-// readMetadata reads the document from path, or fetches it when path is "".
-func readMetadata(ctx context.Context, path string, f fetcher) (catalog.Metadata, error) {
-	if path == "" {
-		return f.Metadata(ctx)
-	}
+// readMetadata reads the document from path.
+func readMetadata(path string) (catalog.Metadata, error) {
 	// The path is the maintainer's own argument.
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {

@@ -39,8 +39,7 @@ func TestListModels_DefaultBaseShape_0041(t *testing.T) {
 		}
 	})))
 	defer srv.Close()
-	p := build(t, apiKey(srv.URL+"/v1", "claude-sonnet-4-5-0041", llmprovider.WithModelProbes(false),
-		llmprovider.WithModelMetadataURL(srv.URL+"/api.json"))...)
+	p := build(t, apiKey(srv.URL+"/v1", "claude-sonnet-4-5-0041", llmprovider.WithModelProbes(false))...)
 	models, err := list(t, p)
 	if err != nil {
 		t.Fatal(err)

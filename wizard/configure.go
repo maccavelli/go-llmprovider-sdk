@@ -122,8 +122,9 @@ type Options struct {
 	LookupEnv func(string) string
 	// ProviderOptions are added, after the wizard's own, to every model
 	// listing, to each read of Kilo's profile and to the provider it builds
-	// for a ChatGPT session. Pass catalog.OptionsFromEnv() here, or llmprovider.WithoutModelMetadata()
-	// to keep a listing off the network.
+	// for a ChatGPT session. Pass catalog.WithMetadata here to rank the
+	// listings by a models.dev document; the wizard fetches none (0093-MADR
+	// D2, D6).
 	ProviderOptions []llmprovider.Option
 	// TokenStore persists sessions created by the browser, device-code and
 	// token-paste flows. Supplying it opts in to every sign-in method; when it

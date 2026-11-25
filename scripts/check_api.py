@@ -18,6 +18,12 @@ internal one, would go uncompared, so it fails the gate (exit 1).
 Before the first v1 release tag there is nothing to compare: it says so and
 passes.
 
+An incompatible change a record accepts against one release, in ACCEPTED, is
+printed as accepted, naming the record, and does not fail the gate: D10's
+eight removals against v1.32.0, a recorded exception to R42 and R48
+(docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md D10, Q1,
+MH39). Any other incompatible change still fails.
+
 Usage:
   scripts/check_api.py
 
@@ -44,6 +50,20 @@ RELEASE = re.compile(r"^v1\.(\d+)\.(\d+)$")
 # ("./llmprovider/x/demo.Gone: removed") or a whole package ("package
 # <module>/llmprovider/x/demo: removed") (0020-MADR F54).
 EXPERIMENTAL = re.compile(r"^(?:\./|package " + re.escape(MODULE) + r"/)llmprovider/x[/.:]")
+# The incompatible changes a record accepts, by the release compared with:
+# each as apidiff prints it, with the record that accepts it.
+ACCEPTED: dict[str, dict[str, str]] = {
+    "v1.32.0": dict.fromkeys((
+        "./llmprovider.(*Settings).ModelMetadataDisabled: removed",
+        "./llmprovider.(*Settings).ModelMetadataURL: removed",
+        "./llmprovider.WithModelMetadataURL: removed",
+        "./llmprovider.WithoutModelMetadata: removed",
+        "./llmprovider/catalog.CachedMetadataWith: removed",
+        "./llmprovider/catalog.LookupMetadata: removed",
+        "./llmprovider/catalog.LookupMetadataWith: removed",
+        "./llmprovider/catalog.OptionsFromEnv: removed",
+    ), "0093-MADR D10"),
+}
 
 
 def run(args: list[str], cwd: Path, binary: bool = False) -> str | bytes:
@@ -103,10 +123,15 @@ def main() -> int:
             tar.extractall(old_tree, filter="data")
         out = compare(old_tree, ROOT, Path(tmp))
     changes = [line[2:] for line in out.splitlines() if line.startswith("- ")]
-    breaking = [c for c in changes if not EXPERIMENTAL.match(c)]
+    accepted = ACCEPTED.get(tag, {})
+    breaking = [c for c in changes if not EXPERIMENTAL.match(c) and c not in accepted]
     for c in changes:
-        print(f"api-check: incompatible{' (experimental, allowed)' if EXPERIMENTAL.match(c) else ''}: {c}")
-    print(f"api-check: against {tag}, {len(breaking)} incompatible change(s) outside llmprovider/x/")
+        if c in accepted and not EXPERIMENTAL.match(c):
+            print(f"api-check: accepted ({accepted[c]}): {c}")
+        else:
+            print(f"api-check: incompatible{' (experimental, allowed)' if EXPERIMENTAL.match(c) else ''}: {c}")
+    print(f"api-check: against {tag}, {len(breaking)} incompatible change(s) outside llmprovider/x/ and not "
+          f"accepted by a record")
     return 1 if breaking else 0
 
 

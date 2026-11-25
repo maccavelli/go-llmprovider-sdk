@@ -81,8 +81,8 @@
 // Model facts (0041-MADR D1): each request reads what catalog.CachedFacts
 // holds of its model, never fetching: a caller's catalog layers
 // (catalog.WithModelLayer), then what the cached listing read of the server,
-// then models.dev's facts of the model's canonical id, from the cached
-// document. The listing reads a server's details where its /models reply is
+// then models.dev's facts of the model's canonical id, from the document
+// given to New with catalog.WithMetadata (0093-MADR D2). The listing reads a server's details where its /models reply is
 // a recorded dialect's: Ollama's /api/show, for each model's window, tools,
 // vision and thinking. The canonical id drops an organisation, an Ollama tag
 // "latest", and quantisation and format tokens, and matches only an equal

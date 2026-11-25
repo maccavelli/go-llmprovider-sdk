@@ -393,9 +393,10 @@ func Run(t *testing.T, cases []Case, update bool) {
 		for _, s := range scenarios {
 			t.Run(c.Name+"/"+s.name, func(t *testing.T) {
 				srv := wiretest.NewServer(t, c.Reply)
-				// The goldens were recorded with the metadata fetch off; no
-				// scenario reaches models.opencode.ai (0015-PLAN S10).
-				extra := []llmprovider.Option{llmprovider.WithoutModelMetadata()}
+				// No scenario reaches a host but its own server: the SDK
+				// fetches no document, and a case that needs one hands it in
+				// through its Build (0015-PLAN S10; 0093-MADR D12).
+				var extra []llmprovider.Option
 				if s.name == "continuation" {
 					extra = append(extra, c.ContinueOpts...)
 				}

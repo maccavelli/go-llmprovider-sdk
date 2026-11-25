@@ -92,7 +92,7 @@ func (g *Guard) refuse(w http.ResponseWriter, r *http.Request) {
 }
 
 // Stop closes the proxy and returns each host recorded, sorted, with its
-// count: "models.opencode.ai:443 (3)".
+// count: "example.com:443 (3)".
 func (g *Guard) Stop() []string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -112,7 +112,8 @@ func (g *Guard) Stop() []string {
 // Report is the message a run that reached hosts off the machine prints.
 func Report(hosts []string) string {
 	return "localonly: the tests sent requests off the machine, to " + strings.Join(hosts, ", ") +
-		"; a test serves its own replies, and turns the models.dev document off when it serves none (0065-MADR)"
+		"; a test serves its own replies, and hands in a models.dev document with catalog.WithMetadata when it " +
+		"needs one (0065-MADR; 0093-MADR D12)"
 }
 
 // ExitCode is a run's exit code: code, or 1 when it was 0 and hosts were

@@ -32,7 +32,7 @@ func TestListModels_ConcurrentProbes_0053(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	p, err := New(llmprovider.WithAPIKey("sk-0053"), llmprovider.WithModel("gpt-5.5"), llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(), catalog.WithCache(&catalog.Cache{}))
+		catalog.WithCache(&catalog.Cache{}))
 	if err != nil {
 		t.Fatal(err)
 	}

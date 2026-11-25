@@ -124,7 +124,7 @@ func confirmLearn(ctx context.Context, c learnConfirm, key string, base http.Rou
 	opts ...llmprovider.Option) error {
 	counter := &sendCounter{base: base}
 	all := []llmprovider.Option{llmprovider.WithModel(c.model), llmprovider.WithModelProbes(false),
-		llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: counter}),
+		llmprovider.WithHTTPClient(&http.Client{Transport: counter}),
 		catalog.WithCache(new(catalog.Cache))}
 	if key != "" {
 		all = append(all, llmprovider.WithAPIKey(key))
@@ -232,7 +232,7 @@ func TestLearnConfirm_Twin_0062(t *testing.T) {
 		{"Ollama's xhigh accepted", ollamaConfirm("gpt-oss:20b"), nil, ""},
 	} {
 		srv := twinServer(t, tc.refusals...)
-		err := confirmLearn(t.Context(), tc.c, "k", http.DefaultTransport, llmprovider.WithBaseURL(srv.URL))
+		err := confirmLearn(t.Context(), tc.c, "k", http.DefaultTransport, llmprovider.WithBaseURL(srv.URL), extractDoc(t))
 		if got := fmt.Sprint(err); (err == nil) != (tc.fails == "") || !strings.Contains(got, tc.fails) {
 			t.Errorf("%s: %v; want it to fail at %q", tc.name, err, tc.fails)
 		}

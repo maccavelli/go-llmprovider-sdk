@@ -27,7 +27,6 @@ func ExampleNewZen() {
 	p, err := opencode.NewZen(
 		llmprovider.WithAPIKey("your-api-key"),
 		llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(),
 		opencode.WithRoute(opencode.RouteChatCompletions),
 	)
 	if err != nil {

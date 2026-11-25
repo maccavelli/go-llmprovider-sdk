@@ -44,7 +44,7 @@ func (knownLayer0050) Model(_ llmprovider.ProviderID, id string) (catalog.ModelI
 // offline0050 are options that reach no network.
 func offline0050(more ...llmprovider.Option) []llmprovider.Option {
 	return append([]llmprovider.Option{llmprovider.WithBaseURL(nettest.RefusedURL),
-		llmprovider.WithHTTPClient(nettest.Refusing()), llmprovider.WithoutModelMetadata()}, more...)
+		llmprovider.WithHTTPClient(nettest.Refusing())}, more...)
 }
 
 // call0050 runs f, reporting a panic as a failure named name.

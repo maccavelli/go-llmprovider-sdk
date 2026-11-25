@@ -109,7 +109,7 @@ func run0085(t *testing.T, id llmprovider.ProviderID, key llmprovider.Option) ou
 	t.Helper()
 	rec := &recorder0085{}
 	common := []llmprovider.Option{key, llmprovider.WithHTTPClient(rec.client()), llmprovider.WithModel(model0085(id)),
-		llmprovider.WithoutModelMetadata()}
+		extractDoc()}
 	var p llmprovider.Provider
 	var err error
 	if id == compat0085 {
@@ -313,8 +313,7 @@ func TestStaticTokenBlankIsEmpty_0085(t *testing.T) {
 	// Together's (0085-MADR ST82).
 	list := func(id llmprovider.ProviderID, key string) []http.Header {
 		rec := &recorder0085{}
-		opts := []llmprovider.Option{llmprovider.WithHTTPClient(rec.client()), catalog.WithCache(new(catalog.Cache)),
-			llmprovider.WithoutModelMetadata()}
+		opts := []llmprovider.Option{llmprovider.WithHTTPClient(rec.client()), catalog.WithCache(new(catalog.Cache))}
 		if id == compat0085 {
 			opts = append(opts, chatcompat.WithID(compat0085), llmprovider.WithBaseURL("http://127.0.0.1:1/v1"))
 		}

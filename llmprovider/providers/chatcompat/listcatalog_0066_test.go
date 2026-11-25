@@ -41,7 +41,7 @@ func TestListCatalog_0066(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, err := catalog.List(ctx, testID, llmprovider.NewStaticToken(""), testCache(t), WithID(testID),
-		llmprovider.WithBaseURL(s.URL), llmprovider.WithoutModelMetadata())
+		llmprovider.WithBaseURL(s.URL))
 	if err != nil {
 		t.Fatal(err)
 	}

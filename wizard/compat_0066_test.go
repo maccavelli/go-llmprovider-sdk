@@ -68,7 +68,7 @@ func (s *compatServer0066) seen() []string {
 // models.dev, in t's own cache.
 func compatOptions0066(t *testing.T) Options {
 	return Options{Registry: compatRegistry0066(t), Discover: true,
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{testCache(t)}}
 }
 
 // TestCompat_BlankEndpointAskedAgain_0066: the MADR's probe A. A provider
@@ -196,7 +196,7 @@ func TestOllama_RefusedNoKeyAsked_0066(t *testing.T) {
 	t.Cleanup(srv.Close)
 	f := newFake(t, fakePrompter{inputs: []string{srv.URL}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{Discover: true,
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}, llmprovider.ProviderOllama)
+		ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderOllama)
 	if !errors.Is(err, llmprovider.ErrAuthFailure) || err == nil ||
 		!strings.Contains(err.Error(), "Ollama (local) refused a request that carried no key") {
 		t.Errorf("err = %v; want ErrAuthFailure saying the request carried no key", err)
@@ -239,7 +239,7 @@ func TestCompat_ListedThroughLister_0066(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, err := catalog.List(context.Background(), compatID0066, llmprovider.NewStaticToken(""), testCache(t),
-		chatcompat.WithID(compatID0066), llmprovider.WithBaseURL(srv.URL+"/v1"), llmprovider.WithoutModelMetadata())
+		chatcompat.WithID(compatID0066), llmprovider.WithBaseURL(srv.URL+"/v1"))
 	if err != nil {
 		t.Fatal(err)
 	}

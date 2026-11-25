@@ -21,7 +21,7 @@ func ExampleLookupLimits() {
 	defer func() { _ = cache.Close(context.Background()) }()
 
 	limits, err := catalog.LookupLimits(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("key"),
-		"claude-opus-4-6", llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), catalog.WithCache(cache))
+		"claude-opus-4-6", llmprovider.WithBaseURL(srv.URL), catalog.WithCache(cache))
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -87,7 +87,7 @@ func TestOutputLimit_Facts_0041(t *testing.T) {
 		for _, limits := range [][2]int{{4096, 4096}, {128000, 128000}} {
 			srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 			p, err := New(tc.id, llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL),
-				llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+				llmprovider.WithModelProbes(false),
 				catalog.WithModelLayer(limitLayer{tc.model, limits[0]}))
 			if err != nil {
 				t.Fatal(err)
@@ -132,12 +132,9 @@ func TestReplayField_Facts_0041(t *testing.T) {
 			t.Cleanup(meta.Close)
 			srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 			opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(meta.URL), llmprovider.WithModelProbes(false),
+				llmprovider.WithBaseURL(srv.URL), servedDoc(t, meta.URL), llmprovider.WithModelProbes(false),
 				testCache(t)}
 			// The document cached, as a request finds it once fetched.
-			if _, err := catalog.LookupMetadataWith(context.Background(), tc.id, opts...); err != nil {
-				t.Fatal(err)
-			}
 			p, err := New(tc.id, opts...)
 			if err != nil {
 				t.Fatal(err)

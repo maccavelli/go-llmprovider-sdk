@@ -1008,8 +1008,8 @@ func checkTokenHeader(r reporter, h Harness) {
 
 // checkListing checks, for a provider that lists its models, that the listing
 // names the caller's application and ends when its context is cancelled
-// (R44, R40; 0026-MADR F57). The metadata fetch is off, so nothing leaves the
-// fake server. A provider that lists from no server is not checked.
+// (R44, R40; 0026-MADR F57). The SDK fetches no metadata document
+// (0093-MADR D6), so nothing leaves the fake server. A provider that lists from no server is not checked.
 func checkListing(r reporter, h Harness) {
 	r.Helper()
 	probe := serve(h.Text)
@@ -1018,7 +1018,7 @@ func checkListing(r reporter, h Harness) {
 	if _, ok := p.(llmprovider.ModelLister); p == nil || !ok {
 		return
 	}
-	off := []llmprovider.Option{llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false)}
+	off := []llmprovider.Option{llmprovider.WithModelProbes(false)}
 
 	fs := serve(h.Text)
 	if lister, ok := build(r, h, fs, append(off, llmprovider.WithClientInfo(clientName, clientVersion))...).(llmprovider.ModelLister); ok {

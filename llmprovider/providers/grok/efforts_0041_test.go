@@ -11,7 +11,6 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // 0041-MADR D2: Grok's efforts from the model's facts, the listing above
@@ -68,15 +67,10 @@ func TestGrokEfforts_Facts_0041(t *testing.T) {
 		{"no facts", false, true, "xhigh", false},
 	} {
 		srv, sent := effortServer(t)
-		opts := apiKey(srv.URL, "grok-4.3", llmprovider.WithModelMetadataURL(srv.URL+"/api.json"),
-			llmprovider.WithModelProbes(false), testCache(t))
-		if tc.off {
-			opts = append(opts, llmprovider.WithoutModelMetadata())
-		} else {
-			// The document cached, as a request finds it once fetched.
-			if _, err := catalog.LookupMetadataWith(context.Background(), llmprovider.ProviderGrok, opts...); err != nil {
-				t.Fatal(err)
-			}
+		opts := apiKey(srv.URL, "grok-4.3", llmprovider.WithModelProbes(false), testCache(t))
+		if !tc.off {
+			// The document handed in, as a request reads it (0093-MADR D2).
+			opts = append(opts, servedDoc(t, srv.URL+"/api.json"))
 		}
 		p := build(t, opts...)
 		if tc.listing {

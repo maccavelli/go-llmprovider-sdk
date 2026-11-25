@@ -113,8 +113,7 @@ func decodeLimited(r io.Reader, v any, what string) error {
 	return nil
 }
 
-// modelListingTimeout bounds one model listing, its metadata fetch included
-// (MADR 0009 §2). List, and so every provider's ListModels, applies it
+// modelListingTimeout bounds one model listing (MADR 0009 §2). List, and so every provider's ListModels, applies it
 // (MADR 0013 A5).
 const modelListingTimeout = 10 * time.Second
 
@@ -335,13 +334,6 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 		return listOllamaOnce(ctx, token, cfg)
 	}
 	key := listingKeyFor(id, cfg, token)
-	var meta func() modelMetadataResult
-	if id != llmprovider.ProviderKilo {
-		// The document is read alongside the listing; Kilo's ranking reads
-		// its own listing (MADR 0009 §2). A chatcompat server's models read
-		// it by canonical id (0061-MADR E2, decision 4).
-		meta = startModelMetadata(ctx, cfg)
-	}
 	f, models, at, failure := cachedOrFetched(ctx, id, token, cfg, key)
 	source := ListLive
 	if failure != nil && transientListingFailure(failure) {
@@ -350,7 +342,7 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 			models, _ = cfg.store.cachedListing(key)
 		}
 	}
-	l := buildListing(id, f, cfg, meta)
+	l := buildListing(id, f, cfg)
 	if source == ListLive {
 		l.err = failure
 	}
@@ -523,15 +515,14 @@ type curator func(usable []string, limit int) []string
 
 // listingResult is one lister's result, before its catalog is built: the usable
 // ids, the listing's failure, the static catalog, the curator that ranks
-// the band, and the document the curator ranks with (0041-MADR D3).
+// the band; the menu reads the call's document, as the curator does
+// (0041-MADR D3; 0093-MADR D4).
 type listingResult struct {
 	usable []string
 	err    error
 	static []string
 	// curate is nil for Ollama, which has no band.
 	curate curator
-	// meta is nil where the lister fetches no document, as Kilo's does not.
-	meta func() modelMetadataResult
 	// listed is what an Ollama listing read of each model, its /api/tags
 	// entry under its /api/show reply, cached or not; nil for the other
 	// listers, whose facts are the ones they emit (0042-MADR D1).
@@ -556,23 +547,16 @@ func (l listingResult) catalog(id llmprovider.ProviderID, token llmprovider.Toke
 		return ollamaMenu(l.usable, factsOf(id, cfg, l.usable, l.listed, nil), l.created, cfg.limit, now)
 	}
 	usable := uniqueIDs(l.usable)
+	var doc *modelMetadataDoc
+	if m, ok := cfg.document(); ok {
+		doc = m.doc
+	}
 	if l.err != nil || len(usable) == 0 {
 		// What facts are cached: the static path starts no wait.
 		cached, _ := cfg.store.cachedListing(listingKeyFor(id, cfg, token))
-		var doc *modelMetadataDoc
-		if m, ok := peekMetadata(cfg); ok {
-			doc = m.doc
-		}
 		cat := staticMenu(id, l.static, factsOf(id, cfg, l.static, cached, doc), cfg.limit, now)
 		cat.Err = l.err
 		return cat
-	}
-	var doc *modelMetadataDoc
-	if l.meta != nil {
-		doc = l.meta().doc
-	}
-	if m, ok := peekMetadata(cfg); doc == nil && ok {
-		doc = m.doc
 	}
 	if cfg.compat {
 		return compatMenu(id, usable, factsOf(id, cfg, usable, models, doc), l.created, cfg.limit, now)
@@ -711,10 +695,15 @@ func fetchCompat(ctx context.Context, id llmprovider.ProviderID, token llmprovid
 // buildListing is one provider's listingResult from f: a listing fetched
 // now, cached, or kept as the last good one. It sends no listing request:
 // the caller's profile, limit, workload and layers rank it as they rank a
-// live listing (0041-MADR D6, A6). meta is the models.dev document's, and
-// nil for Kilo, which ranks from its own entries (MADR 0009 §2).
-func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config, meta func() modelMetadataResult) listingResult {
-	l := listingResult{usable: f.usable, static: Static(id), meta: meta, created: f.created}
+// live listing (0041-MADR D6, A6). Every curator but Kilo's ranks with the
+// call's models.dev document; Kilo's ranks from its own entries (MADR 0009
+// §2; 0093-MADR D5).
+func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config) listingResult {
+	l := listingResult{usable: f.usable, static: Static(id), created: f.created}
+	var meta *modelMetadataDoc
+	if m, ok := cfg.document(); ok {
+		meta = m.doc
+	}
 	switch id {
 	case llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok:
 		// Ranked by facts, as every provider is; the name curator ranks with

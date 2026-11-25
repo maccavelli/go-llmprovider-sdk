@@ -24,8 +24,7 @@ func TestList_Forbidden403NotRenewed(t *testing.T) {
 	}))
 	defer srv.Close()
 	src := &invalidatingSource{}
-	cat, err := List(context.Background(), llmprovider.ProviderTogether, src, llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata())
+	cat, err := List(context.Background(), llmprovider.ProviderTogether, src, llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

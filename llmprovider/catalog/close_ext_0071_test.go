@@ -35,7 +35,7 @@ func TestCacheClose_ProviderListModels_0071(t *testing.T) {
 		t.Fatal(err)
 	}
 	together, err := providers.New(llmprovider.ProviderTogether, llmprovider.WithAPIKey("key-0071-together"),
-		llmprovider.WithBaseURL(srv.URL+"/v1"), llmprovider.WithoutModelMetadata(), catalog.WithCache(&c))
+		llmprovider.WithBaseURL(srv.URL+"/v1"), catalog.WithCache(&c))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCacheClose_ProviderListModels_0071(t *testing.T) {
 		t.Errorf("Together's ListModels after Close = %v, %v; want its static list and nil", listed, err)
 	}
 	ollama, err := providers.New(llmprovider.ProviderOllama, llmprovider.WithBaseURL(srv.URL),
-		llmprovider.WithoutModelMetadata(), catalog.WithCache(&c))
+		catalog.WithCache(&c))
 	if err != nil {
 		t.Fatal(err)
 	}

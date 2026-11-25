@@ -45,7 +45,7 @@ func TestResponsesProviders_FailedStatusUsesTheirVocabulary(t *testing.T) {
 		}, failed, llmprovider.ErrProviderUnavailable, "grok"},
 		{"opencode responses", func(base string) (llmprovider.Provider, error) {
 			return opencode.NewGo(llmprovider.WithAPIKey("oc-test"), llmprovider.WithModel("gpt-6-luna"),
-				llmprovider.WithBaseURL(base), opencode.WithRoute(opencode.RouteResponses), llmprovider.WithoutModelMetadata())
+				llmprovider.WithBaseURL(base), opencode.WithRoute(opencode.RouteResponses))
 		}, failed, llmprovider.ErrProviderUnavailable, "opencode-go/responses"},
 	} {
 		p, err := c.build(c.srv.URL)

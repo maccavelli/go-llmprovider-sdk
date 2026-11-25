@@ -22,8 +22,12 @@ It also ran 0041-MADR D7's agreement tests, each rule beside the facts; they
 went with the rules they compared, R1, R4, R5 and R6, which 0062-MADR D8
 removed.
 
+--doc FILE, required, is the models.dev-format document the command ranks
+with: the SDK fetches none, so the maintainer downloads https://models.dev/api.json
+and passes it (0093-MADR D13, MH37). Without it the tool is a usage error.
+
 Usage:
-  tools/catalogcheck.py [--dir DIR | --out DIR] [--baseline DIR] [--doc FILE]
+  tools/catalogcheck.py --doc FILE [--dir DIR | --out DIR] [--baseline DIR]
 
 Exit codes: 0 no difference, 1 a six changed, 2 tool error.
 """
@@ -66,12 +70,9 @@ def tail(text: str, n: int = 8) -> str:
     return "\n".join(text.strip().splitlines()[-n:])
 
 
-def record(dest: Path, doc: Path | None) -> list[str]:
+def record(dest: Path, doc: Path) -> list[str]:
     """Record a snapshot into dest with the catalogs command; return the listings it skipped."""
-    args = ["go", "run", "./llmprovider/internal/cmd/catalogs", "-snapshot", str(dest)]
-    if doc is not None:
-        args += ["-doc", str(doc)]
-    res = run(args)
+    res = run(["go", "run", "./llmprovider/internal/cmd/catalogs", "-doc", str(doc), "-snapshot", str(dest)])
     if res.returncode != 0 or not (dest / "snapshot.json").is_file():
         raise ToolError(f"the catalogs command failed (exit {res.returncode}):\n{tail(res.stderr)}")
     return [line.strip() for line in res.stderr.splitlines() if SKIPPED.search(line)]
@@ -127,9 +128,15 @@ def main(argv: list[str] | None = None) -> int:
     where.add_argument("--dir", type=Path, help="check this existing snapshot; send no request")
     where.add_argument("--out", type=Path, help="record the new snapshot here; it must not exist")
     parser.add_argument("--baseline", type=Path, help="compare the sixes with this snapshot (default: the newest committed)")
-    parser.add_argument("--doc", type=Path, help="pass this models.dev-format document to the command")
+    parser.add_argument("--doc", type=Path, help="the models.dev-format document the command ranks with (required)")
     args = parser.parse_args(argv)
+    if args.doc is None:
+        print("catalogcheck: --doc FILE is required: the SDK fetches no models.dev document; download "
+              "https://models.dev/api.json and pass it (0093-MADR D13)", file=sys.stderr)
+        return 2
     try:
+        if not args.doc.is_file():
+            raise ToolError(f"--doc {args.doc}: not a file")
         baseline = args.baseline or latest_snapshot()
         if baseline is None or not (baseline / "snapshot.json").is_file():
             raise ToolError(f"no baseline snapshot: {baseline}")

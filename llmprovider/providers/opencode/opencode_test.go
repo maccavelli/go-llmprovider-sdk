@@ -259,9 +259,9 @@ func TestOpencode_ChatReasoningEffort(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var body map[string]any
 			srv := captureServer(t, &body, fxChat)
-			opts := []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL)}
-			if tc.disabled {
-				opts = append(opts, llmprovider.WithoutModelMetadata())
+			var opts []llmprovider.Option
+			if !tc.disabled {
+				opts = append(opts, servedDoc(t, meta.URL))
 			}
 			p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, tc.model, opts...)...)
 			req := text("hi")

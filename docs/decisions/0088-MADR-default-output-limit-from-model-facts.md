@@ -1532,3 +1532,29 @@ ST43's rows, one per `[Unreleased]` changelog entry this record and 0089-MADR wr
 | C160now | the **Changed** entry on An answer the output limit cut ... (ST43; 0089 DL60) | new | `CHANGELOG.md:107` | `` An answer the output limit cut is a response finishing `length` on every `` |
 
 Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111 rows.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): the F-line of 72, ST8, ST9 and ST91: "models.dev" is the document the caller hands in, not one the SDK fetched (D5). This record's "now" rows on files 0093's docs phase edited were re-checked; see the note below. The text above is unchanged.)*
+
+*(2026-11-24, from 0093-PLAN-take-model-metadata-from-the-caller.md's Phase 5: this record's "now" rows on a file 0093's Phase 4 edited were re-run with plain ids against a scratch clone's commit of the tree (`dc96bf0ce4e6`, 0093's build, uncommitted), and against `cfc911d`, its base. 21 fail there: 3 moved by 0093's build (3 found on a new line, 0 whose text 0093 rewrote), and 18 already failing at `cfc911d` (17 found on another line, 1 on none). Each row's text is now where this note says; the rows above are unchanged.)*
+
+* C50now (`docs/architecture.md:364`): `docs/architecture.md:362`; already failing at `cfc911d`
+* C109now (`docs/guides/api-standards.md:371`): `docs/guides/api-standards.md:418`; already failing at `cfc911d`
+* C112now (`docs/guides/api-standards.md:104`): on no line; already failing at `cfc911d`
+* C120now (`CHANGELOG.md:76`): `CHANGELOG.md:237`, `CHANGELOG.md:351`; already failing at `cfc911d`; re-placed 2026-11-24 (the review's notes closed)
+* C121now (`CHANGELOG.md:323`): `CHANGELOG.md:484`; already failing at `cfc911d`; re-placed 2026-11-24 (the review's notes closed)
+* C122now (`CHANGELOG.md:326`): `CHANGELOG.md:487`; already failing at `cfc911d`; re-placed 2026-11-24 (the review's notes closed)
+* C123now (`CHANGELOG.md:44`): `CHANGELOG.md:205`; already failing at `cfc911d`; re-placed 2026-11-24 (the review's notes closed)
+* C146now (`CHANGELOG.md:100`): `CHANGELOG.md:130`; already failing at `cfc911d`
+* C147now (`CHANGELOG.md:52`): `CHANGELOG.md:72`; already failing at `cfc911d`
+* C149now (`CHANGELOG.md:16`): `CHANGELOG.md:22`; moved by 0093's build
+* C150now (`CHANGELOG.md:35`): `CHANGELOG.md:52`; moved by 0093's build
+* C151now (`CHANGELOG.md:41`): `CHANGELOG.md:58`; moved by 0093's build
+* C152now (`CHANGELOG.md:49`): `CHANGELOG.md:69`; already failing at `cfc911d`
+* C153now (`CHANGELOG.md:52`): `CHANGELOG.md:72`; already failing at `cfc911d`
+* C154now (`CHANGELOG.md:58`): `CHANGELOG.md:78`; already failing at `cfc911d`
+* C155now (`CHANGELOG.md:75`): `CHANGELOG.md:96`; already failing at `cfc911d`
+* C156now (`CHANGELOG.md:82`): `CHANGELOG.md:103`; already failing at `cfc911d`
+* C157now (`CHANGELOG.md:90`): `CHANGELOG.md:113`; already failing at `cfc911d`
+* C158now (`CHANGELOG.md:101`): `CHANGELOG.md:124`; already failing at `cfc911d`
+* C159now (`CHANGELOG.md:104`): `CHANGELOG.md:127`; already failing at `cfc911d`
+* C160now (`CHANGELOG.md:107`): `CHANGELOG.md:130`; already failing at `cfc911d`

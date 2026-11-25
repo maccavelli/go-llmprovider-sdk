@@ -32,7 +32,7 @@ func TestListModels_NeverProbes(t *testing.T) {
 			_, _ = w.Write([]byte(hfListing))
 		}))
 		t.Cleanup(srv.Close)
-		models, err := list(t, build(t, apiKey(srv.URL, "org/model", append(opts, llmprovider.WithModelMetadataURL(srv.URL+"/api.json"))...)...))
+		models, err := list(t, build(t, apiKey(srv.URL, "org/model", append(opts, servedDoc(t, srv.URL+"/api.json"))...)...))
 		if err != nil || len(models) == 0 {
 			t.Fatalf("ListModels = %v/%v, want the curated listing", models, err)
 		}
@@ -88,14 +88,13 @@ func TestListModels_ListingBounded(t *testing.T) {
 	}
 }
 
-// TestListModels_HonoursTheMetadataURLOption is the huggingface row of
+// TestListModels_HonoursTheHandedDocument is the huggingface row of
 // TestDiscoverModels_HonoursRankingOptions (MADR 0013 A4), less its profile
 // half: ListModels returns what the catalog recommends for the same listing and
-// metadata. The environment's URL is never read: internal/ambientcheck
-// holds that (0015-PLAN S10). Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
+// handed-in document (0093-MADR MH60: its count of the fetch went with the
+// fetch). Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
 // commit 2).
-func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
-	enableMetadata(t)
+func TestListModels_HonoursTheHandedDocument(t *testing.T) {
 	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -107,9 +106,9 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 		}, ",") + `]}`))
 	}))
 	t.Cleanup(listing.Close)
-	meta, metaHits := metadataServer(t, http.StatusOK, `{"huggingface":{"models":{`+
+	meta, _ := metadataServer(t, http.StatusOK, `{"huggingface":{"models":{`+
 		`"a/large":{"id":"a/large","reasoning":true},"c/flash":{"id":"c/flash","reasoning":true}}}}`)
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL),
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL),
 		testCache(t)}
 	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), opts...)
 	want := wantCat.Recommended
@@ -122,9 +121,6 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("ListModels = %v, want the catalog's %v", got, want)
-	}
-	if metaHits.Load() == 0 {
-		t.Error("the option's metadata URL was never fetched")
 	}
 }
 

@@ -64,7 +64,7 @@ func checkWorkspaceLive(ctx context.Context, key, workspace string, opts ...llmp
 	fail := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
 	own := func(extra ...llmprovider.Option) []llmprovider.Option {
 		return slices.Concat([]llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithModel(workspaceLiveModel),
-			llmprovider.WithMaxTokens(256), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+			llmprovider.WithMaxTokens(256), llmprovider.WithModelProbes(false),
 			catalog.WithCache(new(catalog.Cache))}, opts, extra)
 	}
 	ask := &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say ok."}}}

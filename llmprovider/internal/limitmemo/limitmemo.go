@@ -6,10 +6,9 @@
 //
 // It also carries, per model, what the catalog finds and a provider reads
 // with no export between them: the id a one-model read resolved the model
-// to, for a later refusal's model match (0089-MADR V6), and the route's
-// fallback, the smallest limit any current model on the route is stated to
-// take (DL51). And it holds Off, the value of
-// llmprovider.WithoutLimitLearning (DL73).
+// to, for a later refusal's model match (0089-MADR V6). The route's fallback
+// is not here: it is a call's, carried in catalog.Limits (0093-MADR D7). And
+// it holds Off, the value of llmprovider.WithoutLimitLearning (DL73).
 package limitmemo
 
 import (
@@ -55,11 +54,9 @@ type entry struct {
 }
 
 // note is what the catalog carries to a provider for one model: the id it
-// resolved to, and its route's fallback and that fallback's evidence.
+// resolved to.
 type note struct {
-	resolved       string
-	fallback       int
-	fallbackSource string
+	resolved string
 }
 
 // Memo holds a cap per Key, oldest key first, at most Bound keys, and the
@@ -163,23 +160,6 @@ func (m *Memo) KeepResolved(k Key, id string) {
 // Resolved is the id k's model was resolved to, or empty; k's Stream is
 // ignored.
 func (m *Memo) Resolved(k Key) string { return m.or().getNote(k).resolved }
-
-// SetFallback sets k's route's fallback, tokens and the evidence named
-// source, as the catalog last found it for k's model; 0 clears it (0089-MADR
-// DL51). k's Stream is ignored.
-func (m *Memo) SetFallback(k Key, tokens int, source string) {
-	if tokens < 1 {
-		tokens, source = 0, ""
-	}
-	m.or().setNote(k, func(n *note) { n.fallback, n.fallbackSource = tokens, source })
-}
-
-// Fallback is k's route's fallback and its evidence, as SetFallback last
-// set it; 0 for none.
-func (m *Memo) Fallback(k Key) (int, string) {
-	n := m.or().getNote(k)
-	return n.fallback, n.fallbackSource
-}
 
 // setNote changes k's note by set, dropping the oldest note past Bound.
 func (m *Memo) setNote(k Key, set func(*note)) {

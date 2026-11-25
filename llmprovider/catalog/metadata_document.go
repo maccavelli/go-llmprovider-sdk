@@ -15,11 +15,13 @@ import (
 // sourceModelsDev is the source name of the models.dev layer.
 const sourceModelsDev = "models.dev"
 
-// ParseMetadata reads a models.dev-format document from r, such as one a
-// caller persisted with Encode, and makes no request (0033-MADR D3). It keeps
-// the sections the SDK reads, decoding each now, so a malformed one is
-// reported here, and refuses a document over the size the SDK fetches, or one
-// that is not a document.
+// ParseMetadata reads a models.dev-format document from r, such as one the
+// caller downloaded from https://models.dev/api.json or persisted with
+// Encode, and makes no request (0033-MADR D3). The document is the caller's:
+// it decides where it comes from and how old it may be, and hands it in
+// with WithMetadata (0093-MADR D1). It keeps the sections the SDK reads,
+// decoding each now, so a malformed one is reported here, and refuses a
+// document over 32 MiB, or one that is not a document.
 func ParseMetadata(r io.Reader) (Metadata, error) {
 	doc, err := decodeModelMetadata(r)
 	if err == nil {

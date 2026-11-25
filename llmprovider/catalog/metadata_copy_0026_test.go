@@ -1,22 +1,19 @@
 package catalog
 
 import (
-	"context"
-	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // TestMetadata_ReasoningEffortsIsACopy (0026-MADR F53): the efforts returned
-// are the caller's, so editing them does not change a later lookup from the
-// process-wide cache (R29).
+// are the caller's, so editing them does not change a later read of the same
+// document, which every reader shares (R29).
 func TestMetadata_ReasoningEffortsIsACopy(t *testing.T) {
-	clearProcessStore(t) // LookupMetadata takes no cache: this is the process's
 	doc := `{"opencode":{"models":{"m1":{"id":"m1","reasoning_options":[{"type":"effort","values":["low","medium","high"]}]}}}}`
-	srv, _ := metadataServer(t, http.StatusOK, doc)
-	first, err := LookupMetadata(context.Background(), srv.URL, nil)
+	first, err := ParseMetadata(strings.NewReader(doc))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,11 +22,7 @@ func TestMetadata_ReasoningEffortsIsACopy(t *testing.T) {
 		t.Fatalf("efforts = %q; want low, medium, high", efforts)
 	}
 	efforts[0] = "POISONED"
-	again, err := LookupMetadata(context.Background(), srv.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := again.ReasoningEfforts(llmprovider.ProviderOpencodeZen, "m1"); got[0] != "low" {
+	if got := first.ReasoningEfforts(llmprovider.ProviderOpencodeZen, "m1"); got[0] != "low" {
 		t.Fatalf("a later lookup = %q; want it unchanged by the caller's edit", got)
 	}
 }

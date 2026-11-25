@@ -12,8 +12,8 @@ import (
 )
 
 // The listings' metadata, cached in-process so that CachedModel never waits
-// for a listing (0033-MADR D3, as amended on 2026-10-12). It lives as the
-// models.dev cache does, and is keyed as the probe cache is: by provider,
+// for a listing (0033-MADR D3, as amended on 2026-10-12): ten minutes, with
+// a refresh in the background past them. It is keyed as the probe cache is: by provider,
 // base URL, and a fingerprint of the credential, never the credential.
 
 // listingMetadataTTL is how long a listing's metadata is fresh.

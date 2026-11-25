@@ -55,7 +55,7 @@ func TestTextPrompter_ListedIDEscapes_0066(t *testing.T) {
 	var out bytes.Buffer
 	p := &TextPrompter{In: strings.NewReader("1\n" + srv.URL + "/v1\n\n1\n"), Out: &out}
 	res, err := ConfigureLLM(context.Background(), p, Options{Registry: compatRegistry0066(t), Discover: true,
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}})
+		ProviderOptions: []llmprovider.Option{testCache(t)}})
 	if err != nil {
 		t.Fatal(err)
 	}

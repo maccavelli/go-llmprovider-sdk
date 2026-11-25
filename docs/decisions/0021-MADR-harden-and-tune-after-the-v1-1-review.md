@@ -938,3 +938,5 @@ D2's and T9's text above is not rewritten.
   unchanged.
 
 C6's text above is not rewritten.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): C1 to C3 are superseded as to the fetch: no download, cache, refresh or failure memory remains; `ParseMetadata` keeps the 32 MiB bound (D6; MH44). The text above is unchanged.)*

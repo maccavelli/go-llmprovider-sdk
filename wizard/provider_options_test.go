@@ -4,10 +4,8 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,32 +13,8 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
-// TestConfigureLLM_ProviderOptionsReachTheListing (0015-PLAN S10):
-// Options.ProviderOptions are added to the wizard's model listing, here a
-// metadata URL the listing then fetches.
-func TestConfigureLLM_ProviderOptionsReachTheListing(t *testing.T) {
-	var metaHits atomic.Int32
-	meta := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		metaHits.Add(1)
-		_, _ = io.WriteString(w, `{"opencode":{"models":{}}}`)
-	}))
-	t.Cleanup(meta.Close)
-	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs:  []string{srv.URL, "sonnet"}, secrets: []string{testKey},
-	})
-	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, DiscoverLimit: 5 * time.Second,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL), testCache(t)}}); err != nil {
-		t.Fatalf("ConfigureLLM: %v", err)
-	}
-	if metaHits.Load() == 0 {
-		t.Error("the listing never fetched the metadata URL ProviderOptions named")
-	}
-}
-
-// TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider: they are added to
-// the openai provider the wizard builds to list a ChatGPT session, here a
+// TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider: Options.ProviderOptions
+// are added to the openai provider the wizard builds to list a ChatGPT session, here a
 // client identity its listing then sends.
 func TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider(t *testing.T) {
 	var mu sync.Mutex

@@ -30,7 +30,7 @@ func TestLive_LookupModel_0033(t *testing.T) {
 			key := llmprovider.LiveEnvKey(t, vars[p])
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
-			info, err := catalog.LookupModel(ctx, p, llmprovider.NewStaticToken(key), static[0])
+			info, err := catalog.LookupModel(ctx, p, llmprovider.NewStaticToken(key), static[0], rankingDoc(t))
 			llmprovider.SkipIfTransient(t, err)
 			window := info.Has(catalog.FieldContextWindow) && info.ContextWindow > 0
 			input := info.Has(catalog.FieldMaxInputTokens) && info.MaxInputTokens > 0

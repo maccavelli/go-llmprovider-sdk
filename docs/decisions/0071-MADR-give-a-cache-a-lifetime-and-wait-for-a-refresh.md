@@ -458,3 +458,5 @@ The decision and D4's other tests are unchanged.
 | Id | Claim | Location | Text |
 | :--- | :--- | :--- | :--- |
 | C36 | CI tests on Windows | `.github/workflows/ci.yml:32` | `os: [ubuntu-24.04, macos-15, windows-2025]` |
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D1 and D2 are superseded as to the fetch: `Close` has no metadata fetch or refresh to stop (D6; MH30). The text above is unchanged.)*

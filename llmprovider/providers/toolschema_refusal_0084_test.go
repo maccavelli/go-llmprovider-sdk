@@ -73,7 +73,7 @@ func (r toolRoute) withModel(model string) toolRoute {
 func (r toolRoute) provider(t *testing.T, url string, more ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
 	opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(r.model), llmprovider.WithBaseURL(url),
-		llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t)}, r.opts...)
+		llmprovider.WithModelProbes(false), testCache(t), extractDoc()}, r.opts...)
 	p, err := New(r.id, append(opts, more...)...)
 	if err != nil {
 		t.Fatalf("%s: %v", r.name, err)
@@ -409,7 +409,7 @@ func TestToolSchemaRefusal_LastSendKeepsName_0084(t *testing.T) {
 	// xAI: send 1 refused for its effort, send 2 for its schema.
 	srv := newLearnServer(t, refusedGrok, grok.Body)
 	p, err := New(llmprovider.ProviderGrok, llmprovider.WithAPIKey("k"), llmprovider.WithModel("grok-4.6"),
-		llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+		llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false), testCache(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestToolSchemaRefusal_LastSendKeepsName_0084(t *testing.T) {
 		t.Run(via, func(t *testing.T) {
 			srv := newLearnServer(t, refusals...)
 			p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-sonnet-5"),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false), testCache(t), extractDoc())
 			if err != nil {
 				t.Fatal(err)
 			}

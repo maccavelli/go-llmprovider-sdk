@@ -231,7 +231,7 @@ func probe0033(t *testing.T, id llmprovider.ProviderID, model string, rewrite fu
 	}
 	rec := &flagRecorder{rewrite: rewrite}
 	p, err := providers.New(id, llmprovider.WithAPIKey(key), llmprovider.WithModel(model), llmprovider.WithMaxTokens(16),
-		llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
+		llmprovider.WithModelProbes(false), llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
 	if err != nil {
 		t.Fatal(err)
 	}

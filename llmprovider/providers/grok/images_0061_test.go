@@ -46,7 +46,7 @@ func TestImages_MediaTypes_0061(t *testing.T) {
 	}
 	for _, mediaType := range []string{"image/gif", "image/webp"} {
 		srv := wiretest.NewServer(t, c.Reply)
-		p, err := c.Build(srv.URL, llmprovider.WithoutModelMetadata())
+		p, err := c.Build(srv.URL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestImages_MediaTypes_0061(t *testing.T) {
 	}
 	for _, img := range []llmprovider.ImageItem{{MediaType: "image/jpeg", Data: []byte("img")}, {URL: wirecase.ImageURL}} {
 		srv := wiretest.NewServer(t, c.Reply)
-		p, err := c.Build(srv.URL, llmprovider.WithoutModelMetadata())
+		p, err := c.Build(srv.URL)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -50,6 +50,13 @@ type Limits struct {
 	// Required reports whether the model's wire requires an output limit:
 	// the Messages wire, Claude's and OpenCode's messages route.
 	Required bool
+	// RouteFallback is the smallest output limit any current model on the
+	// provider's messages route is stated to take, for a request whose own
+	// model has none (0089-MADR DL51): from the cached listing's models, else
+	// the document's; unknown when neither states one, or when the provider
+	// has no messages route or the model's output is known. It is this
+	// call's, read with its options, never another call's (0093-MADR D7).
+	RouteFallback Fact
 	// Checked is when the sources were read.
 	Checked time.Time
 }
@@ -76,39 +83,37 @@ type Evidence struct {
 	// Source names the source: "listing:<provider>" for a provider's listing
 	// or its one-model read; "server:<provider>" for the context a local
 	// server serves; "models.dev", "models.dev (canonical id)" and
-	// "models.dev (family)" for the fetched document by exact id, canonical
-	// id and family; "models.dev (bundled <date>)", with ", canonical id" or
-	// ", family" before its parenthesis, for the embedded extract;
-	// "remembered" for a cap passed back with
+	// "models.dev (family)" for the document WithMetadata hands in, by exact
+	// id, canonical id and family; "remembered" for a cap passed back with
 	// llmprovider.WithLimitObservations; "observed" for a cap a service
 	// stated in this process, which bounds the output and is chosen only
 	// where nothing else states it; or a caller's layer's Name.
 	Source string
 	// Tokens is the value the source states.
 	Tokens int
-	// Seen is when the source was read; zero for a caller's layer, the
-	// extract's date for the extract, the observation's Seen for a
-	// remembered cap, and when it was kept for an observed one.
+	// Seen is when the source was read; zero for a caller's layer and for
+	// the document, whose age is the caller's (0093-MADR D5), the
+	// observation's Seen for a remembered cap, and when it was kept for an
+	// observed one.
 	Seen time.Time
 	// Stale reports that the source was read longer ago than its freshness:
-	// ten minutes for a listing, a one-model or a served read and the
-	// document; always for the extract.
+	// ten minutes for a listing, a one-model or a served read; never for a
+	// layer or the document.
 	Stale bool
 }
 
 // The ranks of the evidence: a caller's layers above the service, the
 // service above the registry; within the service, a server's served context
-// above the rest; within the registry, a "models.dev" layer, then the fetched
-// document, then the extract, each by exact id, then canonical id, then
-// family; a remembered cap below them all, so that it fills a gap only
-// (0089-MADR D1, D3, D5). A later layer ranks above an earlier one.
+// above the rest; within the registry, a "models.dev" layer, then the
+// handed-in document, each by exact id, then canonical id, then family; a
+// remembered cap below them all, so that it fills a gap only (0089-MADR D1,
+// D3, D5; 0093-MADR D5). A later layer ranks above an earlier one.
 const (
 	rankCaller        = 10000
 	rankServed        = rankService + 1
 	rankService       = 5000
 	rankRegistryLayer = 4000
 	rankDocument      = 3000
-	rankBundled       = 2000
 	rankRemembered    = 1000
 )
 
@@ -128,8 +133,8 @@ const (
 // SDK's window for serving a service's stale statement (0089-MADR D5; C19).
 const rememberedWindow = lastGoodWindow
 
-// The fetched document's source names by stage: its exact id's is
-// sourceModelsDev, its canonical id's sourceCanonical.
+// The document's source names by stage: its exact id's is sourceModelsDev,
+// its canonical id's sourceCanonical.
 const sourceFamily = "models.dev (family)"
 
 // limitReadTTL is how long a one-model, served or backend read is fresh: the
@@ -137,16 +142,20 @@ const sourceFamily = "models.dev (family)"
 const limitReadTTL = listingMetadataTTL
 
 // LookupLimits reads every source of model's limits on provider, bounded as
-// LookupModel is, warms the caches a request reads, and returns what they
-// state (0089-MADR D2). It reads what LookupModel reads, and: for Claude, a
+// LookupModel is, and returns what they state (0089-MADR D2). It warms what
+// a request reads of the service: the listing, the one-model read and the
+// served read. It warms no document: a request reads only the document its
+// provider was given (0093-MADR D2, Q4). It reads what LookupModel reads,
+// and: for Claude, a
 // model its listing does not name, by GET /v1/models/{model}, which takes an
 // alias; for Ollama, and a chatcompat server of Ollama's dialect, the context
 // /api/ps serves a loaded model; for OpenAI with a ChatGPT session or plan
 // session, the backend's listing in place of OpenAI's. A one-model or served
 // read is kept apart from the listing, so a listing refresh keeps it, and a
-// 404 is kept as none for the same ten minutes. The embedded models.dev
-// extract answers too, below the fetched document, so offline the layers and
-// the extract still state what they know.
+// 404 is kept as none for the same ten minutes. The document opts hand in
+// with WithMetadata answers as the registry, so offline the layers and the
+// document still state what they know; with no document, nothing embedded
+// answers (0093-MADR D7).
 //
 // A Claude workspace is read from catalog.WithClaudeWorkspace, as every
 // listing reads it: a caller whose provider takes claude.WithWorkspace passes
@@ -172,11 +181,6 @@ func LookupLimits(ctx context.Context, provider llmprovider.ProviderID, src llmp
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
 	var errs []error
-	if !cfg.metadataOff {
-		if _, err := loadModelMetadata(ctx, cfg); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	var key listingKey
 	keyed := false
 	switch {
@@ -186,12 +190,12 @@ func LookupLimits(ctx context.Context, provider llmprovider.ProviderID, src llmp
 	case src != nil && hasListingLayer(id, cfg):
 		key, keyed, errs = discoverService(ctx, id, src, model, cfg, errs)
 	}
-	doc, docOK := peekMetadata(cfg)
+	doc, docOK := cfg.document()
 	return assembleLimits(id, model, cfg, doc, docOK, key, keyed), errors.Join(errs...)
 }
 
 // CachedLimits is LookupLimits without a fetch, as CachedFacts is: what the
-// caches, the caller's layers and the extract hold now. It starts none,
+// caches, the caller's layers and its document hold now. It starts none,
 // unlike CachedModel, and finds the listing and the reads by the credential
 // opts give, as CachedFacts does. It is what a request reads. An id
 // LookupLimits refuses gives Limits with nothing known.
@@ -208,7 +212,7 @@ func CachedLimits(ctx context.Context, provider llmprovider.ProviderID, model st
 			key, keyed = listingKeyFor(id, cfg, token), true
 		}
 	}
-	doc, docOK := peekMetadata(cfg)
+	doc, docOK := cfg.document()
 	return assembleLimits(id, model, cfg, doc, docOK, key, keyed)
 }
 
@@ -323,8 +327,8 @@ func (b *limitFacts) addInfo(info ModelInfo, rank int, src string, seen time.Tim
 	}
 }
 
-// assembleLimits is model's Limits from what the caches, the layers, the
-// document doc and the extract hold; key is the listing's when keyed.
+// assembleLimits is model's Limits from what the caches, the layers and the
+// document doc hold; key is the listing's when keyed.
 func assembleLimits(id llmprovider.ProviderID, model string, cfg config, doc Metadata, docOK bool, key listingKey,
 	keyed bool) Limits {
 	var b limitFacts
@@ -345,13 +349,11 @@ func assembleLimits(id llmprovider.ProviderID, model string, cfg config, doc Met
 		serviceEvidence(&b, id, model, cfg, key)
 	}
 	if docOK {
-		at := cfg.store.metadataFetchedAt(cfg)
-		stale := metadataNow().Sub(at) >= modelMetadataTTL
+		// The document's age is the caller's: no Seen, never Stale
+		// (0093-MADR D5).
 		registryEvidence(&b, doc, cfg, id, model, rankDocument,
-			[3]string{sourceModelsDev, sourceCanonical, sourceFamily}, at, stale)
+			[3]string{sourceModelsDev, sourceCanonical, sourceFamily}, time.Time{}, false)
 	}
-	ext := bundledExtract()
-	registryEvidence(&b, ext.meta, cfg, id, model, rankBundled, ext.names(), ext.date, true)
 	rememberedEvidence(&b, id, model, cfg)
 	l := Limits{Provider: id, Model: model, Window: b.window.fact(), Input: b.input.fact(),
 		Required: requiresLimit(id, model, doc, docOK), Checked: listingNow()}
@@ -359,11 +361,14 @@ func assembleLimits(id llmprovider.ProviderID, model string, cfg config, doc Met
 	l.StreamedOutput = observedOutput(b.output, l.Window, cfg.memo, memoKey(id, model, cfg, true))
 	if hasMessagesRoute(id) && (!l.Output.Known || !l.StreamedOutput.Known) {
 		// The route's fallback, for the provider's request (0089-MADR DL51),
-		// carried through the cache's memo. A provider may pin a model to the
-		// messages route that its table does not name, so the fallback is
-		// found for any model on a provider with that route.
-		tokens, src := routeFallback(id, cfg, doc, docOK, key, keyed)
-		cfg.memo.SetFallback(memoKey(id, model, cfg, false), tokens, src)
+		// carried in this call's Limits, never through a shared memo
+		// (0093-MADR D7). A provider may pin a model to the messages route
+		// that its table does not name, so the fallback is found for any
+		// model on a provider with that route.
+		if tokens, src, at := routeFallback(id, cfg, doc, docOK, key, keyed); tokens > 0 {
+			l.RouteFallback = Fact{Tokens: tokens, Known: true,
+				Evidence: []Evidence{{Source: src, Tokens: tokens, Seen: at}}}
+		}
 	}
 	return l
 }
@@ -381,14 +386,13 @@ func hasMessagesRoute(id llmprovider.ProviderID) bool {
 // routeFallback is the smallest output limit any current model on id's
 // messages route is stated to take, and the evidence that states it
 // (0089-MADR DL51, OQ2 (1)): the cached listing's models when one is cached,
-// else the fetched document's section, else the extract's. A model is
-// current unless the SDK's retired list names it, or its facts mark it
-// deprecated or retired or past its retirement date. On an OpenCode gateway
-// the models counted are those the shared route table routes to messages
-// there (DL77): the extract keeps no status, and its section holds models
-// the gateway no longer routes. 0 when none states one.
+// with the listing's time, else the handed-in document's section (0093-MADR
+// D7). A model is current unless the SDK's retired list names it, or its
+// facts mark it deprecated or retired or past its retirement date. On an
+// OpenCode gateway the models counted are those the shared route table
+// routes to messages there (DL77). 0 when none states one.
 func routeFallback(id llmprovider.ProviderID, cfg config, doc Metadata, docOK bool, key listingKey,
-	keyed bool) (int, string) {
+	keyed bool) (int, string, time.Time) {
 	now := listingNow()
 	current := func(model string, info ModelInfo) bool {
 		if _, gone := retired.IDs[id][model]; gone {
@@ -416,9 +420,9 @@ func routeFallback(id llmprovider.ProviderID, cfg config, doc Metadata, docOK bo
 		return best
 	}
 	if keyed {
-		models, _ := cfg.store.listingAt(key)
+		models, at := cfg.store.listingAt(key)
 		if best := least(models); best > 0 {
-			return best, listingLayer(id)
+			return best, listingLayer(id), at
 		}
 	}
 	section := func(m Metadata) map[string]ModelInfo {
@@ -433,14 +437,10 @@ func routeFallback(id llmprovider.ProviderID, cfg config, doc Metadata, docOK bo
 	}
 	if docOK {
 		if best := least(section(doc)); best > 0 {
-			return best, sourceModelsDev
+			return best, sourceModelsDev, time.Time{}
 		}
 	}
-	ext := bundledExtract()
-	if best := least(section(ext.meta)); best > 0 {
-		return best, ext.names()[0]
-	}
-	return 0, ""
+	return 0, "", time.Time{}
 }
 
 // observedOutput is the output fact out's statements give, held to the

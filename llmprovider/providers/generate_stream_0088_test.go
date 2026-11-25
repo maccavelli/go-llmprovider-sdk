@@ -84,7 +84,7 @@ func overStreamProvider(t *testing.T, id llmprovider.ProviderID, model string, s
 	opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
 	p, err := New(id, append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+		llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelProbes(false),
 		testCache(t)}, opts...)...)
 	if err != nil {
 		t.Fatal(err)

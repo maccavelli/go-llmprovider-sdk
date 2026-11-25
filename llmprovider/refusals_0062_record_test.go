@@ -393,7 +393,7 @@ func refusalOutcome(err error) string {
 func recordCase(ctx context.Context, c refusalCase, key string, opts ...llmprovider.Option) (refusalRecord, error) {
 	rw := &refusalRewriter{set: c.set, drop: c.drop, base: http.DefaultTransport}
 	all := []llmprovider.Option{llmprovider.WithModel(c.model),
-		llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+		llmprovider.WithModelProbes(false),
 		llmprovider.WithHTTPClient(&http.Client{Transport: rw})}
 	if key != "" {
 		all = append(all, llmprovider.WithAPIKey(key))

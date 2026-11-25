@@ -291,7 +291,7 @@ func TestRefusedKeyThenBlanks_0085(t *testing.T) {
 		o := Options{TokenStore: store, Discover: true, HTTPClient: accepting0066(""),
 			Providers:       []llmprovider.ProviderID{d.ID},
 			Existing:        Result{Provider: d.ID, Kind: CredOAuth},
-			ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}}
+			ProviderOptions: []llmprovider.Option{testCache(t)}}
 		f := newFake(t, fakePrompter{confirms: []bool{true},
 			selects: []int{methodIdx0059(t, o, d.ID, llmprovider.AuthAPIKey)}, secrets: []string{"  ", "  ", "  "}})
 		_, _, err := ResolveCredential(context.Background(), f, o, d.ID)

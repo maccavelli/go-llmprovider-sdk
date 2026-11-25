@@ -140,9 +140,9 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 			model := goModel(t, candidate)
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
-			meta, err := catalog.LookupMetadata(ctx, "", nil)
+			meta, err := catalog.ParseMetadata(rankingFile(t))
 			if err != nil {
-				t.Skipf("metadata unreachable: %v", err)
+				t.Fatal(err)
 			}
 			if !slices.Contains(meta.ReasoningEfforts(llmprovider.ProviderOpencodeGo, model), string(llmprovider.EffortLow)) {
 				t.Fatalf("DRIFT: %s reasoning_options no longer list low", model)
@@ -150,7 +150,7 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 			rec := &opencodeRecorder{}
 			req := userText("Reply with only the word ALPHA")
 			req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
-			out, err := llmprovider.GenerateText(ctx, liveGo(t, model, llmprovider.WithMaxTokens(400),
+			out, err := llmprovider.GenerateText(ctx, liveGo(t, model, llmprovider.WithMaxTokens(400), catalog.WithMetadata(meta),
 				llmprovider.WithHTTPClient(&http.Client{Transport: rec})), req)
 			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
@@ -224,7 +224,8 @@ func TestLive_OpencodeRoutesFromMetadata(t *testing.T) {
 	rec := &opencodeRecorder{}
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
-	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, model), llmprovider.WithHTTPClient(&http.Client{Transport: rec})),
+	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, model), llmprovider.WithHTTPClient(&http.Client{Transport: rec}),
+		catalog.WithMetadata(liveOpencodeDoc(t))),
 		userText("Reply with only the word ALPHA"))
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
@@ -268,7 +269,7 @@ func TestLive_OpencodeMinimaxM3Adaptive(t *testing.T) {
 	defer cancel()
 	req := userText("What is 17 * 23? Reply with the number.")
 	req.Reasoning = &llmprovider.Reasoning{}
-	res, err := liveGo(t, goModel(t, "minimax-m3"), llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx, req)
+	res, err := liveGo(t, goModel(t, "minimax-m3"), llmprovider.WithHTTPClient(&http.Client{Transport: rec}), extractDoc(t)).Generate(ctx, req)
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -297,7 +298,7 @@ func TestLive_OpencodeMessagesThinking(t *testing.T) {
 	defer cancel()
 	req := userText("Reply with only the word ALPHA")
 	req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
-	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, "qwen3.8-flash")), req)
+	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, "qwen3.8-flash"), extractDoc(t)), req)
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
 		t.Fatalf("GenerateText: %v", err)
@@ -316,7 +317,7 @@ func TestLive_OpencodeInterleavedReasoningReplay(t *testing.T) {
 	rec := &opencodeRecorder{}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	res, err := liveGo(t, goModel(t, "kimi-k2.6"), llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx,
+	res, err := liveGo(t, goModel(t, "kimi-k2.6"), llmprovider.WithHTTPClient(&http.Client{Transport: rec}), rankingDoc(t)).Generate(ctx,
 		&llmprovider.Request{Input: []llmprovider.Item{
 			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 			llmprovider.ReasoningItem{Text: "The user wants Paris weather; call get_weather."},
@@ -360,7 +361,7 @@ func TestLive_OpencodeSystemMessage(t *testing.T) {
 				input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: tc.system})
 			}
 			input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."})
-			res, err := liveGo(t, model, llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx, &llmprovider.Request{Input: input})
+			res, err := liveGo(t, model, llmprovider.WithHTTPClient(&http.Client{Transport: rec}), extractDoc(t)).Generate(ctx, &llmprovider.Request{Input: input})
 			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("Generate: %v", err)
@@ -392,7 +393,7 @@ func TestLive_OpencodeToolRoundTrip(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			res, err := liveGo(t, goModel(t, candidates...)).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
+			res, err := liveGo(t, goModel(t, candidates...), extractDoc(t)).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
 				llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 				llmprovider.FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 				llmprovider.FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
@@ -434,7 +435,7 @@ func TestLive_OpencodeToolChoices(t *testing.T) {
 				defer cancel()
 				req := userText("What is the weather in Paris?")
 				req.Tools, req.ToolChoice = []llmprovider.Tool{tool}, tc.choice
-				res, err := liveGo(t, goModel(t, candidates...)).Generate(ctx, req)
+				res, err := liveGo(t, goModel(t, candidates...), extractDoc(t)).Generate(ctx, req)
 				llmprovider.SkipIfTransient(t, err)
 				if err != nil {
 					t.Fatalf("Generate: %v", err)
@@ -468,7 +469,7 @@ func TestLive_OpencodeForcedChoiceRefused(t *testing.T) {
 			defer cancel()
 			req := userText("What is the weather in Paris?")
 			req.Tools, req.ToolChoice = []llmprovider.Tool{tool}, choice
-			_, err := liveGo(t, model).Generate(ctx, req)
+			_, err := liveGo(t, model, extractDoc(t)).Generate(ctx, req)
 			llmprovider.SkipIfTransient(t, err)
 			if !errors.Is(err, llmprovider.ErrInvalidRequest) {
 				t.Fatalf("Generate = %v, want the refusal, an error matching ErrInvalidRequest", err)

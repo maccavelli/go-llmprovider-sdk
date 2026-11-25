@@ -57,8 +57,9 @@
 //     tool_use_failed: gpt-oss writes a call from the history alone, and
 //     no request form avoids it (0023-MADR, amendment 2026-10-06).
 //
-// ListModels returns the curated router listing, ranked by the metadata the
-// router publishes (llmprovider.WithModelMetadataURL). It never probes, as the
+// ListModels returns the curated router listing, ranked by the models.dev
+// document given to New with catalog.WithMetadata, if any (0093-MADR D2).
+// It never probes, as the
 // router meters every call (MADR 0012 §1.6).
 //
 // catalog.ListRaw returns the listing as the router sends it:
@@ -75,8 +76,8 @@
 //
 // Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
 // already hold of its model: a caller's catalog.WithModelLayer, and the
-// models.dev document once something has fetched it. A request never
-// fetches, and never waits.
+// models.dev document given to New with catalog.WithMetadata (0093-MADR
+// D2). A request never fetches, and never waits.
 // The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a
 // request's own MaxOutputTokens is sent as given, and WithMaxTokens' value
 // cut to the model's stated limit, never raised; otherwise none is sent,

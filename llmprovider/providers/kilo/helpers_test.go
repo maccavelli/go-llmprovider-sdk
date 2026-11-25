@@ -44,10 +44,12 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
 
-// apiKey is the options for a key "k" against url, with the given model.
+// apiKey is the options for a key "k" against url, with the given model,
+// and the extract fixture (0093-MADR D12, MH55): a test's own document,
+// in opts, comes later and wins.
 func apiKey(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
 	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(url)}, opts...)
+		llmprovider.WithBaseURL(url), extractDoc()}, opts...)
 }
 
 // caches holds each running test's catalog cache, by *testing.T.
@@ -67,11 +69,11 @@ func testCache(t *testing.T) llmprovider.Option {
 	return catalog.WithCache(c.(*catalog.Cache))
 }
 
-// build is New, failing the test on an error. t's own cache comes first, so
-// that a test's own WithCache wins.
+// build is New, failing the test on an error. t's own cache and the extract
+// fixture come first, so that a test's own WithCache and document win.
 func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	p, err := New(append([]llmprovider.Option{testCache(t)}, opts...)...)
+	p, err := New(append([]llmprovider.Option{testCache(t), extractDoc()}, opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

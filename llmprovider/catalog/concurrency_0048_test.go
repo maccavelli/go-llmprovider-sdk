@@ -19,10 +19,10 @@ import (
 // listing share nothing: each goroutine changes its own while the others read
 // theirs, and the next listing is unchanged.
 func TestCatalog_SharesNothing_0048(t *testing.T) {
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	listing := serveBody(t, togetherItem10Listing)
 	meta, _ := metadataServer(t, http.StatusOK, togetherItem10Metadata)
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL)}
 	first := listCatalog(context.Background(), t, llmprovider.ProviderTogether, opts...)
 	start := make(chan struct{})
 	var wg sync.WaitGroup

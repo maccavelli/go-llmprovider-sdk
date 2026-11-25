@@ -35,12 +35,12 @@ const togetherItem10Metadata = `{"togetherai":{"models":{
 // follows the band in Recommended.
 func TestTogetherRanksOnlyModelsDevIDs(t *testing.T) {
 	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
+	clearProcessStore(t)
 	listing := serveBody(t, togetherItem10Listing)
 	meta, _ := metadataServer(t, http.StatusOK, togetherItem10Metadata)
 	for _, profile := range []Profile{ProfileUtility, ProfileCapable} {
 		cat := listCatalog(context.Background(), t, llmprovider.ProviderTogether,
-			llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(profile))
+			llmprovider.WithBaseURL(listing.URL), servedDoc(t, meta.URL), WithProfile(profile))
 		for _, e := range cat.Menu {
 			if uncovered := e.ID == "t/uncovered-a" || e.ID == "t/uncovered-b"; uncovered && e.Rank != 0 {
 				t.Errorf("profile %d: the band ranks %s, which models.dev does not list", profile, e.ID)

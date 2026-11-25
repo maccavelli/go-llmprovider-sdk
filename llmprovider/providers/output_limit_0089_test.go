@@ -115,7 +115,7 @@ const omitModel = "claude-omit-0089"
 // wire. It reads only the wire, so it runs at a base that sends 8192.
 func TestOutputLimit_Omitted_0089(t *testing.T) {
 	ctx := context.Background()
-	off := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+	off := []llmprovider.Option{llmprovider.WithAPIKey("k"),
 		llmprovider.WithModelProbes(false), testCache(t)}
 
 	// Claude, a listing stating 128,000.
@@ -244,11 +244,11 @@ func lastPost(s *limitServer) map[string]any {
 // it.
 func TestOutputLimit_Reported_0089(t *testing.T) {
 	ctx := context.Background()
-	const model = "claude-opus-4-6" // the extract states 128,000
+	const model = "claude-opus-4-6" // the extract fixture states 128,000
 	claude := func(t *testing.T, srv *limitServer, opts ...llmprovider.Option) llmprovider.Provider {
 		t.Helper()
 		p, err := New(llmprovider.ProviderClaude, append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
-			llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t),
+			llmprovider.WithModelProbes(false), testCache(t), extractDoc(),
 			llmprovider.WithBaseURL(srv.URL), llmprovider.WithModel(model)}, opts...)...)
 		if err != nil {
 			t.Fatal(err)
@@ -265,9 +265,9 @@ func TestOutputLimit_Reported_0089(t *testing.T) {
 		{"WithMaxTokens(4000)", 0, []llmprovider.Option{llmprovider.WithMaxTokens(4000)},
 			llmprovider.SentLimit{Tokens: 4000, Sent: true, Basis: llmprovider.LimitBasisOption}},
 		{"WithMaxTokens(200000), a stated 128,000", 0, []llmprovider.Option{llmprovider.WithMaxTokens(200000)},
-			llmprovider.SentLimit{Tokens: 128000, Sent: true, Basis: llmprovider.LimitBasisOption, Source: "models.dev (bundled 2026-10-12)"}},
+			llmprovider.SentLimit{Tokens: 128000, Sent: true, Basis: llmprovider.LimitBasisOption, Source: "models.dev"}},
 		{"no caller value", 0, nil,
-			llmprovider.SentLimit{Tokens: 128000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "models.dev (bundled 2026-10-12)"}},
+			llmprovider.SentLimit{Tokens: 128000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "models.dev"}},
 	} {
 		srv := newLimitServer(t, "", canned(wirecase.MessagesReply))
 		req := hiRequest()
@@ -305,7 +305,7 @@ func TestOutputLimit_Reported_0089(t *testing.T) {
 	for _, opts := range [][]llmprovider.Option{{llmprovider.WithMaxTokens(4000)}, nil} {
 		srv := newLimitServer(t, "", canned(wirecase.InteractionsReply))
 		p, err := New(llmprovider.ProviderGemini, append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
-			llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t),
+			llmprovider.WithModelProbes(false), testCache(t),
 			llmprovider.WithBaseURL(srv.URL), llmprovider.WithModel("gemini-3.8-flash")}, opts...)...)
 		if err != nil {
 			t.Fatal(err)
@@ -366,7 +366,7 @@ func TestOutputLimit_BudgetReported_0089(t *testing.T) {
 			}
 			srv := newLimitServer(t, "", reply)
 			cache := catalog.WithCache(new(catalog.Cache))
-			opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
+			opts := []llmprovider.Option{llmprovider.WithAPIKey("k"),
 				llmprovider.WithModelProbes(false), cache, llmprovider.WithModel(model)}
 			p, err := route.build(srv.URL, append(opts, llmprovider.WithMaxTokens(32000))...)
 			if err != nil {
@@ -441,7 +441,7 @@ func TestLimitObservations_Request_0089(t *testing.T) {
 	const elsewhere = "https://gateway.example.test"
 	remembered := llmprovider.SentLimit{Tokens: 30000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "remembered"}
 	fallback := llmprovider.SentLimit{Tokens: 64000, Sent: true, Basis: llmprovider.LimitBasisFallback,
-		Source: "models.dev (bundled 2026-10-12)"}
+		Source: "models.dev"}
 	registry := llmprovider.SentLimit{Tokens: 64000, Sent: true, Basis: llmprovider.LimitBasisFact, Source: "models.dev"}
 	for _, tc := range []struct {
 		name   string
@@ -472,8 +472,8 @@ func TestLimitObservations_Request_0089(t *testing.T) {
 		}
 		obs := llmprovider.LimitObservation{Model: model, BaseURL: base, Scope: tc.scope, Tokens: 30000,
 			Seen: time.Now().Add(-tc.ago)}
-		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithoutModelMetadata(),
-			llmprovider.WithModelProbes(false), testCache(t), llmprovider.WithModel(model),
+		opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
+			llmprovider.WithModelProbes(false), testCache(t), extractDoc(), llmprovider.WithModel(model),
 			llmprovider.WithLimitObservations(obs)}, tc.opts...)
 		build := zenOn(opencode.RouteMessages)
 		if tc.claude {
@@ -502,7 +502,7 @@ func TestLimitObservations_Request_0089(t *testing.T) {
 // response.
 func TestOutputLimit_OutsideProvider_0089(t *testing.T) {
 	ctx := context.Background()
-	opts := []llmprovider.Option{chatcompat.WithID("outside-0089"), llmprovider.WithoutModelMetadata(),
+	opts := []llmprovider.Option{chatcompat.WithID("outside-0089"),
 		catalog.WithModelLayer(limitLayer{"org/outside", 20000}), testCache(t)}
 	l := catalog.CachedLimits(ctx, "outside-0089", "org/outside", opts...)
 	if !l.Output.Known || l.Output.Tokens != 20000 || l.Output.Evidence[0].Source != "test" {

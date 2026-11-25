@@ -156,3 +156,5 @@ package table gains `internal/localonly`.
 * [0061-PLAN-consumer-gaps-from-gobble-issue-9.md](0061-PLAN-consumer-gaps-from-gobble-issue-9.md),
   Phase 4c's "outside network" entry, where the 24 were first measured.
 * [0065-PLAN-tests-reach-no-outside-host.md](0065-PLAN-tests-reach-no-outside-host.md).
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): A test that needs a models.dev document parses one and hands it in, where it served one by URL or turned the fetch off; `internal/localonly`'s message says so (D12). The text above is unchanged.)*

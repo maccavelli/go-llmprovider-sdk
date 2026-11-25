@@ -125,8 +125,7 @@ func sectionSix(t *testing.T, provider llmprovider.ProviderID, profile Profile) 
 		}
 	}
 	slices.Sort(ids)
-	meta := func() modelMetadataResult { return modelMetadataResult{doc: doc} }
-	return metadataCurate(provider, profile, defaultWorkload, meta, firstPartyCurator(provider))(ids, MaxListed), models
+	return metadataCurate(provider, profile, defaultWorkload, doc, firstPartyCurator(provider))(ids, MaxListed), models
 }
 
 // TestOneVendorGroups_0041: OpenAI's band holds at most two of each family,
@@ -210,7 +209,7 @@ func TestFirstPartyRankByFacts_0041(t *testing.T) {
 		resetLookupCaches(t)
 		s := newLookupServer(t, `{}`, 200, firstPartyPage(t, tc.file))
 		cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken("k"),
-			llmprovider.WithBaseURL(s.URL), llmprovider.WithoutModelMetadata(), WithLimit(MaxListed))
+			llmprovider.WithBaseURL(s.URL), WithLimit(MaxListed))
 		if err != nil || cat.Err != nil {
 			t.Fatalf("%s: %v, %v", tc.provider, err, cat.Err)
 		}
@@ -243,12 +242,11 @@ func TestFirstPartyListRanksByFacts_0041(t *testing.T) {
 		resetLookupCaches(t)
 		s := newLookupServer(t, string(raw), 200, firstPartyPage(t, tc.file))
 		cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken("k"),
-			llmprovider.WithBaseURL(s.URL), llmprovider.WithModelMetadataURL(s.URL+"/api.json"), WithLimit(MaxListed))
+			llmprovider.WithBaseURL(s.URL), s.handed, WithLimit(MaxListed))
 		if err != nil || cat.Err != nil {
 			t.Fatalf("%s: %v, %v", tc.provider, err, cat.Err)
 		}
-		meta := func() modelMetadataResult { return modelMetadataResult{doc: doc} }
-		want := metadataCurate(tc.provider, ProfileUtility, defaultWorkload, meta, firstPartyCurator(tc.provider))(slices.Clone(cat.Usable), MaxListed)
+		want := metadataCurate(tc.provider, ProfileUtility, defaultWorkload, doc, firstPartyCurator(tc.provider))(slices.Clone(cat.Usable), MaxListed)
 		if !slices.Equal(cat.Recommended, want) {
 			t.Errorf("%s:\n got  %v\n want the ranking by facts %v", tc.provider, cat.Recommended, want)
 		}

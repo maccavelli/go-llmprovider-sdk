@@ -51,7 +51,7 @@ func TestListModels_WithLimit(t *testing.T) {
 				{[]llmprovider.Option{catalog.WithLimit(0)}, d.StaticModels},
 			} {
 				p, err := New(d.ID, append([]llmprovider.Option{llmprovider.WithTokenSource(failingSource{}),
-					llmprovider.WithModel(firstModel(d)), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata()},
+					llmprovider.WithModel(firstModel(d)), llmprovider.WithModelProbes(false)},
 					tc.opts...)...)
 				if err != nil {
 					t.Fatal(err)

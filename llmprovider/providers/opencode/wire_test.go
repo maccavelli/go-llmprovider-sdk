@@ -22,9 +22,10 @@ func wireCase(gateway llmprovider.ProviderID, route, model, listing string) wire
 		NoContinuation: true,
 		// Each scenario builds once, against a server of its own, and gets
 		// a cache of its own: no listing outlives its server (0058-MADR D1).
+		// It hands in the extract fixture (0093-MADR D12, MH55).
 		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 			return newFor(gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-wire-key"), llmprovider.WithModel(model),
-				catalog.WithCache(new(catalog.Cache))}, wirecase.Opts(u, extra...)...)...)
+				catalog.WithCache(new(catalog.Cache)), extractDoc()}, wirecase.Opts(u, extra...)...)...)
 		},
 	}
 }

@@ -2,7 +2,6 @@ package catalog_test
 
 import (
 	"context"
-	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -21,7 +20,6 @@ import (
 // fixtures and clock are the original's.
 func TestListModels_HonoursRankingOptions(t *testing.T) {
 	catalog.PinRankingNow(t, catalog.RefNow)
-	catalog.EnableModelMetadata(t)
 
 	kiloListing := `{"data":[` + strings.Join([]string{
 		catalog.KiloRankEntry("a/flash-lite", "A Flash Lite", "0.0000001", "0.0000004", 20, true, ""),
@@ -58,8 +56,7 @@ func TestListModels_HonoursRankingOptions(t *testing.T) {
 			// share (0058-MADR D1).
 			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), catalog.WithCache(new(catalog.Cache))}
 			if tc.meta != "" {
-				meta, _ := catalog.MetadataServer(t, http.StatusOK, tc.meta)
-				opts = append(opts, llmprovider.WithModelMetadataURL(meta.URL))
+				opts = append(opts, catalog.Handed(t, tc.meta))
 			}
 			key := llmprovider.NewStaticToken("k")
 			utility, err := catalog.List(context.Background(), tc.provider, key, opts...)
@@ -74,7 +71,6 @@ func TestListModels_HonoursRankingOptions(t *testing.T) {
 			if slices.Equal(want.Recommended, utility.Recommended) {
 				t.Fatalf("fixture does not separate the profiles: both %v", want.Recommended)
 			}
-			catalog.ResetModelMetadataCache()
 			p, err := providers.New(tc.provider, append([]llmprovider.Option{llmprovider.WithAPIKey("k"),
 				llmprovider.WithModel(tc.model)}, opts...)...)
 			if err != nil {

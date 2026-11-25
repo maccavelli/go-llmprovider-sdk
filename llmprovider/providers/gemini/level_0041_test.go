@@ -36,7 +36,7 @@ func sentLevel(t *testing.T, model string, effort llmprovider.Effort, levels []l
 	[]llmprovider.Warning) {
 	t.Helper()
 	srv, got := interactionServer(t, interactionText)
-	opts := apiKey(srv.URL, model, llmprovider.WithoutModelMetadata())
+	opts := apiKey(srv.URL, model)
 	if levels != nil {
 		opts = append(opts, catalog.WithModelLayer(levelLayer{model, levels}))
 	}

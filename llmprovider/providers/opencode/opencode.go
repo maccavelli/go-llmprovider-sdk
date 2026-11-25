@@ -13,7 +13,8 @@
 // (R16).
 //
 // The route for a request is WithRoute's, else the model's provider.npm in the
-// model metadata (llmprovider.WithModelMetadataURL), else the built-in table,
+// models.dev document given to New with catalog.WithMetadata (0093-MADR D6),
+// else the built-in table,
 // else a prefix heuristic (MADR 0012 §3.1). Sending a model to the wrong route
 // fails with an opaque HTTP 500, which classifies as the retryable
 // ErrProviderUnavailable; WithRoute pins a route.
@@ -57,8 +58,8 @@
 //     0013-MADR B9 sent a dynamic budget (0062-MADR D2, amendment "Phase 3's
 //     google-route levels, and 0013's B9"); the chat route takes
 //     reasoning_effort, by the efforts the model's published
-//     reasoning_options list, and as asked when they list none or the
-//     metadata is off (0062-MADR Q7 (a); it sent none, MADR 0009 §6).
+//     reasoning_options list, and as asked when they list none or no
+//     document is handed in (0062-MADR Q7 (a); it sent none, MADR 0009 §6).
 //   - The effort, max included on every route, is sent by the model's facts
 //     and what it refused (0062-MADR D2, D3): one the facts do not list, or
 //     the model refused, steps to the nearest it takes, lower first, with a
@@ -109,7 +110,7 @@
 //     WarningDeferralEmulated (D6, D7).
 //   - Model facts (0041-MADR D1, D2, A3): each request reads what the caches
 //     hold of its model, a caller's catalog.WithModelLayer and the models.dev
-//     document once fetched, and never fetches. From them come the messages
+//     document given to New (0093-MADR D2), and never fetches. From them come the messages
 //     route's thinking shape, as the claude package sends it; the google
 //     route's thinkingLevel, from the levels the model lists. With no
 //     facts the request decides the shape (0062-MADR D2).
@@ -164,7 +165,6 @@ package opencode
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -244,10 +244,12 @@ type provider struct {
 	forcing     messages.Policy        // WithForcedChoiceFallback's and WithModelForcedChoice's
 	route       Route                  // WithRoute's, or the table's for model
 	routePinned bool
-	metadataOff bool // WithoutModelMetadata
-	userAgent   string
-	session     string
-	logger      *slog.Logger
+	// meta is the models.dev document given to New with catalog.WithMetadata,
+	// the only one its requests read (0093-MADR D2, Q4); zero for none.
+	meta      catalog.Metadata
+	userAgent string
+	session   string
+	logger    *slog.Logger
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -308,7 +310,6 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		defaultBase: base,
 		reasoning:   st.Reasoning(),
 		forcing:     messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices(), cacheref.From(st.Values()).LearnedRefusals()),
-		metadataOff: st.ModelMetadataDisabled(),
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),
 		logger:      st.Logger(),
@@ -325,8 +326,12 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 	}
 	var override Route
 	for _, v := range st.Values() {
-		if r, ok := v.(routeOption); ok {
-			override = Route(r)
+		switch v := v.(type) {
+		case routeOption:
+			override = Route(v)
+		case catalog.Metadata:
+			// The last given wins, as catalog reads it (0093-MADR D2).
+			p.meta = v
 		}
 	}
 	if p.route, err = resolveRoute(gateway, p.model, override); err != nil {
@@ -709,28 +714,15 @@ func keyHeader(r Route) (header, scheme string) {
 }
 
 // requestRoute is one request's wire format: the pinned route, else the
-// model's provider.npm route in the metadata, else the table's or the
-// heuristic's (MADR 0012 §3.1). With no document cached, a model the table
-// knows takes the table's route at once while the document is fetched, and
-// any other waits for the lookup, at most 5 s (0028-MADR D-A1).
-func (p *provider) requestRoute(ctx context.Context, model string) Route {
+// model's provider.npm route in the document given to New, else the table's
+// or the heuristic's (MADR 0012 §3.1), at once: no document is fetched or
+// waited for (0093-MADR D6).
+func (p *provider) requestRoute(_ context.Context, model string) Route {
 	if p.routePinned {
 		return p.route
 	}
-	meta, cached := catalog.Metadata{}, false
-	if !p.metadataOff {
-		meta, cached = catalog.CachedMetadataWith(ctx, p.gateway, p.listing...)
-	}
-	if !cached && !inRouteTable(p.gateway, model) {
-		var err error
-		if meta, err = p.metadata(ctx); err == nil {
-			cached = true
-		}
-	}
-	if cached {
-		if npm, ok := meta.NPM(p.gateway, model); ok {
-			return routeForNPM(npm)
-		}
+	if npm, ok := p.meta.NPM(p.gateway, model); ok {
+		return routeForNPM(npm)
 	}
 	if model == p.model {
 		return p.route
@@ -924,7 +916,7 @@ func googleToolConfig(choice llmprovider.ToolChoice) map[string]any {
 // chatBody is the Chat Completions shape, with chatEffort's reasoning_effort,
 // replaying prior reasoning under the field the model's metadata declares.
 func (p *provider) chatBody(ctx context.Context, c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
-	effort, warnings := p.chatEffort(ctx, c, learner)
+	effort, warnings := p.chatEffort(c, learner)
 	return chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
 		ReasoningEffort:      string(effort),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
@@ -936,34 +928,30 @@ func (p *provider) chatBody(ctx context.Context, c call, learner *wire.Learner) 
 
 // chatEffort is the chat route's reasoning_effort, when the call reasons with
 // an effort: by D3's ladder over what the model refused and the efforts its
-// published reasoning_options list. Metadata that is unavailable, disabled
-// or silent on the model lists none, and the effort asked is sent, and a
-// refusal learned (0062-MADR D8, Q7 (a); it sent nothing, MADR 0009 §6).
-func (p *provider) chatEffort(ctx context.Context, c call, learner *wire.Learner) (llmprovider.Effort, []llmprovider.Warning) {
+// published reasoning_options list in the document given to New. No
+// document, or one silent on the model, lists none, and the effort asked is
+// sent, and a refusal learned (0062-MADR D8, Q7 (a); it sent nothing, MADR
+// 0009 §6; 0093-MADR D2).
+func (p *provider) chatEffort(c call, learner *wire.Learner) (llmprovider.Effort, []llmprovider.Warning) {
 	if c.reasoning == nil || c.reasoning.Effort == "" {
 		return "", nil
 	}
 	var listed []llmprovider.Effort
-	if meta, err := p.metadata(ctx); err == nil {
-		for _, e := range meta.ReasoningEfforts(p.gateway, c.model) {
-			listed = append(listed, llmprovider.Effort(e))
-		}
+	for _, e := range p.meta.ReasoningEfforts(p.gateway, c.model) {
+		listed = append(listed, llmprovider.Effort(e))
 	}
 	return learner.Effort(c.reasoning.Effort, listed, len(listed) > 0)
 }
 
 // chatReplayField is the interleaved reasoning field the model's metadata
-// declares, looked up only when the input holds an assistant turn to replay
-// onto (MADR 0012 §2, O5). Unavailable metadata replays nothing.
-func (p *provider) chatReplayField(ctx context.Context, c call) string {
+// declares in the document given to New, read only when the input holds an
+// assistant turn to replay onto (MADR 0012 §2, O5). With no document, it
+// replays nothing.
+func (p *provider) chatReplayField(_ context.Context, c call) string {
 	if !slices.ContainsFunc(c.input, isAssistantTurn) {
 		return ""
 	}
-	meta, err := p.metadata(ctx)
-	if err != nil {
-		return ""
-	}
-	return meta.InterleavedField(p.gateway, c.model)
+	return p.meta.InterleavedField(p.gateway, c.model)
 }
 
 // isAssistantTurn reports whether an item is part of an assistant turn.
@@ -986,21 +974,6 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		listed = listlimit.Cut(catalog.Static(p.gateway), p.limit)
 	}
 	return listed, nil
-}
-
-// errMetadataOff is a lookup WithoutModelMetadata turned off; the provider
-// treats it as a failed fetch and routes by its table.
-var errMetadataOff = errors.New("opencode: model metadata turned off by WithoutModelMetadata")
-
-// metadata is the model metadata document, unless WithoutModelMetadata turned
-// the fetch off.
-func (p *provider) metadata(ctx context.Context) (catalog.Metadata, error) {
-	if p.metadataOff {
-		return catalog.Metadata{}, errMetadataOff
-	}
-	// The lookup names the caller's application, as generation does
-	// (0026-MADR F33).
-	return catalog.LookupMetadataWith(ctx, p.gateway, p.listing...)
 }
 
 // memoKey is c's key in the memo of output caps (0089-MADR D5).
@@ -1070,6 +1043,9 @@ func (p *provider) limitInput(c call, stream bool) wire.LimitInput {
 		Required: true, Provider: string(p.gateway), Model: c.model,
 		Window: cmp.Or(c.limits.Window.Tokens, c.limits.Input.Tokens), Estimate: wire.EstimateInput(c.req)}
 	in.Output, in.Source = statedOutput(c.limits, stream)
-	in.Fallback, in.FallbackSource = p.limits.Fallback(p.memoKey(c, false))
+	// The route's fallback is this request's own read's (0093-MADR D7).
+	if f := c.limits.RouteFallback; f.Known {
+		in.Fallback, in.FallbackSource = f.Tokens, f.Evidence[0].Source
+	}
 	return in
 }

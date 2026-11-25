@@ -194,7 +194,7 @@ func checkImagesLive(ctx context.Context, c imagesLive, base http.RoundTripper,
 	opts ...llmprovider.Option) (imagesLiveResult, error) {
 	rec := &sentBodies{base: base}
 	all := []llmprovider.Option{llmprovider.WithModel(c.model), llmprovider.WithModelProbes(false),
-		llmprovider.WithoutModelMetadata(), llmprovider.WithHTTPClient(&http.Client{Transport: rec}),
+		llmprovider.WithHTTPClient(&http.Client{Transport: rec}),
 		catalog.WithCache(new(catalog.Cache))}
 	if c.route != "" {
 		all = append(all, opencode.WithRoute(c.route))
@@ -254,7 +254,8 @@ func TestImagesLive_Twin_0061(t *testing.T) {
 			t.Fatalf("no case %q", id)
 		}
 		srv := twinServer(t)
-		r, err := checkImagesLive(ctx, c, http.DefaultTransport, llmprovider.WithAPIKey("k"), llmprovider.WithBaseURL(srv.URL))
+		r, err := checkImagesLive(ctx, c, http.DefaultTransport, llmprovider.WithAPIKey("k"), llmprovider.WithBaseURL(srv.URL),
+			extractDoc(t))
 		if err != nil {
 			t.Errorf("%s: %v", id, err)
 			continue
@@ -266,7 +267,7 @@ func TestImagesLive_Twin_0061(t *testing.T) {
 	wrong := cases["claude-url"]
 	wrong.dropped = true
 	if _, err := checkImagesLive(ctx, wrong, http.DefaultTransport, llmprovider.WithAPIKey("k"),
-		llmprovider.WithBaseURL(twinServer(t).URL)); err == nil || !strings.Contains(err.Error(), "was not dropped") {
+		llmprovider.WithBaseURL(twinServer(t).URL), extractDoc(t)); err == nil || !strings.Contains(err.Error(), "was not dropped") {
 		t.Errorf("a drop wanted and not made: %v; want the check to fail", err)
 	}
 	wrong = cases["ollama-url"]
@@ -277,7 +278,7 @@ func TestImagesLive_Twin_0061(t *testing.T) {
 	}
 	refusing := twinServer(t, `{"type":"error","error":{"type":"invalid_request_error","message":"Could not process image"}}`)
 	if _, err := checkImagesLive(ctx, cases["claude-data"], http.DefaultTransport, llmprovider.WithAPIKey("k"),
-		llmprovider.WithBaseURL(refusing.URL)); err == nil {
+		llmprovider.WithBaseURL(refusing.URL), extractDoc(t)); err == nil {
 		t.Error("a refused image: nil; want the check to fail")
 	}
 }

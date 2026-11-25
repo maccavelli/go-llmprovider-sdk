@@ -163,7 +163,7 @@ func TestListingOptions_CallerOptionsComeLast_0080(t *testing.T) {
 				var seen []listingSeen0080
 				wizard := &http.Client{Transport: listingRecorder0080{"wizard", &mu, &seen}}
 				caller := &http.Client{Transport: listingRecorder0080{"caller", &mu, &seen}}
-				opts := append([]llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()}, r.opts(caller)...)
+				opts := append([]llmprovider.Option{testCache(t)}, r.opts(caller)...)
 				o := Options{Registry: reg, Discover: true, HTTPClient: wizard, ProviderOptions: opts,
 					Profile: catalog.ProfileCapable, ModelLimit: 2}
 				_, cat, err := ResolveCredential(context.Background(), defaultPrompter0080{}, o, id)

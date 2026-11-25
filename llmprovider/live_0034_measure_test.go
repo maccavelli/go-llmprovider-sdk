@@ -111,7 +111,7 @@ func measure0034(t *testing.T, label string, id llmprovider.ProviderID, key, mod
 	}
 	rec := &flagRecorder{rewrite: rewrite}
 	p, err := providers.New(id, append([]llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
-		llmprovider.WithMaxTokens(256), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+		llmprovider.WithMaxTokens(256), llmprovider.WithModelProbes(false),
 		llmprovider.WithHTTPClient(&http.Client{Transport: rec})}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func measureSO(t *testing.T, label, key, model string, req *llmprovider.Request,
 	t.Helper()
 	rec := &flagRecorder{rewrite: rewrite}
 	p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
-		llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+		llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false),
 		llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
 	if err != nil {
 		t.Fatal(err)
@@ -332,7 +332,7 @@ func TestLive_0034ClosedFormat(t *testing.T) {
 		t.Run("S6/"+model, func(t *testing.T) {
 			rec := &flagRecorder{rewrite: func(map[string]any) {}}
 			p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
-				llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+				llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false),
 				llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
 			if err != nil {
 				t.Fatal(err)

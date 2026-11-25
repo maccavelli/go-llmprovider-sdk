@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // TestEffortMax_ChatRoute_0061 (0061-MADR D3): on the chat route, whose
@@ -26,12 +25,8 @@ func TestEffortMax_ChatRoute_0061(t *testing.T) {
 				`"reasoning":true,"reasoning_options":[{"type":"effort","values":[`+tc.values+`]}]}}}}`)
 			var body map[string]any
 			srv := captureServer(t, &body, fxChat)
-			metaURL := llmprovider.WithModelMetadataURL(meta.URL)
+			metaURL := servedDoc(t, meta.URL)
 			// The document cached, as a request finds it once fetched.
-			if _, err := catalog.LookupMetadataWith(context.Background(), llmprovider.ProviderOpencodeGo, metaURL,
-				testCache(t)); err != nil {
-				t.Fatalf("caching the document: %v", err)
-			}
 			p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "glm-5.3-flash", metaURL,
 				WithRoute(RouteChatCompletions))...)
 			req := text("hi")

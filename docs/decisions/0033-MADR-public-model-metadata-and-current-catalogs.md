@@ -1124,3 +1124,5 @@ choices it raised.
     `v1.9.0`*).
 * **Next:** the record D6 names, for forced tool choice. *(Done 2026-10-11:
   0034-MADR, `v1.8.0`.)*
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D2 item 3 and D3: the caller downloads, persists and refreshes the document; the SDK parses it (`ParseMetadata`), reads what it is given (`WithMetadata`) and fetches none (D1, D6). The text above is unchanged.)*

@@ -16,7 +16,7 @@ import (
 // list0053 is List of OpenAI against s, through c.
 func list0053(ctx context.Context, s *steadyServer, c *Cache) (Catalog, error) {
 	return List(ctx, llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(s.URL),
-		llmprovider.WithoutModelMetadata(), WithCache(c))
+		WithCache(c))
 }
 
 // TestListingFlight_SharesFailure_0053 (0053-MADR D4, M5): five concurrent
@@ -102,7 +102,7 @@ func newOllamaServer0053(t *testing.T, digest string) *ollamaServer0053 {
 func (s *ollamaServer0053) list(t *testing.T, c *Cache) {
 	t.Helper()
 	if _, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""),
-		llmprovider.WithBaseURL(s.URL), llmprovider.WithoutModelMetadata(), WithCache(c)); err != nil {
+		llmprovider.WithBaseURL(s.URL), WithCache(c)); err != nil {
 		t.Fatalf("List: %v", err)
 	}
 }

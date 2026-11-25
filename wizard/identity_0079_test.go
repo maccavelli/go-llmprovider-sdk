@@ -65,7 +65,7 @@ func TestWizardOwnRequestsNamed_0079(t *testing.T) {
 		{"no identity", auth.Identity{}, nil, "go-llmprovider-sdk/"},
 	} {
 		providerOptions := func(t *testing.T) []llmprovider.Option {
-			return append([]llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}, tc.extra...)
+			return append([]llmprovider.Option{testCache(t)}, tc.extra...)
 		}
 		t.Run(tc.name+"/listing check", func(t *testing.T) {
 			var seen agents0079

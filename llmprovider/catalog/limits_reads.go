@@ -1,17 +1,13 @@
 package catalog
 
 import (
-	"bytes"
 	"cmp"
 	"context"
-	_ "embed" // limits_snapshot.json
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -148,14 +144,6 @@ func (c *store) listingDialect(key listingKey) string {
 		return e.listing.dialect
 	}
 	return ""
-}
-
-// metadataFetchedAt is when cfg's cached document was fetched, or last
-// revalidated.
-func (c *store) metadataFetchedAt(cfg config) time.Time {
-	c.metadataMu.Lock()
-	defer c.metadataMu.Unlock()
-	return c.metadata[modelMetadataURL(cfg)].fetched
 }
 
 // newClaudeRequest is a GET of Anthropic's Models API at endpoint, with the
@@ -327,52 +315,3 @@ func readBackendWindows(ctx context.Context, src llmprovider.TokenSource, token 
 	}
 	return nil
 }
-
-// limitsSnapshot is the embedded extract: each model's limit, by models.dev
-// section, from a public models.dev document, written by
-// tools/limitsnapshot.py at each release (0089-MADR D3, DL70).
-//
-//go:embed limits_snapshot.json
-var limitsSnapshot []byte
-
-// limitsExtract is a parsed extract: its document and its date.
-type limitsExtract struct {
-	meta Metadata
-	date time.Time
-}
-
-// names are the extract's source names by stage: exact, canonical id,
-// family.
-func (e limitsExtract) names() [3]string {
-	d := e.date.Format(time.DateOnly)
-	return [3]string{"models.dev (bundled " + d + ")", "models.dev (bundled " + d + ", canonical id)",
-		"models.dev (bundled " + d + ", family)"}
-}
-
-// parseLimitsExtract reads an extract. The embedded one is a build defect
-// when it does not parse, and panics; TestDiscover_EmbeddedExtract_0089 pins
-// it.
-func parseLimitsExtract(raw []byte) limitsExtract {
-	var file struct {
-		Date     string          `json:"date"`
-		Sections json.RawMessage `json:"sections"`
-	}
-	if err := json.Unmarshal(raw, &file); err != nil {
-		panic(fmt.Sprintf("catalog: limits_snapshot.json: %v", err))
-	}
-	date, err := time.Parse(time.DateOnly, file.Date)
-	if err != nil {
-		panic(fmt.Sprintf("catalog: limits_snapshot.json: date: %v", err))
-	}
-	doc, err := decodeModelMetadata(bytes.NewReader(file.Sections))
-	if err == nil {
-		err = doc.decodeAll()
-	}
-	if err != nil {
-		panic(fmt.Sprintf("catalog: limits_snapshot.json: %v", err))
-	}
-	return limitsExtract{meta: Metadata{doc: doc}, date: date}
-}
-
-// bundledExtract is the embedded extract, parsed once. Tests replace it.
-var bundledExtract = sync.OnceValue(func() limitsExtract { return parseLimitsExtract(limitsSnapshot) })

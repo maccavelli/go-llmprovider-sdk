@@ -1139,6 +1139,8 @@ class TestCatalogCheck(unittest.TestCase):
         assert base is not None
         cls.clean = cls.tmp / "clean"
         shutil.copytree(base, cls.clean)
+        # The snapshot's own document, which --doc requires (0093-MADR D13).
+        cls.doc = cls.clean / "metadata.json"
         cls.planted = cls.tmp / "planted"
         shutil.copytree(base, cls.planted)
         # A changed six: a model of Kilo's utility six leaves the listing.
@@ -1152,63 +1154,25 @@ class TestCatalogCheck(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def test_a_clean_snapshot_reports_nothing(self) -> None:
-        rc, out = call(catalogcheck.main, "--dir", str(self.clean))
+        rc, out = call(catalogcheck.main, "--doc", str(self.doc), "--dir", str(self.clean))
         self.assertEqual(rc, 0, out)
         self.assertIn(": 0 changed", out)
         self.assertNotIn("rules:", out)
 
     def test_a_planted_snapshot_reports_both(self) -> None:
-        rc, out = call(catalogcheck.main, "--dir", str(self.planted))
+        rc, out = call(catalogcheck.main, "--doc", str(self.doc), "--dir", str(self.planted))
         self.assertEqual(rc, 1, out)
         self.assertNotIn("rules:", out)
         self.assertRegex(out, r"kilo utility: \d of 6 changed: .*-deepseek/deepseek-v4\.1-flash")
 
     def test_a_dir_without_a_snapshot_is_a_tool_error(self) -> None:
-        rc, out = call(catalogcheck.main, "--dir", str(self.tmp))
+        rc, out = call(catalogcheck.main, "--doc", str(self.doc), "--dir", str(self.tmp))
         self.assertEqual(rc, 2, out)
 
     def test_an_existing_out_is_a_tool_error(self) -> None:
-        rc, out = call(catalogcheck.main, "--out", str(self.clean))
+        rc, out = call(catalogcheck.main, "--doc", str(self.doc), "--out", str(self.clean))
         self.assertEqual(rc, 2, out)
         self.assertIn("the catalogs command failed", out)
-
-
-class TestLimitSnapshot(unittest.TestCase):
-    """0089-PLAN Phase 1, DL70: the extract keeps each model's limit, and nothing else."""
-
-    def test_limitsnapshot_keeps_limits_only(self) -> None:
-        import limitsnapshot  # pylint: disable=import-outside-toplevel
-
-        doc = {
-            "anthropic": {"name": "Anthropic", "models": {
-                "claude-x": {"name": "Claude X", "cost": {"input": 3, "output": 15},
-                             "modalities": {"input": ["text"], "output": ["text"]},
-                             "limit": {"context": 200000, "input": 180000, "output": 64000}},
-                "claude-y": {"name": "Claude Y", "limit": {"context": 1000000}}}},
-            "kilo": {"models": {"kilo/m": {"limit": {"context": 1000, "output": 10}, "tool_call": True}}},
-            "elsewhere": {"models": {"m": {"limit": {"context": 1, "output": 1}}}},
-        }
-        with tempfile.TemporaryDirectory() as tmp:
-            src, out = Path(tmp) / "doc.json", Path(tmp) / "extract.json"
-            src.write_text(json.dumps(doc), encoding="utf-8")
-            rc, text = call(limitsnapshot.main, str(src), "--date", "2026-10-12", "--out", str(out))
-            self.assertEqual(rc, 0, text)
-            got = json.loads(out.read_text(encoding="utf-8"))
-        self.assertEqual(got, {"date": "2026-10-12", "sections": {
-            "anthropic": {"models": {
-                "claude-x": {"limit": {"context": 200000, "input": 180000, "output": 64000}},
-                "claude-y": {"limit": {"context": 1000000}}}},
-            "kilo": {"models": {"kilo/m": {"limit": {"context": 1000, "output": 10}}}},
-        }})
-
-    def test_limitsnapshot_refuses_a_bad_date(self) -> None:
-        import limitsnapshot  # pylint: disable=import-outside-toplevel
-
-        with tempfile.TemporaryDirectory() as tmp:
-            src = Path(tmp) / "doc.json"
-            src.write_text("{}", encoding="utf-8")
-            rc, _ = call(limitsnapshot.main, str(src), "--date", "12/10/2026", "--out", str(Path(tmp) / "o.json"))
-        self.assertEqual(rc, 2)
 
 
 class TestGoldenDiff(unittest.TestCase):
@@ -1343,6 +1307,112 @@ class TestGoldenDiff(unittest.TestCase):
         self.assertIn("google.json: in HEAD, missing", out)
         rc, out = call(self.main, "--repo", str(self.root), "--rev", "no-such-rev")
         self.assertEqual(rc, 2, out)
+
+
+    LISTINGS = [
+        "llmprovider/providers/claude/testdata/wire/claude/listing.json",
+        "llmprovider/providers/opencode/testdata/wire/opencode-zen-responses/listing.json",
+        "llmprovider/providers/opencode/testdata/wire/opencode-zen-messages/listing.json",
+        "llmprovider/providers/opencode/testdata/wire/opencode-zen-google/listing.json",
+        "llmprovider/providers/opencode/testdata/wire/opencode-zen-chat/listing.json",
+    ]
+    SIXTH = "llmprovider/providers/opencode/testdata/wire/opencode-go-chat/listing.json"
+
+    def test_ranked_listings_0093(self) -> None:
+        """MH58 (D12 (e)): --ranked-listings accepts a change to the result of exactly the five listing goldens;
+        a sixth listing golden changing, or a request of one of the five, is a finding; without the flag the five
+        are findings too."""
+        import goldendiff  # pylint: disable=import-outside-toplevel
+
+        root = temp_repo(self)
+        golden = {"requests": [{"method": "GET", "path": "/v1/models", "header": {}}], "result": ["a", "b"]}
+        for rel in [*self.LISTINGS, self.SIXTH]:
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(golden, indent=2), encoding="utf-8")
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "goldens")
+
+        def write(rel: str, doc: dict) -> None:
+            (root / rel).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+        def tool(*extra: str) -> tuple[int, str]:
+            try:
+                return call(goldendiff.main, "--repo", str(root), "--rev", "HEAD", *extra)
+            except SystemExit as refused:  # argparse refusing a flag
+                return int(refused.code or 0), f"exit {refused.code}"
+
+        ranked = {**golden, "result": ["b", "a"]}
+        for rel in self.LISTINGS:
+            write(rel, ranked)
+        rc, out = tool("--ranked-listings")
+        self.assertEqual(rc, 0, out)
+        rc, out = tool()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("claude/listing.json: result/0", out)
+        write(self.SIXTH, ranked)
+        rc, out = tool("--ranked-listings")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("opencode-go-chat/listing.json: result/0", out)
+        write(self.SIXTH, golden)
+        moved = json.loads(json.dumps(ranked))
+        moved["requests"][0]["path"] = "/v2/models"
+        write(self.LISTINGS[0], moved)
+        rc, out = tool("--ranked-listings")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("claude/listing.json: requests/0/path", out)
+
+
+class Test0093(unittest.TestCase):
+    """0093-MADR: the tools after the SDK stops fetching model metadata (MH34 to MH37, MH56)."""
+
+    def test_no_limitsnapshot_0093(self) -> None:
+        """MH34 (D7): the extract's generator, its tests and its README row are gone."""
+        self.assertFalse((_common.ROOT / "tools/limitsnapshot.py").exists(), "tools/limitsnapshot.py exists")
+        readme = (_common.ROOT / "tools/README.md").read_text(encoding="utf-8")
+        self.assertNotIn("limitsnapshot.py", readme)
+        here = Path(__file__).read_text(encoding="utf-8")
+        self.assertNotIn("import " + "limitsnapshot", here)
+
+    def test_offline_hands_document_0093(self) -> None:
+        """MH35 (D13): the program hands the document in with WithMetadata and turns nothing off; its plants are
+        "no document handed in" and "a listing asked for", each matching the program once."""
+        self.assertIn("catalog.WithMetadata(meta)", offline.PROGRAM)
+        self.assertNotIn("WithoutModelMetadata", offline.PROGRAM)
+        self.assertNotIn("WithModelLayer", offline.PROGRAM)
+        self.assertEqual(sorted(offline.PLANTS), ["a listing asked for", "no document handed in"])
+        for name, (old, _) in offline.PLANTS.items():
+            self.assertEqual(offline.PROGRAM.count(old), 1, name)
+
+    def test_cachecensus_no_metadata_0093(self) -> None:
+        """MH36 (D13): no instrument reports a metadata fetch; the listing, the listed set, the show and the
+        probes are kept."""
+        kinds = set()
+        for rel, _, new in cachecensus.INSTRUMENTS:
+            self.assertNotIn("metadata", new, rel)
+            kinds.update(re.findall(r'census\("(\w+)"', new))
+        self.assertNotIn("model_metadata.go", " ".join(rel for rel, _, _ in cachecensus.INSTRUMENTS))
+        self.assertTrue({"listing", "listed"} <= kinds, kinds)
+        helpers = " ".join(cachecensus.HELPERS.values())
+        self.assertIn("probes", helpers)
+        self.assertIn("show", " ".join(new for _, _, new in cachecensus.INSTRUMENTS) + helpers)
+
+    def test_catalogcheck_requires_doc_0093(self) -> None:
+        """MH37 (D13): with no --doc the tool is a usage error, exit 2, naming --doc."""
+        base = catalogcheck.latest_snapshot()
+        self.assertIsNotNone(base)
+        rc, out = call(catalogcheck.main, "--dir", str(base))
+        self.assertEqual(rc, 2, out)
+        self.assertIn("--doc", out)
+
+    def test_offline_refuses_before_v1_33_0(self) -> None:
+        """MH56 (D13): a VERSION before v1.33.0 exits 2, naming the revision whose copy of the tool checks it,
+        and builds nothing."""
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, TestOffline.NO_NETWORK):
+            rc, out = call(offline.main, "v1.32.0", "--platforms", "host", "--out", tmp)
+            self.assertEqual(rc, 2, out)
+            self.assertIn("b2917f0", out)
+            self.assertEqual(list(Path(tmp).iterdir()), [], "something was written")
 
 
 if __name__ == "__main__":

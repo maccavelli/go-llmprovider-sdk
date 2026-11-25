@@ -32,7 +32,7 @@ func togetherAuth0085(t *testing.T, src llmprovider.TokenSource) (auths []string
 			Body: io.NopCloser(strings.NewReader(`{}`)), Request: r}, nil
 	})}
 	_, _ = List(context.Background(), llmprovider.ProviderTogether, src,
-		llmprovider.WithHTTPClient(client), WithCache(&Cache{}), llmprovider.WithoutModelMetadata())
+		llmprovider.WithHTTPClient(client), WithCache(&Cache{}))
 	mu.Lock()
 	defer mu.Unlock()
 	return auths, first

@@ -240,7 +240,7 @@ func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, io.ErrUnexpectedEOF
 		})},
-		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()},
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)

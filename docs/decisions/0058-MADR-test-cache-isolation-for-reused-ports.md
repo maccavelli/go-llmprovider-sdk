@@ -589,3 +589,5 @@ None of the probes ran in the working tree.
 * **Decided 2026-10-24.** The owner answered Q4 (a) and Q5 (a) ("committed,
   Q4 a, Q5 a, proceed"), and approved the PLAN's Phase 6. D6 and D7 stand
   as proposed above, D7 in both its parts.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): D5 is superseded as to the fetch: `tools/cachecensus.py` has no metadata fetch to instrument (D13; MH36). The text above is unchanged.)*

@@ -76,7 +76,7 @@ func TestClaudeWorkspace_Header_0064(t *testing.T) {
 				t.Fatalf("List: %v", err)
 			}
 			if _, err := ListRaw(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"),
-				append(opts, llmprovider.WithoutModelMetadata())...); err != nil {
+				opts...); err != nil {
 				t.Fatalf("ListRaw: %v", err)
 			}
 			sent := s.take()

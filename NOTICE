@@ -1,0 +1,34 @@
+go-llmprovider-sdk
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file in the same directory.
+
+The SDK fetches no model metadata and embeds no extract of it: a caller hands
+in a models.dev document with catalog.WithMetadata
+(docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md). The module
+does contain the following files of model data. The data originates from
+models.dev (https://github.com/anomalyco/models.dev), which is licensed under
+the MIT License:
+
+  Copyright (c) 2025 models.dev
+
+  llmprovider/internal/opencoderoute/routes_snapshot.json
+    OpenCode's routes: the "opencode" and "opencode-go" sections of
+    models.opencode.ai/api.json, retrieved 2026-09-27; embedded.
+  llmprovider/catalog/testdata/ranking-2026-09-26/metadata.json
+    a test fixture, trimmed from models.opencode.ai's document of 2026-09-26.
+  llmprovider/catalog/testdata/ranking-2026-10-12/metadata.json
+    a test fixture, the document's sections the SDK reads, recorded by
+    internal/cmd/catalogs -snapshot on 2026-10-12.
+  llmprovider/catalog/testdata/versions-2026-11-06/families.json
+    a test fixture, from the models.dev document of 2026-11-06.
+  llmprovider/catalog/testdata/metadata-0033/fixture.json
+    a test fixture written in models.dev's format.
+  llmprovider/catalog/testdata/extract-2026-10-12/api.json
+    a test fixture: the limits extract the SDK embedded until 0093, dated
+    2026-10-12, with OpenCode's routes, as a models.dev document.
+
+Some of these files were taken from models.opencode.ai's copy of the models.dev
+document, as their entries say.
+
+The licence's full text is in LICENSE.models.dev.

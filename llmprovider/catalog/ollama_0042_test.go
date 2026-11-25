@@ -85,7 +85,7 @@ func (s *ollama0042Server) asked() map[string]int {
 // list is List for Ollama against s, as prepare-commit-msg lists it.
 func (s *ollama0042Server) list(t *testing.T, opts ...llmprovider.Option) Catalog {
 	t.Helper()
-	opts = append([]llmprovider.Option{llmprovider.WithBaseURL(s.URL), llmprovider.WithoutModelMetadata(),
+	opts = append([]llmprovider.Option{llmprovider.WithBaseURL(s.URL),
 		WithLimit(MaxListed)}, opts...)
 	cat, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), opts...)
 	if err != nil {

@@ -79,7 +79,7 @@ func TestList_ClaudeBase_0041(t *testing.T) {
 		resetLookupCaches(t)
 		s := newBaseServer(t, claudeEffortPage)
 		opts := []llmprovider.Option{llmprovider.WithBaseURL(s.URL + suffix), llmprovider.WithHTTPClient(s.client()),
-			llmprovider.WithModelMetadataURL(s.URL + "/api.json")}
+			servedDoc(t, s.URL+"/api.json")}
 		cat, err := List(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), opts...)
 		if err != nil {
 			t.Fatal(err)
@@ -129,7 +129,7 @@ func TestListingKey_DefaultBase_0041(t *testing.T) {
 func TestCachedFacts_ListWithoutBaseURL_0041(t *testing.T) {
 	resetLookupCaches(t)
 	s := newBaseServer(t, claudeEffortPage)
-	opts := []llmprovider.Option{llmprovider.WithHTTPClient(s.client()), llmprovider.WithModelMetadataURL(s.URL + "/api.json")}
+	opts := []llmprovider.Option{llmprovider.WithHTTPClient(s.client()), servedDoc(t, s.URL+"/api.json")}
 	if _, err := List(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), opts...); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestListingBase_IsWhatListReads_0041(t *testing.T) {
 		resetLookupCaches(t)
 		s := newBaseServer(t, claudeEffortPage)
 		_, _ = List(context.Background(), id, llmprovider.NewStaticToken("k"), llmprovider.WithHTTPClient(s.client()),
-			llmprovider.WithModelMetadataURL(s.URL+"/api.json"))
+			servedDoc(t, s.URL+"/api.json"))
 		base := listingBaseURL(id, "")
 		if got := s.listings(); len(got) == 0 || !strings.HasPrefix(got[0], base+"/") {
 			t.Errorf("%s: read %q; want under %s", id, got, base)

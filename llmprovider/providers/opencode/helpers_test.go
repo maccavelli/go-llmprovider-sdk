@@ -102,7 +102,7 @@ func testCache(t *testing.T) llmprovider.Option {
 // comes first, so that a test's own WithCache wins.
 func build(t *testing.T, gateway llmprovider.ProviderID, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	p, err := newFor(gateway)(append(append([]llmprovider.Option{testCache(t)}, metadataOff()...), opts...)...)
+	p, err := newFor(gateway)(append(append([]llmprovider.Option{testCache(t)}, baseDoc()...), opts...)...)
 	if err != nil {
 		t.Fatalf("New %s: %v", gateway, err)
 	}
@@ -112,7 +112,7 @@ func build(t *testing.T, gateway llmprovider.ProviderID, opts ...llmprovider.Opt
 // apiKey is the options for a key "k" against url, with the given model.
 func apiKey(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
 	return append(append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(url)}, metadataOff()...), opts...)
+		llmprovider.WithBaseURL(url)}, baseDoc()...), opts...)
 }
 
 // effort is WithReasoning with an effort, as the old WithReasoningEffort.
@@ -209,23 +209,24 @@ func (r *headerRecorder) requests() []recorded {
 	return append([]recorded(nil), r.seen...)
 }
 
-// metadataOn is set by enableMetadata for one test, which serves its own
-// metadata document. Otherwise the helpers turn the fetch off, so no test
-// reaches models.opencode.ai (0015-PLAN S10). No test here runs in parallel.
+// metadataOn is set by enableMetadata for one test, which hands in its own
+// document. Otherwise the helpers hand in the extract fixture, what a request
+// read with no document before 0093 (0093-MADR D12, MH55). No test here runs
+// in parallel.
 var metadataOn bool
 
-// enableMetadata leaves the metadata fetch on for one test.
+// enableMetadata marks one test as handing in its own document.
 func enableMetadata(t *testing.T) {
 	t.Helper()
 	metadataOn = true
 	t.Cleanup(func() { metadataOn = false })
 }
 
-// metadataOff is WithoutModelMetadata, unless enableMetadata turned the fetch
-// on.
-func metadataOff() []llmprovider.Option {
+// baseDoc is the extract fixture handed in, unless enableMetadata marked the
+// test as handing in its own document.
+func baseDoc() []llmprovider.Option {
 	if metadataOn {
 		return nil
 	}
-	return []llmprovider.Option{llmprovider.WithoutModelMetadata()}
+	return []llmprovider.Option{extractDoc()}
 }

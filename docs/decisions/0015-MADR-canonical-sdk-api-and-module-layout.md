@@ -1388,3 +1388,5 @@ R4 of the standards guide reads: "**R4. Experimental API lives under
 package under that tree.
 
 The text above is not rewritten.
+
+*(2026-11-24, note from [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md): R17's common options lose the model metadata URL and its off switch; R30's example `catalog.OptionsFromEnv()` is removed; R42 and R48 carry one recorded exception, v1.33.0's eight removals against `v1.32.0` (D10, Q1). The text above is unchanged.)*

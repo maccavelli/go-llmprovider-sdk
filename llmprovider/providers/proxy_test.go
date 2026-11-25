@@ -130,7 +130,7 @@ func proxyChild(t *testing.T) {
 			model = d.StaticModels[0]
 		}
 		p, err := New(d.ID, llmprovider.WithAPIKey("proxy-key"), llmprovider.WithModel(model),
-			llmprovider.WithBaseURL("http://"+string(d.ID)+".invalid"))
+			llmprovider.WithBaseURL("http://"+string(d.ID)+".invalid"), extractDoc())
 		if err != nil {
 			t.Fatalf("%s: %v", d.ID, err)
 		}

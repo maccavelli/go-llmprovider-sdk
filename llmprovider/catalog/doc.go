@@ -31,12 +31,14 @@
 //
 // ListRaw sends List's requests, through the same code, and returns every
 // page byte for byte with each entry of its model array: no filter, ranking,
-// caveat, static fallback or models.dev fetch, and nothing written to the
+// caveat, static fallback or models.dev document, and nothing written to the
 // listing cache. A failed listing is its error (0041-MADR D9).
 //
-// Model metadata comes from a models.dev-format document (Metadata), fetched
-// and cached in-process (LookupMetadata, CachedMetadataWith), or read from one
-// a caller persisted (ParseMetadata, Metadata.Encode). ModelInfo is one
+// Model metadata comes from a models.dev-format document (Metadata) the
+// caller downloads, such as https://models.dev/api.json, reads with
+// ParseMetadata, and hands in with WithMetadata; Metadata.Encode writes it
+// back. The SDK fetches, caches and embeds none (0093-MADR D1, D6, D7). A
+// provider's requests read only the document given to its New. ModelInfo is one
 // model's limits, modalities, capabilities, prices in USD per million tokens,
 // and lifecycle. Each field reports whether it is known (Has) and which layer
 // set it (SourceOf) (0033-MADR D1 to D3).
@@ -47,12 +49,13 @@
 // fetch. Each Fact is chosen by rank: the caller's layers, then the service
 // (its listing, Claude's one-model read of a model the listing does not
 // name, the context Ollama's /api/ps serves a loaded model, the ChatGPT
-// backend's listing), then the registry (a layer named "models.dev", the
-// fetched document, then the embedded extract of models.dev's limits, dated
-// and always stale), each source's value and time kept as Evidence, a
+// backend's listing), then the registry (a layer named "models.dev", then
+// the document handed in, undated and never stale), each source's value and time kept as Evidence, a
 // disagreement marked Conflicting, the output held to the window, and a
 // stated 0 no limit. Limits.Required is true for the Messages wire, Claude's
-// and OpenCode's messages route (0089-MADR D1 to D3).
+// and OpenCode's messages route (0089-MADR D1 to D3); Limits.RouteFallback
+// is that route's fallback, found with the call's own options (0093-MADR
+// D7).
 //
 // models.dev's values are its own: the SDK corrects none of them, and some
 // were found wrong when 0033-MADR was written. Examples are Together prices

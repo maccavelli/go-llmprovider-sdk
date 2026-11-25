@@ -75,7 +75,8 @@ func TestStreamTextDeltas_0051(t *testing.T) {
 		_, _ = io.WriteString(w, llmtestMessagesStream)
 	}))
 	defer srv.Close()
-	p, err := New(llmprovider.WithAPIKey("sk-ant-llmtest"), llmprovider.WithModel("claude-haiku-4-5"), llmprovider.WithBaseURL(srv.URL))
+	p, err := New(llmprovider.WithAPIKey("sk-ant-llmtest"), llmprovider.WithModel("claude-haiku-4-5"), llmprovider.WithBaseURL(srv.URL),
+		extractDoc())
 	if err != nil {
 		t.Fatal(err)
 	}

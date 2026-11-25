@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"encoding/json"
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
@@ -9,33 +8,17 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/http"
-	"os"
 	"slices"
-	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
-// Model metadata for the open catalogs (MADR 0009 §2): a models.dev-format
-// document, by default OpenCode's, fetched concurrently with a listing and
-// cached in-process.
+// Model metadata (MADR 0009 §2): a models.dev-format document the caller
+// downloads, parses with ParseMetadata and hands in with WithMetadata. The
+// SDK fetches none, caches none and embeds none (0093-MADR D1, D6, D7).
 const (
-	defaultModelMetadataURL = "https://models.opencode.ai/api.json"
-	envModelMetadataURL     = "LLMPROVIDER_MODELS_METADATA_URL"
-	envDisableModelMetadata = "LLMPROVIDER_DISABLE_MODELS_METADATA"
-	modelMetadataTTL        = 10 * time.Minute
-	// modelMetadataRetryAfter is how long a failed fetch is remembered before
-	// the next load tries again (MADR 0013 A6).
-	modelMetadataRetryAfter = time.Minute
-	// metadataLookupTimeout bounds the lookup a generation request makes
-	// (OpenCode's chat route) whatever the caller's context (MADR 0013 A6).
-	metadataLookupTimeout = 5 * time.Second
-
 	metadataKeyZen = "opencode"
 	metadataKeyGo  = "opencode-go"
 	metadataKeyHF  = "huggingface"
@@ -50,9 +33,6 @@ const (
 	metadataKeyXAI       = "xai"
 	metadataKeyKilo      = "kilo"
 )
-
-// errModelMetadataDisabled reports that the environment turned the fetch off.
-var errModelMetadataDisabled = errors.New("model metadata: disabled by WithoutModelMetadata")
 
 // modelCost is a models.dev price, USD per million tokens. Input and Output
 // are required wherever cost is present (models.dev's schema), so a cost
@@ -136,7 +116,7 @@ type modelMetadataSection struct {
 	Models map[string]modelMetadata `json:"models"`
 }
 
-// modelMetadataDoc is a fetched or parsed document: each section the SDK
+// modelMetadataDoc is a parsed document: each section the SDK
 // reads, by key, kept as read, for a lossless Encode (0033-MADR D3, as
 // amended), and decoded the first time it is read. A caller pays only for the
 // sections it reads (0033-PLAN-public-model-metadata.md, Phase 2's
@@ -209,8 +189,8 @@ func (d *modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, mod
 	m, _ := d.entry(provider, model)
 	for _, o := range m.ReasoningOptions {
 		if o.Type == jsonKeyEffort {
-			// The cache is the process's; the caller gets its own copy
-			// (R29; 0026-MADR F53).
+			// Every reader shares the document; the caller gets its own
+			// copy (R29; 0026-MADR F53).
 			return slices.Clone(o.Values)
 		}
 	}
@@ -248,103 +228,39 @@ func (d *modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (s
 	return m.Provider.NPM, true
 }
 
-// Metadata is the model metadata document as a provider reads it for one
-// request: reasoning efforts, the interleaved-reasoning field and the AI SDK
-// package, per model (MADR 0009 §2). It is safe for concurrent use: it is not
-// changed once read, and each section decodes once, however many goroutines
-// read it at once.
+// Metadata is a models.dev-format document the caller downloaded and parsed
+// with ParseMetadata, and hands in with WithMetadata (0093-MADR D1): its age
+// and its source are the caller's. A provider reads it for one request:
+// reasoning efforts, the interleaved-reasoning field and the AI SDK package,
+// per model (MADR 0009 §2). It is safe for concurrent use: it is not changed
+// once parsed, and each section decodes once, however many goroutines read
+// it at once. The zero Metadata is no document.
 //
 // Moved here from llmprovider (0015-PLAN S8, commit 2).
 type Metadata struct{ doc *modelMetadataDoc }
 
-// LookupMetadata returns the document at url, or the default document when
-// url is empty, fetched through client and cached as the listing caches it.
-// A nil client means the default client, as an omitted WithHTTPClient does.
-// The lookup waits at most 5 s, whatever ctx allows, and a failed fetch is not
-// retried for a minute (MADR 0013 A6). Lookups share one fetch per URL, which
-// carries on, for up to 10 s, after a lookup gives up; past the cache's TTL a
-// lookup returns the cached document and the fetch refreshes it (0021-MADR
-// C1, C2).
+// WithMetadata hands in m, the models.dev document, for a listing's ranking,
+// its menu's facts, the lookups (LookupModel, CachedModel, CachedFacts) and
+// the limits (LookupLimits, CachedLimits), and, given to a provider's New,
+// for that provider's requests, for its whole life (0093-MADR D1, D2). A
+// request reads only the document its provider was given: one handed to a
+// lookup is never seen by a request. It is a shared option, as
+// WithModelLayer is: the built-in providers and chatcompat read it, a
+// provider outside this module ignores it, and llmprovider.For scopes it.
+// Given twice, the last wins, so WithMetadata(Metadata{}) given last drops
+// one an earlier option carried.
 //
-// Moved here from llmprovider (0015-PLAN S8, commit 2).
-func LookupMetadata(ctx context.Context, url string, client *http.Client) (Metadata, error) {
-	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
-	defer cancel()
-	cfg := defaultConfig()
-	cfg.ModelMetadataURL = url
-	if client != nil {
-		cfg.HTTPClient = client
-	}
-	doc, err := loadModelMetadata(ctx, cfg)
-	return Metadata{doc: doc}, err
+// With no document, a zero one, or one holding none of the sections the SDK
+// reads, every reader behaves as with none: the listings rank by name, the
+// lookups read the listing and the caller's layers, and a request on a wire
+// that requires an output limit, with no other source, is refused
+// (0093-MADR D3, D8). The SDK never fetches a document.
+func WithMetadata(m Metadata) llmprovider.Option {
+	return llmprovider.SharedOption("catalog.WithMetadata", m)
 }
 
-// LookupMetadataWith is LookupMetadata for the provider id, with its options:
-// the document is WithModelMetadataURL's, fetched through WithHTTPClient's
-// client, and the request names the caller's WithClientInfo application and
-// WithSessionID session, as the provider's own requests do (0026-MADR F33).
-// An option LookupMetadata has no use for is ignored; one scoped to another
-// provider is refused, as List refuses it.
-func LookupMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...llmprovider.Option) (Metadata, error) {
-	cfg, err := configFor(id, opts)
-	if err != nil {
-		return Metadata{}, err
-	}
-	if err := cfg.store.refuseClosed(); err != nil {
-		return Metadata{}, err
-	}
-	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
-	defer cancel()
-	doc, err := loadModelMetadata(ctx, cfg)
-	return Metadata{doc: doc}, err
-}
-
-// CachedMetadataWith is LookupMetadataWith without the wait: the cached
-// document, fresh or past its TTL, and true; or, with none cached, false. A
-// document past its TTL is refreshed in the background, and with none cached
-// the fetch is started, unless a failure is remembered (MADR 0013 A6), so a
-// later call finds it. Metadata that WithoutModelMetadata turns off, or an
-// option that is refused, reports false (0028-MADR D-A1).
-func CachedMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...llmprovider.Option) (Metadata, bool) {
-	cfg, err := configFor(id, opts)
-	if err != nil {
-		return Metadata{}, false
-	}
-	return cachedMetadata(ctx, cfg)
-}
-
-// cachedMetadata is CachedMetadataWith's answer for a resolved configuration.
-func cachedMetadata(ctx context.Context, cfg config) (Metadata, bool) {
-	if cfg.metadataOff {
-		return Metadata{}, false
-	}
-	url := modelMetadataURL(cfg)
-	c := cfg.store
-	c.metadataMu.Lock()
-	defer c.metadataMu.Unlock()
-	e := c.metadata[url]
-	now := metadataNow()
-	fresh := e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL
-	backingOff := !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter
-	if !fresh && !backingOff {
-		c.startMetadataFetch(ctx, url, cfg)
-	}
-	return Metadata{doc: e.doc}, e.doc != nil
-}
-
-// peekMetadata is the cached document, fresh or past its TTL, and true; or,
-// with none cached or metadata off, false. Unlike cachedMetadata it starts
-// no fetch: what a request reads (0041-MADR A3).
-func peekMetadata(cfg config) (Metadata, bool) {
-	if cfg.metadataOff {
-		return Metadata{}, false
-	}
-	c := cfg.store
-	c.metadataMu.Lock()
-	defer c.metadataMu.Unlock()
-	e := c.metadata[modelMetadataURL(cfg)]
-	return Metadata{doc: e.doc}, e.doc != nil
-}
+// has reports whether m holds any section the SDK reads.
+func (m Metadata) has() bool { return m.doc != nil && len(m.doc.sections) > 0 }
 
 // ReasoningEfforts returns the effort values the document lists for a
 // model's reasoning_options, or nil.
@@ -389,179 +305,8 @@ func modelMetadataKey(provider llmprovider.ProviderID) string {
 	return ""
 }
 
-// modelMetadataCacheEntry is one URL's last good document and last failure.
-type modelMetadataCacheEntry struct {
-	doc     *modelMetadataDoc // nil until a fetch succeeds; kept when a refresh fails
-	etag    string            // doc's ETag, sent as If-None-Match by the refresh (0028-MADR D-A1)
-	fetched time.Time         // when doc was fetched, or last revalidated
-	failed  time.Time         // when the last fetch failed; zero after a success
-	err     error             // that failure
-}
-
-// metadataFetch is one URL's fetch in flight, which every lookup of that URL
-// waits for (0021-MADR C2). doc and err are set before done is closed.
-type metadataFetch struct {
-	done chan struct{}
-	doc  *modelMetadataDoc
-	err  error
-}
-
-var (
-	// metadataNow is the caches' clock. Tests move it.
-	metadataNow = time.Now
-	// metadataDecodes counts decodeModelMetadata's calls, so that tests can
-	// tell a revalidation from a download.
-	metadataDecodes atomic.Int64
-)
-
 // metadataLimit bounds the metadata document (0021-MADR C3).
 const metadataLimit = 32 << 20
-
-// metadataFetchTimeout bounds one fetch. The fetch is detached from the
-// lookups that wait for it, so it has its own bound (0021-MADR C1).
-const metadataFetchTimeout = 10 * time.Second
-
-// modelMetadataURL resolves the document URL: the option, else OpenCode's.
-func modelMetadataURL(cfg config) string {
-	if cfg.ModelMetadataURL != "" {
-		return cfg.ModelMetadataURL
-	}
-	return defaultModelMetadataURL
-}
-
-// OptionsFromEnv returns the options LLMPROVIDER_MODELS_METADATA_URL and
-// LLMPROVIDER_DISABLE_MODELS_METADATA set: WithModelMetadataURL for a URL, and
-// WithoutModelMetadata for a true boolean ("1", "true", …). It is the only way
-// either variable takes effect: the library reads no environment variable
-// unless a caller asks (0015-MADR D9). An unset variable adds no option.
-func OptionsFromEnv() []llmprovider.Option {
-	var opts []llmprovider.Option
-	if v := os.Getenv(envModelMetadataURL); v != "" {
-		opts = append(opts, llmprovider.WithModelMetadataURL(v))
-	}
-	if v, err := strconv.ParseBool(os.Getenv(envDisableModelMetadata)); err == nil && v {
-		opts = append(opts, llmprovider.WithoutModelMetadata())
-	}
-	return opts
-}
-
-// loadModelMetadata returns the document, from the in-process cache while it
-// is younger than modelMetadataTTL. A failure is remembered for
-// modelMetadataRetryAfter, and while it is, loads answer from the cache
-// without fetching: the stale document when there is one, else the failure
-// (MADR 0013 A6).
-//
-// One fetch per URL runs at a time, detached from every caller's context
-// and bounded by metadataFetchTimeout; each load waits for it under its own
-// context. Past the TTL the stale document is returned at once and the
-// fetch refreshes it in the background. Every failure of the fetch is
-// remembered; a caller's own context ending never is (0021-MADR C1, C2).
-func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, error) {
-	if cfg.metadataOff {
-		return nil, errModelMetadataDisabled
-	}
-	url := modelMetadataURL(cfg)
-	c := cfg.store
-	c.metadataMu.Lock()
-	e := c.metadata[url]
-	now := metadataNow()
-	switch {
-	case e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL:
-		c.metadataMu.Unlock()
-		return e.doc, nil
-	case !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter:
-		c.metadataMu.Unlock()
-		return e.cached()
-	}
-	fetch := c.startMetadataFetch(ctx, url, cfg)
-	c.metadataMu.Unlock()
-	if e.doc != nil {
-		return e.doc, nil
-	}
-	if fetch == nil {
-		// The store is closed, and nothing is in flight (0071-MADR D2).
-		return nil, errCacheClosed
-	}
-	select {
-	case <-fetch.done:
-		return fetch.doc, fetch.err
-	case <-ctx.Done():
-		return nil, fmt.Errorf("model metadata: %w", ctx.Err())
-	}
-}
-
-// startMetadataFetch returns url's fetch in flight, starting one when there
-// is none. c.metadataMu is held, so the fetch is counted before a Close can
-// set metadataClosed. A closed store starts none, and returns nil when none
-// is in flight (0071-MADR D1).
-func (c *store) startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFetch {
-	if fetch := c.metadataFetches[url]; fetch != nil {
-		return fetch
-	}
-	if c.metadataClosed {
-		return nil
-	}
-	fetch := &metadataFetch{done: make(chan struct{})}
-	c.metadataFetches[url] = fetch
-	fetchCtx, cancel := c.detached(ctx, metadataFetchTimeout)
-	// The document the cache holds, and its ETag, for a revalidation.
-	held := c.metadata[url]
-	c.metadataFetching.Go(func() {
-		defer cancel()
-		doc, etag, err := fetchModelMetadata(fetchCtx, url, cfg, held)
-		c.metadataMu.Lock()
-		e := c.metadata[url]
-		if err != nil {
-			e.failed, e.err = metadataNow(), err
-		} else {
-			e = modelMetadataCacheEntry{doc: doc, etag: etag, fetched: metadataNow()}
-		}
-		c.metadata[url] = e
-		delete(c.metadataFetches, url)
-		fetch.doc, fetch.err = e.cached()
-		c.metadataMu.Unlock()
-		close(fetch.done)
-	})
-	return fetch
-}
-
-// cached answers from a cache entry after a failure: the stale document when
-// there is one, else the failure.
-func (e modelMetadataCacheEntry) cached() (*modelMetadataDoc, error) {
-	if e.doc != nil {
-		return e.doc, nil
-	}
-	return nil, e.err
-}
-
-// fetchModelMetadata performs one GET, and returns the document and its ETag.
-// Go's transport requests gzip itself. When held has a document and an ETag,
-// the request sends If-None-Match, and a 304 returns held's document as it is,
-// neither downloaded nor decoded again (0028-MADR D-A1).
-func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelMetadataCacheEntry) (*modelMetadataDoc, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-	if err != nil {
-		return nil, "", fmt.Errorf("model metadata: %w", err)
-	}
-	cfg.setUserAgent(req) // the caller's identity (0020-MADR F37)
-	revalidate := held.doc != nil && held.etag != ""
-	if revalidate {
-		req.Header.Set("If-None-Match", held.etag)
-	}
-	resp, err := cfg.HTTPClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("model metadata: %w", transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
-	}
-	defer cfg.closeBody(resp)
-	if revalidate && resp.StatusCode == http.StatusNotModified {
-		return held.doc, held.etag, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("model metadata: %s returned HTTP %d", url, resp.StatusCode)
-	}
-	doc, err := decodeModelMetadata(resp.Body)
-	return doc, resp.Header.Get("ETag"), err
-}
 
 // sectionBytes captures each occurrence of one section, as read.
 type sectionBytes struct{ raws []jsontext.Value }
@@ -584,7 +329,6 @@ func (s *sectionBytes) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 // It reads as the body streams in, never holding the whole body, under
 // metadataLimit (0028-MADR D-A1).
 func decodeModelMetadata(r io.Reader) (*modelMetadataDoc, error) {
-	metadataDecodes.Add(1)
 	var raw struct {
 		Zen       sectionBytes `json:"opencode"`
 		Go        sectionBytes `json:"opencode-go"`
@@ -665,25 +409,6 @@ func decodeStreamed(r io.Reader, limit int64, v any, what string) error {
 	return nil
 }
 
-// modelMetadataResult carries one fetch's outcome across a goroutine.
-type modelMetadataResult struct {
-	doc *modelMetadataDoc
-	err error
-}
-
-// startModelMetadata fetches the document concurrently with a listing, under
-// the listing's context (MADR 0009 §2). The function it returns waits for the
-// result, once, however often it is called: the curation and the menu read
-// the same document (0041-MADR D3).
-func startModelMetadata(ctx context.Context, cfg config) func() modelMetadataResult {
-	ch := make(chan modelMetadataResult, 1)
-	go func() {
-		doc, err := loadModelMetadata(ctx, cfg)
-		ch <- modelMetadataResult{doc: doc, err: err}
-	}()
-	return sync.OnceValue(func() modelMetadataResult { return <-ch })
-}
-
 // metadataCandidate reads one models.dev entry (MADR 0009 §2). An id the
 // document does not cover is a candidate with every field unknown.
 func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) rankCandidate {
@@ -731,16 +456,16 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 }
 
 // metadataCurate ranks a provider's usable models with the metadata document
-// (MADR 0009 §2). A failed or disabled fetch, or a document without the
-// provider's key, returns fallback's curation unchanged. meta is the
-// document startModelMetadata waits for once (0038-MADR A1). w prices each
-// candidate's cached turn, for ProfileAgent (0041-MADR D5).
-func metadataCurate(provider llmprovider.ProviderID, profile Profile, w workload, meta func() modelMetadataResult,
+// (MADR 0009 §2). No document, or one without the provider's key, returns
+// fallback's curation unchanged. doc is the call's document, read once for
+// the call, so the curation and the menu read the same one (0038-MADR A1;
+// 0093-MADR D4). w prices each candidate's cached turn, for ProfileAgent
+// (0041-MADR D5).
+func metadataCurate(provider llmprovider.ProviderID, profile Profile, w workload, doc *modelMetadataDoc,
 	fallback curator) curator {
 	return func(usable []string, limit int) []string {
-		res := meta()
-		models, ok := res.doc.models(modelMetadataKey(provider))
-		if res.err != nil || !ok {
+		models, ok := doc.models(modelMetadataKey(provider))
+		if !ok {
 			return fallback(usable, limit)
 		}
 		if listedOnly(provider) {
@@ -754,7 +479,7 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, w workload
 		for _, id := range usable {
 			m, covered := models[id]
 			c := metadataCandidate(id, m, covered, now)
-			c.prices = withCanonicalRead(c.prices, m, res.doc)
+			c.prices = withCanonicalRead(c.prices, m, doc)
 			c = c.withTurn(w)
 			// On one vendor's catalog the group is the whole family, not its
 			// leading letters (D4).
