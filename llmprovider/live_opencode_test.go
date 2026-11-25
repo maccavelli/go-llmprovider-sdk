@@ -134,7 +134,8 @@ func TestLive_OpencodeRouteStillEnforced(t *testing.T) {
 // answers 400 MissingSessionID without it.
 func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 	llmprovider.LiveOpencodeKey(t)
-	t.Setenv("LLMPROVIDER_DISABLE_MODELS_METADATA", "0") // the real document decides
+	// The route comes from OpenCode's route table, or from the ranking
+	// document this test hands in.
 	for _, candidate := range []string{"glm-5.3-flash", "hy3"} {
 		t.Run(candidate, func(t *testing.T) {
 			model := goModel(t, candidate)
@@ -313,7 +314,8 @@ func TestLive_OpencodeMessagesThinking(t *testing.T) {
 // from the result. Measured 2026-09-27: kimi-k2.6 accepts the turn with or
 // without the field, so this proves acceptance, not necessity.
 func TestLive_OpencodeInterleavedReasoningReplay(t *testing.T) {
-	t.Setenv("LLMPROVIDER_DISABLE_MODELS_METADATA", "0") // the real models.opencode.ai document decides
+	// The route comes from OpenCode's route table, or from the ranking
+	// document this test hands in.
 	rec := &opencodeRecorder{}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

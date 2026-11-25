@@ -1354,3 +1354,30 @@ The review passed the step with one Important and two Minor notes; the coordinat
 ### 2026-11-24: v1.33.0 after 0093's build (0093-MADR MH46, D15)
 
 [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md)'s build is done in the tree, uncommitted, its gates run (0093-PLAN's execution record). As that record's D15 and MH46 say, and as the entry "2026-11-24: v1.33.0 re-scoped" orders the rest: DL70's fetch and regeneration of the extract are dropped, the extract being removed (0093 D7); the joint gates run again on the committed tree, with 0089 Phase 4's `apidiff` check now expecting 0093-MADR's lines (eight removals, 23 additions); DL59's and DL60's claims rows are re-run (0093 re-checked the "now" rows on the files its docs phase edited, in 0089-MADR's note of today); the plants of 0088 and 0089 are re-grounded (0093's Phase 3 re-grounded DL19 and DL39, and recorded DL29c and DL70 moot); then the short release review, blockers only, covering 0093's change; the date step; and the tag and the GitHub Release on the owner's word in the same turn. Nothing of these is done here.
+
+### 2026-11-24: v1.33.0, the joint gates again on `be6828e` and the date step
+
+Base `be6828e`, the tree clean at the start; no code changed; no live call. This runs the steps of "2026-11-24: v1.33.0 after 0093's build" that come before the tag: the joint gates on the committed tree (Phase 5 with 0088-PLAN's Phase 2), then the date step. Scripts and outputs: `<scratch>/rel133b/`.
+
+**Plants.** Every `tools/plant.py` spec of the release's rows, each on a scratch clone of `be6828e`: this PLAN's Phase 1, the merged phase's layers A to E, 0088-PLAN's Phases 1b and 1c, Phase 6b with DL95, DL65's measurement, 0093-PLAN's Phases 3 and 4 (and its review's notes), 0090's and 0087 A-8's: 290 plants. 274 caught as written (none by a build failure; 0090's Windows marker plant on the Windows laptop). 13 re-grounded to the same production change at the text `be6828e` holds, each caught on an assertion: the nine 0088-PLAN's eighteenth entry re-grounded (DL19 and DL39 by 0093's MH31 specs); DL54 (b) (`FinishStream`'s done case, `kilo_range_0089_test.go:87: OutputLimit = {Tokens:0 ...}`) and ST95 (Gemini's `Generate`, `cut_answer_0088_test.go:449: interactions, Generate: 2 request(s)`), both reworded by Phase 6b; ST82 and DL93's exported-name plants, checked since 0093 by MH42's checker with 0093-MADR's lines. 3 moot, their anchors removed by 0093-MADR D7: DL29c and DL70 (the extract) and DL70's `TestLimitSnapshot` plant. 0 not caught. The six `-race` and coverage plants ran through `run-heavy`.
+
+**Red and green** (`tools/redgreen.py`). Green on the tree: 101 of 101 (layers A to E, Phase 1b). Red at each recorded base: 0093's 12 of 12 at `cfc911d`; layer D's 5 of 5 and 3 of 3, layer E's 9 of 9 at `6ace750`; Phase 1b's 3 of 3 at `247b745`; Phase 1c's 2 of 2 at `f4efc5e`; Phase 6b's 1 of 1 at `1d9dbe7`. Each pre-0093 red runs with its phase's committed tests (`--root` a clone at that commit), since today's test files call helpers 0093 added; Phase 1b's drops `TestCutAnswer_XAIShapes_0088` too (pass 3, new API). Not reproduced: layer B+C's `TestOutputLimit_Omitted_0089` and `TestOutputLimit_Facts_0041` (its red was taken mid-phase; the committed file uses the merged phase's new API beyond the spec's drops) and DL95's `TestLimitRefusal_KiloRangeForm_0089` (the committed test reads `APIError.Observed`); their red is recorded at their phases, and their plants are caught above.
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-on-host --need linux --race -- go test -race -count=1 ./...` | the Linux machine (linux/amd64), not WSL, no fallback | 0 (46 packages) |
+| `run-heavy -- python3 -B tools/gate.py --timeout 5400` | this Mac | 0 (30 of 30) |
+| `run-heavy -- make gate-selftest` | this Mac | 0 (72 tests) |
+| `make lint vuln`; `go vet -tags live_gateways ./...`; `make tools-test` | this Mac | 0 (0 issues; no vulnerabilities); 0; 0 (120 tests) |
+| `make api-check records-check changelog-check docs-check tables-check links-check markdownlint generate-check` | this Mac | 0 each |
+| `python3 -B tools/apidiff.py v1.32.0` | this Mac | 1 by design: 0093-MADR's 8 removals and 23 additions, nothing else |
+| `python3 -B tools/goldendiff.py --rev v1.32.0` | this Mac | 1: 574 findings in 239 goldens, each ST88's stream form (`stream`, `stream_options`, `Accept`, Gemini's `:streamGenerateContent` path, OpenCode's Google route's `alt=sse`) or MH58's five ranked listings; with `--stream --ranked-listings`, 0 |
+| `python3 -B tools/claims.py` on 0088-, 0089-, 0090-, 0091- and 0093-MADR | this Mac | 0 each: 140, 49, 7, 109, 61 |
+| `tools/recordlint.py`; `tools/denyscan.py --changed` | this Mac | 0; 0 |
+| `tools/offline.py --replace`; `tools/consumer.py --replace` | this Mac | 0 (both plants caught); 0 (17 packages) |
+
+**The date step.** `CHANGELOG.md`'s `[Unreleased]` becomes `[v1.33.0] - 2026-11-24` under a fresh empty `[Unreleased]`, with the compare links (`[Unreleased]` from `v1.33.0`, `[v1.33.0]` from `v1.32.0`); `README.md`'s "current release" line moves from `v1.31.0` to `v1.33.0`. No other version string is kept.
+
+**Not done:** the short release review (Phase 6, blockers only) is not recorded by this entry; the tag and the GitHub Release wait for the owner's word; after the tag, `tools/offline.py v1.33.0` and `tools/consumer.py v1.33.0 --dependent <gitrepos>/gobble-cli` (0093-PLAN's hand-back).
+
+2026-11-24, later: the short release review (blockers only) ran over `v1.32.0..be6828e`. Its verdict was SHIP, with no blockers. Its two non-blocking findings are fixed in this same change: the overclaim in `llmprovider/catalog/doc.go` and the README "Model metadata" section (the SDK fetches and caches nothing and takes the caller's document; its only embedded models.dev data is OpenCode's route table, see `NOTICE`), and the dead `LLMPROVIDER_DISABLE_MODELS_METADATA` `Setenv` lines in `llmprovider/live_opencode_test.go` (no effect since 0093). Follow-up, not built: the models.dev copyright line in `NOTICE` could not be verified against upstream.

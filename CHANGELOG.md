@@ -17,6 +17,8 @@ listed under **Removed** below.)*
 
 ## [Unreleased]
 
+## [v1.33.0] - 2026-11-24
+
 ### Added
 
 - `catalog.LookupLimits` and `catalog.CachedLimits`, with `catalog.Limits`,
@@ -1855,7 +1857,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.32.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.33.0...HEAD
+[v1.33.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.32.0...v1.33.0
 [v1.32.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.31.0...v1.32.0
 [v1.31.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...v1.31.0
 [v1.30.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...v1.30.0

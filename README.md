@@ -288,8 +288,10 @@ functions over any provider, and `Stream` streams from every one.
 
 ## Model metadata
 
-The SDK fetches no model metadata and ships none
-([0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)). Your
+The SDK fetches and caches no model metadata, and takes the caller's document
+([0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)).
+Its only embedded models.dev data is OpenCode's route table, used when no
+document is handed in (see `NOTICE`). Your
 program downloads a models.dev document, such as
 `https://models.dev/api.json`, keeps it as long as it likes, reads it with
 `catalog.ParseMetadata`, and hands it in with `catalog.WithMetadata`: to
@@ -700,7 +702,7 @@ evolution rules, and how to pin it and read its schema and vectors.
 
 ## Status
 
-The current release is `v1.31.0`. The module requires Go 1.27.4.
+The current release is `v1.33.0`. The module requires Go 1.27.4.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); the six newest tags' GitHub Releases carry

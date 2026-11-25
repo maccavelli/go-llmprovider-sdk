@@ -37,7 +37,9 @@
 // Model metadata comes from a models.dev-format document (Metadata) the
 // caller downloads, such as https://models.dev/api.json, reads with
 // ParseMetadata, and hands in with WithMetadata; Metadata.Encode writes it
-// back. The SDK fetches, caches and embeds none (0093-MADR D1, D6, D7). A
+// back. The SDK fetches and caches no model metadata, and takes the caller's
+// document (0093-MADR D1, D6, D7). Its only embedded models.dev data is
+// OpenCode's route table, used when no document is handed in (see NOTICE). A
 // provider's requests read only the document given to its New. ModelInfo is one
 // model's limits, modalities, capabilities, prices in USD per million tokens,
 // and lifecycle. Each field reports whether it is known (Has) and which layer

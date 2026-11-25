@@ -807,3 +807,17 @@ clone (`r4/recheck2/nowcheck/`) and equal to the records' own but for the rows n
 --changed` exit 0, `tools/denyscan.py --changed` exit 0 (0 hits). The unit gate `tools/gate.py` was not re-run: it ran
 green at the end of the third run, and this run changed only test files, `CHANGELOG.md`, `AGENTS.md`, `NOTICE` and
 records; `go test ./...`, the lint and the CI make set cover them.
+
+### 2026-11-24: v1.33.0, the joint gates again on `be6828e` and the date step
+
+Base `be6828e` (this build committed); the tree clean at the start; no code changed. The hand-back's steps before the
+tag ran as 0089-PLAN's entry "2026-11-24: v1.33.0, the joint gates again on `be6828e` and the date step" records, with
+its gate table. For this record: every Phase 3 plant ran again on a scratch clone of `be6828e`, 54 specs and 56 plants
+(the 47 of `r3/specs/`, MH31's DL19 and DL39, MH43 and MH44's three, the review's four in `r4/`), each caught, MH5, MH33
+and MH53 through `run-heavy`; DL29c and DL70 moot; the base reds 12 of 12 at `cfc911d`; `tools/apidiff.py v1.32.0` exactly the MADR's 8 removals and 23
+additions; `tools/goldendiff.py --rev v1.32.0 --stream --ranked-listings` 0 findings (without the flags, 574, each ST88's
+stream form or MH58's five listings); `tools/claims.py` 61 of 61; `tools/offline.py --replace` and `tools/consumer.py
+--replace` exit 0. The date step: `CHANGELOG.md`'s `[v1.33.0] - 2026-11-24` and `README.md`'s release line.
+
+**Not done:** the tag and the GitHub Release (the owner's word); after the tag, `tools/offline.py v1.33.0` and
+`tools/consumer.py v1.33.0 --dependent <gitrepos>/gobble-cli`.
