@@ -24,13 +24,18 @@ eight removals against v1.32.0, a recorded exception to R42 and R48
 (docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md D10, Q1,
 MH39). Any other incompatible change still fails.
 
+The base is the latest v1 tag unless --against names one, as the case of
+0093-MADR MH39 does (v1.32.0), so that it holds once a later tag exists
+(0093-MADR amendment A3).
+
 Usage:
-  scripts/check_api.py
+  scripts/check_api.py [--against TAG]
 
 Exit codes: 0 clean, 1 an incompatible change, 2 tool error.
 """
 from __future__ import annotations
 
+import argparse
 import io
 import re
 import subprocess
@@ -106,8 +111,13 @@ def compare(old_tree: Path, new_tree: Path, work: Path) -> str:
     return "\n".join(reports)
 
 
-def main() -> int:
-    tag = latest_release()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--against", metavar="TAG", help="compare with this release tag (default: the latest v1 tag)")
+    args = parser.parse_args(argv)
+    if args.against is not None and not RELEASE.match(args.against):
+        parser.error(f"--against {args.against!r}: want a release tag v1.X.Y")
+    tag = args.against or latest_release()
     if tag is None:
         print("api-check: no v1 release tag yet, so nothing to compare; it fails on an incompatible change from v1.0.0 on")
         return 0

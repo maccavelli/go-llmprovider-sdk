@@ -821,3 +821,36 @@ stream form or MH58's five listings); `tools/claims.py` 61 of 61; `tools/offline
 
 **Not done:** the tag and the GitHub Release (the owner's word); after the tag, `tools/offline.py v1.33.0` and
 `tools/consumer.py v1.33.0 --dependent <gitrepos>/gobble-cli`.
+
+### 2026-11-25: deviation 3, MH39's test named no base, and failed once `v1.33.0` was the latest tag
+
+Found after `v1.33.0` was pushed: its tag's release job did not run, because `make gate-selftest` failed in CI.
+`scripts/test_gates.py`'s `test_api_check_accepts_the_0093_removals` (MH39) ran `api-check` with no base, and `api-check`
+compares with the latest `v1.X.Y` tag, which was `v1.32.0` only until `v1.33.0` existed. Against itself it reports 0 changes:
+`AssertionError: 'accepted (0093-MADR D10): ./llmprovider/catalog.OptionsFromEnv: removed' not found in 'api-check: against
+v1.33.0, 0 incompatible change(s)…'`. Reproduced at `138d52f` before any change (exit 1, the same assertion at line 336). The
+step "Then: v1.33.0" and Phase 6's gates ran on a tree where the latest tag was still `v1.32.0`, so none saw it.
+
+The owner's ruling, 2026-11-25, quoted exactly: "Fix test, then release v1.33.0 by hand (Recommended)". The decision:
+
+* `scripts/check_api.py` gains an optional `--against TAG`; with no argument it compares with the latest v1 tag as before
+  (no existing gate or test changes meaning). `ACCEPTED` is keyed by the base, so `--against v1.32.0` accepts exactly D10's
+  eight and any other incompatible change still fails.
+* `test_api_check_accepts_the_0093_removals` passes `--against v1.32.0`, the base MH39's row names. No other test changes.
+* The `v1.33.0` tag never moves; the release is made by hand, on the owner's word, after this fix is committed and green.
+
+Files added to the scope: `scripts/check_api.py`, `scripts/test_gates.py` (`run_gate` takes optional extra arguments).
+
+Review note, closed the same day: as first written `--against` took any git revision, an empty value fell back to the
+latest tag, and a value starting with `-` reached `git archive` as an option. It is now checked with `RELEASE` (`v1.X.Y`)
+and refused through `parser.error` (exit 2) otherwise, an empty value included;
+`test_api_check_against_takes_only_a_release_tag` pins `--against main`, `--against=--list` and `--against=`, and is planted
+by removing the check.
+
+Proof, run 2026-11-25 on the tree with the fix. Red at `138d52f`, before any change: the case failed on its assertion
+(line 336). Green: the case passes (exit 0). Plants through `tools/plant.py`, each caught by that case alone: dropping
+`catalog.OptionsFromEnv` from `ACCEPTED` and dropping `WithoutModelMetadata` from it each fail it with `AssertionError: 1 !=
+0 : api-check exit 1, want 0:`; removing the pin (`run_gate(self.tree, "api-check")`) fails it as CI did, with `AssertionError:
+'accepted (0093-MADR D10): ./llmprovider/catalog.OptionsFromEnv: removed' not found in 'api-check: against v1.33.0, 0
+incompatible change(s) outside llmprovider/x/ and not accepted by a record\n'`. `make api-check`, with no argument, still
+compares with the latest tag (`against v1.33.0`, exit 0). **Not done:** the release itself, by hand, on the owner's word.

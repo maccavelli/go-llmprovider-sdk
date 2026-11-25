@@ -76,8 +76,8 @@ def copy_tree(dest: Path, source: Path = ROOT) -> None:
         subprocess.run(["git", "tag", "-d", *tags], cwd=dest, capture_output=True, check=True)
 
 
-def run_gate(tree: Path, gate: str) -> subprocess.CompletedProcess[str]:
-    args = [sys.executable, "-B", GATES[gate]]
+def run_gate(tree: Path, gate: str, *extra: str) -> subprocess.CompletedProcess[str]:
+    args = [sys.executable, "-B", GATES[gate], *extra]
     if gate == "parity-check":
         args.append("--require-equivalents")
     return subprocess.run(args, cwd=tree, capture_output=True, text=True, check=False)
@@ -321,7 +321,10 @@ class GateSelfTest(unittest.TestCase):
         removals is accepted by name, citing the record, and the gate passes;
         any other incompatible change still fails (the cases above). The copy
         loses one of the eight, catalog.OptionsFromEnv, where the tree still
-        holds it, with the two imports only it used."""
+        holds it, with the two imports only it used. The base is named,
+        `--against v1.32.0`: with none, api-check compares with the latest v1
+        tag, which is v1.33.0 from its push on, and so with itself (0093-MADR
+        amendment A3)."""
         path = self.tree / "llmprovider/catalog/model_metadata.go"
         text = path.read_text(encoding="utf-8")
         start = text.find("// OptionsFromEnv returns")
@@ -330,10 +333,21 @@ class GateSelfTest(unittest.TestCase):
             text = text[:start] + text[end:]
             text = text.replace('\t"os"\n', "", 1).replace('\t"strconv"\n', "", 1)
             path.write_text(text, encoding="utf-8")
-        proc = run_gate(self.tree, "api-check")
+        proc = run_gate(self.tree, "api-check", "--against", "v1.32.0")
         out = proc.stdout + proc.stderr
         self.assertEqual(proc.returncode, 0, f"api-check exit {proc.returncode}, want 0:\n{out}")
         self.assertIn("accepted (0093-MADR D10): ./llmprovider/catalog.OptionsFromEnv: removed", out)
+
+    def test_api_check_against_takes_only_a_release_tag(self) -> None:
+        """--against names a v1.X.Y release tag: a branch, an option-like
+        value and an empty value are refused (0093-MADR amendment A3)."""
+        for value, given in (("main", ("--against", "main")), ("--list", ("--against=--list",)),
+                             ("", ("--against=",))):
+            with self.subTest(value=value):
+                proc = run_gate(self.tree, "api-check", *given)
+                out = proc.stdout + proc.stderr
+                self.assertNotEqual(proc.returncode, 0, f"--against {value!r} exit 0, want non-zero:\n{out}")
+                self.assertIn(f"--against {value!r}: want a release tag v1.X.Y", out)
 
     def test_records_check_plan_status(self) -> None:
         """A complete PLAN given a decision's status (0025-MADR)."""

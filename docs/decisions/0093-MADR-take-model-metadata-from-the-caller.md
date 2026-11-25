@@ -37,6 +37,17 @@ applications up for review (0093-PLAN's execution record, "pass 1 continuing, se
 exactly, relayed by the coordinator, are in "Owner questions at the build's second stop" below. D12 gains (f) and (g),
 MH30 is annotated, and MH59 to MH61 are added; the text they had stands above each annotation.)*
 
+*(2026-11-25, amendment A3, after `v1.33.0` was pushed and its tag's release job did not run. The defect: MH39's test,
+`test_api_check_accepts_the_0093_removals` in `scripts/test_gates.py`, ran `api-check` with no base named, and `api-check`
+compares with the latest `v1.X.Y` tag. That was `v1.32.0` until `v1.33.0` was pushed; then `api-check` compared `v1.33.0`
+with itself, reported 0 changes, and the test failed on every run (CI: `AssertionError: 'accepted (0093-MADR D10):
+./llmprovider/catalog.OptionsFromEnv: removed' not found in 'api-check: against v1.33.0, 0 incompatible change(s)…'`),
+which kept the tag's release job from running. The MADR's own words, "against `v1.32.0`", named the base; the test did not.
+The owner's ruling, quoted exactly, relayed by the coordinator: "Fix test, then release v1.33.0 by hand (Recommended)". The
+fix: the test passes `v1.32.0` to `api-check` explicitly, by a new optional argument `--against TAG` of
+`scripts/check_api.py`, whose default (the latest v1 tag) is unchanged; the `v1.33.0` tag never moves. MH39 is annotated;
+the text it had stands above the annotation.)*
+
 ## Context and Problem Statement
 
 The SDK downloads a models.dev-format document itself. By default it reads `https://models.opencode.ai/api.json` (C1), once
@@ -331,7 +342,7 @@ row's plant is the PLAN's, one to one; the test named first is the row's red tes
 | MH36 | `tools/cachecensus.py` | decided | no metadata anchor; listing, Ollama show and probe kept | `test_cachecensus_no_metadata_0093` | D13 |
 | MH37 | `tools/catalogcheck.py` | decided | `--doc` required | `test_catalogcheck_requires_doc_0093` | D13 |
 | MH38 | The names of D10 | decided | removed in v1.33.0 | MH42's `apidiff` lines | D10; Q1 |
-| MH39 | `make api-check` before v1.33.0's tag | decided | accepts exactly D10's eight against `v1.32.0`, each by name, citing this record; any other incompatible change fails | `scripts/test_gates.py`'s api-check case | D13; Q1 |
+| MH39 | `make api-check` before v1.33.0's tag | decided | accepts exactly D10's eight against `v1.32.0`, each by name, citing this record; any other incompatible change fails *(amended 2026-11-25, A3: the test names its base, `check_api.py --against v1.32.0`, so that it holds after `v1.33.0` is the latest tag; with no argument the gate still compares with the latest v1 tag)* | `scripts/test_gates.py`'s api-check case *(A3: `test_api_check_accepts_the_0093_removals`, base `v1.32.0`; planted by dropping one of the eight from `ACCEPTED`)* | D13; Q1; A3 |
 | MH40 | Docs (README, CHANGELOG, architecture, guides, package docs, tools README, AGENTS) | decided | each corrected as the PLAN's docs phase lists | claims rows in the execution amendment, each planted false | D14 |
 | MH41 | Records (0009, 0013, 0015, 0021, 0028, 0033, 0041, 0048, 0058, 0061, 0065, 0071, 0078, 0088, 0089) | decided | a dated note each; the index gains this pair and its matrix row | `make records-check`; `tools/recordlint.py --changed` | D14 |
 | MH42 | `tools/apidiff.py v1.32.0` | decided | exactly the lines under "The expected apidiff lines" below; exit 1 by the tool's design | the PLAN's gate table | D10, D16; Q1 |
