@@ -462,10 +462,10 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 // ChatGPT session takes the native form for every model, a key from GPT-5.4
 // on, and the native form's decoder names the Search tool (0040-MADR D1, D3).
 // A plan session appends: OpenAI lists tool_search as unsupported there
-// (0043-MADR D5).
+// (0043-MADR D5). The decoder writes to p's logger (0092-MADR ST20).
 func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses.Decoder) {
 	if p.plan {
-		return deferral.Append, responses.Decoder{}
+		return deferral.Append, responses.Decoder{Logger: p.logger}
 	}
 	model := req.Model
 	if model == "" {
@@ -476,7 +476,7 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 		route = deferral.ChatGPT
 	}
 	form := deferral.ForRequest(route, model, req)
-	var decoder responses.Decoder
+	decoder := responses.Decoder{Logger: p.logger}
 	if form == deferral.ResponsesNative {
 		decoder.Search = deferral.SearchName(req.Tools)
 	}

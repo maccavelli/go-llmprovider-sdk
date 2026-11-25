@@ -16,7 +16,7 @@ Associated PLAN: [0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-
 
 *(2026-11-24, revision 1, before any answer: after the independent review. OQ1's costs are corrected (M3 succeeds today; a server fault made non-retryable), and its options now include a retryable failure, recommended. D3's "preview" claim is dropped for `Stream`'s own words. ST19 cites 0021-MADR D1 and 0012-MADR §4.1. D2's index pass requires one item type. New rows decide terminal-only items `appendOutput` drops (ST28), which types OQ1 tracks, the per-event limit (ST29), `Collect`'s bound (ST30), usage (ST31) and deltas (ST32); a `.done` that delivered less than the terminal moves into OQ2. ST6's last plant gets a case that can catch it; ST9 asserts the order outright; every row conditional on 0088 names the ruling it assumes and the test that flips. Two choices the first draft made are the owner's: ambiguous pairing (OQ5) and a `.done` that differs from the terminal (OQ6). ST14 no longer rules on 0091's check: that part goes to a 0091 amendment. ST26 documents OQ1's error. E19 cited the synthesized stream's contract and now cites the native one.)* *(2026-11-24, revision 2, before any answer: after a delta check. OQ1 (1)'s cost no longer promises a retry where none happens: after an event nothing is resent, so (1) and (2) differ mostly in the error's kind, and the recommendation is re-weighed on that. OQ5's case is defined after passes 1 and 2, as D2's pass 3 now says, with its cost on the cut path. OQ6's claim about opencode and pi cites their code. ST28's plant names one production change.)*
 
-*(2026-11-25, placed in the tree at `138d52f` (v1.33.0) and built next. The owner's rulings of 2026-11-24, relayed by the coordinator, quoted as given: OQ1 "Fail as retryable stream (Recommended)", OQ2 "Use summary when done was empty (Recommended)", OQ5 "Take nothing of that kind (Recommended)", OQ6 "The item's own message (Recommended)", OQ3 "Debug line via WithLogger (Recommended)", OQ4 "Own v1.33.0 phase (Recommended)", and, for the PLAN, "Approve; follow the queue (Recommended)". The owner's "Yes, re-scope v1.33.0 (Recommended)" then moved this record from v1.33.0 to v1.34.0 ([0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md), seventh amendment, its 0092 note): where this record says v1.33.0, read v1.34.0. The owner's build ruling of 2026-11-25, relayed by the coordinator, quoted exactly: "SDK: build 0092 (Recommended)". No row's decision changes; the evidence index is re-grounded at `138d52f`, and one question about the build order is put to the owner, not resolved. See "Amendment (2026-11-25): placed for v1.34.0, built next, re-grounded at `138d52f`" at the end.)* *(2026-11-25, second: Q-B1 answered, "Rule R1–R3 first". 0088's R1 to R3 are ruled, as 0088-MADR ST107 to ST109. ST10, ST11 and ST13 now rest on those decided rows, and no outcome here changes. The order is 0088-PLAN Phase 6 first, then this record's PLAN Phase 1. See "Amendment (2026-11-25, second)".)*
+*(2026-11-25, placed in the tree at `138d52f` (v1.33.0) and built next. The owner's rulings of 2026-11-24, relayed by the coordinator, quoted as given: OQ1 "Fail as retryable stream (Recommended)", OQ2 "Use summary when done was empty (Recommended)", OQ5 "Take nothing of that kind (Recommended)", OQ6 "The item's own message (Recommended)", OQ3 "Debug line via WithLogger (Recommended)", OQ4 "Own v1.33.0 phase (Recommended)", and, for the PLAN, "Approve; follow the queue (Recommended)". The owner's "Yes, re-scope v1.33.0 (Recommended)" then moved this record from v1.33.0 to v1.34.0 ([0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md), seventh amendment, its 0092 note): where this record says v1.33.0, read v1.34.0. The owner's build ruling of 2026-11-25, relayed by the coordinator, quoted exactly: "SDK: build 0092 (Recommended)". No row's decision changes; the evidence index is re-grounded at `138d52f`, and one question about the build order is put to the owner, not resolved. See "Amendment (2026-11-25): placed for v1.34.0, built next, re-grounded at `138d52f`" at the end.)* *(2026-11-25, second: Q-B1 answered, "Rule R1–R3 first". 0088's R1 to R3 are ruled, as 0088-MADR ST107 to ST109. ST10, ST11 and ST13 now rest on those decided rows, and no outcome here changes. The order is 0088-PLAN Phase 6 first, then this record's PLAN Phase 1. See "Amendment (2026-11-25, second)".)* *(2026-11-25, third: re-grounded at `5f57f02`, 0088-PLAN Phase 6's commit, for the build; no premise moved. See "Amendment (2026-11-25, third)".)* *(2026-11-25, fourth: PLAN Phase 1 built; ST27's check cannot catch its plant, put to the owner as Q-B2. See "Amendment (2026-11-25, fourth)".)* *(2026-11-25, fifth: Q-B2 answered; ST27's check is its claims rows until 0094's gate lands; 0091's OQ12 answered, which leaves ST11 as built. See "Amendment (2026-11-25, fifth)".)*
 
 ## Context and Problem Statement
 
@@ -351,7 +351,7 @@ The answers were checked against each other. OQ2 (1) and OQ5 (1) both act on pai
 | ST11 | An announced item (`output_item.added`) of a tracked type delivered neither by `.done` nor by the terminal, on a completed stream (M3) | decided, conditional on 0088 R2 *(2026-11-25: rests on 0088-MADR ST108, R2 as built, decided)* | the reply fails with `ErrProviderUnavailable`, marked after the reply as an early end is (E68, E69), its text `item_not_finished` with the item's type and id, each stripped and bounded as a service's text is (E95); no response. Tracked types: `message`, `function_call`, and `tool_search_call` when the request has a Search tool; not `reasoning`, hosted or unknown types. A resend follows only as the retry rules allow: at most once, and never after an event (E91 to E94). On a cut stream R2 as built still names an announced call never finished as the cut call (E81); an announced message never finished on a cut is left as today. If R2 changes, `TestCutAnswer_ResponsesCutItem_0088`'s stream case (E85) flips | OQ1 "Fail as retryable stream (Recommended)"; 0088 R2 | `TestTerminalFill_Unfinished_0092`: M3 is the error, `errors.Is(err, ErrProviderUnavailable)`, after the reply, its text holding `item_not_finished` and the call's id; an announced message never delivered, the same; an announced reasoning item never delivered, a success as today; a `Generate`, read over the stream, of a reply whose only item is the lost call, under `WithRetry` over a fake server, sent twice; M3 under `WithStreamRetry`, sent once. Plants: the check removed (M3 finishes `stop`); the error built as `ErrIncomplete` (the kind assertion fails); reasoning tracked (the reasoning case fails) |
 | ST12 | A `.done` that added nothing to the output, while its terminal partner has content: an empty message `.done` with the text in the terminal; a reasoning `.done` with neither text nor encrypted part, the encrypted part in the terminal (M7) | decided | the `.done` is paired as D2 says, but its partner is taken, not counted as delivered: added after the delivered items (ST9) and yielded before `EventDone`. A `.done` that added an item stands: a reasoning item kept with text but no encrypted part is not filled in | OQ2 "Use summary when done was empty (Recommended)" | `TestTerminalFill_EmptyDone_0092`: M7's reasoning item taken with its encrypted part, after the message; the empty message's text taken; a reasoning item kept with text and no encrypted part left as delivered. Plants: an empty `.done` counted as delivered (M7 drops the reasoning item); the kept item filled in place (the third case gains an encrypted part) |
 | ST20 | A report that items were taken | decided | `responses.Decoder` gains an internal `Logger` field; `openai`, `grok` and OpenCode's responses route set it from the provider's logger (E56; `chatcompat` in 0091-PLAN Phase 2). A stream that took one or more items writes one `Debug` line: the provider, the terminal event's type, and the count taken of each type. No text, no id, no arguments, no encrypted content. With no logger nothing is written (E58). No export | OQ3 "Debug line via WithLogger (Recommended)" | `TestTerminalFill_Log_0092`, with a capturing `slog` handler: one line for M1, none for a compliant stream, no attribute holding `Hello` or an id; `TestTerminalFill_ProviderLogger_0092`: `openai`, `grok` and OpenCode's responses route, each given `WithLogger`, log the line for M1's shape. Plants: a line written for a compliant stream; the message text logged; `grok` leaving the field unset |
-| ST27 | The release and the build order | decided *(2026-11-25: v1.33.0 read as v1.34.0, by the owner's "Yes, re-scope v1.33.0 (Recommended)"; v1.33.0 is tagged without it; see the amendment of 2026-11-25)* | its own phase in v1.33.0, after 0088-PLAN Phase 3's review and before 0091-PLAN Phase 2, serially in the same tree; a **Fixed** entry under `[Unreleased]`; v1.33.0's tag waits for it | OQ4 "Own v1.33.0 phase (Recommended)" | `make changelog-check`; plant: the entry outside `[Unreleased]` |
+| ST27 | The release and the build order | decided *(2026-11-25: v1.33.0 read as v1.34.0, by the owner's "Yes, re-scope v1.33.0 (Recommended)"; v1.33.0 is tagged without it; see the amendment of 2026-11-25)* | its own phase in v1.33.0, after 0088-PLAN Phase 3's review and before 0091-PLAN Phase 2, serially in the same tree; a **Fixed** entry under `[Unreleased]`; v1.33.0's tag waits for it | OQ4 "Own v1.33.0 phase (Recommended)" | `make changelog-check`; plant: the entry outside `[Unreleased]` *(2026-11-25, fifth: by the owner's answer to Q-B2, the test is the claims rows on the entry, E130now to E132now, with `make changelog-check`; the plant is caught by E130now. 0094, a gate that compares each released section with its tag's text, replaces that check when it lands. See the amendment of 2026-11-25, fifth.)* |
 
 ST25 stands: no export (OQ3 (1)). ST26's OQ1 clause resolves to (1): the error is documented in `Events`' and `ReadStream`'s docs and in the changelog; `ErrIncomplete`'s doc does not change.
 
@@ -493,3 +493,243 @@ The ids end in "now", as the first amendment of 2026-11-25 does. Each was checke
 | E112now | 0088-PLAN Phase 6, R1's change | `docs/decisions/0088-PLAN-default-output-limit-from-model-facts.md:971` | `### Phase 6 (v1.34.0): R1 by wire (ST107, ST110)` |
 
 Counts after this amendment: unchanged, 32 rows: 28 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, third): re-grounded at `5f57f02` for the build
+
+Additions only; no row's decision changes. The PLAN's Phase 1 starts at `5f57f02`, the commit of [0088-PLAN-default-output-limit-from-model-facts.md](0088-PLAN-default-output-limit-from-model-facts.md) Phase 6 (0088-MADR ST107 to ST111), so the order the second amendment sets is met. The marker above stays `self=2f3c3a9`, where every row of the evidence index still passes. The rows below whose ids end in "now" are this amendment's lines at `5f57f02`; ids ending in "rnow" restate an earlier "now" row that no longer holds there. `tools/claims.py` does not read them against the marker. Each was checked with a plain id at `5f57f02` (the PLAN's execution record, the entry of 2026-11-25, third).
+
+### Re-ground at `5f57f02`
+
+`python3 -B tools/claims.py` on this record, with `--repo pi=<gitrepos>/pi --repo goose=<gitrepos>/goose`: at the marker, 92 of 92 pass; with `--rev self=5f57f02`, 50 of 92 pass, and each of the 42 that fail is found on one other line, its text unchanged. Ten of the 42 (E19, E21 to E24, E50, E59, E91, E93, E94) moved before `138d52f`, and their "now" rows of the first amendment of 2026-11-25 hold at `5f57f02`, as do E24bnow, E53now and E55now. The other 32 moved with 0088's Phase 6, as its PLAN's execution entries of 2026-11-25 (twenty-second and twenty-third) list them; they are restated below.
+
+Of the earlier "now" rows, three do not hold at `5f57f02`: the changelog grew above `[v1.33.0]` (E101now), and 0088-MADR ST107 gave `wire.CutAnswer` its fourth argument, the wire's call form, which the Responses wire passes as `true`, "in pieces" (E107now, E108now). The facts hold; each is restated below.
+
+No row's premise moved. `takeTerminal` is still taken only under `if cut {` (E1now, E2now), and the take still runs before `CutAnswer` on a cut and `completed` on a completed stream (E3now, E108rnow). ST107 keeps R1 as built on the Responses wire, as the second amendment measured. R2 (ST108) and R3 (ST109) are as built, and ST10, ST11 and ST13 rest on them.
+
+| Id | Claim | Moved | Where | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| E1now | the terminal's items are taken only on a cut | from `responses.go:833` | `llmprovider/internal/wire/responses/responses.go:834` | `if cut {` |
+| E2now | the take | from `responses.go:834` | `llmprovider/internal/wire/responses/responses.go:835` | `taken = s.takeTerminal(event.Response.Output)` |
+| E3now | a completed stream finishes through `completed` | from `responses.go:840` | `llmprovider/internal/wire/responses/responses.go:841` | `resp, err = completed(result, s.refused)` |
+| E4now | an answer with no output is `ErrEmptyAnswer` | from `responses.go:443` | `llmprovider/internal/wire/responses/responses.go:444` | `return nil, wire.EmptyAnswer("responses", r.FinishReason)` |
+| E5now | what counts as delivered | from `responses.go:789` | `llmprovider/internal/wire/responses/responses.go:790` | `func (s *streamState) delivered(item outputItem, index int) bool {` |
+| E6now | an item with no id, by position | from `responses.go:793` | `llmprovider/internal/wire/responses/responses.go:794` | `return index < len(s.done)` |
+| E7now | each `.done` adds its item | from `responses.go:738` | `llmprovider/internal/wire/responses/responses.go:739` | `return s.itemDone(event.Item, yield), nil` |
+| E8now | a delta is yielded, not kept | from `responses.go:721` | `llmprovider/internal/wire/responses/responses.go:722` | `return !yield(llmprovider.Event{Type: deltaType, Text: delta.Delta}), nil` |
+| E9now | only calls are tracked when announced | from `responses.go:734` | `llmprovider/internal/wire/responses/responses.go:735` | `if event.Item.Type == itemTypeFunctionCall \|\| event.Item.Type == itemTypeToolSearchCall {` |
+| E10now | held calls are released at the end | from `responses.go:845` | `llmprovider/internal/wire/responses/responses.go:846` | `if !s.held.Done(resp, yield) {` |
+| E11now | taken items are yielded after them | from `responses.go:849` | `llmprovider/internal/wire/responses/responses.go:850` | `if slices.Contains(resp.Output, item) && !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}) {` |
+| E13now | `HeldCalls.Done` | from `finish.go:102` | `llmprovider/internal/wire/finish.go:108` | `func (h *HeldCalls) Done(resp *llmprovider.Response, yield func(llmprovider.Event) bool) bool {` |
+| E28now | a delivered item's id is recorded, empty or not | from `responses.go:774` | `llmprovider/internal/wire/responses/responses.go:775` | `s.done = append(s.done, item.ID)` |
+| E43now | Chat: `[DONE]` finishes | from `chatcompletions.go:664` | `llmprovider/internal/wire/chatcompletions/chatcompletions.go:665` | `if string(payload) == "[DONE]" {` |
+| E44now | from the deltas kept | from `chatcompletions.go:674` | `llmprovider/internal/wire/chatcompletions/chatcompletions.go:675` | `msg.Content, msg.Refusal = chatContent(s.content.String()), s.refusal.String()` |
+| E45now | generateContent: each part kept | from `generatecontent.go:327` | `llmprovider/internal/wire/generatecontent/generatecontent.go:329` | `parts.add(part)` |
+| E46now | then the finish | from `generatecontent.go:337` | `llmprovider/internal/wire/generatecontent/generatecontent.go:339` | `raw.Candidates[0].Content.Parts = parts.all()` |
+| E47now | Interactions: the terminal gives status and usage | from `interactions.go:352` | `llmprovider/providers/gemini/interactions.go:376` | `s.raw.Status, s.raw.Usage = final.Status, final.Usage` |
+| E48now | the steps come from the stream's own | from `interactions.go:359` | `llmprovider/providers/gemini/interactions.go:383` | `for i := range s.raw.Steps {` |
+| E49now | a text delta is yielded only for a started `model_output` step | from `interactions.go:332` | `llmprovider/providers/gemini/interactions.go:349` | `if step.Type == interactionStepModelOutput {` |
+| E75now | an empty message is not kept | from `responses.go:545` | `llmprovider/internal/wire/responses/responses.go:546` | `if text := sb.String(); text != "" {` |
+| E76now | a hosted search, or one with no Search tool, is dropped | from `responses.go:568` | `llmprovider/internal/wire/responses/responses.go:569` | `if d.Search == "" \|\| out.Execution != executionClientValue {` |
+| E78now | usage from the terminal event | from `responses.go:829` | `llmprovider/internal/wire/responses/responses.go:830` | `result.Usage = event.Response.Usage.counts()` |
+| E79now | the reasoning-summary delta | from `responses.go:881` | `llmprovider/internal/wire/responses/responses.go:882` | `"response.reasoning_summary_text.delta": llmprovider.EventReasoningDelta,` |
+| E80now | R1 as built, kept on the Responses wire by 0088-MADR ST107 | from `finish.go:56` | `llmprovider/internal/wire/finish.go:62` | `return !WholeObject(args) \|\| last && noArguments(args)` |
+| E81now | R2 as built: an announced, unfinished call named on a cut | from `responses.go:836` | `llmprovider/internal/wire/responses/responses.go:837` | `result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))` |
+| E83now | R3 as built: the hold | from `finish.go:74` | `llmprovider/internal/wire/finish.go:80` | `if !ok \|\| !CutCall(call.Arguments, true) {` |
+| E84now | the xAI shapes test | from `cut_answer_0088_test.go:682` | `llmprovider/providers/cut_answer_0088_test.go:730` | `func TestCutAnswer_XAIShapes_0088(t *testing.T) {` |
+| E85now | R2's test | from `cut_answer_0088_test.go:618` | `llmprovider/providers/cut_answer_0088_test.go:666` | `func TestCutAnswer_ResponsesCutItem_0088(t *testing.T) {` |
+| E86now | R3's test | from `cut_answer_0088_test.go:633` | `llmprovider/providers/cut_answer_0088_test.go:681` | `func TestCutAnswer_HeldCalls_0088(t *testing.T) {` |
+| E87now | `appendOutput` keeps reasoning only with text or an encrypted part | from `responses.go:585` | `llmprovider/internal/wire/responses/responses.go:586` | `if sb.Len() > 0 \|\| out.EncryptedContent != "" {` |
+| E95now | a service's text is stripped and bounded | from `responses.go:468` | `llmprovider/internal/wire/responses/responses.go:469` | `reason = redact.Field(reason)` |
+| E101rnow | v1.33.0 is released (E101now, restated) | from `CHANGELOG.md:20` | `CHANGELOG.md:41` | `## [v1.33.0] - 2026-11-24` |
+| E107rnow | the Responses wire's plain cut through `CutAnswer`, its calls in pieces (E107now, restated: its text changed with 0088-MADR ST107; the fact holds) | from `responses.go:423` | `llmprovider/internal/wire/responses/responses.go:424` | `return wire.CutAnswer("responses", result, reasonOutputLimit, true)` |
+| E108rnow | and its stream's (E108now, restated) | from `responses.go:838` | `llmprovider/internal/wire/responses/responses.go:839` | `resp, err = wire.CutAnswer("responses", result, reasonOutputLimit, true)` |
+
+Counts after this amendment: unchanged, 32 rows: 28 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, fourth): PLAN Phase 1 built; the new lines; ST27's check put to the owner
+
+Additions only; no row's decision changes. The PLAN's Phase 1, pass 1, built D1, D2, ST11, ST12 and ST20 on `5f57f02` (its execution entry of 2026-11-25, third). Every decided row maps to a test, each red at the base or a green pin as the PLAN's table marks it, and each plant was caught.
+
+### How the build reads three rows
+
+The rows decide each outcome; these are how the code reaches them, none a new decision.
+
+* **ST11, "tracked types".** A `tool_search_call` is tracked when the request has a Search tool and the item's `execution` is `client`, the types `appendOutput` keeps (E76now), as OQ1's cost names them.
+* **ST11, "delivered neither way".** Each announced item is paired, by D2's three passes, with the delivered items and the terminal's items no `.done` delivered; one left unpaired is unfinished. Its error names the item's id, or its call id when it has none.
+* **ST20, "the count taken of each type".** It counts the items the take added to the answer. A terminal item `appendOutput` drops (ST28) is not counted, so a stream that took only such items writes no line.
+
+### The new lines (2026-11-25, fourth)
+
+The ids end in "now". Each row's text was absent at `5f57f02`, on any line of its file: 29 of 29 rows fail there, none found. They were checked with plain ids against a scratch clone's commit of the working tree, 29 of 29 pass. Each was planted false (its line moved by one) and caught, 29 of 29. ST26's plant, the `takeTerminal` doc left saying "on a cut", committed on a scratch clone, fails E120now alone.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| E113now | `Decoder.Logger`'s doc: one Debug line for a stream that took items | `llmprovider/internal/wire/responses/responses.go:367` | `writes one Debug line to it: the provider, the terminal event's type` |
+| E114now | `streamEvent.OutputIndex`'s doc | `llmprovider/internal/wire/responses/responses.go:639` | `// response's output, nil when the event names none (0092-MADR D2).` |
+| E115now | `streamEvent.Output`'s doc: read on a completed stream too | `llmprovider/internal/wire/responses/responses.go:649` | `// ST104) and on a completed stream, for the items no` |
+| E116now | `ReadStream`'s doc: the take at both terminal events | `llmprovider/internal/wire/responses/responses.go:690` | `// response.completed carry the id. At response.completed, and at` |
+| E117now | `ReadStream`'s doc: OQ1's error | `llmprovider/internal/wire/responses/responses.go:701` | `// item_not_finished with the item's type and id (0092-MADR ST11). Each` |
+| E118now | `Events`' doc: taken items yielded after the held calls | `llmprovider/internal/wire/responses/responses.go:718` | `// the held calls and before EventDone, with no delta of their own (0092-MADR` |
+| E119now | `Events`' doc: OQ1's error | `llmprovider/internal/wire/responses/responses.go:722` | `// ErrProviderUnavailable naming item_not_finished, for an announced item` |
+| E120now | `takeTerminal`'s doc: on a completed stream as on a cut | `llmprovider/internal/wire/responses/responses.go:951` | `// output_item.done delivered, on a completed stream as on a cut (0092-MADR` |
+| E121now | `end`'s doc: the take before any finish decision | `llmprovider/internal/wire/responses/responses.go:1052` | `// items (0092-MADR D1), before any decision on how to finish (ST14). A cut` |
+| E122now | `announce`'s doc: the tracked types | `llmprovider/internal/wire/responses/responses.go:833` | `// a Search tool, the types appendOutput keeps; not a reasoning item, a` |
+| E123now | `unfinished`'s doc: the error's kind and mark | `llmprovider/internal/wire/responses/responses.go:1013` | `// named. It is ErrProviderUnavailable, marked after the reply as an early` |
+| E124now | `logTaken`'s doc: no text, id or arguments | `llmprovider/internal/wire/responses/responses.go:994` | `// taken of each type; never an item's text, id or arguments (0092-MADR` |
+| E125now | `openai`'s `deferForm` doc: the decoder's logger | `llmprovider/providers/openai/openai.go:465` | `// (0043-MADR D5). The decoder writes to p's logger (0092-MADR ST20).` |
+| E126now | `grok`'s `deferForm` doc | `llmprovider/providers/grok/grok.go:363` | `// decoder writes to p's logger (0092-MADR ST20).` |
+| E127now | OpenCode's `responsesDecoder` doc | `llmprovider/providers/opencode/opencode.go:749` | `// writes to p's logger (0092-MADR ST20).` |
+| E128now | the architecture's stream paragraph: the take | `docs/architecture.md:476` | `` (`stream_options.include_usage`, E5). A Responses stream also takes, at `` |
+| E129now | and OQ1's error | `docs/architecture.md:483` | `` `item_not_finished` (0092-MADR D1, D2, ST11). `` |
+| E130now | the changelog's first **Fixed** entry | `CHANGELOG.md:43` | `` - A Responses stream (`openai`, `grok`, OpenCode's responses route) that `` |
+| E131now | its second, OQ1's error | `CHANGELOG.md:55` | `- A completed Responses stream that announced a message, a call or a` |
+| E132now | retried at most once, never after an event | `CHANGELOG.md:60` | `most once, and never after an event (0092-MADR ST11).` |
+| E133now | the take, on both paths, before the finish | `llmprovider/internal/wire/responses/responses.go:1067` | `taken, counts := s.takeTerminal(event.Response.Output)` |
+| E134now | OQ1's check on the completed path | `llmprovider/internal/wire/responses/responses.go:1077` | `if err := s.unfinished(event.Response.Output); err != nil {` |
+| E135now | OQ1's error kind | `llmprovider/internal/wire/responses/responses.go:1043` | `return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, s.provider,` |
+| E136now | OQ5's case: nothing of an ambiguous type paired | `llmprovider/internal/wire/responses/responses.go:917` | `if oq5 && len(ua) >= 1 && len(ub) > len(ua) {` |
+| E137now | OQ2: an empty message or reasoning `.done` | `llmprovider/internal/wire/responses/responses.go:860` | `done.empty = (item.Type == itemTypeMessage \|\| item.Type == itemTypeReasoning) && len(s.result.Output) == n` |
+| E138now | OpenCode sets the logger | `llmprovider/providers/opencode/opencode.go:754` | `return responses.Decoder{Logger: p.logger}` |
+| E139now | `openai` sets it | `llmprovider/providers/openai/openai.go:468` | `return deferral.Append, responses.Decoder{Logger: p.logger}` |
+| E140now | `grok` sets it | `llmprovider/providers/grok/grok.go:366` | `decoder := responses.Decoder{Logger: p.logger}` |
+| E141now | the architecture's row for the Responses wire: the logger, and `internal/transport` | `docs/architecture.md:175` | `and holds the provider's logger for the one line a stream that took items from its terminal response writes (0092-MADR ST20)` |
+
+### Put to the owner, not resolved here: Q-B2, ST27's check
+
+**Q-B2. ST27's test cannot catch its plant.** ST27 names `make changelog-check`, with the plant "the entry outside `[Unreleased]`". `scripts/check_changelog.py` checks the section headings against the tags: their form, order and dates, and a tag with no section. It does not read a section's entries. On a scratch clone, the two **Fixed** entries were moved under `## [v1.33.0]`: `make changelog-check` exits 0 (`47 release section(s), 0 problem(s)`). The claims rows on the entry fail there, `FAIL E130 CHANGELOG.md:43: line 43 is '### Fixed'; text found at [45]`, but ST27 does not name them.
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **ST27's test is the claims rows on the entry (recommended).** E130now to E132now pin the entry to its lines under `[Unreleased]`. ST27's test cell is annotated by date to name them with `make changelog-check`. The plant above is its caught plant. | No code. A move that keeps every line number, which crossing a heading cannot, would pass. The rows are pinned at a commit, so v1.34.0's release re-points them. |
+| (2) **A gate that reads the entries.** `check_changelog.py` fails a released section whose body differs from its text at the tag, with cases in `scripts/test_gates.py`. | A change to a CI gate, outside this record's scope: its own record or an amendment, and a gate run. It catches an entry moved into any released section, for every record after this one. |
+| (3) **Hold ST27 open for (2).** Phase 2 does not exit until the gate in (2) lands. | 0092 waits for another record. 0091-PLAN Phase 2 waits behind it. |
+
+Doing nothing leaves ST27's test unable to fail on its own plant. *(2026-11-25: answered, "Build a released-section gate", then "Commit 0092 now, gate next (Recommended)". See "Amendment (2026-11-25, fifth)".)*
+
+Counts after this amendment: unchanged, 32 rows: 28 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, fifth): Q-B2 answered; ST27 decided and tested; 0091's OQ12
+
+Additions only. Relayed by the coordinator; labels quoted exactly.
+
+### Owner rulings (2026-11-25, fifth)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| Q-B2 | "Build a released-section gate" | (2): a gate that reads the released sections | ST27's check, when that gate lands |
+| Q-B2, the order | "Commit 0092 now, gate next (Recommended)" | this record's phases close first; the gate is its own record next | ST27's check until then |
+| 0091-MADR OQ12 | "The cut rule wins (Recommended)" | 0091's (1) | 0091-MADR ST65; here, ST11 as built |
+
+### ST27, decided and tested
+
+* **Its test now.** The claims rows on the **Fixed** entry, E130now to E132now, with `make changelog-check`. ST27's plant, both entries moved under `## [v1.33.0]` and committed on a scratch clone, passes `make changelog-check` (exit 0, `47 release section(s), 0 problem(s)`) and is caught by E130now: `FAIL E130 CHANGELOG.md:43: line 43 is '### Fixed'; text found at [45]`. ST27 is decided and tested.
+* **Its test when 0094 lands.** 0094 is a new SDK record, numbered by `scripts/check_records.py --next`: a gate that refuses an edit to a released `CHANGELOG.md` section by comparing each released section with its text at its tag. When it lands, it replaces the claims rows as ST27's check (a dated note there).
+
+### 0091's OQ12, read here
+
+A `completed` Responses reply at the output limit sent, whose last call was announced and never finished, is a cut: that call is dropped and named in `WarningToolCallCut`, and the reply finishes `length` (0091-MADR ST55, 0088-MADR ST108). The limit sent reaches the decoder only on `chatcompat`'s Responses path (0091-MADR ST33, OQ7): `openai`, `grok` and OpenCode do not set it. 0091-PLAN Phase 2 builds that path, and its test is there. Where the limit was not hit, or no limit was sent, ST11's `item_not_finished` stands as built. Nothing changes in this record's code: `end` decides the cut before the completed path's check (E133now, E134now), so a reply ST55 reads as cut never reaches `unfinished`.
+
+Counts after this amendment: unchanged, 32 rows: 28 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, sixth): the review's notes and two owner rulings
+
+Additions only. `code-reviewer` passed PLAN Phase 1 with notes. Relayed by the coordinator: two owner rulings on its open questions, and three minor notes. Recorded before any code; pass 1 continues.
+
+### Owner rulings (2026-11-25, sixth)
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| How many items the terminal pairing considers | "Bound it like other wires (Recommended)" | the pairing considers items up to `wire.MaxStreamIndex` (4096), the bound every other wire puts on a stream's indexes (0053-MADR D2). Past it, nothing is filled from the terminal `output`, and the stream keeps what the `.done` events gave | ST33 |
+| A second `output_item.added` for an announced id | "Ignore a repeated announcement (Recommended)" | it is the same item; a healthy stream never fails over it | ST34 |
+
+### Rows (2026-11-25, sixth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST33 | A terminal `output`, or the `.done` items or announced items the pairing reads, past `wire.MaxStreamIndex` (4096) items | decided | nothing is taken from the terminal, and ST11's check, which reads the same pairing, is not run: the stream finishes with what the `.done` events gave, as before this record (completed by `completed`, cut by `CutAnswer`). At 4096 items the take runs as D1 says | "Bound it like other wires (Recommended)" | `TestTerminalFill_Bound_0092`: a terminal of 4096 messages, one by `.done`, gives 4096; of 4097, gives the one `.done` message. Plants: the bound removed (4097 fills); the bound one lower (4096 does not fill) |
+| ST34 | A repeated `output_item.added` for an id already announced | decided | the same item, recorded once; ST11's check does not fail when that item is delivered once | "Ignore a repeated announcement (Recommended)" | `TestTerminalFill_Reannounced_0092`: a message announced twice by id, delivered by one `.done`, completes with it. Plant: the repeat recorded again (the stream fails as `item_not_finished`) |
+| ST35 | An `output_index` that is not an integer JSON number (`1.0`, `"1"`) | decided | read as none (−1), as an absent one is; the stream is not failed for it. Today it fails the event's decode (the review's note) | the review's note, relayed by the coordinator; D2 | `TestTerminalFill_IndexForm_0092`: a `.done` with `output_index` `1.0`, and one with `"1"`, each with no id, against a terminal of two messages with no ids, reads as OQ5's case (nothing taken), not as an error and not as index 1. Plant: a quoted index read as its number (the `"1"` case pairs by index and duplicates) |
+
+### The review's other notes
+
+* **ST11, a call announced with no id.** The error names its `call_id` (`cmp.Or` in `unfinished`). `TestTerminalFill_Unfinished_0092` gains that case. Plant: the id alone named (the case fails).
+* **ST11, the mark after the reply.** `ReadEvents` marks every error a decoder returns as after the reply (E68's reader), so the test's `IsAfterReply` assertion cannot catch the inner mark's removal. The inner mark stays, as the early end's form. A comment at the assertion says that it pins `ReadEvents`' mark.
+
+Counts after this amendment: 35 rows: 31 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, seventh): the review's changes built; the lines re-pointed
+
+Additions only. ST33, ST34 and ST35, and ST11's two notes, are built as the amendment of 2026-11-25, sixth, decides. Each new test was red on its assertion before the change: `TestTerminalFill_Bound_0092` (4097 items filled), `TestTerminalFill_Reannounced_0092` (`item_not_finished: message msg_1`), and `TestTerminalFill_IndexForm_0092` (`cannot unmarshal number 1.0`, `cannot unmarshal string`). ST11's no-id case was a green pin. All are green after it, and each plant is caught (the PLAN's entry of 2026-11-25, fifth).
+
+The change moved lines this record cites. Rows whose ids end in "rnow" restate a row of the amendment of 2026-11-25, fourth, at its new line. E114rnow also restates its text: the doc line now goes on. Rows ending in "now" are new. All 37 of the fourth amendment's and this one's rows were checked the same way. Each text was absent at `5f57f02`: 37 of 37 fail, none found. They pass on a scratch clone's commit of the working tree, 37 of 37. Each planted false is caught, 37 of 37. ST26's plant fails E120rnow alone.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| E113rnow | `Decoder.Logger`'s doc: one Debug line for a stream that took items | `llmprovider/internal/wire/responses/responses.go:368` | `writes one Debug line to it: the provider, the terminal event's type` |
+| E114rnow | `streamEvent.OutputIndex`'s doc | `llmprovider/internal/wire/responses/responses.go:640` | `// response's output, nil when the event names none (0092-MADR D2); it is` |
+| E115rnow | `streamEvent.Output`'s doc: read on a completed stream too | `llmprovider/internal/wire/responses/responses.go:651` | `// ST104) and on a completed stream, for the items no` |
+| E116rnow | `ReadStream`'s doc: the take at both terminal events | `llmprovider/internal/wire/responses/responses.go:692` | `// response.completed carry the id. At response.completed, and at` |
+| E117rnow | `ReadStream`'s doc: OQ1's error | `llmprovider/internal/wire/responses/responses.go:703` | `// item_not_finished with the item's type and id (0092-MADR ST11). Each` |
+| E118rnow | `Events`' doc: taken items yielded after the held calls | `llmprovider/internal/wire/responses/responses.go:720` | `// the held calls and before EventDone, with no delta of their own (0092-MADR` |
+| E119rnow | `Events`' doc: OQ1's error | `llmprovider/internal/wire/responses/responses.go:724` | `// ErrProviderUnavailable naming item_not_finished, for an announced item` |
+| E120rnow | `takeTerminal`'s doc: on a completed stream as on a cut | `llmprovider/internal/wire/responses/responses.go:961` | `// output_item.done delivered, on a completed stream as on a cut (0092-MADR` |
+| E121rnow | `end`'s doc: the take before any finish decision | `llmprovider/internal/wire/responses/responses.go:1076` | `// items (0092-MADR D1), before any decision on how to finish (ST14). A cut` |
+| E122rnow | `announce`'s doc: the tracked types | `llmprovider/internal/wire/responses/responses.go:838` | `// a Search tool, the types appendOutput keeps; not a reasoning item, a` |
+| E123rnow | `unfinished`'s doc: the error's kind and mark | `llmprovider/internal/wire/responses/responses.go:1037` | `// named. It is ErrProviderUnavailable, marked after the reply as an early` |
+| E124rnow | `logTaken`'s doc: no text, id or arguments | `llmprovider/internal/wire/responses/responses.go:1018` | `// taken of each type; never an item's text, id or arguments (0092-MADR` |
+| E131rnow | its second, OQ1's error | `CHANGELOG.md:56` | `- A completed Responses stream that announced a message, a call or a` |
+| E132rnow | retried at most once, never after an event | `CHANGELOG.md:61` | `most once, and never after an event (0092-MADR ST11).` |
+| E133rnow | the take, on both paths, before the finish | `llmprovider/internal/wire/responses/responses.go:1091` | `taken, counts := s.takeTerminal(event.Response.Output)` |
+| E134rnow | OQ1's check on the completed path | `llmprovider/internal/wire/responses/responses.go:1101` | `if err := s.unfinished(event.Response.Output); err != nil {` |
+| E135rnow | OQ1's error kind | `llmprovider/internal/wire/responses/responses.go:1067` | `return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, s.provider,` |
+| E136rnow | OQ5's case: nothing of an ambiguous type paired | `llmprovider/internal/wire/responses/responses.go:927` | `if oq5 && len(ua) >= 1 && len(ub) > len(ua) {` |
+| E137rnow | OQ2: an empty message or reasoning `.done` | `llmprovider/internal/wire/responses/responses.go:870` | `done.empty = (item.Type == itemTypeMessage \|\| item.Type == itemTypeReasoning) && len(s.result.Output) == n` |
+| E142now | `outputIndex`'s doc: a non-integer index is none | `llmprovider/internal/wire/responses/responses.go:826` | `// 0, else -1, none, as an absent one is; 1.0 or "1" is none, never an error` |
+| E143now | `bounded`'s doc: past the bound, the `.done` items stand and ST11's check is not run | `llmprovider/internal/wire/responses/responses.go:1009` | `// stream keeps what the .done events gave, and ST11's check is not run` |
+| E144now | `announce`'s doc: a repeated announcement recorded once | `llmprovider/internal/wire/responses/responses.go:840` | `// announcement of an id already announced is the same item, recorded once` |
+| E145now | the architecture's stream paragraph: the bound | `docs/architecture.md:484` | `` items, it takes nothing and keeps what the `.done` events gave (ST33). `` |
+| E146now | the changelog's first **Fixed** entry: the bound | `CHANGELOG.md:53` | `anything past 4096 items` |
+| E147now | ST33's bound | `llmprovider/internal/wire/responses/responses.go:1012` | `return len(output) <= wire.MaxStreamIndex && len(s.done) <= wire.MaxStreamIndex &&` |
+| E148now | ST34: a repeated announcement ignored | `llmprovider/internal/wire/responses/responses.go:852` | `if item.ID != "" && slices.ContainsFunc(s.announced, func(a announcedItem) bool { return a.id == item.ID }) {` |
+| E149now | ST35: `output_index` read as an integer, else none | `llmprovider/internal/wire/responses/responses.go:829` | `n, err := strconv.Atoi(string(bytes.TrimSpace(raw)))` |
+
+Counts after this amendment: unchanged, 35 rows: 31 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-25, eighth): the delta check's four gaps
+
+Additions only; no decision changes. Relayed by the coordinator after the delta check of the seventh amendment's changes. Recorded before any code; pass 1 continues.
+
+* **ST33, the check past the bound, tested.** `TestTerminalFill_Bound_0092` gains a case past the bound that also announces a call never finished: the stream completes with the `.done` item and no `item_not_finished`. Plant: the skip removed from `unfinished` (the case fails with the error).
+* **ST33 and ST34, the announced items bounded.** `announce` stops recording once `len(s.announced)` passes `wire.MaxStreamIndex`. By then ST33 has already turned the check off, so a long run of `output_item.added` events costs constant work each. A repeated id is found in a map of the announced ids, not by a scan. `TestTerminalFill_AnnounceBound_0092` feeds 10,000 distinct announcements to the reader's state and finds 4097 recorded, one past the bound; with no stop, all 10,000 are recorded and each new one is checked against all those before it. Plant: the stop removed. No benchmark is added: a timing assertion would be flaky on a shared host, and the count pins the cause.
+* **Docs.** `docs/architecture.md`'s stream paragraph and the changelog's ST11 entry say the `item_not_finished` check is not run past the bound either.
+* **The mark's record.** The comment at `TestTerminalFill_Unfinished_0092`'s `IsAfterReply` assertion cited 0021-MADR D1. `ReadEvents`' doc (`sse.go:38-41`) credits the mark on a decoder's error to 0053-MADR D3, and 0021-MADR D1 to the early end's. The comment now cites 0053-MADR D3.
+
+Counts after this amendment: unchanged, 35 rows: 31 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+### The eighth amendment's changes, built; the lines re-pointed (2026-11-25)
+
+`TestTerminalFill_AnnounceBound_0092` was red before the change (`terminal_0092_test.go:566: 10000 announcements: 10000 recorded; want 4097, one past the bound`). The past-bound case of `TestTerminalFill_Bound_0092` was a green pin. Both are green after the change, and their plants are caught. Ids ending in "r2now" restate a row at its new line, and for E145, E148 and their text. Rows ending in "now" are new. All 41 rows E113 to E153 were checked the same way. Each was absent at `5f57f02`: 41 of 41 fail, none found. Each passes on a scratch clone's commit, 41 of 41. Each planted false is caught, 41 of 41. ST26's plant fails E120 alone.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| E120r2now | `takeTerminal`'s doc: on a completed stream as on a cut | `llmprovider/internal/wire/responses/responses.go:972` | `// output_item.done delivered, on a completed stream as on a cut (0092-MADR` |
+| E121r2now | `end`'s doc: the take before any finish decision | `llmprovider/internal/wire/responses/responses.go:1087` | `// items (0092-MADR D1), before any decision on how to finish (ST14). A cut` |
+| E122r2now | `announce`'s doc: the tracked types | `llmprovider/internal/wire/responses/responses.go:841` | `// a Search tool, the types appendOutput keeps; not a reasoning item, a` |
+| E123r2now | `unfinished`'s doc: the error's kind and mark | `llmprovider/internal/wire/responses/responses.go:1048` | `// named. It is ErrProviderUnavailable, marked after the reply as an early` |
+| E124r2now | `logTaken`'s doc: no text, id or arguments | `llmprovider/internal/wire/responses/responses.go:1029` | `// taken of each type; never an item's text, id or arguments (0092-MADR` |
+| E133r2now | the take, on both paths, before the finish | `llmprovider/internal/wire/responses/responses.go:1102` | `taken, counts := s.takeTerminal(event.Response.Output)` |
+| E134r2now | OQ1's check on the completed path | `llmprovider/internal/wire/responses/responses.go:1112` | `if err := s.unfinished(event.Response.Output); err != nil {` |
+| E135r2now | OQ1's error kind | `llmprovider/internal/wire/responses/responses.go:1078` | `return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, s.provider,` |
+| E136r2now | OQ5's case: nothing of an ambiguous type paired | `llmprovider/internal/wire/responses/responses.go:938` | `if oq5 && len(ua) >= 1 && len(ub) > len(ua) {` |
+| E137r2now | OQ2: an empty message or reasoning `.done` | `llmprovider/internal/wire/responses/responses.go:881` | `done.empty = (item.Type == itemTypeMessage \|\| item.Type == itemTypeReasoning) && len(s.result.Output) == n` |
+| E142r2now | `outputIndex`'s doc: a non-integer index is none | `llmprovider/internal/wire/responses/responses.go:829` | `// 0, else -1, none, as an absent one is; 1.0 or "1" is none, never an error` |
+| E143r2now | `bounded`'s doc: past the bound, the `.done` items stand and ST11's check is not run | `llmprovider/internal/wire/responses/responses.go:1020` | `// stream keeps what the .done events gave, and ST11's check is not run` |
+| E144r2now | `announce`'s doc: a repeated announcement recorded once | `llmprovider/internal/wire/responses/responses.go:843` | `// announcement of an id already announced is the same item, recorded once` |
+| E145r2now | the architecture's stream paragraph: the bound | `docs/architecture.md:484` | `` items, it takes nothing, keeps what the `.done` events gave, and does `` |
+| E147r2now | ST33's bound | `llmprovider/internal/wire/responses/responses.go:1023` | `return len(output) <= wire.MaxStreamIndex && len(s.done) <= wire.MaxStreamIndex &&` |
+| E148r2now | ST34: a repeated announcement ignored | `llmprovider/internal/wire/responses/responses.go:857` | `if len(s.announced) > wire.MaxStreamIndex \|\| item.ID != "" && s.announcedIDs[item.ID] {` |
+| E149r2now | ST35: `output_index` read as an integer, else none | `llmprovider/internal/wire/responses/responses.go:832` | `n, err := strconv.Atoi(string(bytes.TrimSpace(raw)))` |
+| E150now | the architecture's stream paragraph: the check not run past the bound | `docs/architecture.md:485` | `` not run the `item_not_finished` check (ST33). `` |
+| E151now | the changelog's ST11 entry: the check not run past the bound | `CHANGELOG.md:62` | `the check is not run (ST33).` |
+| E152now | ST34: a repeat found in a map | `llmprovider/internal/wire/responses/responses.go:864` | `s.announcedIDs[item.ID] = true` |
+| E153now | `announce`'s doc: no more recorded past the bound | `llmprovider/internal/wire/responses/responses.go:845` | `// check is off (ST33), no more are recorded, so each announcement costs` |

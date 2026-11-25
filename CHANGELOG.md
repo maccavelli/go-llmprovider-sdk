@@ -38,6 +38,29 @@ listed under **Removed** below.)*
   Responses and Chat Completions, whose arguments stream in pieces, is
   still dropped and named (0088-MADR ST107, ST110, OQ21).
 
+### Fixed
+
+- A Responses stream (`openai`, `grok`, OpenCode's responses route) that
+  completes without an `output_item.done` for an item now takes that item
+  from the terminal response's `output`, after the items delivered, and
+  yields it before `EventDone`; it no longer fails as an empty answer after
+  showing text, or drops a call or a reasoning item while reporting
+  `stop`. A `.done` that came empty gives way to the terminal's copy. One
+  `Debug` line through `WithLogger` reports the count taken of each type.
+  A cut stream no longer duplicates an item whose ids disagree: the two
+  sides pair by id, then by `output_index` within one type, then in order
+  within one type, and take nothing of a type they cannot pair, nor
+  anything past 4096 items
+  ([0092-MADR](docs/decisions/0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md)
+  D1, D2, ST6, ST12, ST20).
+- A completed Responses stream that announced a message, a call or a
+  client tool search and delivered it neither by `output_item.done` nor in
+  its terminal response, where it succeeded with the item dropped, is now
+  `ErrProviderUnavailable`, marked after the reply as an early end is, its
+  text naming `item_not_finished` with the item's type and id: retried at
+  most once, and never after an event (0092-MADR ST11). Past 4096 items
+  the check is not run (ST33).
+
 ## [v1.33.0] - 2026-11-24
 
 ### Added

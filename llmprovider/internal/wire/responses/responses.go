@@ -4,15 +4,20 @@ package responses
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 )
@@ -358,6 +363,12 @@ type Decoder struct {
 	// decodes as that tool's call, with tool_input as its arguments. Any
 	// other call to the wrapper stays one (0040-MADR D5).
 	Dispatch map[string]bool
+	// Logger is the provider's WithLogger logger. A stream that took items
+	// from its terminal response, which no output_item.done delivered,
+	// writes one Debug line to it: the provider, the terminal event's type
+	// and the count taken of each item type, never an item's text, id or
+	// arguments. Nil writes nothing (0092-MADR ST20).
+	Logger *slog.Logger
 }
 
 // DecodeFor is the package's DecodeFor, with d's Search.
@@ -622,10 +633,14 @@ func (d Decoder) dispatched(arguments string) (name, args string) {
 type streamEvent struct {
 	Type string `json:"type"`
 	// Code and Message are a top-level error event's (0020-MADR F39).
-	Code     string     `json:"code"`
-	Message  string     `json:"message"`
-	Item     outputItem `json:"item"`
-	Response struct {
+	Code    string     `json:"code"`
+	Message string     `json:"message"`
+	Item    outputItem `json:"item"`
+	// OutputIndex is an output_item.added's or .done's place in the
+	// response's output, nil when the event names none (0092-MADR D2); it is
+	// read by outputIndex, so a value of another form never fails the event.
+	OutputIndex json.RawMessage `json:"output_index"`
+	Response    struct {
 		ID                string         `json:"id"`
 		Model             string         `json:"model"`
 		Error             *responseError `json:"error"`
@@ -633,7 +648,8 @@ type streamEvent struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
 		// Output is the terminal response's items, read on a cut (0088-MADR
-		// ST104).
+		// ST104) and on a completed stream, for the items no
+		// output_item.done delivered (0092-MADR D1).
 		Output []outputItem `json:"output"`
 		Usage  usage        `json:"usage"`
 	} `json:"response"`
@@ -673,12 +689,18 @@ func failed(provider string, e *responseError) error {
 // ReadStream reads a Responses API event stream into a Response, as Codex
 // does (codex-api/src/sse/responses.rs:343-450): each
 // response.output_item.done adds its item, and response.created and
-// response.completed carry the id. response.failed maps onto MADR 0012 §1.1;
-// response.incomplete for the output limit is the answer it cut, finishing
-// length with the items that arrived and those its response carries that no
-// output_item.done delivered (0088-MADR ST75 to ST80, ST104), and for
-// another reason MADR 0012 §1.5's error; and a stream that ends before
-// response.completed is retryable, once (MADR 0012 §4.1; 0021-MADR D1). Each
+// response.completed carry the id. At response.completed, and at
+// response.incomplete for the output limit, the answer also takes each item
+// the terminal response carries that no output_item.done delivered, after
+// the delivered ones (0092-MADR D1, D2; 0088-MADR ST104).
+// response.failed maps onto MADR 0012 §1.1; response.incomplete for the
+// output limit is the answer it cut, finishing length (0088-MADR ST75 to
+// ST80), and for another reason MADR 0012 §1.5's error; and a stream that
+// ends before response.completed is retryable, once (MADR 0012 §4.1;
+// 0021-MADR D1). So is a completed stream that announced a message, a call
+// or a client tool search that neither an output_item.done nor the terminal
+// response delivered: ErrProviderUnavailable, marked after the reply, naming
+// item_not_finished with the item's type and id (0092-MADR ST11). Each
 // event is bounded, not the stream (0021-MADR W2). It does not rely on
 // Content-Type, which the ChatGPT backend does not send. It collects Events,
 // skipping the deltas it does not need (0031-MADR D2).
@@ -693,10 +715,14 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 // response.incomplete for the output limit, as EventDone, carrying the
 // Response ReadStream returns. A call whose arguments are {} or not whole is
 // held until a later item or the end (wire.HeldCalls), so a call the limit
-// cut is never yielded (0088-MADR ST80). A call-argument delta and every
-// other event yield nothing (0031-MADR Q4). It returns nil once
-// EventDone is yielded or yield returns false, and otherwise the error that
-// ended the stream, as ReadStream's; what it yielded before an error is not a
+// cut is never yielded (0088-MADR ST80). The items it takes from the
+// terminal response, which no output_item.done delivered, are yielded after
+// the held calls and before EventDone, with no delta of their own (0092-MADR
+// D1). A call-argument delta and every other event yield nothing (0031-MADR
+// Q4). It returns nil once EventDone is yielded or yield returns false, and
+// otherwise the error that ended the stream, as ReadStream's, among them
+// ErrProviderUnavailable naming item_not_finished, for an announced item
+// never delivered (0092-MADR ST11); what it yielded before an error is not a
 // response (0031-MADR D4).
 func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
 	return Decoder{}.Events(provider, body, yield)
@@ -704,7 +730,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 
 // readEvents is Events, decoding only the event types in handled.
 func readEvents(provider string, body io.Reader, handled map[string]bool, d Decoder, yield func(llmprovider.Event) bool) error {
-	s := &streamState{result: &llmprovider.Response{}, d: d}
+	s := &streamState{result: &llmprovider.Response{}, d: d, provider: provider}
 	result := s.result
 	// dispatch handles one event; stop ends the stream without an error,
 	// after EventDone or when the caller stops.
@@ -735,8 +761,9 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, d Deco
 			if event.Item.Type == itemTypeFunctionCall || event.Item.Type == itemTypeToolSearchCall {
 				s.open = append(s.open, event.Item)
 			}
+			s.announce(event.Item, outputIndex(event.OutputIndex))
 		case "response.output_item.done":
-			return s.itemDone(event.Item, yield), nil
+			return s.itemDone(event.Item, outputIndex(event.OutputIndex), yield), nil
 		case "response.failed":
 			return false, failed(provider, event.Response.Error)
 		case "response.incomplete":
@@ -756,69 +783,313 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, d Deco
 
 // streamState is a Responses stream's answer as its events arrive.
 type streamState struct {
-	result  *llmprovider.Response
-	d       Decoder
-	refused bool
+	result   *llmprovider.Response
+	d        Decoder
+	provider string
+	refused  bool
 	// open are the calls added and not yet done: at an output limit's cut,
-	// each is a call the limit cut (0088-MADR ST77). done are the ids of the
-	// items an output_item.done delivered, in order (ST104). held are the
-	// done calls a cut could drop, not yet yielded (ST80).
-	open []outputItem
-	done []string
-	held wire.HeldCalls
+	// each is a call the limit cut (0088-MADR ST77). done are the items an
+	// output_item.done delivered, in order, each as pairing reads it
+	// (0092-MADR D2). announced are the items an output_item.added announced
+	// of the types a completed stream must deliver (ST11). held are the
+	// done calls a cut could drop, not yet yielded (0088-MADR ST80).
+	open      []outputItem
+	done      []doneItem
+	announced []announcedItem
+	// announcedIDs are the announced items' ids, so a repeat is found
+	// without a scan (ST34).
+	announcedIDs map[string]bool
+	held         wire.HeldCalls
+}
+
+// ref is an item as pairing reads it: its id, "" for none; its place in the
+// response's output, -1 for none; and its type (0092-MADR D2).
+type ref struct {
+	id    string
+	index int
+	typ   string
+}
+
+// doneItem is an output_item.done's item; empty when it added nothing to
+// the answer, a message or a reasoning item with nothing in it, so that its
+// terminal partner is taken (0092-MADR ST12).
+type doneItem struct {
+	ref
+	empty bool
+}
+
+// announcedItem is an output_item.added's item, with its call id, which
+// names the item when it has no id of its own.
+type announcedItem struct {
+	ref
+	callID string
+}
+
+// outputIndex is an event's output_index: an integer JSON number at least
+// 0, else -1, none, as an absent one is; 1.0 or "1" is none, never an error
+// (0092-MADR ST35).
+func outputIndex(raw json.RawMessage) int {
+	n, err := strconv.Atoi(string(bytes.TrimSpace(raw)))
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
+}
+
+// announce records an announced item of a type a completed stream must
+// deliver: a message, a call, or a client tool search when the request has
+// a Search tool, the types appendOutput keeps; not a reasoning item, a
+// hosted search or an unknown type (0092-MADR ST11). A repeated
+// announcement of an id already announced is the same item, recorded once
+// (ST34). Once the announced items pass wire.MaxStreamIndex, where ST11's
+// check is off (ST33), no more are recorded, so each announcement costs
+// constant work.
+func (s *streamState) announce(item outputItem, index int) {
+	switch item.Type {
+	case itemTypeMessage, itemTypeFunctionCall:
+	case itemTypeToolSearchCall:
+		if s.d.Search == "" || item.Execution != executionClientValue {
+			return
+		}
+	default:
+		return
+	}
+	if len(s.announced) > wire.MaxStreamIndex || item.ID != "" && s.announcedIDs[item.ID] {
+		return
+	}
+	if item.ID != "" {
+		if s.announcedIDs == nil {
+			s.announcedIDs = map[string]bool{}
+		}
+		s.announcedIDs[item.ID] = true
+	}
+	s.announced = append(s.announced, announcedItem{ref: ref{id: item.ID, index: index, typ: item.Type},
+		callID: item.CallID})
 }
 
 // itemDone adds the item an output_item.done delivers, and yields it unless
 // it is held. It reports true when yield stopped the stream.
-func (s *streamState) itemDone(item outputItem, yield func(llmprovider.Event) bool) bool {
+func (s *streamState) itemDone(item outputItem, index int, yield func(llmprovider.Event) bool) bool {
 	s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return o.CallID == item.CallID })
-	s.done = append(s.done, item.ID)
+	done := doneItem{ref: ref{id: item.ID, index: index, typ: item.Type}}
 	if !s.held.Later(yield) {
+		s.done = append(s.done, done)
 		return true
 	}
 	n := len(s.result.Output)
 	s.refused = appendOutput(s.result, item, s.d) || s.refused
+	done.empty = (item.Type == itemTypeMessage || item.Type == itemTypeReasoning) && len(s.result.Output) == n
+	s.done = append(s.done, done)
 	if len(s.result.Output) > n && !s.held.Hold(s.result.Output[n]) {
 		return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: s.result.Output[n]})
 	}
 	return false
 }
 
-// delivered reports whether an output_item.done delivered the terminal
-// response's item at index: by its id, or, for an item with none, by its
-// place among the delivered items.
-func (s *streamState) delivered(item outputItem, index int) bool {
-	if item.ID != "" {
-		return slices.Contains(s.done, item.ID)
+// pairRefs pairs each of a with at most one of b, in 0092-MADR D2's three
+// passes, each over what the earlier ones left unpaired: by id, where both
+// carry one; by index, where both carry one and are of one type; and in
+// order within each type, the k-th unpaired of a type in a with the k-th
+// unpaired of that type in b. match[i] is a[i]'s partner in b, -1 for none.
+// With oq5, a type with k ≥ 1 unpaired in a and more than k unpaired in b
+// is paired no further, and is named in ambiguous (OQ5).
+func pairRefs(a, b []ref, oq5 bool) (match []int, ambiguous map[string]bool) {
+	match = make([]int, len(a))
+	used := make([]bool, len(b))
+	for i := range match {
+		match[i] = -1
 	}
-	return index < len(s.done)
+	pair := func(i int, ok func(y ref) bool) {
+		for j, y := range b {
+			if !used[j] && ok(y) {
+				match[i], used[j] = j, true
+				return
+			}
+		}
+	}
+	for i, x := range a {
+		if x.id != "" {
+			pair(i, func(y ref) bool { return y.id == x.id })
+		}
+	}
+	for i, x := range a {
+		if match[i] < 0 && x.index >= 0 {
+			pair(i, func(y ref) bool { return y.index == x.index && y.typ == x.typ })
+		}
+	}
+	var types []string
+	for _, r := range slices.Concat(a, b) {
+		if !slices.Contains(types, r.typ) {
+			types = append(types, r.typ)
+		}
+	}
+	for _, typ := range types {
+		var ua, ub []int
+		for i, x := range a {
+			if match[i] < 0 && x.typ == typ {
+				ua = append(ua, i)
+			}
+		}
+		for j, y := range b {
+			if !used[j] && y.typ == typ {
+				ub = append(ub, j)
+			}
+		}
+		if oq5 && len(ua) >= 1 && len(ub) > len(ua) {
+			if ambiguous == nil {
+				ambiguous = map[string]bool{}
+			}
+			ambiguous[typ] = true
+			continue
+		}
+		for k := range min(len(ua), len(ub)) {
+			match[ua[k]], used[ub[k]] = ub[k], true
+		}
+	}
+	return match, ambiguous
 }
 
-// takeTerminal adds, on a cut, each item the terminal response carries that
-// no output_item.done delivered (0088-MADR ST104): a service such as xAI
-// ends a cut stream with response.incomplete and no .done events. A call it
-// names is no longer an open one; the cut rules then apply to it as to any
-// other. It returns the items it added.
-func (s *streamState) takeTerminal(output []outputItem) []llmprovider.Item {
-	n := len(s.result.Output)
+// terminalRefs are the terminal response's items as pairing reads them, each
+// at its place in the output.
+func terminalRefs(output []outputItem) []ref {
+	refs := make([]ref, len(output))
 	for i, item := range output {
-		if s.delivered(item, i) {
+		refs[i] = ref{id: item.ID, index: i, typ: item.Type}
+	}
+	return refs
+}
+
+// doneRefs are the delivered items as pairing reads them.
+func (s *streamState) doneRefs() []ref {
+	refs := make([]ref, len(s.done))
+	for i, d := range s.done {
+		refs[i] = d.ref
+	}
+	return refs
+}
+
+// takeTerminal adds each item the terminal response carries that no
+// output_item.done delivered, on a completed stream as on a cut (0092-MADR
+// D1; 0088-MADR ST104): a service such as xAI ends a cut stream with
+// response.incomplete and no .done events, and a compatible server may omit
+// them on a completed one. The .done items and the terminal's are paired by
+// D2's passes; an unpaired terminal item is taken, and so is the partner of
+// a .done that added nothing (ST12), but nothing of a type OQ5's case makes
+// ambiguous (ST6 (f)); a .done item that added one stands against a
+// differing partner (ST7). Taken items go through appendOutput, after the
+// delivered ones, in the terminal's order (ST9). A call it takes is no
+// longer an open one; the cut rules then apply to it as to any other. It
+// returns the items it added, and their count by type. Past the bound,
+// nothing is taken (ST33).
+func (s *streamState) takeTerminal(output []outputItem) ([]llmprovider.Item, map[string]int) {
+	if !s.bounded(output) {
+		return nil, nil
+	}
+	match, ambiguous := pairRefs(s.doneRefs(), terminalRefs(output), true)
+	take := make([]bool, len(output))
+	for j := range take {
+		take[j] = !ambiguous[output[j].Type]
+	}
+	for i, j := range match {
+		if j >= 0 && !s.done[i].empty {
+			take[j] = false
+		}
+	}
+	n := len(s.result.Output)
+	var counts map[string]int
+	for j, item := range output {
+		if !take[j] {
 			continue
 		}
 		s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return item.CallID != "" && o.CallID == item.CallID })
+		before := len(s.result.Output)
 		s.refused = appendOutput(s.result, item, s.d) || s.refused
+		if len(s.result.Output) > before {
+			if counts == nil {
+				counts = map[string]int{}
+			}
+			counts[item.Type]++
+		}
 	}
-	return slices.Clone(s.result.Output[n:])
+	return slices.Clone(s.result.Output[n:]), counts
+}
+
+// bounded reports whether the items pairing reads are within
+// wire.MaxStreamIndex, the bound every wire puts on a stream's indexes: the
+// terminal's items, the .done items and the announced ones. Past it, the
+// stream keeps what the .done events gave, and ST11's check is not run
+// (0092-MADR ST33).
+func (s *streamState) bounded(output []outputItem) bool {
+	return len(output) <= wire.MaxStreamIndex && len(s.done) <= wire.MaxStreamIndex &&
+		len(s.announced) <= wire.MaxStreamIndex
+}
+
+// logTaken writes one Debug line through the decoder's logger for a stream
+// that took items: the provider, the terminal event's type, and the count
+// taken of each type; never an item's text, id or arguments (0092-MADR
+// ST20).
+func (s *streamState) logTaken(event string, counts map[string]int) {
+	if s.d.Logger == nil || len(counts) == 0 {
+		return
+	}
+	args := []any{"provider", s.provider, "event", event}
+	for _, typ := range []string{itemTypeReasoning, itemTypeMessage, itemTypeFunctionCall, itemTypeToolSearchCall} {
+		if n := counts[typ]; n > 0 {
+			args = append(args, typ, n)
+		}
+	}
+	s.d.Logger.Debug("llmprovider: "+s.provider+": items taken from the terminal response", args...)
+}
+
+// unfinished is the error for a completed stream that announced an item
+// neither an output_item.done nor the terminal response delivered: an
+// announced item is paired, by D2's passes, with the delivered items and
+// the terminal's items no .done delivered, and the first left unpaired is
+// named. It is ErrProviderUnavailable, marked after the reply as an early
+// end is, naming item_not_finished with the item's type and id, each the
+// service's, so stripped and bounded (0092-MADR ST11). Nil when every
+// announced item was delivered, or when the items are past the bound (ST33).
+func (s *streamState) unfinished(output []outputItem) error {
+	if len(s.announced) == 0 || !s.bounded(output) {
+		return nil
+	}
+	dones, terminal := s.doneRefs(), terminalRefs(output)
+	paired, _ := pairRefs(dones, terminal, true)
+	delivered := slices.Clone(dones)
+	for j, r := range terminal {
+		if !slices.Contains(paired, j) {
+			delivered = append(delivered, r)
+		}
+	}
+	announced := make([]ref, len(s.announced))
+	for i, a := range s.announced {
+		announced[i] = a.ref
+	}
+	match, _ := pairRefs(announced, delivered, false)
+	for i, j := range match {
+		if j >= 0 {
+			continue
+		}
+		a := s.announced[i]
+		detail := "item_not_finished: " + redact.Field(a.typ)
+		if id := redact.Field(cmp.Or(a.id, a.callID)); id != "" {
+			detail += " " + id
+		}
+		return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, s.provider,
+			transport.AfterReply(errors.New(detail)))
+	}
+	return nil
 }
 
 // end finishes the stream at its last event, response.completed, or
 // response.incomplete for the output limit when cut: the result takes the
-// event's id, model and usage; a cut answer takes the terminal response's
-// undelivered items (ST104), names each call added and never done as the
-// call the limit cut, and is finished by CutAnswer, a completed one by
-// completed; then the held calls and the taken items the response kept are
-// yielded, and EventDone (0088-MADR ST77, ST80). Its results are a stream
-// dispatch's.
+// event's id, model and usage, and the terminal response's undelivered
+// items (0092-MADR D1), before any decision on how to finish (ST14). A cut
+// answer names each call added and never done as the call the limit cut,
+// and is finished by CutAnswer; a completed one fails when an announced item
+// was never delivered (ST11), and is otherwise finished by completed; then
+// the held calls and the taken items the response kept are yielded, and
+// EventDone (0088-MADR ST77, ST80). Its results are a stream dispatch's.
 func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Event) bool) (bool, error) {
 	result := s.result
 	if event.Response.ID != "" {
@@ -828,16 +1099,19 @@ func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Ev
 		result.Model = event.Response.Model
 	}
 	result.Usage = event.Response.Usage.counts()
+	taken, counts := s.takeTerminal(event.Response.Output)
+	s.logTaken(event.Type, counts)
 	var resp *llmprovider.Response
-	var taken []llmprovider.Item
 	var err error
 	if cut {
-		taken = s.takeTerminal(event.Response.Output)
 		for _, o := range s.open {
 			result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))
 		}
 		resp, err = wire.CutAnswer("responses", result, reasonOutputLimit, true)
 	} else {
+		if err := s.unfinished(event.Response.Output); err != nil {
+			return false, err
+		}
 		resp, err = completed(result, s.refused)
 	}
 	if err != nil {

@@ -359,10 +359,11 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 
 // deferForm is req's deferred-tool form, and the decoder its reply needs:
 // Grok has no native form, so its deferred tools go through grok-build's
-// use_tool wrapper, and the decoder unwraps a call to it (0040-MADR D5).
+// use_tool wrapper, and the decoder unwraps a call to it (0040-MADR D5). The
+// decoder writes to p's logger (0092-MADR ST20).
 func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses.Decoder) {
 	form := deferral.ForRequest(deferral.Grok, cmp.Or(req.Model, p.model), req)
-	var decoder responses.Decoder
+	decoder := responses.Decoder{Logger: p.logger}
 	if form == deferral.Dispatch {
 		decoder.Dispatch = deferral.Dispatched(req.Tools)
 	}

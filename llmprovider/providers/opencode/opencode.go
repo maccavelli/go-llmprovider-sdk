@@ -475,7 +475,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	var events func(string, io.Reader, func(llmprovider.Event) bool) error
 	switch c.route {
 	case RouteResponses:
-		events = responsesDecoder(c).Events
+		events = p.responsesDecoder(c).Events
 	case RouteChatCompletions:
 		events = chatcompletions.Events
 	case RouteGoogle:
@@ -578,7 +578,7 @@ func (p *provider) decode(c call) func(io.Reader) (*llmprovider.Response, error)
 	label := string(p.gateway) + "/" + string(c.route)
 	switch c.route {
 	case RouteResponses:
-		return responsesDecoder(c).DecodeFor(label)
+		return p.responsesDecoder(c).DecodeFor(label)
 	case RouteMessages:
 		return messages.Decode
 	case RouteGoogle:
@@ -745,12 +745,13 @@ func (c call) deferForm() deferral.Form {
 }
 
 // responsesDecoder is the decoder c's reply needs: one that names the
-// Search tool when c's deferred tools go out natively (0040-MADR D3).
-func responsesDecoder(c call) responses.Decoder {
+// Search tool when c's deferred tools go out natively (0040-MADR D3), and
+// writes to p's logger (0092-MADR ST20).
+func (p *provider) responsesDecoder(c call) responses.Decoder {
 	if c.deferForm() == deferral.ResponsesNative {
-		return responses.Decoder{Search: deferral.SearchName(c.req.Tools)}
+		return responses.Decoder{Search: deferral.SearchName(c.req.Tools), Logger: p.logger}
 	}
-	return responses.Decoder{}
+	return responses.Decoder{Logger: p.logger}
 }
 
 // responsesBody is the OpenAI Responses shape, at the effort learner chooses,
