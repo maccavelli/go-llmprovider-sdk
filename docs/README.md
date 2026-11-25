@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-197 records. Cite them by full filename.
+199 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -207,6 +207,8 @@ documents a reader follows to do something.
 | 0092 | PLAN | [Implement: Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md) | in-progress |
 | 0093 | MADR | [The SDK Takes a models.dev Document From Its Caller and Fetches None: `catalog.WithMetadata` In; the Download, Its Cache, Its Options and the Embedded Extract Out](decisions/0093-MADR-take-model-metadata-from-the-caller.md) | accepted |
 | 0093 | PLAN | [Implement: The SDK Takes a models.dev Document From Its Caller and Fetches None](decisions/0093-PLAN-take-model-metadata-from-the-caller.md) | in-progress |
+| 0094 | MADR | [Refuse an Edit to a Released CHANGELOG Section: `changelog-check` Compares Each Released Section With Its Text at Release](decisions/0094-MADR-refuse-an-edit-to-a-released-changelog-section.md) | accepted |
+| 0094 | PLAN | [Implement: Refuse an Edit to a Released CHANGELOG Section](decisions/0094-PLAN-refuse-an-edit-to-a-released-changelog-section.md) | in-progress |
 
 ## I want to…
 
