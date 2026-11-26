@@ -39,7 +39,7 @@ scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
 scripts/check_tables.py     tables-check: the import tables, the live variables and the test-only variables match the code
 scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
-scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag
+scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag, and no released section changes
 scripts/check_docs.py       docs-check: the API audit's R50-R52, the examples and the concurrency and error docs
 scripts/check_links.py      links-check: every relative link resolves; markdownlint's file list
 scripts/check_disclosure.py disclosure-check: no file names a real home directory
@@ -1614,6 +1614,22 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
     file's status, and a count that matches.
 
   `--next` prints the next record number.
+- **`changelog-check`** (`scripts/check_changelog.py`, 0048-MADR D5,
+  0094-MADR) holds `CHANGELOG.md` to the `v*` tags and
+  `authcontract/CHANGELOG.md` to the `authcontract/v*` tags: a section for
+  each tag, newest first, dated by its tag's commit. It compares each
+  released section's body, and its tag's compare link, with their text in
+  the first tag's file that carries them (v1.16.0's for v1.0.0 to v1.15.0,
+  v1.24.1's for v1.24.0), so a new entry goes under `[Unreleased]`. A
+  released heading may carry a `[YANKED]` suffix; a needed fix is an `ACCEPTED`
+  entry, a tag and the reviewed commit whose text becomes the section's,
+  with its record. It reads the tags' files with two `git cat-file`
+  processes per file and fetches nothing. A shallow clone, a tag or
+  accepted commit the clone does not hold, two or more untagged sections
+  above the newest tag, or a changelog that is not UTF-8 exits 2. A
+  missing middle tag exits 1, as a section with no tag, and a missing
+  newest tag reads as the release being prepared. A stale `ACCEPTED`
+  entry fails. `--section TAG` prints a section for the release job.
 - **`markdownlint`**, **`links-check`** and **`disclosure-check`**
   (0063-MADR) are the documentation gates both workflows run.
   `markdownlint` runs `markdownlint-cli2` at the `Makefile`'s one pin on
@@ -1628,7 +1644,10 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   generate-check, parity-check, coverage-check, api-check, contract-check, records-check,
   tables-check, fixtures-check, docs-check, changelog-check, links-check,
   disclosure-check, and markdownlint's file list and target), and requires
-  each to fail, then every gate to pass on a clean copy. Its workflow
+  each to fail, then every gate to pass on a clean copy. Its changelog
+  cases anchor on old tags or find the newest tagged section at run time,
+  and tag the release being prepared before they tag or add a section, so
+  none depends on which tag is newest (0094-MADR RS17). Its workflow
   contract reads both workflows' lines: `ci.yml` keeps its triggers and
   gains no `paths` filter, `docs.yml` runs for every path `ci.yml`
   ignores, each gate is a Markdown gate, run by both, or a code gate, run
@@ -1691,8 +1710,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
     markdownlint links-check disclosure-check gate-selftest`.
 
   It checks out the full history, so that `api-check` and `changelog-check`
-  see the tags. A job stops after 30 minutes, and a newer push to a pull
-  request cancels its older run. On a `v*` tag, once every `validate` job
+  see the tags; without them `changelog-check` exits 2 (0094-MADR D4). A
+  job stops after 30 minutes, and a newer push to a pull request cancels
+  its older run. On a `v*` tag, once every `validate` job
   has passed, the `release` job, the only one that may write, creates the
   tag's GitHub Release with its `CHANGELOG.md` section as the notes, each
   relative link pointed at its file at the tag (0048-MADR D5; 0048-PLAN

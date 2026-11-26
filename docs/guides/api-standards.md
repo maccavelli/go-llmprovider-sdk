@@ -412,7 +412,18 @@ These rules are
   release's section is written before its tag, and CI's `release` job makes
   the tag's Release with that section as its notes. The release then
   deletes the Release of the tag that falls to seventh, keeping the tag and
-  its section. (0048 D5, A4; 0055, amendment of 2026-11-10)
+  its section. A released section is frozen: `make changelog-check`
+  compares its body and its tag's compare link with their text in the first
+  tag's file that carries them, so a later entry goes under `[Unreleased]`.
+  For v1.0.0 to v1.15.0 that file is v1.16.0's, and for v1.24.0 it is
+  v1.24.1's: their own tags carry no such section, so their notes are the
+  text those releases first shipped. A released heading may carry a
+  `[YANKED]` suffix. A needed fix is an entry in `scripts/check_changelog.py`'s
+  `ACCEPTED`: the tag, the reviewed commit whose text becomes the
+  section's, and its record, whose PLAN lists `gh release edit` for the
+  tag's Release as an owner step. That commit must be in CI's clone, so
+  the fix commit lands before its entry or with it. (0048 D5, A4; 0055, amendment of
+  2026-11-10; 0094)
 - **R54. The Go floor is `go 1.27.4`,** with no `toolchain` line, and CI
   builds with the version `go.mod` names. Go 1.27 is the least the module
   builds with: it uses `encoding/json/v2` and `encoding/json/jsontext`, in
@@ -468,7 +479,7 @@ D9 ("0089 D*n*").
 | R47 | `make coverage-check` | S12 |
 | R48 | `make api-check` | S12 |
 | R50–R52 | `make docs-check` (`sdkaudit -check`) | 0048-PLAN Phase 6 |
-| R53 | `make changelog-check` | 0048-PLAN Phase 5 |
+| R53 | `make changelog-check`, which also compares each released section with its released text | 0048-PLAN Phase 5, 0094-PLAN Phase 1 |
 | R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1, 0055-MADR, 0077-MADR |
 | R56 | `git grep -n -w` of each thinking rule 0062 removed, which 0062-PLAN Phase 6's record names: none found | 0062-MADR Confirmation |
 | R57 | `git grep -n -w` of 32000, 16384 and 8192 in the module's non-test Go code: only the listing probes' given 8192 and `MaxTokens`' default, which decides nothing unless given; 0089-PLAN's merged phase records the run | 0089-MADR D9 |

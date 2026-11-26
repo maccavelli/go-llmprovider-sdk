@@ -42,6 +42,7 @@ import plant
 import recordlint
 import records
 import redgreen
+import releasewindow
 
 
 def git(cwd: Path, *args: str) -> None:
@@ -529,6 +530,221 @@ class TestPlant(unittest.TestCase):
         rc, out = self.run_spec([{"name": "absent", "file": "plant.go", "old": "a * b", "new": "a / b"}])
         self.assertEqual(rc, 2, out)
         self.assertIn("absent", out)
+
+
+RW_LOG = ("# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Next.\n\n## [v1.1.0] - 2026-01-02\n\n- One.\n\n"
+          "## [v1.0.0] - 2026-01-01\n\n- First.\n\n"
+          "[Unreleased]: https://example.invalid/compare/v1.1.0...HEAD\n"
+          "[v1.1.0]: https://example.invalid/compare/v1.0.0...v1.1.0\n")
+RW_NESTED = "# Changelog\n\n## [Unreleased]\n\n## [v0.1.0] - 2026-01-01\n\n- First.\n"
+# A fixture's changelog case holding RS3's pick line, releasewindow.RS3_PICK:
+# with its carry check it picks "a"; without it, RS35's plant, "b".
+RW_PICK_CASES = ("import unittest\n\n\ndef tag_exists(tree, tag):\n    return True\n\n\n"
+                 "def carried_at(tree, tag):\n    return tag == \"a\"\n\n\n"
+                 "class Match:\n    def __init__(self, tag):\n        self.tag = tag\n\n"
+                 "    def group(self, n):\n        return self.tag\n\n\n"
+                 "class Case(unittest.TestCase):\n    tree = None\n\n    def test_changelog_pick(self):\n"
+                 "        newest = next((m for m in (Match(\"b\"), Match(\"a\"))\n"
+                 + releasewindow.RS3_PICK +
+                 "        self.assertEqual(newest.tag, \"a\")\n")
+
+
+class TestReleaseWindow(unittest.TestCase):
+    """releasewindow puts each clone in its release state (0094-PLAN D-5)."""
+
+    def seed(self, log: str = RW_LOG, files: dict[str, str] | None = None) -> Path:
+        """A small repository whose changelogs are in the SDK's form: v1.0.0 and v1.1.0 tagged
+        at their dates, authcontract/v0.1.0 too, and [Unreleased] holding an entry; files are
+        added as given."""
+        root = temp_repo(self)
+        (root / "authcontract").mkdir()
+        (root / "authcontract/CHANGELOG.md").write_text(RW_NESTED, encoding="utf-8")
+        for rel, text in (files or {}).items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text, encoding="utf-8")
+        for version, date in (("v1.0.0", "2026-01-01"), ("v1.1.0", "2026-01-02")):
+            (root / "CHANGELOG.md").write_text(log if version == "v1.1.0" else "# Changelog\n", encoding="utf-8")
+            git(root, "add", ".")
+            subprocess.run(["git", "commit", "-q", "-m", version], cwd=root, check=True, capture_output=True,
+                           env={**os.environ, "GIT_AUTHOR_DATE": f"{date}T12:00:00+0000",
+                                "GIT_COMMITTER_DATE": f"{date}T12:00:00+0000"})
+            git(root, "tag", version)
+        git(root, "tag", "authcontract/v0.1.0")
+        return root
+
+    def clone_in(self, state: str) -> tuple[Path, str]:
+        src = self.seed()
+        dest = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, dest, ignore_errors=True)
+        _common.scratch_clone(src, dest / "clone")
+        return dest / "clone", releasewindow.make_state(dest / "clone", state, "2099-01-01")
+
+    def file_at(self, clone: Path, rev: str, path: str = "CHANGELOG.md") -> str:
+        return subprocess.run(["git", "show", f"{rev}:{path}"], cwd=clone, capture_output=True, text=True,
+                              check=True).stdout
+
+    def test_window_holds_both_date_steps_untagged(self) -> None:
+        clone, nxt = self.clone_in("window")
+        self.assertEqual(nxt, "v1.2.0")
+        self.assertFalse(releasewindow.tagged(clone, "v1.2.0"))
+        log = (clone / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [Unreleased]\n\n## [v1.2.0] - 2099-01-01\n\n### Added\n\n- Next.", log)
+        self.assertIn("[Unreleased]: https://example.invalid/compare/v1.2.0...HEAD\n"
+                      "[v1.2.0]: https://example.invalid/compare/v1.1.0...v1.2.0\n", log)
+        self.assertIn("## [v0.2.0] - 2099-01-01", (clone / "authcontract/CHANGELOG.md").read_text(encoding="utf-8"))
+        self.assertFalse(releasewindow.tagged(clone, "authcontract/v0.2.0"))
+
+    def test_tagged_tags_the_date_step_at_its_date(self) -> None:
+        clone, nxt = self.clone_in("tagged")
+        self.assertIn(f"## [{nxt}] - 2099-01-01", self.file_at(clone, nxt))
+        self.assertEqual(subprocess.run(["git", "log", "-1", "--format=%cs", nxt], cwd=clone, capture_output=True,
+                                        text=True, check=True).stdout.strip(), "2099-01-01")
+
+    def test_early_tags_before_the_date_step(self) -> None:
+        clone, nxt = self.clone_in("early")
+        self.assertNotIn(f"## [{nxt}]", self.file_at(clone, nxt))
+        self.assertIn(f"## [{nxt}] - 2099-01-01", (clone / "CHANGELOG.md").read_text(encoding="utf-8"))
+        self.assertEqual(subprocess.run(["git", "log", "-1", "--format=%cs", nxt], cwd=clone, capture_output=True,
+                                        text=True, check=True).stdout.strip(), "2099-01-01")
+
+    def test_an_untagged_section_is_tagged_first(self) -> None:
+        """A tree already in the window: its dated, untagged section is tagged
+        at its date before the next state is made."""
+        src = self.seed(RW_LOG.replace("## [Unreleased]\n\n### Added\n\n- Next.\n\n",
+                                       "## [Unreleased]\n\n## [v1.2.0] - 2026-01-03\n\n- Two.\n\n"))
+        dest = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, dest, ignore_errors=True)
+        _common.scratch_clone(src, dest / "clone")
+        nxt = releasewindow.make_state(dest / "clone", "window", "2099-01-01")
+        self.assertEqual(nxt, "v1.3.0")
+        self.assertTrue(releasewindow.tagged(dest / "clone", "v1.2.0"))
+        self.assertEqual(self.date_of(dest / "clone", "v1.2.0"), "2026-01-03")
+
+    def date_of(self, clone: Path, rev: str) -> str:
+        return subprocess.run(["git", "log", "-1", "--format=%cs", rev], cwd=clone, capture_output=True, text=True,
+                              check=True).stdout.strip()
+
+    def test_a_tag_ahead_of_its_section_is_date_stepped(self) -> None:
+        """A tree in the early state, in both namespaces: v1.2.0 and
+        authcontract/v0.2.0 tagged at a commit whose files carry no section
+        for them. Each state date-steps them at their tags' date first."""
+        for state in releasewindow.STATES:
+            with self.subTest(state=state):
+                src = self.seed()
+                (src / "early.txt").write_text("tagged before its date step\n", encoding="utf-8")
+                git(src, "add", ".")
+                subprocess.run(["git", "commit", "-q", "-m", "early"], cwd=src, check=True, capture_output=True,
+                               env={**os.environ, "GIT_AUTHOR_DATE": "2026-01-05T12:00:00+0000",
+                                    "GIT_COMMITTER_DATE": "2026-01-05T12:00:00+0000"})
+                git(src, "tag", "v1.2.0")
+                git(src, "tag", "authcontract/v0.2.0")
+                dest = Path(tempfile.mkdtemp())
+                self.addCleanup(shutil.rmtree, dest, ignore_errors=True)
+                _common.scratch_clone(src, dest / "clone")
+                nxt = releasewindow.make_state(dest / "clone", state, "2099-01-01")
+                self.assertEqual(nxt, "v1.3.0")
+                log = (dest / "clone/CHANGELOG.md").read_text(encoding="utf-8")
+                self.assertIn("## [v1.2.0] - 2026-01-05\n\n### Added\n\n- Next.", log)
+                nested = (dest / "clone/authcontract/CHANGELOG.md").read_text(encoding="utf-8")
+                self.assertIn("## [v0.2.0] - 2026-01-05", nested)
+                if state == "window":
+                    self.assertIn("## [v0.3.0] - 2099-01-01", nested)
+
+    def test_a_source_that_is_not_a_repository_is_a_tool_error(self) -> None:
+        src, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        for path in (src, out):
+            self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        rc, text = call(releasewindow.main, "--src", str(src), "--out", str(out), "--states", "window")
+        self.assertEqual(rc, 2, text)
+        self.assertIn("FAIL releasewindow: window: cannot make the scratch clone of ", text)
+        self.assertNotIn("Traceback", text)
+
+    def test_clones_are_removed_unless_kept(self) -> None:
+        """Each state's clone goes when the state finishes, after a tool error
+        too; --keep keeps it."""
+        src = self.seed()
+        for keep in (False, True):
+            with self.subTest(keep=keep):
+                out = Path(tempfile.mkdtemp())
+                self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+                argv = ["--src", str(src), "--out", str(out), "--states", "early", "--no-plants"]
+                rc, text = call(lambda a: releasewindow.main(a, today=lambda: "2099-01-01"),
+                                *argv, *(["--keep"] if keep else []))
+                self.assertEqual(rc, 1, text)
+                self.assertEqual((out / "early").exists(), keep, text)
+        broken = self.seed("# Changelog\n\n## [Unreleased]\n")
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        rc, text = call(releasewindow.main, "--src", str(broken), "--out", str(out), "--states", "window")
+        self.assertEqual(rc, 2, text)
+        self.assertFalse((out / "window").exists(), "the clone was left after a tool error")
+
+    def plant_fixture(self, cases: str) -> Path:
+        """A seed whose scripts/test_gates.py holds cases and whose Makefile has a
+        changelog-check target that passes."""
+        return self.seed(files={"scripts/test_gates.py": cases, "Makefile": "changelog-check:\n\t@true\n"})
+
+    def run_early(self, src: Path) -> tuple[int, str]:
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        return call(lambda a: releasewindow.main(a, today=lambda: "2099-01-01"), "--src", str(src), "--out",
+                    str(out), "--states", "early")
+
+    def refs(self, repo: Path) -> str:
+        return subprocess.run(["git", "for-each-ref", "--format=%(refname) %(objectname)"], cwd=repo,
+                              capture_output=True, text=True, check=True).stdout
+
+    def test_the_plant_path_runs_and_leaves_the_source_alone(self) -> None:
+        """RS35's plant on a fixture whose case it breaks: caught; the source's
+        refs and working tree are as they were."""
+        src = self.plant_fixture(RW_PICK_CASES)
+        refs = self.refs(src)
+        rc, text = self.run_early(src)
+        self.assertEqual(rc, 0, text)
+        self.assertIn("ok   early changelog cases", text)
+        self.assertIn("ok   early plant: RS3's case without its carry check (RS35)", text)
+        self.assertEqual(self.refs(src), refs, "main() changed the source's refs")
+        self.assertEqual(subprocess.run(["git", "status", "--porcelain"], cwd=src, capture_output=True, text=True,
+                                        check=True).stdout, "")
+
+    def test_a_plant_whose_anchor_does_not_match_is_labelled(self) -> None:
+        """plant.py's exit 2, an anchor that does not match, is not reported as
+        "not caught", and its output is kept."""
+        src = self.plant_fixture("import unittest\n\n\nclass Case(unittest.TestCase):\n"
+                                 "    def test_changelog_none(self):\n        pass\n")
+        rc, text = self.run_early(src)
+        self.assertEqual(rc, 1, text)
+        self.assertIn("FAIL early plant: RS3's case without its carry check (RS35): exit 2 (its anchor did not "
+                      "match, or plant.py's tool error); output in ", text)
+        kept = re.search(r"output in (\S+early-plant-\d+\.out)", text)
+        self.assertIsNotNone(kept, text)
+        self.assertIn("matches 0 time(s)", Path(kept.group(1)).read_text(encoding="utf-8"))
+
+    def test_a_tree_whose_cases_fail_prints_fail_lines(self) -> None:
+        """The planted input: a tree with no changelog cases and no make target
+        fails both checks, each with a FAIL line naming its state."""
+        src = self.seed()
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        rc, text = call(lambda argv: releasewindow.main(argv, today=lambda: "2099-01-01"), "--src", str(src),
+                        "--out", str(out), "--states", "early", "--no-plants")
+        self.assertEqual(rc, 1, text)
+        self.assertIn("FAIL early changelog cases: exit ", text)
+        self.assertIn("FAIL early make changelog-check: exit ", text)
+        self.assertIn("2 failure(s)", text)
+
+    def test_no_dated_section_is_a_tool_error(self) -> None:
+        src = self.seed("# Changelog\n\n## [Unreleased]\n")
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        rc, text = call(releasewindow.main, "--src", str(src), "--out", str(out), "--states", "window")
+        self.assertEqual(rc, 2, text)
+        self.assertIn("no dated release section", text)
+
+    def test_an_unknown_state_is_a_tool_error(self) -> None:
+        rc, text = call(releasewindow.main, "--states", "open")
+        self.assertEqual(rc, 2, text)
+        self.assertIn("releasewindow: --states takes window, tagged, early", text)
 
 
 RG_MOD = "module example.com/rg\n\ngo 1.21\n"

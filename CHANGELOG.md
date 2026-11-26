@@ -5,9 +5,11 @@ All notable changes to this module are recorded here, in the form of
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): from
 `v1.0.0`, a release that is not major only adds to the exported API, which
 `make api-check` enforces (the standards guide's R48). `make changelog-check`
-holds this file to the release tags, and the six newest tags' GitHub Releases
-carry their sections. An older tag's Release page still opens, showing the
-tag and its commit without notes; its notes are its section here.
+holds this file to the release tags and keeps each released section as it
+was released, so an entry goes under `[Unreleased]`; the six newest tags'
+GitHub Releases carry their sections. An older tag's Release page still
+opens, showing the tag and its commit without notes; its notes are its
+section here.
 
 *(2026-11-24: one recorded exception to that promise. v1.33.0 removes eight
 v1 names, as [0093-MADR](docs/decisions/0093-MADR-take-model-metadata-from-the-caller.md)
@@ -37,6 +39,14 @@ listed under **Removed** below.)*
   that are empty, white space or `null`, and a last `{}` call on Messages,
   Responses and Chat Completions, whose arguments stream in pieces, is
   still dropped and named (0088-MADR ST107, ST110, OQ21).
+- CI's `changelog-check` fails an edit to a released section of
+  `CHANGELOG.md` or `authcontract/CHANGELOG.md`, or to a released tag's
+  compare link: each is compared with its text in the first tag's file
+  that carries it, so a new entry goes under `[Unreleased]`. A released
+  heading may carry a `[YANKED]` suffix. A shallow clone, or two or more
+  untagged sections above the newest tag, now fails it as a tool error.
+  The module's code is unchanged
+  ([0094-MADR](docs/decisions/0094-MADR-refuse-an-edit-to-a-released-changelog-section.md)).
 
 ### Fixed
 

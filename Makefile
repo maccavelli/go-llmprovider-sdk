@@ -102,8 +102,9 @@ tables-check: ## Checks the import tables and the live variables against the cod
 fixtures-check: ## Checks recorded fixtures for account data
 	python3 -B scripts/check_fixtures.py
 
-# 0048-PLAN Phase 5: CHANGELOG.md has a section for every release tag (0048-MADR D5).
-changelog-check: ## Checks CHANGELOG.md against the release tags
+# 0048-PLAN Phase 5: CHANGELOG.md has a section for every release tag (0048-MADR D5);
+# 0094-PLAN Phase 1: a released section and its compare link keep their released text (0094-MADR D1).
+changelog-check: ## Checks CHANGELOG.md against the release tags and their released text
 	python3 -B scripts/check_changelog.py
 
 # 0048-PLAN Phase 6: the API audit's examples, concurrency and error docs (R50-R52).

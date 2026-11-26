@@ -168,6 +168,9 @@ that read Markdown: `make parity-check records-check tables-check
 changelog-check markdownlint links-check disclosure-check gate-selftest`;
 a tag always runs CI in full
 (`docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md`).
+`changelog-check` fails an edit to a released section of a changelog, or
+to a released tag's compare link: a new entry goes under `[Unreleased]`
+(`docs/decisions/0094-MADR-refuse-an-edit-to-a-released-changelog-section.md`).
 `markdownlint` lints every Markdown file but the records, at the one pin
 the `Makefile` sets (`MARKDOWNLINT`); `links-check` checks every relative
 link; `disclosure-check` fails on a real home path, macOS, Linux or
@@ -208,6 +211,10 @@ a gate that reads Markdown: a new gate goes in `MARKDOWN_GATES` or
   process's catalog caches, on a scratch clone: a loopback URL by default,
   and with `--any-url` any URL, by the whole key, with each key two tests
   share (0058-MADR D5, D7).
+- `tools/releasewindow.py` runs the changelog self-tests on three scratch
+  clones, one per release state (the date step untagged, tagged, and a tag
+  made before it), with their plants; run it after a change to
+  `scripts/check_changelog.py` or its cases (0094-MADR RS17).
 - `tools/records.py add RECORD...` and `status RECORD STATUS` change a
   record's status and its index row together, and `open` lists the
   records still open (0067-MADR D3); `tools/recordlint.py
