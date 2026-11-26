@@ -12,8 +12,8 @@
 //
 // Only POST {base}/chat/completions is used. Kilo also answers /responses and
 // /messages with the same model — it translates formats, unlike OpenCode —
-// but those routes are undocumented, and Kilo's /responses puts reasoning
-// where the Responses decoder does not read it. One route reaches the whole
+// but those routes are undocumented, and Kilo's /responses sends reasoning
+// as text alone, which is read but never replayed. One route reaches the whole
 // catalog.
 //
 // Chat Completions stays the only route (0091-MADR ST1). A read of Kilo's

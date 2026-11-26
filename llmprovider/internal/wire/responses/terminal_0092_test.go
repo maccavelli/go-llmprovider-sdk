@@ -427,12 +427,18 @@ func TestTerminalFill_Dropped_0092(t *testing.T) {
 }
 
 // TestTerminalFill_Collect_0092 (ST30): a Generate read over the stream
-// counts the deltas against ReplyLimit, not a taken message's text again: 10
-// MiB of deltas and a terminal message of the same text return the answer.
+// counts the deltas against StreamAnswerLimit, 32 MiB (0091-MADR ST71), not a
+// taken message's text again: 15 MiB of reasoning deltas, 10 MiB of text
+// deltas and a terminal message of the same 10 MiB, under EventLimit, return
+// the answer, about 25 MiB counted; counting the message too, about 35 MiB,
+// would be over the bound.
 func TestTerminalFill_Collect_0092(t *testing.T) {
 	chunk := strings.Repeat("x", 64<<10)
 	var b strings.Builder
 	b.WriteString(tfCreated + tfAdded(0, tfMsg("msg_1", "")))
+	for range 240 {
+		b.WriteString(tfEvent("response.reasoning_summary_text.delta", `,"output_index":0,"delta":"`+chunk+`"`))
+	}
 	for range 160 {
 		b.WriteString(tfDelta(chunk))
 	}

@@ -257,6 +257,11 @@ and D2's reasoning names:
 * **D2.** The reasoning delta mapped to `EventReasoningDelta` is
   `response.reasoning_summary_text.delta`, the only one seen (Grok).
   `response.reasoning_text.delta` was not seen and is not mapped.
+  *(2026-11-26: since
+  [0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)
+  ST63 and ST67, it is mapped to `EventReasoningDelta` on every Responses
+  provider, after probes of 2026-11-23 saw Kilo, Together and Hugging Face
+  send it. The text above is unchanged.)*
 
 ### Amendment (2026-10-10): a refusal's delta is a text delta
 

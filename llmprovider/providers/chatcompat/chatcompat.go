@@ -42,34 +42,61 @@
 // catalog.Lister: ListCatalog is the same listing as a catalog.Catalog, its
 // menu and facts with it, with no probe (0066-MADR Q1).
 //
+// WithResponses is for a server the caller knows speaks OpenAI's Responses
+// API: Generate and Stream then send POST {base}/responses, a listing probe
+// among them, and read the reply with the decoder the openai and grok
+// providers share; the listing and the capabilities are unchanged
+// (0091-MADR ST50 to ST52, ST59). No server was measured through this path.
+// The request carries store false and asks for encrypted reasoning; its
+// effort, image refusal and output limit follow the same facts as on Chat
+// Completions. A server that refuses the route gets its error back: there
+// is no fallback to Chat Completions. Against Chat Completions, a caller
+// who gives it loses: a 200 reply with status failed, as Hugging Face's
+// router sends for a bad key, is read as a retryable outage (ST53); an
+// effort a model cannot take is dropped with no warning by a server that
+// ignores it, as Ollama's /v1/responses does (ST54); a refused limit's
+// "supports at most" cap is not learned (ST56); and prior reasoning goes
+// back only when it carries encrypted content, never under a facts-named
+// field (ST51). Reasoning a server sends only as reasoning_text is shown,
+// not sent back (ST63). A reply finished as completed whose output_tokens
+// reached the limit sent is read as cut, finishing length, as Ollama's
+// /v1/responses hides a cut that way; one that ends on exactly the limit's
+// last token is reported cut too (ST55, ST69).
+// A refusal finishes content_filter, at the limit or under it (ST70).
+//
 // Capabilities: tools are Supported, sent with function.strict as the caller
 // sets it (0032-MADR D2). Forced tool choice is BestEffort: the server decides.
 // Reasoning is BestEffort: only some servers and models reason. Continuation
-// is Unsupported: Chat Completions is stateless. Native streaming is
-// Supported: Stream asks for an event stream, with its usage, and yields its
-// events as they arrive (0031-MADR E1, E5).
+// is Unsupported: Chat Completions is stateless, and with WithResponses no
+// previous_response_id is sent either. Native streaming is Supported: Stream
+// asks for an event stream, on Chat Completions with its usage, and yields
+// its events as they arrive (0031-MADR E1, E5).
 //
-// Images are Supported: an ImageItem goes as a Chat Completions image_url
+// Images are Supported: on Chat Completions an ImageItem goes as an image_url
 // part, {"url": …}, its bytes as a data URL, joined to the user's message
-// before it, whose text becomes a text part. The server decides what it
-// takes. A model whose facts state its input without image is refused before
-// the network, with ErrUnsupported (0061-MADR D5).
+// before it, whose text becomes a text part; with WithResponses, as an
+// input_image part. The server decides what it takes. A model whose facts
+// state its input without image is refused before the network, with
+// ErrUnsupported (0061-MADR D5).
 //
-// Degradations:
+// Degradations, as on Chat Completions; WithResponses' are in its paragraph
+// above:
 //   - A tool result's IsError is not sent: Chat Completions has no error
 //     field, so Output is sent as it is (0032-MADR D3).
-//   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
-//     a Budget is not sent.
+//   - Reasoning takes an effort, sent as reasoning_effort (medium with none),
+//     or with WithResponses as reasoning.effort; a Budget is not sent.
 //   - The effort, max included, is sent as asked, the server's model having
 //     no facts here. A refusal of the effort sent, in a form 0062-PLAN Phase 1
-//     recorded for the Chat Completions wire, is remembered for the rest of
+//     recorded for the Chat Completions wire, or with WithResponses for the
+//     Responses wire, is remembered for the rest of
 //     the process, in memory only, and the request is sent again, at most 7
 //     times in all, at the next effort; the Response, or a stream's done
 //     event, carries a WarningReasoningLearned whose Refused a caller can
 //     keep, and pass back with WithReasoningRefusals (0062-MADR D2 to D6).
 //   - Instructions are sent as a leading system message.
 //   - ToolChoiceRequired and ToolChoiceNone are sent as "required" and
-//     "none", the Chat Completions values.
+//     "none", the Chat Completions values, which the Responses API takes
+//     too.
 //
 // Request.Cache sends nothing: a server's caching parameter, where it has one,
 // is its own (0039-MADR D4).
@@ -120,6 +147,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
 const (
@@ -174,6 +202,9 @@ type provider struct {
 	// D6).
 	thinking *wire.Learned
 	refusals []llmprovider.ReasoningRefusal
+	// responses is WithResponses': Generate and Stream go to /responses
+	// (0091-MADR ST50; responses.go).
+	responses bool
 }
 
 // New builds a Chat Completions provider. It needs WithID and WithBaseURL. No
@@ -230,6 +261,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		listing:    listing,
 		thinking:   ref.LearnedThinking(),
 		refusals:   st.ReasoningRefusals(),
+		responses:  responsesOn(st.Values()),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.BestEffort,
@@ -259,7 +291,8 @@ func (p *provider) ID() llmprovider.ProviderID { return p.id }
 
 func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 
-// Generate sends req to the server's chat completions.
+// Generate sends req to the server's chat completions, or with
+// WithResponses to its responses (0091-MADR ST50).
 // When the SDK chose its output limit or left it out, it is read over the
 // stream and returned whole (0088-MADR ST88).
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
@@ -275,7 +308,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	effort, limit := p.learner(req), p.limitRetry(req, false)
 	resp, err := wire.Send(ctx, string(p.id), p.src,
 		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort, limit) },
-		chatcompletions.DecodeFor(string(p.id)), wire.Retries(limit.Check, effort.Check))
+		p.decode(limit), wire.Retries(limit.Check, effort.Check))
 	// The limit sent, and a cap learned, are reported: on the response, or on
 	// the error that ends the call (0089-MADR D5, D7, DL78).
 	err = limit.Finish(resp, err, p.observe(req, false))
@@ -283,15 +316,20 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 }
 
 // learner is req's effort, learned from the model's refusals of it
-// (0062-MADR D2 to D6), read by the Chat Completions wire's matcher.
+// (0062-MADR D2 to D6), read by the Chat Completions wire's matcher, or the
+// Responses wire's with WithResponses (0091-MADR ST54).
 func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
-	return wire.NewLearner(p.thinking, string(p.id), p.baseURL, cmp.Or(req.Model, p.model), p.refusals,
-		chatcompletions.MatchRefusal)
+	match := chatcompletions.MatchRefusal
+	if p.responses {
+		match = responses.MatchRefusal
+	}
+	return wire.NewLearner(p.thinking, string(p.id), p.baseURL, cmp.Or(req.Model, p.model), p.refusals, match)
 }
 
-// Stream streams req from the Chat Completions API as it is generated
-// (0031-MADR E1, E5): the request asks for an event stream with its usage,
-// and each event is yielded as it arrives. A 401 before the first event
+// Stream streams req from the Chat Completions API, or with WithResponses
+// from the Responses API, as it is generated (0031-MADR E1, E5; 0091-MADR
+// ST50): the request asks for an event stream, on Chat Completions with its
+// usage, and each event is yielded as it arrives. A 401 before the first event
 // renews a refreshable token and sends once more.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
 	if err := p.caps.Check(req); err != nil {
@@ -302,7 +340,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		effort, limit := p.learner(req), p.limitRetry(req, true)
 		stream := wire.StreamEventsRetry(ctx, string(p.id), p.src,
 			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, limit) },
-			chatcompletions.Events, wire.Retries(limit.Check, effort.Check))
+			p.events(limit), wire.Retries(limit.Check, effort.Check))
 		for ev, err := range limit.FinishStream(stream, p.observe(req, true)) {
 			if !yield(ev, err) {
 				return
@@ -321,24 +359,37 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 }
 
 // call is the Chat Completions request for req, asking for an event stream
-// with its usage when stream is set (0031-MADR E5).
+// with its usage when stream is set (0031-MADR E5); or, with WithResponses,
+// the Responses request (0091-MADR ST50, ST51).
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	effort *wire.Learner, limit *wire.LimitRetry) wire.Call {
 	facts := p.facts(ctx, req, token)
 	// The output limit, none unless the caller gives one (0089-MADR D6).
 	outLimit := p.chooseLimit(ctx, req, token, stream, limit)
-	body, warnings := p.body(req, facts, effort, outLimit)
-	wire.DropLimit(body, outLimit, "max_tokens")
-	if stream {
-		body["stream"] = true
-		body["stream_options"] = map[string]any{"include_usage": true}
+	var body map[string]any
+	var warnings []llmprovider.Warning
+	path := "/chat/completions"
+	switch {
+	case p.responses:
+		body, warnings = p.responsesBody(req, facts, effort, outLimit)
+		path = "/responses"
+		if stream {
+			body["stream"] = true
+		}
+	default:
+		body, warnings = p.body(req, facts, effort, outLimit)
+		wire.DropLimit(body, outLimit, "max_tokens")
+		if stream {
+			body["stream"] = true
+			body["stream_options"] = map[string]any{"include_usage": true}
+		}
 	}
 	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(p.id),
 		Client:   p.client,
 		Logger:   p.logger,
-		URL:      p.baseURL + "/chat/completions",
+		URL:      p.baseURL + path,
 		Body:     body,
 		Stream:   stream,
 		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6

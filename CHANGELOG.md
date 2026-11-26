@@ -27,8 +27,28 @@ listed under **Removed** below.)*
   that keeps it, with no `WarningToolCallCut`; unset, W12 wants
   `ErrIncomplete` as before. Gemini's and OpenCode's Google-route
   conformance harnesses set it (0088-MADR ST111).
+- `chatcompat.WithResponses()`: `Generate` and `Stream` go to the server's
+  `POST {base}/responses`, for a server the caller knows speaks OpenAI's
+  Responses API. What it sends, reads and gives up is in the package doc
+  ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
+  ST50 to ST71).
 
 ### Changed
+
+- `openai`, `grok` and OpenCode's responses route: a stream's raw
+  reasoning deltas, `response.reasoning_text.delta`, are now yielded as
+  `EventReasoningDelta`, beside the summary's; a reasoning item whose
+  summary is empty is now kept, its text read from its `reasoning_text`
+  content, and is never sent back
+  ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
+  ST10, ST67).
+- Every provider, on every wire: an answer `Generate` reads over the
+  stream, when it names no output limit, is now bounded at 32 MiB of
+  text, reasoning and call arguments, up from 16 MiB, since reasoning may
+  now be counted twice; past it, `ErrIncomplete` as before. A plain
+  reply's body keeps 16 MiB
+  ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
+  ST71).
 
 - An answer the output limit cut: on generateContent and an Interaction's
   plain reply, a last tool call that takes no arguments, `{}`, is now

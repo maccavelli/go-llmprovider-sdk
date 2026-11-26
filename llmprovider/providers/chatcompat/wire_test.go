@@ -23,6 +23,17 @@ var wireCases = []wirecase.Case{{
 		return New(append([]llmprovider.Option{WithID(testID), llmprovider.WithAPIKey("sk-wire"),
 			llmprovider.WithModel("acme-model"), catalog.WithCache(new(catalog.Cache))}, wirecase.Opts(u, extra...)...)...)
 	},
+}, {
+	// chatcompat-responses is the same provider built with WithResponses:
+	// its Responses requests, Generate over the stream where it names no
+	// limit (0091-MADR ST51, ST57, ST18, ST23).
+	Name:           "chatcompat-responses",
+	Listing:        wirecase.ListingDataIDs("acme-model", "acme-small"),
+	NoContinuation: true,
+	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
+		return New(append([]llmprovider.Option{WithID(testID), WithResponses(), llmprovider.WithAPIKey("sk-wire"),
+			llmprovider.WithModel("acme-model"), catalog.WithCache(new(catalog.Cache))}, wirecase.Opts(u, extra...)...)...)
+	},
 }}
 
 // TestWireGoldens is G-wire (0015-MADR D12) for chatcompat.

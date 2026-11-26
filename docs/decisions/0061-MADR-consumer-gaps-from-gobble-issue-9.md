@@ -235,6 +235,12 @@ each (a) on 2026-10-24, and the PLAN's Phase 0 marked this record
 * **The package** `llmprovider/providers/chatcompat` speaks Chat Completions
   through `internal/wire/chatcompletions`, as Hugging Face and Together do.
   R2's provider row covers it (F11); `docs/architecture.md` gains its row.
+  *(2026-11-26: a caller who gives `chatcompat.WithResponses()` has
+  `Generate` and `Stream` sent to the server's `/responses`, read by
+  `internal/wire/responses`, by
+  [0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)
+  ST5 and ST50 (OQ5 "Opt-in WithResponses()"). Without it, the package
+  speaks Chat Completions as above. The text above is unchanged.)*
 * **Exports:**
   * `New(opts ...llmprovider.Option) (llmprovider.Provider, error)`: one
     constructor, options only, no network call (R14, R40);

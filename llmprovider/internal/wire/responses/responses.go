@@ -1,5 +1,6 @@
 // Package responses is the OpenAI Responses wire, shared by the openai and
-// grok providers and OpenCode's responses route (0015-MADR D2).
+// grok providers and OpenCode's responses route (0015-MADR D2), and by a
+// chatcompat provider built with chatcompat.WithResponses (0091-MADR ST52).
 package responses
 
 import (
@@ -39,6 +40,10 @@ const (
 	statusIncomplete = "incomplete"
 	// statusFailed is the status of a response the service failed.
 	statusFailed = "failed"
+
+	// contentReasoningText is a reasoning item's content part that carries
+	// its text, where a server sends no summary (0091-MADR ST10).
+	contentReasoningText = "reasoning_text"
 )
 
 // InputItem is every Responses input item in one struct: a message, an
@@ -369,7 +374,20 @@ type Decoder struct {
 	// and the count taken of each item type, never an item's text, id or
 	// arguments. Nil writes nothing (0092-MADR ST20).
 	Logger *slog.Logger
+	// Limit is the output limit the request's attempt sent, set only by
+	// chatcompat's Responses path (0091-MADR ST33, ST55): a reply the
+	// decoder would finish as completed, its status completed, absent or
+	// any other but failed and incomplete (ST69), whose output_tokens
+	// reached Limit is read as one the limit cut, as a reply incomplete for
+	// max_output_tokens is. On a stream it is read before the held calls
+	// are released and before an announced item's check (ST34, ST65). Zero,
+	// as openai, grok and OpenCode leave it, reads no reply as cut (ST68).
+	Limit int
 }
+
+// atLimit reports a reply whose output_tokens, u's, reached d.Limit, so
+// that the limit cut it however its service finished it (0091-MADR ST55).
+func (d Decoder) atLimit(u usage) bool { return d.Limit > 0 && u.Output >= d.Limit }
 
 // DecodeFor is the package's DecodeFor, with d's Search.
 func (d Decoder) DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
@@ -430,8 +448,10 @@ func decodeAs(body io.Reader, provider string, d Decoder) (*llmprovider.Response
 	for _, out := range raw.Output {
 		refused = appendOutput(result, out, d) || refused
 	}
-	if raw.Status == statusIncomplete {
-		// A call's arguments stream in pieces (0088-MADR ST107).
+	if raw.Status == statusIncomplete || !refused && d.atLimit(raw.Usage) {
+		// A call's arguments stream in pieces (0088-MADR ST107). A reply
+		// at the limit sent is cut whatever its status said (0091-MADR
+		// ST55, ST69), unless it is a refusal, which is read first (ST70).
 		return wire.CutAnswer("responses", result, reasonOutputLimit, true)
 	}
 	return completed(result, refused)
@@ -592,6 +612,16 @@ func appendOutput(r *llmprovider.Response, out outputItem, d Decoder) (refused b
 				sb.WriteString(s.Text)
 			}
 		}
+		// A server that sends its reasoning as text puts it in content, as
+		// reasoning_text: it is read when the summary holds none (0091-MADR
+		// ST10, ST63). Its text is never sent back; only encrypted content is.
+		if sb.Len() == 0 {
+			for _, c := range out.Content {
+				if c.Type == contentReasoningText {
+					sb.WriteString(c.Text)
+				}
+			}
+		}
 		// An item with neither text nor encrypted content says nothing, and
 		// is not kept (0020-MADR F24).
 		if sb.Len() > 0 || out.EncryptedContent != "" {
@@ -710,7 +740,8 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 
 // Events reads a Responses API event stream and yields its events as they
 // arrive (0031-MADR D2): a text delta as EventTextDelta, a reasoning summary
-// delta, the one measured, as EventReasoningDelta (0031-PLAN Phase 1), each
+// delta (0031-PLAN Phase 1) and a reasoning text delta (0091-MADR ST63) as
+// EventReasoningDelta, each
 // response.output_item.done's item as EventItem, and response.completed, or
 // response.incomplete for the output limit, as EventDone, carrying the
 // Response ReadStream returns. A call whose arguments are {} or not whole is
@@ -1101,6 +1132,10 @@ func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Ev
 	result.Usage = event.Response.Usage.counts()
 	taken, counts := s.takeTerminal(event.Response.Output)
 	s.logTaken(event.Type, counts)
+	// A completed stream at the limit sent is a cut, decided before the
+	// announced items' check (0091-MADR ST55, ST65); a refusal is read
+	// first, and is not one (ST70).
+	cut = cut || !s.refused && s.d.atLimit(event.Response.Usage)
 	var resp *llmprovider.Response
 	var err error
 	if cut {
@@ -1146,7 +1181,9 @@ var handledEvents = map[string]bool{
 }
 
 // deltaEvents are the delta event types Events yields, and the Event type of
-// each. The reasoning delta is the one 0031-PLAN Phase 1 measured. A
+// each. The reasoning summary delta is the one 0031-PLAN Phase 1 measured;
+// the reasoning text delta, which probes of 2026-11-23 saw, is passed on on
+// every provider (0091-MADR ST63, ST67). A
 // refusal's delta is a text delta, since appendOutput keeps a refusal's text
 // as the answer's (0021-MADR W4); its name is OpenAI's documented one (0031-MADR,
 // amendment of 2026-10-10).
@@ -1154,6 +1191,7 @@ var deltaEvents = map[string]llmprovider.EventType{
 	"response.output_text.delta":            llmprovider.EventTextDelta,
 	"response.refusal.delta":                llmprovider.EventTextDelta,
 	"response.reasoning_summary_text.delta": llmprovider.EventReasoningDelta,
+	"response.reasoning_text.delta":         llmprovider.EventReasoningDelta,
 }
 
 // streamedEvents are the event types Events acts on: ReadStream's, and the

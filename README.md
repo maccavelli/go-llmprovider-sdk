@@ -128,7 +128,12 @@ functions over any provider, and `Stream` streams from every one.
   Responses and Chat Completions); on generateContent and a Gemini
   Interaction, whose calls arrive whole, it is returned as a call that
   takes none, except on an Interaction's stream when no non-empty piece
-  of its arguments arrived (0088-MADR ST107, ST110, OQ21). An empty answer is `ErrEmptyAnswer` too, with
+  of its arguments arrived (0088-MADR ST107, ST110, OQ21). On a
+  `chatcompat` provider built with `chatcompat.WithResponses()`, which sends
+  `Generate` and `Stream` to the server's `/responses`, a reply the server
+  finishes as completed is reported cut too when its `output_tokens`
+  reached the limit sent, as Ollama's `/v1/responses` hides a cut
+  (0091-MADR ST55). An empty answer is `ErrEmptyAnswer` too, with
   the service's reason, such as a refusal's `content_filter`. A Responses
   answer incomplete for another reason, such as a content filter, is
   `ErrIncomplete` with that reason.

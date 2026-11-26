@@ -21,6 +21,16 @@ func OverStream(req *llmprovider.Request, given bool) bool {
 	return req != nil && req.MaxOutputTokens <= 0 && !given
 }
 
+// StreamAnswerLimit bounds an answer Collect reads, on every wire: its text,
+// reasoning and call-argument bytes, reasoning counted so that a runaway
+// stream stops. It is twice ReplyLimit, which a plain reply's body keeps
+// (0091-MADR ST71, "Raise the bound", "Every provider, one bound
+// (Recommended)"): ReplyLimit's 16 MiB allowed 32 bytes for each of the
+// 524,288 output tokens the largest recorded output limit states, and a
+// server that streams both a summary and the raw text of its reasoning has
+// that reasoning counted twice.
+const StreamAnswerLimit = 2 * ReplyLimit
+
 // Collect is Generate's response read from stream, a provider's own Stream of
 // the request (0088-MADR ST88a to ST88d):
 //
@@ -32,8 +42,8 @@ func OverStream(req *llmprovider.Request, given bool) bool {
 //   - A failure after an event is marked transport.AfterEvent: nothing is
 //     resent after an event (ST88a).
 //   - The answer's text and reasoning deltas and its calls' arguments are
-//     bounded by ReplyLimit, as a plain reply's body is, on top of each
-//     event's EventLimit: past it, ErrIncomplete and no response (ST88b).
+//     bounded by StreamAnswerLimit, on top of each event's EventLimit: past
+//     it, ErrIncomplete and no response (ST88b).
 //   - The response is EventDone's, its usage as the stream reported it, zero
 //     when the server sent none (ST88c).
 func Collect(provider string, stream iter.Seq2[llmprovider.Event, error]) (*llmprovider.Response, error) {
@@ -61,9 +71,9 @@ func Collect(provider string, stream iter.Seq2[llmprovider.Event, error]) (*llmp
 			// An event type this reader does not know carries no answer.
 		}
 		started = true
-		if size > ReplyLimit {
+		if size > StreamAnswerLimit {
 			return nil, fmt.Errorf("%w: %s: the answer read over the stream is over %d MiB", llmprovider.ErrIncomplete,
-				provider, ReplyLimit>>20)
+				provider, StreamAnswerLimit>>20)
 		}
 	}
 	return nil, fmt.Errorf("%w: %s: the stream ended with no response", llmprovider.ErrIncomplete, provider)

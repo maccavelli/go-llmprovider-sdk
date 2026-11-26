@@ -202,35 +202,47 @@ func TestGenerateOverStream_Retry_0088(t *testing.T) {
 }
 
 // TestGenerateOverStream_ReplyLimit_0088 (ST88b): a Generate read over the
-// stream whose text events add up to more than 16 MiB, each event within the
-// per-event bound, is ErrIncomplete, as a plain reply over 16 MiB is.
+// stream whose text events add up to more than the streamed answer's bound,
+// each event within the per-event bound, is ErrIncomplete. The bound is 32
+// MiB on every wire since 0091-MADR ST71 ("Every provider, one bound
+// (Recommended)"), no longer a plain reply's 16 MiB: 33 MiB is
+// ErrIncomplete, and 17 MiB, over the old bound, is returned whole.
 func TestGenerateOverStream_ReplyLimit_0088(t *testing.T) {
 	const model = "claude-sonnet-5"
-	chunk := strings.Repeat("a", 1<<20)
-	srv := newOverStreamServer(t, func(_ int, stream bool, w http.ResponseWriter) {
-		if !stream {
-			_, _ = io.WriteString(w, plainMessages)
-			return
-		}
-		_, _ = io.WriteString(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"m\"}}\n\n"+
-			"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
-		for range 17 {
-			_, _ = fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,"+
-				"\"delta\":{\"type\":\"text_delta\",\"text\":%q}}\n\n", chunk)
-		}
-		_, _ = io.WriteString(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"+
-			"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n"+
-			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
-	})
-	resp, err := overStreamProvider(t, llmprovider.ProviderClaude, model, srv,
-		catalog.WithModelLayer(limitLayer{model, 128000})).Generate(context.Background(), overStreamHi())
-	if !errors.Is(err, llmprovider.ErrIncomplete) || resp != nil {
+	for _, mib := range []int{17, 33} {
+		srv := newOverStreamServer(t, func(_ int, stream bool, w http.ResponseWriter) { writeMiBStream(w, stream, mib) })
+		resp, err := overStreamProvider(t, llmprovider.ProviderClaude, model, srv,
+			catalog.WithModelLayer(limitLayer{model, 128000})).Generate(context.Background(), overStreamHi())
 		n := 0
 		if resp != nil {
 			n = len(resp.OutputText())
 		}
-		t.Errorf("17 MiB of text events: a response of %d bytes, err %v; want ErrIncomplete and no response", n, err)
+		switch over := mib > 32; {
+		case over && (!errors.Is(err, llmprovider.ErrIncomplete) || resp != nil):
+			t.Errorf("%d MiB of text events: a response of %d bytes, err %v; want ErrIncomplete and no response", mib, n, err)
+		case !over && (err != nil || n != mib<<20):
+			t.Errorf("%d MiB of text events: a response of %d bytes, err %v; want it whole", mib, n, err)
+		}
 	}
+}
+
+// writeMiBStream answers a stream request with mib MiB of Messages text
+// events, and any other with plainMessages.
+func writeMiBStream(w http.ResponseWriter, stream bool, mib int) {
+	if !stream {
+		_, _ = io.WriteString(w, plainMessages)
+		return
+	}
+	chunk := strings.Repeat("a", 1<<20)
+	_, _ = io.WriteString(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"m\"}}\n\n"+
+		"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
+	for range mib {
+		_, _ = fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,"+
+			"\"delta\":{\"type\":\"text_delta\",\"text\":%q}}\n\n", chunk)
+	}
+	_, _ = io.WriteString(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"+
+		"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n"+
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 }
 
 // TestGenerateOverStream_NoUsage_0088 (ST88c): a server that sends no usage

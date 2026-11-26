@@ -48,10 +48,17 @@ func (p *provider) memoKey(req *llmprovider.Request, stream bool) limitmemo.Key 
 		Stream: stream}
 }
 
-// limitRetry is req's output limit across its sends.
+// limitRetry is req's output limit across its sends. With WithResponses a
+// refusal is read in the Responses wire's forms, none of which states a
+// number, so the "supports at most" learning is lost (0089-MADR DL68;
+// 0091-MADR ST56).
 func (p *provider) limitRetry(req *llmprovider.Request, stream bool) *wire.LimitRetry {
 	model := cmp.Or(req.Model, p.model)
-	r := &wire.LimitRetry{Wire: wire.ChatCompletionsLimits, Model: model,
+	forms := wire.ChatCompletionsLimits
+	if p.responses {
+		forms = wire.ResponsesLimits
+	}
+	r := &wire.LimitRetry{Wire: forms, Model: model,
 		Observed: llmprovider.LimitObservation{Model: model, BaseURL: p.givenBase}}
 	if p.learn {
 		memo, key := p.limits, p.memoKey(req, stream)

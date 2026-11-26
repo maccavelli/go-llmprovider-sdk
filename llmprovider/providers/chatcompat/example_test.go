@@ -44,3 +44,44 @@ func ExampleNew() {
 	fmt.Println(text)
 	// Output: Hello!
 }
+
+// ExampleWithResponses builds a chatcompat provider for a server the caller
+// knows speaks OpenAI's Responses API, such as a local Ollama's
+// http://localhost:11434/v1, and asks it for text: the request goes to
+// {base}/responses. The httptest server stands in for it, so that the
+// example runs offline.
+func ExampleWithResponses() {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/responses" {
+			http.NotFound(w, r)
+			return
+		}
+		// A Generate that names no output limit reads the service's event
+		// stream (0088-MADR ST88).
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello!\"}\n\n"+
+			"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello!\"}]}}\n\n"+
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\"}}\n\n")
+	}))
+	defer srv.Close()
+
+	p, err := chatcompat.New(
+		chatcompat.WithID("ollama-responses"),
+		chatcompat.WithResponses(),
+		llmprovider.WithBaseURL(srv.URL),
+		llmprovider.WithModel("qwen3:8b"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	text, err := llmprovider.GenerateText(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."}},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(text)
+	// Output: Hello!
+}

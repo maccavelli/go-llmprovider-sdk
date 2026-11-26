@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-25
+date: 2026-11-26
 decision-makers: repository owner
 consulted: "the owner's answers of 2026-11-23 to OQ1 to OQ8, relayed by the coordinator, their labels quoted in the amendment; the owner's question of 2026-11-23 and the option the owner chose, 'Research and adopt in v1.33.0', relayed by the coordinator; the coordinator's desk research of 2026-11-23 (vendor pages read that day, no live calls); the probe agent's seven rounds of live probes of 2026-11-23 (about 133 requests, store false, allowlisted facts only; rounds 3 to 6 on a local Ollama 0.40.17, round 7 on OpenAI and xAI); an independent review of the first draft (2026-11-23, NOT READY, findings F1 to F13), relayed by the coordinator; this repository at 247b745, read only, with the uncommitted 0088-PLAN Phase 1b work in the tree read where named; the read-only upstream checkouts codex at 57e64682f8 and kilocode at 58072bd696"
 informed: every caller of the kilo, together, huggingface, ollama and chatcompat providers; the callers of openai, grok and OpenCode's responses route, whose decoder this record touches; gobble-cli first, which runs agent turns on Kilo
@@ -12,7 +12,7 @@ informed: every caller of the kilo, together, huggingface, ollama and chatcompat
 
 Associated PLAN: [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)
 
-*(2026-11-23, the owner's answers: OQ1 to OQ8 answered; every row they reach is decided, and what OQ5's opt-in needs is decided as ST50 to ST62. One new question, OQ9, raised by OQ5's and OQ8's answers together, leaves ST63 open, so the record stays `proposed`. See "Amendment (2026-11-23): the owner's answers to OQ1 to OQ8" at the end.)* *(2026-11-23, second: the review of that amendment found ST55's premise false, OQ5's losses never put to the owner, and ST51 wrong about the Chat path's facts; ST55 is reopened as OQ10, OQ5's opt-in is put back as the confirming OQ11 (ST64), and ST51 and ST62 are corrected. Three rows are open. See "Amendment (2026-11-23, second)" at the end.)* *(2026-11-23, third: the owner answered OQ9 to OQ11, deciding ST55, ST63 and ST64; no row is open, and the record is `accepted`. See "Amendment (2026-11-23, third)" at the end.)* *(2026-11-24, fourth: PLAN Phase 0 placed the records and the REPORT in the tree and re-grounded the evidence index at `dd37a87`; no row changes. See "Amendment (2026-11-24, fourth)" at the end.)* *(2026-11-24, fifth: PLAN Phase 1 carried out ST1 to ST4 and ST28 in the four providers' package docs and `docs/architecture.md`, with twelve claims rows; no row changes. See "Amendment (2026-11-24, fifth)" at the end. After a review, pass 2 restated the reasons by their sources and the claims rows as M1 to M27: see "Annotation (2026-11-24, after the review of Phase 1)". Pass 3 (the owner's "Pass 3 with full rows") pinned every new doc line, as F1 to F41: see "Annotation (2026-11-24, after the third pass)".)* *(2026-11-25, seventh: 0092-MADR, built, makes a completed Responses stream take its terminal items and fail on an announced item never delivered; how ST55 meets that is put to the owner as OQ12, ST65 is open, and the record is `proposed`. See "Amendment (2026-11-25, seventh)" at the end.)* *(2026-11-25, eighth: OQ12 answered, "The cut rule wins (Recommended)"; ST65 is decided, no row is open, and the record is `accepted` again. See "Amendment (2026-11-25, eighth)" at the end.)*
+*(2026-11-23, the owner's answers: OQ1 to OQ8 answered; every row they reach is decided, and what OQ5's opt-in needs is decided as ST50 to ST62. One new question, OQ9, raised by OQ5's and OQ8's answers together, leaves ST63 open, so the record stays `proposed`. See "Amendment (2026-11-23): the owner's answers to OQ1 to OQ8" at the end.)* *(2026-11-23, second: the review of that amendment found ST55's premise false, OQ5's losses never put to the owner, and ST51 wrong about the Chat path's facts; ST55 is reopened as OQ10, OQ5's opt-in is put back as the confirming OQ11 (ST64), and ST51 and ST62 are corrected. Three rows are open. See "Amendment (2026-11-23, second)" at the end.)* *(2026-11-23, third: the owner answered OQ9 to OQ11, deciding ST55, ST63 and ST64; no row is open, and the record is `accepted`. See "Amendment (2026-11-23, third)" at the end.)* *(2026-11-24, fourth: PLAN Phase 0 placed the records and the REPORT in the tree and re-grounded the evidence index at `dd37a87`; no row changes. See "Amendment (2026-11-24, fourth)" at the end.)* *(2026-11-24, fifth: PLAN Phase 1 carried out ST1 to ST4 and ST28 in the four providers' package docs and `docs/architecture.md`, with twelve claims rows; no row changes. See "Amendment (2026-11-24, fifth)" at the end. After a review, pass 2 restated the reasons by their sources and the claims rows as M1 to M27: see "Annotation (2026-11-24, after the review of Phase 1)". Pass 3 (the owner's "Pass 3 with full rows") pinned every new doc line, as F1 to F41: see "Annotation (2026-11-24, after the third pass)".)* *(2026-11-25, seventh: 0092-MADR, built, makes a completed Responses stream take its terminal items and fail on an announced item never delivered; how ST55 meets that is put to the owner as OQ12, ST65 is open, and the record is `proposed`. See "Amendment (2026-11-25, seventh)" at the end.)* *(2026-11-25, eighth: OQ12 answered, "The cut rule wins (Recommended)"; ST65 is decided, no row is open, and the record is `accepted` again. See "Amendment (2026-11-25, eighth)" at the end.)* *(2026-11-26, ninth: PLAN Phase 2's re-ground found four cases no row decided; two owner answers and two coordinator calls decide them as ST66 to ST69, no row is open, and the record stays `accepted`. See "Amendment (2026-11-26, ninth)" at the end.)* *(2026-11-26, tenth: after the code review of PLAN Phase 2, the owner's "The refusal wins (Recommended)" and "Raise the bound" decide ST70 and ST71; no row is open. See "Amendment (2026-11-26, tenth)" at the end.)*
 
 *(2026-11-23, revision 1, before any answer: the first draft was reviewed NOT READY. This revision states the cut check's reach as the evidence supports it (F2), decides where the check runs and how the limit sent reaches it, with its dependency on 0088's R3 (F4), lists every Chat-path feature Ollama's move must keep (F5), splits the cut question into which signal (OQ6) and where (OQ7) (F8), corrects Kilo's and Hugging Face's gate wording (F1) and the `include` fact (F3), adds Hugging Face's stream cut (F6), a gains column (F9), a reasoning-text replay question (OQ8, F10), conditional and plant wording (F11, F12), and plain-worded questions (F13). It folds in Ollama probe rounds 3 to 5. The first draft's rows keep their numbers; ST33 to ST46 are new.)* *(2026-11-23, revision 2, before any answer: after the delta review. Ollama's reasoning-replay gain is conditional on a round-trip probe, ST47 (N1); the gate rows ST22, ST35, ST36 and ST47 are decided as gates whose outcome the probe sets (N3); ST48 decides a cancelled, timed-out or hidden version read (N2); ST49 decides deferred tools on Ollama's Responses path; ST33 names the per-attempt limit the check reads; ST25's plants test how the cut is reported (F11). The forwarded results of the replay and thinking-refusal probes are not yet folded in.)* *(2026-11-23, revision 3, before any answer: Ollama probe round 6 (PR9). Ollama's server takes a reasoning item back even with its `encrypted_content` altered, so it does not validate it and no replay gain is claimed (ST47); and `/v1/responses` silently ignores an effort a model cannot take, where Chat refuses it in the form the SDK learns, so ST35's gate fails. Under the gates decided in revision 2, Ollama stays on Chat: OQ4's recommendation is now Chat, and under the recommended answers no provider changes its wire. It also folds in round 7 (PR10), which closes UM2: OpenAI and xAI report their cuts as `incomplete`, and xAI did not enforce `max_output_tokens` on a forced call, so the cut check would make such replies on `grok` finish `length` (OQ7 (2)'s cost).)* *(2026-11-23, revision 4, before any answer: after the second delta review. OQ4 (2)'s cost and ST35 are corrected: Ollama's listing reads each model's `thinking` capability from `/api/show` (C92), so only a model whose facts are not yet cached in the process has its effort dropped silently; the recommendation for OQ4 stays Chat, for the reasons given there. ST30 now agrees with B5 on what v1.33.0 waits for; the `grok` false positive is worded as a `length` finish with the calls kept; B3 notes that the xAI streamed text-cut defect is being fixed in 0088 Phase 1b; a stray blank line in the state table is gone.)*
 
@@ -450,7 +450,7 @@ The answers were checked against each other. OQ1 to OQ4 move no provider, so the
 | ST22, ST36 to ST40, ST42, ST44, ST46, ST48, ST49 | out of scope | rows for an Ollama move; Ollama stays on Chat. They stand as the record of what such a move would take | OQ4's answer | none: out of scope |
 | ST25 | decided, conditional on 0088 | unchanged; reached by no provider in v1.33.0 (ST14, ST15) | 0088-MADR OQ11 | the amendment that moves a measured provider |
 | ST26 | decided | the measurements are rounds 1 to 7, in the REPORT (ST27). The PLAN runs only what OQ9's answer names | ST27; OQ9 | as OQ9's answer names |
-| ST28 | decided | docs: the package docs of `kilo`, `together`, `huggingface` and `ollama` state the measurement that keeps each on Chat; `chatcompat`'s as ST62; `docs/architecture.md`, `README.md`, the Responses package doc (C1) naming `chatcompat` as its fourth user; a **Changed** entry is not needed (no behaviour changes) and an **Added** entry names `WithResponses` | B5; R43 | `make docs-check parity-check changelog-check`, and a claims row per changed doc line; plant: the Hugging Face doc's old "undocumented" line kept |
+| ST28 | decided | docs: the package docs of `kilo`, `together`, `huggingface` and `ollama` state the measurement that keeps each on Chat; `chatcompat`'s as ST62; `docs/architecture.md`, `README.md`, the Responses package doc (C1) naming `chatcompat` as its fourth user; a **Changed** entry is not needed (no behaviour changes) and an **Added** entry names `WithResponses` *(2026-11-26: no longer so. ST10, ST67 and ST71 change `openai`, `grok` and OpenCode's responses route, so a **Changed** entry names them; see "Amendment (2026-11-26, tenth)")* | B5; R43 | `make docs-check parity-check changelog-check`, and a claims row per changed doc line; plant: the Hugging Face doc's old "undocumented" line kept |
 | ST29 | decided | one export: `chatcompat.WithResponses` (ST60) | OQ5's answer; R55 | ST60's |
 | ST30 | decided | v1.33.0, the owner's ruling. It now carries code (`chatcompat`'s opt-in), which reads replies through the Responses decoder 0088 Phase 1b changes, so its phase is built after 0088's phases and Phase 3 review, serially in the same tree, and the tag waits for it; entries under `[Unreleased]` | the owner's ruling "Research and adopt in v1.33.0"; OQ5's answer | `make changelog-check`; plant: an entry outside `[Unreleased]` |
 | ST31 | decided | `chatcompat` moves for an opted-in caller, so 0061-MADR's D4 ("a provider for any server that speaks Chat Completions") gets a dated annotation pointing here; no other record's statement changes, as no other provider moves | the records rule | a claims row on the annotation, planted false |
@@ -853,3 +853,339 @@ Additions only. The owner's answer, relayed by the coordinator, quoted exactly: 
 | ST65 | `chatcompat`'s Responses stream: a `completed` reply at the limit sent (ST55) that announced a call delivered neither by `output_item.done` nor by the terminal response | decided | the cut: that call is the cut call, dropped and named in `WarningToolCallCut`, and the reply finishes `length` (ST55; 0088-MADR ST108). A `completed` reply under the limit sent, or with none sent, keeps 0092-MADR ST11's `item_not_finished`, `ErrProviderUnavailable` after the reply. ST55's check runs before the completed path's check | OQ12 "The cut rule wins (Recommended)" | PLAN Phase 2: `TestChatcompat_ResponsesCut_0091`, stream, gains both cases: at the limit, `length` with one `WarningToolCallCut` naming the call; under it, `ErrProviderUnavailable` naming `item_not_finished`. Red at Phase 2's base; plant: 0092's check run before ST55's, so the reply at the limit fails |
 
 Counts after this amendment: 65 rows: 47 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+## Amendment (2026-11-26, ninth): four cases from PLAN Phase 2's re-ground
+
+Additions only. PLAN Phase 2's re-ground at `dc21fe2` (its execution entry of 2026-11-26) found four cases no row decided, D1 to D4, and stopped before any code. The coordinator relayed two owner answers, quoted exactly, and decided two cases as the coordinator's own calls, marked so below.
+
+| Case | Answer | By | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| D1, `kilo.go:15-16` says Kilo's `/responses` "puts reasoning where the Responses decoder does not read it", which ST10 and ST63 make false | option (1): Phase 2 restates the clause, comment only, to what is true after ST10 | the coordinator's call | ST66 |
+| D2, `TestEvents_ReasoningDelta` (`events_0031_test.go:90-106`) asserts that `response.reasoning_text.delta` yields nothing, which ST63 reverses | "Pass it on everywhere (Recommended)" | the owner | ST67 |
+| D3, the PLAN's pin "`openai`'s existing decode tests, unchanged" has a plant no existing test can catch: no test of `openai`, `grok` or OpenCode's responses route has a completed reply that reports `output_tokens` | option (1): a new green pin on the three | the coordinator's call | ST68 |
+| D4, ST14 and ST55 say "a `completed` reply", and the plain decode reads a reply with no `status` as completed | "Check every reply treated as completed (Recommended)" | the owner | ST69 |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST66 | `kilo.go`'s package doc, its lines 15 and 16, once ST10 is built | decided | restated, comment only, with the paragraph's line count kept: Kilo's `/responses` sends its reasoning as plain text, which the Responses decoder reads but cannot replay, with no encrypted content (PR1 P6) | D1, the coordinator's call | a claims row per changed line, red at `dc21fe2` (the text absent) and planted false |
+| ST67 | `response.reasoning_text.delta` on every Responses provider, and the existing test that says it yields nothing | decided | yielded as `EventReasoningDelta` by the shared reader, on `openai`, `grok`, OpenCode's responses route and `chatcompat`'s opt-in, as ST63 states; `TestEvents_ReasoningDelta`'s expectation changes to include it; 0031-MADR D2's "is not mapped" gets a dated annotation pointing here | D2: the owner, "Pass it on everywhere (Recommended)" | `TestEvents_ReasoningDelta`, changed: red at `dc21fe2` (the delta yields nothing); plant: the delta unmapped |
+| ST68 | A `completed` reply at the limit sent on `openai`, `grok` and OpenCode's responses route, which leave the decoder's limit unset (ST33 (built)) | decided | read as today: finishing `stop`, or `tool_calls` with a call, never `length`. It replaces the PLAN's pin "`openai`'s existing decode tests, unchanged", whose plant no existing test could catch | D3, the coordinator's call | `TestResponses_CompletedAtLimitUnchecked_0091` in `llmprovider/providers/`, each provider plain and stream: green at `dc21fe2`; plants: the decoder's limit set by `openai`, by `grok`, by OpenCode, each caught by its own cases |
+| ST69 | A plain reply on `chatcompat`'s Responses path whose `status` is absent, or a value other than `completed`, `failed` and `incomplete`, at the limit sent | decided | the check covers every reply the decoder finishes as completed, so such a reply whose `output_tokens` reached the limit sent is read as cut and finishes `length`, as ST55's. A reply with an unknown status at the limit reads `length` too: a cost the owner's answer accepts | D4: the owner, "Check every reply treated as completed (Recommended)" | `TestChatcompat_ResponsesCut_0091`, plain: a reply with no `status` and one with `status` `in_progress`, each at the limit, finish `length`; plant: the check gated on `status` `completed` |
+
+Counts after this amendment: 69 rows: 51 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+### Claims rows of PLAN Phase 2's doc lines (2026-11-26)
+
+One row per new doc line of Phase 2 (PLAN Phase 2 step 5, as Phase 1's third pass pinned its lines): the package docs of `chatcompat` (ST62, ST64), `kilo.go` (ST66) and the Responses package, `CHANGELOG.md`, `docs/architecture.md`, `README.md`, and the dated annotations on 0061-MADR D4 (ST31) and 0031-MADR D2 (ST67). A table row of `docs/architecture.md` is pinned by its longest new clause. Ids end in "now", so `tools/claims.py` does not read them against this record's `self=247b745`; the lines are the working tree's of Phase 2, pass 1, and the phase's commit re-pins them. Scripts: `<scratch>/b0091p2/claims_rows.py`.
+
+* **Red at the base.** At `dc21fe2`, each row at line 1 of its file: all 106 fail on their assertion, and none finds its text on any line of its file.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 106 of 106 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 106 of 106 caught, for example `FAIL H1 llmprovider/providers/kilo/kilo.go:15: line 15 is "// but those routes are undocumented, and Kilo's /responses sends reasoning"`.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| H1now | new doc line | `llmprovider/providers/kilo/kilo.go:15` | `but those routes are undocumented, and Kilo's /responses sends reasoning` |
+| H2now | new doc line | `llmprovider/providers/kilo/kilo.go:16` | `as text alone, which is read but never replayed. One route reaches the whole` |
+| H3now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:45` | `WithResponses is for a server the caller knows speaks OpenAI's Responses` |
+| H4now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:46` | `API: Generate and Stream then send POST {base}/responses, a listing probe` |
+| H5now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:47` | `among them, and read the reply with the decoder the openai and grok` |
+| H6now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:48` | `providers share; the listing and the capabilities are unchanged` |
+| H7now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:49` | `(0091-MADR ST50 to ST52, ST59). No server was measured through this path.` |
+| H8now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:50` | `The request carries store false and asks for encrypted reasoning; its` |
+| H9now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:51` | `effort, image refusal and output limit follow the same facts as on Chat` |
+| H10now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:52` | `Completions. A server that refuses the route gets its error back: there` |
+| H11now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:53` | `is no fallback to Chat Completions. Against Chat Completions, a caller` |
+| H12now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:54` | `who gives it loses: a 200 reply with status failed, as Hugging Face's` |
+| H13now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:55` | `router sends for a bad key, is read as a retryable outage (ST53); an` |
+| H14now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:56` | `effort a model cannot take is dropped with no warning by a server that` |
+| H15now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:57` | `ignores it, as Ollama's /v1/responses does (ST54); a refused limit's` |
+| H16now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:58` | `"supports at most" cap is not learned (ST56); and prior reasoning goes` |
+| H17now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:59` | `back only when it carries encrypted content, never under a facts-named` |
+| H18now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:60` | `field (ST51). Reasoning a server sends only as reasoning_text is shown,` |
+| H19now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:61` | `not sent back (ST63). A reply finished as completed whose output_tokens` |
+| H20now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:62` | `reached the limit sent is read as cut, finishing length, as Ollama's` |
+| H21now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:63` | `/v1/responses hides a cut that way; one that ends on exactly the limit's` |
+| H22now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:64` | `last token is reported cut too (ST55, ST69).` |
+| H23now | new doc line | `llmprovider/internal/wire/responses/responses.go:2` | `grok providers and OpenCode's responses route (0015-MADR D2), and by a` |
+| H24now | new doc line | `llmprovider/internal/wire/responses/responses.go:3` | `chatcompat provider built with chatcompat.WithResponses (0091-MADR ST52).` |
+| H25now | new doc line | `llmprovider/internal/wire/responses/responses.go:44` | `contentReasoningText is a reasoning item's content part that carries` |
+| H26now | new doc line | `llmprovider/internal/wire/responses/responses.go:45` | `its text, where a server sends no summary (0091-MADR ST10).` |
+| H27now | new doc line | `llmprovider/internal/wire/responses/responses.go:377` | `Limit is the output limit the request's attempt sent, set only by` |
+| H28now | new doc line | `llmprovider/internal/wire/responses/responses.go:378` | `chatcompat's Responses path (0091-MADR ST33, ST55): a reply the` |
+| H29now | new doc line | `llmprovider/internal/wire/responses/responses.go:379` | `decoder would finish as completed, its status completed, absent or` |
+| H30now | new doc line | `llmprovider/internal/wire/responses/responses.go:380` | `any other but failed and incomplete (ST69), whose output_tokens` |
+| H31now | new doc line | `llmprovider/internal/wire/responses/responses.go:381` | `reached Limit is read as one the limit cut, as a reply incomplete for` |
+| H32now | new doc line | `llmprovider/internal/wire/responses/responses.go:382` | `max_output_tokens is. On a stream it is read before the held calls` |
+| H33now | new doc line | `llmprovider/internal/wire/responses/responses.go:383` | `are released and before an announced item's check (ST34, ST65). Zero,` |
+| H34now | new doc line | `llmprovider/internal/wire/responses/responses.go:384` | `as openai, grok and OpenCode leave it, reads no reply as cut (ST68).` |
+| H35now | new doc line | `llmprovider/internal/wire/responses/responses.go:388` | `atLimit reports a reply whose output_tokens, u's, reached d.Limit, so` |
+| H36now | new doc line | `llmprovider/internal/wire/responses/responses.go:389` | `that the limit cut it however its service finished it (0091-MADR ST55).` |
+| H37now | new doc line | `llmprovider/internal/wire/responses/responses.go:452` | `A call's arguments stream in pieces (0088-MADR ST107). A reply` |
+| H38now | new doc line | `llmprovider/internal/wire/responses/responses.go:453` | `at the limit sent is cut whatever its status said (0091-MADR` |
+| H39now | new doc line | `llmprovider/internal/wire/responses/responses.go:454` | `ST55, ST69).` |
+| H40now | new doc line | `llmprovider/internal/wire/responses/responses.go:615` | `A server that sends its reasoning as text puts it in content, as` |
+| H41now | new doc line | `llmprovider/internal/wire/responses/responses.go:616` | `reasoning_text: it is read when the summary holds none (0091-MADR` |
+| H42now | new doc line | `llmprovider/internal/wire/responses/responses.go:617` | `ST10, ST63). It has no encrypted content, so it is not replayed.` |
+| H43now | new doc line | `llmprovider/internal/wire/responses/responses.go:743` | `delta (0031-PLAN Phase 1) and a reasoning text delta (0091-MADR ST63) as` |
+| H44now | new doc line | `llmprovider/internal/wire/responses/responses.go:744` | `EventReasoningDelta, each` |
+| H45now | new doc line | `llmprovider/internal/wire/responses/responses.go:1135` | `A completed stream at the limit sent is a cut, decided before the` |
+| H46now | new doc line | `llmprovider/internal/wire/responses/responses.go:1136` | `announced items' check (0091-MADR ST55, ST65).` |
+| H47now | new doc line | `llmprovider/internal/wire/responses/responses.go:1183` | `each. The reasoning summary delta is the one 0031-PLAN Phase 1 measured;` |
+| H48now | new doc line | `llmprovider/internal/wire/responses/responses.go:1184` | `the reasoning text delta, which probes of 2026-11-23 saw, is passed on on` |
+| H49now | new doc line | `llmprovider/internal/wire/responses/responses.go:1185` | `every provider (0091-MADR ST63, ST67). A` |
+| H50now | new doc line | `llmprovider/providers/chatcompat/responses.go:16` | `The Responses path, for a server the caller knows speaks OpenAI's` |
+| H51now | new doc line | `llmprovider/providers/chatcompat/responses.go:17` | `Responses API (0091-MADR ST5, ST50 to ST65, OQ5 "Opt-in WithResponses()").` |
+| H52now | new doc line | `llmprovider/providers/chatcompat/responses.go:19` | `responsesValue is WithResponses' value among the options.` |
+| H53now | new doc line | `llmprovider/providers/chatcompat/responses.go:22` | `WithResponses sends Generate and Stream to POST {base}/responses, OpenAI's` |
+| H54now | new doc line | `llmprovider/providers/chatcompat/responses.go:23` | `Responses API, in place of /chat/completions, for a server the caller` |
+| H55now | new doc line | `llmprovider/providers/chatcompat/responses.go:24` | `knows speaks it (0091-MADR ST50). The listing and everything else are` |
+| H56now | new doc line | `llmprovider/providers/chatcompat/responses.go:25` | `unchanged, and there is no fallback: a server that refuses the route` |
+| H57now | new doc line | `llmprovider/providers/chatcompat/responses.go:26` | `answers with its error, classified by its status. It is a shared option` |
+| H58now | new doc line | `llmprovider/providers/chatcompat/responses.go:27` | `(llmprovider.SharedOption), as WithID is, so another provider's New takes` |
+| H59now | new doc line | `llmprovider/providers/chatcompat/responses.go:28` | `it and ignores it. The package doc names what a caller gives up on this` |
+| H60now | new doc line | `llmprovider/providers/chatcompat/responses.go:29` | `path against Chat Completions.` |
+| H61now | new doc line | `llmprovider/providers/chatcompat/responses.go:34` | `responsesOn reports whether values carry WithResponses.` |
+| H62now | new doc line | `llmprovider/providers/chatcompat/responses.go:42` | `decode is a plain reply's decoder: the Chat Completions wire's, or the` |
+| H63now | new doc line | `llmprovider/providers/chatcompat/responses.go:43` | `Responses wire's with WithResponses, labelled with the provider's id` |
+| H64now | new doc line | `llmprovider/providers/chatcompat/responses.go:44` | `(0091-MADR ST52).` |
+| H65now | new doc line | `llmprovider/providers/chatcompat/responses.go:54` | `events is a stream's reader: the Chat Completions wire's, or the Responses` |
+| H66now | new doc line | `llmprovider/providers/chatcompat/responses.go:55` | `wire's with WithResponses.` |
+| H67now | new doc line | `CHANGELOG.md:30` | `` `chatcompat.WithResponses()`: a `chatcompat` provider built with it sends `` |
+| H68now | new doc line | `CHANGELOG.md:31` | `` `Generate` and `Stream` to the server's `POST {base}/responses`, OpenAI's `` |
+| H69now | new doc line | `CHANGELOG.md:32` | `` Responses API, and reads the reply with the decoder `openai` and `grok` `` |
+| H70now | new doc line | `CHANGELOG.md:33` | `share, for a server the caller knows speaks it; there is no fallback to` |
+| H71now | new doc line | `CHANGELOG.md:34` | `` Chat Completions. A reply finished as completed whose `output_tokens` `` |
+| H72now | new doc line | `CHANGELOG.md:35` | `` reached the limit sent is reported cut, finishing `FinishLength`. `` |
+| H73now | new doc line | `CHANGELOG.md:36` | `` Reasoning a server sends only as `reasoning_text` content is read, on `` |
+| H74now | new doc line | `CHANGELOG.md:37` | `` every Responses provider, and its `response.reasoning_text.delta` `` |
+| H75now | new doc line | `CHANGELOG.md:38` | `` yielded as `EventReasoningDelta`; it is not sent back. The package doc `` |
+| H76now | new doc line | `CHANGELOG.md:39` | `names what the option gives up against Chat Completions` |
+| H77now | new doc line | `CHANGELOG.md:40` | `([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| H78now | new doc line | `CHANGELOG.md:41` | `ST50 to ST69).` |
+| H79now | new doc line | `docs/architecture.md:68` | `llmprovider/providers/chatcompat/ any Chat Completions server, under the caller's id: not in Default(); Responses with WithResponses (0091-MADR ST5)` |
+| H80now | new doc line | `docs/architecture.md:173` | `` `WithResponses`, which sends `Generate` and `Stream` to `{base}/responses` and reads the reply with the shared Responses decoder (0091-MADR ST50 to ST52) `` |
+| H81now | new doc line | `docs/architecture.md:175` | `` a reasoning item whose summary holds no text is read from its `reasoning_text` content (0091-MADR ST10, ST63) `` |
+| H82now | new doc line | `docs/architecture.md:470` | `` `EventReasoningDelta`: Responses' reasoning summary and reasoning text `` |
+| H83now | new doc line | `docs/architecture.md:471` | `(0091-MADR ST67), Messages'` |
+| H84now | new doc line | `docs/architecture.md:486` | `` not run the `item_not_finished` check (ST33). On `chatcompat`'s `` |
+| H85now | new doc line | `docs/architecture.md:487` | `` `WithResponses` path, a reply finished as completed whose `output_tokens` `` |
+| H86now | new doc line | `docs/architecture.md:488` | `reached the limit sent is a cut, decided before that check (0091-MADR` |
+| H87now | new doc line | `docs/architecture.md:489` | `ST55, ST65).` |
+| H88now | new doc line | `docs/architecture.md:701` | `` **Five wire formats:** OpenAI Responses (`openai`, `grok`, and `chatcompat` `` |
+| H89now | new doc line | `docs/architecture.md:702` | `` with `WithResponses`, 0091-MADR ST5), Anthropic Messages `` |
+| H90now | new doc line | `README.md:131` | `of its arguments arrived (0088-MADR ST107, ST110, OQ21). On a` |
+| H91now | new doc line | `README.md:132` | `` `chatcompat` provider built with `chatcompat.WithResponses()`, which sends `` |
+| H92now | new doc line | `README.md:133` | `` `Generate` and `Stream` to the server's `/responses`, a reply the server `` |
+| H93now | new doc line | `README.md:134` | `` finishes as completed is reported cut too when its `output_tokens` `` |
+| H94now | new doc line | `README.md:135` | `` reached the limit sent, as Ollama's `/v1/responses` hides a cut `` |
+| H95now | new doc line | `README.md:136` | `` (0091-MADR ST55). An empty answer is `ErrEmptyAnswer` too, with `` |
+| H96now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:238` | `` (2026-11-26: a caller who gives `chatcompat.WithResponses()` has `` |
+| H97now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:239` | `` `Generate` and `Stream` sent to the server's `/responses`, read by `` |
+| H98now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:240` | `` `internal/wire/responses`, by `` |
+| H99now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:241` | `[0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| H100now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:242` | `ST5 and ST50 (OQ5 "Opt-in WithResponses()"). Without it, the package` |
+| H101now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:243` | `speaks Chat Completions as above. The text above is unchanged.)*` |
+| H102now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:260` | `(2026-11-26: since` |
+| H103now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:261` | `[0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| H104now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:262` | `` ST63 and ST67, it is mapped to `EventReasoningDelta` on every Responses `` |
+| H105now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:263` | `provider, after probes of 2026-11-23 saw Kilo, Together and Hugging Face` |
+| H106now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:264` | `send it. The text above is unchanged.)*` |
+
+### Note (2026-11-26): ST16's and ST59's tests and plants, the coordinator's calls
+
+Additions only; no row's outcome changes. PLAN Phase 2, pass 1, found neither row's plant catchable as written (D5, D6). Both are test design, decided by the coordinator, not by the owner:
+
+* **ST16 (D5, option (2)).** Its outcome is protected by a pair of guards: the reader stopping at the terminal event (`end` reports a stop, on which `wire.ReadEvents` returns, `llmprovider/internal/wire/sse.go:64-66`) and the `[DONE]` skip. Either alone keeps it, so the plant "`[DONE]` decoded as JSON" alone is not caught, nor is the reader alone reading on. ST16's plant is now one plant removing both guards. Its test, `TestChatcompat_ResponsesDone_0091`, reads the whole stream and wants nothing after the done event, no error either.
+* **ST59 (D6, option (1)).** `llmtest.Run` checks only that a declared capability is honoured, so it passes a provider declaring `Continuation` `Supported` against a server that answers. ST59's test, `TestConformance_Responses_0091`, now also wants `Capabilities()` identical with and without `WithResponses()`. Its plant "`Continuation` declared `Supported`" is read as the option declaring it, since a change to the declaration both paths share leaves them equal: the Responses path's `Capabilities()` reporting `Supported`.
+
+## Amendment (2026-11-26, tenth): the code review of PLAN Phase 2
+
+Additions only. The code review of PLAN Phase 2 passed with notes; the coordinator relayed two owner rulings, quoted exactly, and the review's fixes. Built as Phase 2's pass 2.
+
+| Question | The owner's answer | Rows it decides |
+| :--- | :--- | :--- |
+| A reply on `chatcompat`'s Responses path that is both a refusal and at the output limit: `content_filter` or `length`? | "The refusal wins (Recommended)" | ST70 |
+| Since ST67, `reasoning_text` deltas count toward the bound on an answer read over the stream (`wire.Collect`), on `openai`, `grok` and OpenCode's responses route too: keep the bound, or raise it? | "Raise the bound" | ST71 |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST70 | A reply finished as completed that holds a refusal and whose `output_tokens` reached the limit sent (ST55), plain or streamed | decided | it finishes `content_filter`, as a refusal does: the refusal is read before the limit check, so `atLimit` does not make it a cut. A refusal under the limit, or with no limit sent, finishes `content_filter` as before | the owner, "The refusal wins (Recommended)" | `TestChatcompat_ResponsesRefusalAtLimit_0091`, plain and stream: red at Phase 2's pass-1 tree (`length`); plant: the old order, the limit check before the refusal |
+| ST71 | The bound on an answer read over the stream (`wire.Collect`): text, reasoning and call-argument bytes | decided | raised from `ReplyLimit`, 16 MiB, to its own `wire.StreamAnswerLimit`, 32 MiB; reasoning still counted, so a runaway stream still stops; a plain reply's body keeps `ReplyLimit`. The value is the coordinator's call under the owner's ruling, from this evidence: the largest output limits in the providers' recorded facts are 524,288 tokens on OpenCode (`space-bunny`, `space-bunny-free`), 500,000 on xAI (`grok-4.5` to `grok-4.7`) and 272,000 on OpenAI (`gpt-5-pro`), in `llmprovider/catalog/testdata/extract-2026-10-12/api.json`; the old 16 MiB allowed 32 bytes per output token at 524,288 tokens, with reasoning counted once; since ST67, a server that streams both a summary and the raw text of its reasoning has the reasoning counted twice, so the same 32 bytes per token over reasoning plus answer needs twice the bound | the owner, "Raise the bound"; the value, the coordinator's call | `TestCollect_StreamAnswerLimit_0091`: 20 MiB of reasoning deltas, between the old bound and the new, is returned; 33 MiB is `ErrIncomplete`; red at Phase 2's pass-1 tree (the 20 MiB reply fails); plant: the old value, 16 MiB |
+
+Review fixes, no row's outcome changing: `CHANGELOG.md` gains a **Changed** entry naming `openai`, `grok` and OpenCode's responses route (ST28's annotation above), and its **Added** entry is cut to a reference; `chatcompat`'s package doc scopes its Chat-only lines to the Chat path; `responses.go`'s reasoning comment says what is sent back. A follow-up, not built: a server that streams both summary and raw deltas for one item keeps only the summary in the final item (ST10), though both were streamed.
+
+Counts after this amendment: 71 rows: 53 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+### Owner ruling (2026-11-26): ST71's reach
+
+Building ST71 broke `TestGenerateOverStream_ReplyLimit_0088` (0088-MADR ST88b), which holds the streamed answer to a plain reply's 16 MiB on Claude's Messages wire: `wire.Collect` serves every wire. Put to the owner through the coordinator, three options; the answer, quoted exactly: "Every provider, one bound (Recommended)".
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST71 (restated) | The bound on an answer read over the stream, every provider's `Generate` that names no limit | decided | one bound, 32 MiB (`wire.StreamAnswerLimit`), for every streamed `Generate` on every wire, reasoning counted; a plain reply's body keeps `ReplyLimit`, 16 MiB, so the two are separate constants. 0088-MADR ST88b gets a dated note: its parity with a plain reply ends | the owner, "Every provider, one bound (Recommended)"; the value, the coordinator's call | ST71's `TestCollect_StreamAnswerLimit_0091`; `TestGenerateOverStream_ReplyLimit_0088`, changed: 33 MiB over Claude's stream is still `ErrIncomplete`, and 17 MiB now returns; plant: the old value, 16 MiB, caught by both |
+
+### Claims rows of PLAN Phase 2's doc lines, pass 2 (2026-11-26)
+
+One row per new doc line of Phase 2 after its second pass, the same files as pass 1's annotation plus `chatcompat/limit.go`'s and `wire/overstream.go`'s doc comments, the rest of `chatcompat.go`'s doc comments, and 0088-MADR ST88b's note. They supersede H1now to H106now, which pinned lines pass 2 moved or changed (left as written above; the ids do not clash). Ids end in "now"; the phase's commit re-pins them. Scripts: `<scratch>/b0091p2/claims_rows.py J`.
+
+* **Red at the base.** At `dc21fe2`, each row at line 1 of its file: all 155 fail on their assertion, and none finds its text on any line of its file.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 155 of 155 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 155 of 155 caught, for example `FAIL J1 llmprovider/providers/kilo/kilo.go:15: line 15 is "// but those routes are undocumented, and Kilo's /responses sends reasoning"`.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| J1now | new doc line | `llmprovider/providers/kilo/kilo.go:15` | `but those routes are undocumented, and Kilo's /responses sends reasoning` |
+| J2now | new doc line | `llmprovider/providers/kilo/kilo.go:16` | `as text alone, which is read but never replayed. One route reaches the whole` |
+| J3now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:45` | `WithResponses is for a server the caller knows speaks OpenAI's Responses` |
+| J4now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:46` | `API: Generate and Stream then send POST {base}/responses, a listing probe` |
+| J5now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:47` | `among them, and read the reply with the decoder the openai and grok` |
+| J6now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:48` | `providers share; the listing and the capabilities are unchanged` |
+| J7now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:49` | `(0091-MADR ST50 to ST52, ST59). No server was measured through this path.` |
+| J8now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:50` | `The request carries store false and asks for encrypted reasoning; its` |
+| J9now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:51` | `effort, image refusal and output limit follow the same facts as on Chat` |
+| J10now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:52` | `Completions. A server that refuses the route gets its error back: there` |
+| J11now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:53` | `is no fallback to Chat Completions. Against Chat Completions, a caller` |
+| J12now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:54` | `who gives it loses: a 200 reply with status failed, as Hugging Face's` |
+| J13now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:55` | `router sends for a bad key, is read as a retryable outage (ST53); an` |
+| J14now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:56` | `effort a model cannot take is dropped with no warning by a server that` |
+| J15now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:57` | `ignores it, as Ollama's /v1/responses does (ST54); a refused limit's` |
+| J16now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:58` | `"supports at most" cap is not learned (ST56); and prior reasoning goes` |
+| J17now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:59` | `back only when it carries encrypted content, never under a facts-named` |
+| J18now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:60` | `field (ST51). Reasoning a server sends only as reasoning_text is shown,` |
+| J19now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:61` | `not sent back (ST63). A reply finished as completed whose output_tokens` |
+| J20now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:62` | `reached the limit sent is read as cut, finishing length, as Ollama's` |
+| J21now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:63` | `/v1/responses hides a cut that way; one that ends on exactly the limit's` |
+| J22now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:64` | `last token is reported cut too (ST55, ST69).` |
+| J23now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:65` | `A refusal finishes content_filter, at the limit or under it (ST70).` |
+| J24now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:70` | `is Unsupported: Chat Completions is stateless, and with WithResponses no` |
+| J25now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:71` | `previous_response_id is sent either. Native streaming is Supported: Stream` |
+| J26now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:72` | `asks for an event stream, on Chat Completions with its usage, and yields` |
+| J27now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:73` | `its events as they arrive (0031-MADR E1, E5).` |
+| J28now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:75` | `Images are Supported: on Chat Completions an ImageItem goes as an image_url` |
+| J29now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:77` | `before it, whose text becomes a text part; with WithResponses, as an` |
+| J30now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:78` | `input_image part. The server decides what it takes. A model whose facts` |
+| J31now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:79` | `state its input without image is refused before the network, with` |
+| J32now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:82` | `Degradations, as on Chat Completions; WithResponses' are in its paragraph` |
+| J33now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:86` | `- Reasoning takes an effort, sent as reasoning_effort (medium with none),` |
+| J34now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:87` | `or with WithResponses as reasoning.effort; a Budget is not sent.` |
+| J35now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:90` | `recorded for the Chat Completions wire, or with WithResponses for the` |
+| J36now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:91` | `Responses wire, is remembered for the rest of` |
+| J37now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:98` | `"none", the Chat Completions values, which the Responses API takes` |
+| J38now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:205` | `responses is WithResponses': Generate and Stream go to /responses` |
+| J39now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:206` | `(0091-MADR ST50; responses.go).` |
+| J40now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:294` | `Generate sends req to the server's chat completions, or with` |
+| J41now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:295` | `WithResponses to its responses (0091-MADR ST50).` |
+| J42now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:319` | `(0062-MADR D2 to D6), read by the Chat Completions wire's matcher, or the` |
+| J43now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:320` | `Responses wire's with WithResponses (0091-MADR ST54).` |
+| J44now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:329` | `Stream streams req from the Chat Completions API, or with WithResponses` |
+| J45now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:330` | `from the Responses API, as it is generated (0031-MADR E1, E5; 0091-MADR` |
+| J46now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:331` | `ST50): the request asks for an event stream, on Chat Completions with its` |
+| J47now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:332` | `usage, and each event is yielded as it arrives. A 401 before the first event` |
+| J48now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:362` | `with its usage when stream is set (0031-MADR E5); or, with WithResponses,` |
+| J49now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:363` | `the Responses request (0091-MADR ST50, ST51).` |
+| J50now | new doc line | `llmprovider/providers/chatcompat/limit.go:51` | `limitRetry is req's output limit across its sends. With WithResponses a` |
+| J51now | new doc line | `llmprovider/providers/chatcompat/limit.go:52` | `refusal is read in the Responses wire's forms, none of which states a` |
+| J52now | new doc line | `llmprovider/providers/chatcompat/limit.go:53` | `number, so the "supports at most" learning is lost (0089-MADR DL68;` |
+| J53now | new doc line | `llmprovider/providers/chatcompat/limit.go:54` | `0091-MADR ST56).` |
+| J54now | new doc line | `llmprovider/internal/wire/overstream.go:24` | `StreamAnswerLimit bounds an answer Collect reads, on every wire: its text,` |
+| J55now | new doc line | `llmprovider/internal/wire/overstream.go:25` | `reasoning and call-argument bytes, reasoning counted so that a runaway` |
+| J56now | new doc line | `llmprovider/internal/wire/overstream.go:26` | `stream stops. It is twice ReplyLimit, which a plain reply's body keeps` |
+| J57now | new doc line | `llmprovider/internal/wire/overstream.go:27` | `(0091-MADR ST71, "Raise the bound", "Every provider, one bound` |
+| J58now | new doc line | `llmprovider/internal/wire/overstream.go:28` | `(Recommended)"): ReplyLimit's 16 MiB allowed 32 bytes for each of the` |
+| J59now | new doc line | `llmprovider/internal/wire/overstream.go:29` | `524,288 output tokens the largest recorded output limit states, and a` |
+| J60now | new doc line | `llmprovider/internal/wire/overstream.go:30` | `server that streams both a summary and the raw text of its reasoning has` |
+| J61now | new doc line | `llmprovider/internal/wire/overstream.go:31` | `that reasoning counted twice.` |
+| J62now | new doc line | `llmprovider/internal/wire/overstream.go:45` | `bounded by StreamAnswerLimit, on top of each event's EventLimit: past` |
+| J63now | new doc line | `docs/decisions/0088-MADR-default-output-limit-from-model-facts.md:1106` | `` bounded as a plain reply is, 16 MiB (`ReplyLimit`), on top of the per-event 16 MiB (`EventLimit`), as `ErrIncomplete` *(2026-11-26: its parity with a plain repl `` |
+| J64now | new doc line | `llmprovider/internal/wire/responses/responses.go:2` | `grok providers and OpenCode's responses route (0015-MADR D2), and by a` |
+| J65now | new doc line | `llmprovider/internal/wire/responses/responses.go:3` | `chatcompat provider built with chatcompat.WithResponses (0091-MADR ST52).` |
+| J66now | new doc line | `llmprovider/internal/wire/responses/responses.go:44` | `contentReasoningText is a reasoning item's content part that carries` |
+| J67now | new doc line | `llmprovider/internal/wire/responses/responses.go:45` | `its text, where a server sends no summary (0091-MADR ST10).` |
+| J68now | new doc line | `llmprovider/internal/wire/responses/responses.go:377` | `Limit is the output limit the request's attempt sent, set only by` |
+| J69now | new doc line | `llmprovider/internal/wire/responses/responses.go:378` | `chatcompat's Responses path (0091-MADR ST33, ST55): a reply the` |
+| J70now | new doc line | `llmprovider/internal/wire/responses/responses.go:379` | `decoder would finish as completed, its status completed, absent or` |
+| J71now | new doc line | `llmprovider/internal/wire/responses/responses.go:380` | `any other but failed and incomplete (ST69), whose output_tokens` |
+| J72now | new doc line | `llmprovider/internal/wire/responses/responses.go:381` | `reached Limit is read as one the limit cut, as a reply incomplete for` |
+| J73now | new doc line | `llmprovider/internal/wire/responses/responses.go:382` | `max_output_tokens is. On a stream it is read before the held calls` |
+| J74now | new doc line | `llmprovider/internal/wire/responses/responses.go:383` | `are released and before an announced item's check (ST34, ST65). Zero,` |
+| J75now | new doc line | `llmprovider/internal/wire/responses/responses.go:384` | `as openai, grok and OpenCode leave it, reads no reply as cut (ST68).` |
+| J76now | new doc line | `llmprovider/internal/wire/responses/responses.go:388` | `atLimit reports a reply whose output_tokens, u's, reached d.Limit, so` |
+| J77now | new doc line | `llmprovider/internal/wire/responses/responses.go:389` | `that the limit cut it however its service finished it (0091-MADR ST55).` |
+| J78now | new doc line | `llmprovider/internal/wire/responses/responses.go:452` | `A call's arguments stream in pieces (0088-MADR ST107). A reply` |
+| J79now | new doc line | `llmprovider/internal/wire/responses/responses.go:453` | `at the limit sent is cut whatever its status said (0091-MADR` |
+| J80now | new doc line | `llmprovider/internal/wire/responses/responses.go:454` | `ST55, ST69), unless it is a refusal, which is read first (ST70).` |
+| J81now | new doc line | `llmprovider/internal/wire/responses/responses.go:615` | `A server that sends its reasoning as text puts it in content, as` |
+| J82now | new doc line | `llmprovider/internal/wire/responses/responses.go:616` | `reasoning_text: it is read when the summary holds none (0091-MADR` |
+| J83now | new doc line | `llmprovider/internal/wire/responses/responses.go:617` | `ST10, ST63). Its text is never sent back; only encrypted content is.` |
+| J84now | new doc line | `llmprovider/internal/wire/responses/responses.go:743` | `delta (0031-PLAN Phase 1) and a reasoning text delta (0091-MADR ST63) as` |
+| J85now | new doc line | `llmprovider/internal/wire/responses/responses.go:744` | `EventReasoningDelta, each` |
+| J86now | new doc line | `llmprovider/internal/wire/responses/responses.go:1135` | `A completed stream at the limit sent is a cut, decided before the` |
+| J87now | new doc line | `llmprovider/internal/wire/responses/responses.go:1136` | `announced items' check (0091-MADR ST55, ST65); a refusal is read` |
+| J88now | new doc line | `llmprovider/internal/wire/responses/responses.go:1137` | `first, and is not one (ST70).` |
+| J89now | new doc line | `llmprovider/internal/wire/responses/responses.go:1184` | `each. The reasoning summary delta is the one 0031-PLAN Phase 1 measured;` |
+| J90now | new doc line | `llmprovider/internal/wire/responses/responses.go:1185` | `the reasoning text delta, which probes of 2026-11-23 saw, is passed on on` |
+| J91now | new doc line | `llmprovider/internal/wire/responses/responses.go:1186` | `every provider (0091-MADR ST63, ST67). A` |
+| J92now | new doc line | `llmprovider/providers/chatcompat/responses.go:16` | `The Responses path, for a server the caller knows speaks OpenAI's` |
+| J93now | new doc line | `llmprovider/providers/chatcompat/responses.go:17` | `Responses API (0091-MADR ST5, ST50 to ST65, OQ5 "Opt-in WithResponses()").` |
+| J94now | new doc line | `llmprovider/providers/chatcompat/responses.go:19` | `responsesValue is WithResponses' value among the options.` |
+| J95now | new doc line | `llmprovider/providers/chatcompat/responses.go:22` | `WithResponses sends Generate and Stream to POST {base}/responses, OpenAI's` |
+| J96now | new doc line | `llmprovider/providers/chatcompat/responses.go:23` | `Responses API, in place of /chat/completions, for a server the caller` |
+| J97now | new doc line | `llmprovider/providers/chatcompat/responses.go:24` | `knows speaks it (0091-MADR ST50). The listing and everything else are` |
+| J98now | new doc line | `llmprovider/providers/chatcompat/responses.go:25` | `unchanged, and there is no fallback: a server that refuses the route` |
+| J99now | new doc line | `llmprovider/providers/chatcompat/responses.go:26` | `answers with its error, classified by its status. It is a shared option` |
+| J100now | new doc line | `llmprovider/providers/chatcompat/responses.go:27` | `(llmprovider.SharedOption), as WithID is, so another provider's New takes` |
+| J101now | new doc line | `llmprovider/providers/chatcompat/responses.go:28` | `it and ignores it. The package doc names what a caller gives up on this` |
+| J102now | new doc line | `llmprovider/providers/chatcompat/responses.go:29` | `path against Chat Completions.` |
+| J103now | new doc line | `llmprovider/providers/chatcompat/responses.go:34` | `responsesOn reports whether values carry WithResponses.` |
+| J104now | new doc line | `llmprovider/providers/chatcompat/responses.go:42` | `decode is a plain reply's decoder: the Chat Completions wire's, or the` |
+| J105now | new doc line | `llmprovider/providers/chatcompat/responses.go:43` | `Responses wire's with WithResponses, labelled with the provider's id` |
+| J106now | new doc line | `llmprovider/providers/chatcompat/responses.go:44` | `(0091-MADR ST52).` |
+| J107now | new doc line | `llmprovider/providers/chatcompat/responses.go:54` | `events is a stream's reader: the Chat Completions wire's, or the Responses` |
+| J108now | new doc line | `llmprovider/providers/chatcompat/responses.go:55` | `wire's with WithResponses.` |
+| J109now | new doc line | `CHANGELOG.md:30` | `` `chatcompat.WithResponses()`: `Generate` and `Stream` go to the server's `` |
+| J110now | new doc line | `CHANGELOG.md:31` | `` `POST {base}/responses`, for a server the caller knows speaks OpenAI's `` |
+| J111now | new doc line | `CHANGELOG.md:32` | `Responses API. What it sends, reads and gives up is in the package doc` |
+| J112now | new doc line | `CHANGELOG.md:33` | `([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| J113now | new doc line | `CHANGELOG.md:34` | `ST50 to ST71).` |
+| J114now | new doc line | `CHANGELOG.md:38` | `` `openai`, `grok` and OpenCode's responses route: a stream's raw `` |
+| J115now | new doc line | `CHANGELOG.md:39` | `` reasoning deltas, `response.reasoning_text.delta`, are now yielded as `` |
+| J116now | new doc line | `CHANGELOG.md:40` | `` `EventReasoningDelta`, beside the summary's; a reasoning item whose `` |
+| J117now | new doc line | `CHANGELOG.md:41` | `` summary is empty is now kept, its text read from its `reasoning_text` `` |
+| J118now | new doc line | `CHANGELOG.md:42` | `content, and is never sent back` |
+| J119now | new doc line | `CHANGELOG.md:43` | `([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| J120now | new doc line | `CHANGELOG.md:44` | `ST10, ST67).` |
+| J121now | new doc line | `CHANGELOG.md:45` | `` Every provider, on every wire: an answer `Generate` reads over the `` |
+| J122now | new doc line | `CHANGELOG.md:46` | `stream, when it names no output limit, is now bounded at 32 MiB of` |
+| J123now | new doc line | `CHANGELOG.md:47` | `text, reasoning and call arguments, up from 16 MiB, since reasoning may` |
+| J124now | new doc line | `CHANGELOG.md:48` | `` now be counted twice; past it, `ErrIncomplete` as before. A plain `` |
+| J125now | new doc line | `CHANGELOG.md:49` | `reply's body keeps 16 MiB` |
+| J126now | new doc line | `CHANGELOG.md:50` | `([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| J127now | new doc line | `docs/architecture.md:68` | `llmprovider/providers/chatcompat/ any Chat Completions server, under the caller's id: not in Default(); Responses with WithResponses (0091-MADR ST5)` |
+| J128now | new doc line | `docs/architecture.md:173` | `` `WithResponses`, which sends `Generate` and `Stream` to `{base}/responses` and reads the reply with the shared Responses decoder (0091-MADR ST50 to ST52) `` |
+| J129now | new doc line | `docs/architecture.md:174` | `0091-MADR ST71)` |
+| J130now | new doc line | `docs/architecture.md:175` | `` a reasoning item whose summary holds no text is read from its `reasoning_text` content (0091-MADR ST10, ST63) `` |
+| J131now | new doc line | `docs/architecture.md:470` | `` `EventReasoningDelta`: Responses' reasoning summary and reasoning text `` |
+| J132now | new doc line | `docs/architecture.md:471` | `(0091-MADR ST67), Messages'` |
+| J133now | new doc line | `docs/architecture.md:486` | `` not run the `item_not_finished` check (ST33). On `chatcompat`'s `` |
+| J134now | new doc line | `docs/architecture.md:487` | `` `WithResponses` path, a reply finished as completed whose `output_tokens` `` |
+| J135now | new doc line | `docs/architecture.md:488` | `reached the limit sent is a cut, decided before that check (0091-MADR` |
+| J136now | new doc line | `docs/architecture.md:489` | `ST55, ST65).` |
+| J137now | new doc line | `docs/architecture.md:701` | `` **Five wire formats:** OpenAI Responses (`openai`, `grok`, and `chatcompat` `` |
+| J138now | new doc line | `docs/architecture.md:702` | `` with `WithResponses`, 0091-MADR ST5), Anthropic Messages `` |
+| J139now | new doc line | `README.md:131` | `of its arguments arrived (0088-MADR ST107, ST110, OQ21). On a` |
+| J140now | new doc line | `README.md:132` | `` `chatcompat` provider built with `chatcompat.WithResponses()`, which sends `` |
+| J141now | new doc line | `README.md:133` | `` `Generate` and `Stream` to the server's `/responses`, a reply the server `` |
+| J142now | new doc line | `README.md:134` | `` finishes as completed is reported cut too when its `output_tokens` `` |
+| J143now | new doc line | `README.md:135` | `` reached the limit sent, as Ollama's `/v1/responses` hides a cut `` |
+| J144now | new doc line | `README.md:136` | `` (0091-MADR ST55). An empty answer is `ErrEmptyAnswer` too, with `` |
+| J145now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:238` | `` (2026-11-26: a caller who gives `chatcompat.WithResponses()` has `` |
+| J146now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:239` | `` `Generate` and `Stream` sent to the server's `/responses`, read by `` |
+| J147now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:240` | `` `internal/wire/responses`, by `` |
+| J148now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:241` | `[0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| J149now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:242` | `ST5 and ST50 (OQ5 "Opt-in WithResponses()"). Without it, the package` |
+| J150now | new doc line | `docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md:243` | `speaks Chat Completions as above. The text above is unchanged.)*` |
+| J151now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:260` | `(2026-11-26: since` |
+| J152now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:261` | `[0091-MADR-adopt-the-responses-api-per-provider.md](0091-MADR-adopt-the-responses-api-per-provider.md)` |
+| J153now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:262` | `` ST63 and ST67, it is mapped to `EventReasoningDelta` on every Responses `` |
+| J154now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:263` | `provider, after probes of 2026-11-23 saw Kilo, Together and Hugging Face` |
+| J155now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:264` | `send it. The text above is unchanged.)*` |

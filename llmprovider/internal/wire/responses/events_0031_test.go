@@ -88,18 +88,20 @@ func TestEvents_Goldens(t *testing.T) {
 }
 
 // TestEvents_ReasoningDelta (0031-PLAN Phase 1, rule 3): Grok's reasoning
-// summary delta is EventReasoningDelta; the unmeasured reasoning text delta
-// yields nothing.
+// summary delta is EventReasoningDelta. The reasoning text delta, which
+// 0031 left unmapped, is one too, on every provider (0091-MADR ST63, ST67,
+// "Pass it on everywhere (Recommended)").
 func TestEvents_ReasoningDelta(t *testing.T) {
 	events, err := collectEvents(t, sse(
 		`{"type":"response.reasoning_summary_text.delta","delta":"think"}`,
-		`{"type":"response.reasoning_text.delta","delta":"unmapped"}`,
+		`{"type":"response.reasoning_text.delta","delta":"aloud"}`,
 		`{"type":"response.output_item.done","item":{"type":"reasoning","summary":[{"type":"summary_text","text":"think"}]}}`,
 		`{"type":"response.output_text.delta","delta":"ok"}`,
 		`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok"}]}}`,
 		`{"type":"response.completed","response":{"id":"r1"}}`,
 	))
-	want := []string{"reasoning_delta:think", "item:ReasoningItem", "text_delta:ok", "item:MessageItem", "done"}
+	want := []string{"reasoning_delta:think", "reasoning_delta:aloud", "item:ReasoningItem", "text_delta:ok",
+		"item:MessageItem", "done"}
 	if got := eventKinds(events); err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("events %v (%v), want %v", got, err, want)
 	}
