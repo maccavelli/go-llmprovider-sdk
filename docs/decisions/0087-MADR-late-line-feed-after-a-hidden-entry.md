@@ -230,6 +230,8 @@ label. The state table cites them by row.
 | OR16 | the gate self-test anchored on the `wizard` row's old text (Phase 2, 2026-11-22) | "Make the anchor robust" | A6a's amendment of this date; ST41 |
 | OR17 | `select` interrupted by a signal (`EINTR`), found by ST3's flaky test (2026-11-23) | "Wait again for the time left (Recommended)" | ST9, ST43; A3's amendment; "Amendment of 2026-11-23" (A-8) |
 | OR18 | when the fix of OR17 ships (2026-11-23) | "In v1.33.0 (Recommended)" | the PLAN's Phase 4: its own commit, before the 0088/0089 output-limit commit; both in `v1.33.0` |
+| OR19 | ST43's `EINTR until the deadline` subtest (K3) failed once under load (2026-11-25) | "Investigate and fix next (Recommended)" | K3's test; "Amendment of 2026-11-25" (A-9), cases Q1 to Q7; the PLAN's Phase 5 |
+| OR20 | A-9's follow-up: K4 after an `EINTR` with no time left, when an LF arrived while the goroutine waited to run (2026-11-26) | "Leave it, recorded (Recommended)" | K4 as built; A-9's row of 2026-11-26 |
 
 ### What option A is
 
@@ -515,7 +517,7 @@ Rows ST31 and ST32 arise only if Phase 1 maps to "seen".
 | ST40 | A second reader of the same terminal takes the byte between the check and the peek | out of scope | the peek waits for the next byte; beside ST27; stated in the doc (OR11) | | |
 | ST41 | The doc and table lines the new import makes false (A6a) | decided | each line A6a names is edited in the same change | A6a; the review's finding 2 | `make tables-check` (plant: `docs/architecture.md`'s `wizard` row left without `golang.org/x/sys`: "imports ..., which its row does not name"); `make docs-check` and Phase 2's review for the prose lines |
 | ST42 | Where the probe lives, and its switch | decided | `llmprovider/live_raw_enter_0087_windows_test.go`, standard library only; `AGENTS.md` names `LLMPROVIDER_LIVE_0087` | OR9; OR12 | ~~`make tables-check` (plant: `AGENTS.md`'s name of the variable removed: "a live test reads it, and AGENTS.md does not name it")~~ *(amended 2026-11-22, OR12: that plant is not caught, since `tables-check` admits a variable its own record names; see A-1)* `make tables-check` (plant: the probe reads a variable no document names); `AGENTS.md`'s name of `LLMPROVIDER_LIVE_0087` pinned by the claims row C47now (plant: its text changed, by `tools/claims.py --plants`); `make dep-check` unchanged |
-| ST43 | The settle's `select` interrupted by a signal (`EINTR`): the Go runtime's own preemption signal, a resize, any other (added 2026-11-23, A-8) | decided | `select` is called again with the time left to a deadline fixed before the first call; the cases and outcomes are A-8's table, K1 to K7 | OR17; A3's amendment | `TestPendingWithin_Interrupted_0087` (Unix; subtests per case, through the unexported seam `selectFn`); plant: the retry removed (`EINTR` returned as the check's error, as before); ST3's `TestSecret_LateLineFeedDuringWait_0087`, unchanged, 0 failures in 10000 runs |
+| ST43 | The settle's `select` interrupted by a signal (`EINTR`): the Go runtime's own preemption signal, a resize, any other (added 2026-11-23, A-8) | decided | `select` is called again with the time left to a deadline fixed before the first call; the cases and outcomes are A-8's table, K1 to K7 | OR17; A3's amendment | `TestPendingWithin_Interrupted_0087` (Unix; subtests per case, through the unexported seam `selectFn`); plant: the retry removed (`EINTR` returned as the check's error, as before); ST3's `TestSecret_LateLineFeedDuringWait_0087`, unchanged, 0 failures in 10000 runs *(2026-11-25, A-9, OR19: the `EINTR until the deadline` subtest runs in a `testing/synctest` bubble, so its calls, waits and elapsed time are exact on any host; plants P1 to P5 and T1, cases Q1 to Q7)* |
 
 Counts *(third pass)*: 29 decided, 11 out of scope, 0 open, 2 open awaiting
 live evidence (ST20, ST21). *(2026-11-22, A-4: 31 decided, 11 out of scope,
@@ -1034,11 +1036,99 @@ on the monotonic clock; "the time left" is the deadline less now.
 | :--- | :--- | :--- | :--- |
 | K1 | `EINTR`, then the input readable within the time left | `true`, no error; the LF is dropped, `Secret` returns the key and the next `Input` the answer | `EINTR, then the LF` (through `Secret` and `Input`) |
 | K2 | `EINTR`, then `select` again | the next call's wait is the time left, never a fresh W: at most W less the time already spent | `EINTR, then the LF` (the second call's wait is checked) |
-| K3 | `EINTR` repeated until the deadline passes | `false`, no error; no call starts after the deadline | `EINTR until the deadline` |
+| K3 | `EINTR` repeated until the deadline passes | `false`, no error; no call starts after the deadline | `EINTR until the deadline` *(2026-11-25, A-9: on the bubble's clock; no call starts at or after the deadline)* |
 | K4 | `EINTR` with no time left | no further `select`; `false`, no error | `EINTR with no time left` (one call) |
 | K5 | any other `select` error | unchanged (A3): `false` and the error, no retry, which `readMasked` ignores | `another error` (one call); and `TestSecret_SettleCheckFails_0087`, `closed`, unchanged |
 | K6 | a descriptor `select` cannot take (negative, or at or above `FD_SETSIZE`) | unchanged (A3): `false` and `errNoSelect`, never given to `select` | `TestSecret_SettleCheckFails_0087` (`closed`, `descriptor 1100`), unchanged |
 | K7 | the builds that are not Unix | unaffected: `wizard/settle_windows.go` waits with `WaitForSingleObject`, which is not alertable, in slices to a deadline it already fixes, and `wizard/settle_other.go` does not wait; neither calls `select` or the seam | read in both files at `77563af`; `GOOS=windows go vet ./wizard` and `GOOS=windows go test -c ./wizard` build with the fix |
+
+### Amendment of 2026-11-25: K3's test depended on the host's scheduler (A-9)
+
+**What failed.** During 0094's build, the CI make set, run through
+`run-heavy` on this Mac under other sessions' load, failed `make
+coverage-check` once with
+`late_lf_0087_unix_test.go:195: select called 1 time(s); want it called again after EINTR`
+(`TestPendingWithin_Interrupted_0087/EINTR_until_the_deadline`, 0.03 s). It
+passed run again alone, and in `tools/gate.py` on the same tree.
+
+**The reproduction,** on a scratch clone of `68de900`, through `run-heavy`
+or `run-on-host`, each run `go test -count=N -cpu=1,2,4 -run
+'^TestPendingWithin_Interrupted_0087$' ./wizard/` beside busy-loop processes
+started by the driver:
+
+| Host | Load | Runs of each subtest | Failures |
+| :--- | :--- | :--- | :--- |
+| this Mac, 10 CPUs | 10 busy loops; load1 64 at the start, 160 at the end | 600 | 1 |
+| this Mac | 20 busy loops; load1 42, then 158 | 3000 | 2 |
+| the Linux machine, 4 CPUs | 8 busy loops; load1 1, then 7 | 600 | 0 |
+| a WSL distro of the Windows laptop, 32 CPUs (not the Linux machine) | 32 busy loops; load1 3, then 31 | 3000 | 0 |
+
+Every failure is the same subtest on the same line, `:195`: 3 in 3600 on
+this Mac (about 0.08 %), none on Linux. No other subtest failed.
+
+**The cause, in the test.** At `68de900` the subtest
+(`wizard/late_lf_0087_unix_test.go:182` to `:205`) gives `pendingWithin` a
+30 ms wait and a fake `selectFn` that sleeps 5 ms on the real clock and
+returns `EINTR`; it asserts at `:194` that `select` is called at least
+twice. That holds only if the first fake call returns before the 30 ms
+deadline. A loaded host can hold the sleeping goroutine past it (the failing
+run took 0.03 s), and `pendingWithin` then finds no time left after the
+first `EINTR` and returns `false` with no error after one call: K4's decided
+outcome, correct for that state. The test asserted K3 under an assumption
+about the scheduler that K4's own outcome contradicts on a slow host.
+
+**Not a defect of the production code.** `pendingWithin` makes its first
+call with the whole wait (`wizard/settle_unix.go:35`, `left := wait`, passed
+at `:40` to `:41`) and reads the deadline only after an `EINTR` (`:43`), so
+however late the first call starts it is never skipped or shortened; the
+candidate "the deadline passes before the first `select`, so an interrupted
+wait returns early" cannot happen. A late first call extends the whole
+check by its delay; it does not end it early.
+
+**Decided (OR19, within OR17's "one deterministic test through an
+unexported seam on the `select` call").** The K3 subtest runs in a
+`testing/synctest` bubble (Go 1.27.4; the module's own
+`llmprovider/x/signin/start_device_0074_test.go` already uses one), where
+the clock moves only when every goroutine in the bubble is blocked, so the
+fake's 5 ms sleep takes exactly 5 ms. It asserts that `pendingWithin`
+returns `false` and no error; that the waits are exactly 30, 25, 20, 15, 10
+and 5 ms, each the time left and none at or after the deadline; and that
+exactly 30 ms passes on the bubble's clock. The fake returns `EBADF` after
+12 calls (twice the wait's 5 ms steps), so a retry that never ends fails the
+test instead of hanging it. No production code, exported name, doc comment
+or `CHANGELOG.md` line changes (a test-only change has no entry, as in
+0078-PLAN). The other subtests keep the real clock; Q7 says why.
+
+**The cases, each with its test and its plant** (a plant is one change on a
+scratch clone by `tools/plant.py`, run with `-run
+'^TestPendingWithin_Interrupted_0087$/^EINTR_until_the_deadline$'`, so it is
+caught by K3's subtest alone):
+
+| Case | Input or state | Outcome | Test | Plant, and what K3's subtest at `68de900` did with it |
+| :--- | :--- | :--- | :--- | :--- |
+| Q1 | K3 on a loaded host, where a 5 ms sleep can overshoot the 30 ms deadline | the subtest's result does not depend on the host: its clock is the bubble's | the subtest under load, `-count=500 -cpu=1,2,4`, on this Mac and on the Linux machine (`-race`): 0 failures | T1, in the test: the subtest run on the real clock, `synctest.Test` replaced by a plain call; it fails, the waits being the real time left (at `68de900` the subtest runs on the real clock, and fails 3 in 3600 under load) |
+| Q2 | the retry removed (ST43's plant) | `false` and no error; six waits | the subtest | P1, `if errors.Is(err, unix.EINTR) && false {`; at `68de900`: caught |
+| Q3 | a fresh full wait after each `EINTR` (K2) | each wait is the time left | the subtest | P2, `if left = wait; time.Until(deadline) > 0 {`; at `68de900`: not caught by K3's subtest (caught by K1's) |
+| Q4 | a call made at the deadline, with no time left | no call starts at or after the deadline | the subtest | P3, `left >= 0` for `left > 0`; at `68de900`: not caught by any test |
+| Q5 | the deadline fixed at the first `EINTR`, not before the first call | the deadline is the first call's start plus the wait | the subtest | P4, `deadline` set at the first `EINTR`; at `68de900`: not caught by K3's subtest (caught by K1's and K4's) |
+| Q6 | a retry that never ends | the test fails within its 12 calls; it does not hang | the subtest | P5, the deadline moved to now plus the wait at each `EINTR`; not run at `68de900`, where K3's and K4's fakes would let it loop until the test binary's timeout (read, not run) |
+| Q7 | the other subtests (K1, K4, K5) and ST3's `TestSecret_LateLineFeedDuringWait_0087` | unchanged, on the real clock: K4 sleeps twice its wait and asserts one call, which holds however long the sleep runs, since a sleep never ends early; K1 fails only if its first fake call takes more than 2 s, ST3's third-pass margin; K5 does not sleep | K1, K4 and K5 in the same load runs: 0 failures; ST3's test in Phase 5's `go test ./...` and CI make set | their plants unchanged; P1 is still caught by K1's and K4's subtests |
+
+**Not decided here (a follow-up for the owner).** After an `EINTR` with no
+time left, K4 decides no further `select`: an LF that arrived within the
+wait while the goroutine waited to run after the `EINTR` is then kept for
+the next prompt, where an uninterrupted `select` would have reported it.
+It needs a scheduling delay longer than the time left after an `EINTR`; its
+rate was not measured, and no run above shows it. Changing K4 (one last
+`select` with no wait) is a behaviour change, so it is not built.
+*(Decided 2026-11-26 by OR20; see the row below.)*
+
+**The owner's ruling on K4 (2026-11-26),** relayed by the coordinator, by
+its exact label:
+
+| Ruling | Condition | Outcome | Test |
+| :--- | :--- | :--- | :--- |
+| OR20, "Leave it, recorded (Recommended)" | an `EINTR` with no time left, after an LF arrived within the wait while the goroutine waited to run | K4 stays as built: no further `select`, `false` and no error, and the LF is kept for the next prompt; acted on only if it is ever seen | K4's `EINTR with no time left` subtest (one call), unchanged |
 
 ## Release note (2026-11-22)
 

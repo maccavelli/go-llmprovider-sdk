@@ -7,10 +7,12 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -180,28 +182,35 @@ func TestPendingWithin_Interrupted_0087(t *testing.T) {
 		}
 	})
 	t.Run("EINTR until the deadline", func(t *testing.T) { // K3
+		// In a synctest bubble the clock moves only when every goroutine
+		// in it is blocked, so each interrupted call takes exactly spent
+		// and the calls and their waits are fixed, however loaded the host
+		// (0087-MADR A-9).
 		r := pipeReader0087(t)
-		const wait = 30 * time.Millisecond
-		waits := fakeSelect0087(t, func(int, time.Duration) (int, bool, error) {
-			time.Sleep(5 * time.Millisecond)
-			return 0, false, unix.EINTR
-		})
-		start := time.Now()
-		ready, err := pendingWithin(r, wait)
-		if ready || err != nil {
-			t.Errorf("pendingWithin = %v, %v; want false and no error once the deadline passes", ready, err)
-		}
-		if len(*waits) < 2 {
-			t.Errorf("select called %d time(s); want it called again after EINTR", len(*waits))
-		}
-		for i, d := range *waits {
-			if d <= 0 || d > wait {
-				t.Errorf("call %d waits %v; want more than 0 and at most %v", i+1, d, wait)
+		synctest.Test(t, func(t *testing.T) {
+			const wait, spent = 30 * time.Millisecond, 5 * time.Millisecond
+			const most = 2 * int(wait/spent) // a retry that never ends stops here
+			waits := fakeSelect0087(t, func(call int, _ time.Duration) (int, bool, error) {
+				if call > most {
+					return 0, false, unix.EBADF
+				}
+				time.Sleep(spent)
+				return 0, false, unix.EINTR
+			})
+			start := time.Now()
+			ready, err := pendingWithin(r, wait)
+			if ready || err != nil {
+				t.Errorf("pendingWithin = %v, %v; want false and no error once the deadline passes", ready, err)
 			}
-		}
-		if d := time.Since(start); d > time.Second {
-			t.Errorf("pendingWithin took %v; want it bounded by its %v", d, wait)
-		}
+			want := []time.Duration{30 * time.Millisecond, 25 * time.Millisecond, 20 * time.Millisecond,
+				15 * time.Millisecond, 10 * time.Millisecond, 5 * time.Millisecond}
+			if !slices.Equal(*waits, want) {
+				t.Errorf("select waits %v; want %v: each call the time left, and none at or after the deadline", *waits, want)
+			}
+			if d := time.Since(start); d != wait {
+				t.Errorf("pendingWithin took %v of the bubble's clock; want exactly %v, its deadline", d, wait)
+			}
+		})
 	})
 	t.Run("EINTR with no time left", func(t *testing.T) { // K4
 		r := pipeReader0087(t)

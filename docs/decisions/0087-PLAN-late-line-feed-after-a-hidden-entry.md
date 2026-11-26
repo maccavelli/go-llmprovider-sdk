@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-23
+date: 2026-11-25
 associated-madr: "0087-MADR-late-line-feed-after-a-hidden-entry.md"
 decision-makers: repository owner
 ---
@@ -403,6 +403,41 @@ output-limit commit; both ship in `v1.33.0` (OR18).
 
 Exit criterion: no blocker; K1 to K7 each tested or checked as A-8's table
 names; the plants caught.
+
+### Phase 5: K3's test on the bubble's clock (added 2026-11-25, OR19)
+
+Base `68de900`. Files: `wizard/late_lf_0087_unix_test.go` (the `EINTR until
+the deadline` subtest and two imports), this pair, and a dated pointer
+beside 0094-PLAN's follow-up line. No production code, no `CHANGELOG.md`
+line (a test-only change, as in 0078-PLAN), no index row (the statuses do
+not change).
+
+1. **Records first.** OR19 in the MADR's rulings table; ST43's and K3's rows
+   annotated; "Amendment of 2026-11-25" (A-9) with the reproduction, the
+   cause and cases Q1 to Q7; this phase; the PLAN's date by
+   `tools/records.py status`.
+2. **Re-ground** A-9's cited lines at `68de900`: `wizard/settle_unix.go:35`,
+   `:40` to `:41` and `:43`; `wizard/late_lf_0087_unix_test.go:182` to `:205`
+   and `:194` to `:195`.
+3. **The test.** The K3 subtest runs its body in `synctest.Test`; the fake
+   sleeps 5 ms and returns `EINTR`, and `EBADF` after 12 calls; it asserts
+   `false` and no error, the waits exactly 30, 25, 20, 15, 10 and 5 ms, and
+   exactly 30 ms passed on the bubble's clock.
+4. **Plants,** each caught by K3's subtest alone (`-run
+   '^TestPendingWithin_Interrupted_0087$/^EINTR_until_the_deadline$'`): P1
+   to P5 on `wizard/settle_unix.go`, and T1 on the test (A-9's table). The
+   same P1 to P4 run against `68de900`'s test, to show what it missed.
+5. **Under load:** the test `-count=500 -cpu=1,2,4` beside busy loops, on
+   this Mac through `run-heavy` and on the Linux machine (not WSL) through
+   `run-on-host --race`: 0 failures each.
+6. **Gates,** through `run-heavy` on this Mac: `make pre-add-check
+   FILES=wizard/late_lf_0087_unix_test.go`; `go test ./...`; the CI make set
+   (`.github/workflows/ci.yml`'s `make` line); `python3 -B tools/gate.py`.
+   Then `tools/claims.py` on the MADR, `tools/recordlint.py --changed`,
+   `tools/denyscan.py --changed` and the disclosure hook's `redact` dry run.
+   Nothing staged.
+
+Exit criterion: no blocker; Q1 to Q7 each tested; P1 to P5 and T1 caught.
 
 ## Verification
 
@@ -1160,3 +1195,79 @@ Exit criterion: no blocker; K1 to K5 tested, K6 by its existing tests, K7
 checked; both plants caught. Phase 4 is done in one pass. Not done here: the
 commit (the owner's; its own, before the 0088/0089 output-limit commit,
 OR18), and `v1.33.0`, whose release takes this PLAN back to `complete`.
+
+### 2026-11-25: Phase 5, pass 1 (K3's test on the bubble's clock; stopped at step 6 on `tools/gate.py`)
+
+**The ruling,** the owner's, relayed by the coordinator, by its exact label:
+OR19, "Investigate and fix next (Recommended)". Recorded in the MADR (the
+rulings table, ST43's and K3's rows, "Amendment of 2026-11-25", A-9) before
+any code. No case needed a further ruling. The PLAN's date by
+`python3 -B tools/records.py status docs/decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md in-progress --date 2026-11-25`:
+"records: written; records-check: 0 problem(s)", exit 0.
+
+**Re-grounded** at `68de900`: A-9's cited lines hold as cited.
+
+**What was changed:** `wizard/late_lf_0087_unix_test.go` (the `EINTR until
+the deadline` subtest in `synctest.Test`; imports `slices` and
+`testing/synctest`); the MADR; this PLAN; one dated pointer in 0094-PLAN.
+
+**Plants** (`tools/plant.py --root` a scratch clone of the fixed tree,
+`-run '^TestPendingWithin_Interrupted_0087$/^EINTR_until_the_deadline$'`):
+"all 5 plant(s) caught", and T1 "all 1 plant(s) caught". The lines:
+
+```text
+P1: late_lf_0087_unix_test.go:203: pendingWithin = false, interrupted system call; want false and no error once the deadline passes
+P2: late_lf_0087_unix_test.go:208: select waits [30ms 30ms 30ms 30ms 30ms 30ms]; want [30ms 25ms 20ms 15ms 10ms 5ms]: each call the time left, and none at or after the deadline
+P3: late_lf_0087_unix_test.go:208: select waits [30ms 25ms 20ms 15ms 10ms 5ms 0s]; want [30ms 25ms 20ms 15ms 10ms 5ms]: each call the time left, and none at or after the deadline
+P4: late_lf_0087_unix_test.go:208: select waits [30ms 30ms 25ms 20ms 15ms 10ms 5ms]; want [30ms 25ms 20ms 15ms 10ms 5ms]: each call the time left, and none at or after the deadline
+P5: late_lf_0087_unix_test.go:203: pendingWithin = false, bad file descriptor; want false and no error once the deadline passes
+T1: late_lf_0087_unix_test.go:209: select waits [30ms 23.807ms 17.551ms 11.288ms 5.013ms]; want [30ms 25ms 20ms 15ms 10ms 5ms]: each call the time left, and none at or after the deadline
+```
+
+P1 to P4 against `68de900`'s whole test: P1 caught by K3's subtest
+(`:195`); P2 caught only by K1's (`:179`); P4 only by K1's and K4's (`:179`,
+`:218`); P3 not caught ("1 plant(s) not caught").
+
+**Under load,** `-count=N -cpu=1,2,4 -run '^TestPendingWithin_Interrupted_0087$'`
+beside busy loops: this Mac through `run-heavy`, N = 500 (20 loops, load1 11
+to 67) and N = 2000 (20 loops, load1 23 to 218): 0 of 1500 and 0 of 6000;
+the Linux machine through `run-on-host --need linux --race`, N = 500 with
+`-race` (8 loops, load1 1 to 8): 0 of 1500. The base: 3 of 3600 on this
+Mac (A-9).
+
+**Gates:**
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES=wizard/late_lf_0087_unix_test.go` | this Mac | 0, "1 file(s) clean" |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 `ok` |
+| `run-heavy -- make` the CI make set (`ci.yml`'s line) | this Mac | 0, `gate-selftest` 101 OK |
+| `run-heavy -- python3 -B tools/gate.py` | this Mac | 1, 27 of 30: `coverage-check`, `gate-selftest` and `g-wire-stable` failed in packages this phase does not touch, on loopback writes refused with `write: no buffer space available` (14, 15 and 259 such lines); `wizard` passed in it |
+| `tools/claims.py --search <the repositories' parent>` on the MADR | this Mac | 0, 46 of 46 |
+| `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; the disclosure hook's `redact` | this Mac | 0 (no rule rose); 0 (0 hits in 4 files); 0 (would edit 0 files) |
+| `make records-check markdownlint docs-check changelog-check` | this Mac | 0 |
+
+**Stopped at step 6** (an unexpected state): during `tools/gate.py`, this
+Mac's network memory was exhausted (`netstat -m`: 171975 of 172032 2 KB
+clusters in use, 96.7 % of network memory, the denied requests still
+rising after the run). The CI make set, which runs the same
+`coverage-check` and `gate-selftest`, passed on the same tree just before
+it. `tools/gate.py` is not run again until the host recovers; the
+resolutions are the coordinator's to put to the owner. Nothing staged.
+
+### 2026-11-26: Phase 5, pass 1, continued (step 6 finished)
+
+The session restarted; the four changed paths were kept, and the tree's
+test file is byte-identical to the copy the plants ran on. This Mac's
+network memory had recovered (`netstat -m`: 4 of 3576 2 KB clusters in use,
+1.6 % of network memory). `tools/gate.py` was run again once, unchanged:
+
+| Check | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- python3 -B tools/gate.py` | this Mac | 0, "gate: 30 of 30 passed" (`coverage-check`, `gate-selftest` and `g-wire-stable` among them) |
+
+Exit criterion: no blocker; Q1 to Q7 each tested; P1 to P5 and T1 caught.
+Phase 5 is done in one pass. Not done here: the commit (the owner's). Not
+decided: A-9's follow-up on K4, which is the owner's. *(Annotated
+2026-11-26: decided by OR20, "Leave it, recorded (Recommended)"; K4 stays as
+built, and nothing is built for it.)*
