@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-27
 associated-madr: "0087-MADR-late-line-feed-after-a-hidden-entry.md"
 decision-makers: repository owner
@@ -1275,3 +1275,7 @@ built, and nothing is built for it.)*
 ### 2026-11-27: closed for v1.34.0
 
 Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped: the late line feed's fix and its Windows probe in v1.32.0 (`df2a7eb`, `751e970`); the `EINTR` retry in v1.33.0 (`c5b9912`); the `synctest` subtest of Phase 5 in v1.34.0 (`dc21fe2`). Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27: withdrawn, by the deviation of 2026-11-27 in 0091-PLAN Phase 4: this PLAN's closing clause (`:358`) waits for the tag that carries its work, and `dc21fe2` ships in v1.34.0; this PLAN is `in-progress` again; it closes on the v1.34.0 tag, that tag's CI passing, then `tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli` and `tools/offline.py v1.34.0` recorded. The text before this note is unchanged.)*
+
+### 2026-11-27: v1.34.0's tag, CI and post-release checks recorded
+
+The withdrawn closure's own clause is met. Tag `v1.34.0` (annotated, the owner's) on `bc3a82f`. Tag CI run 46045519129: `validate` on ubuntu, macos and windows, and `release`, all succeeded. The GitHub Release `v1.34.0` was published 2026-11-27T18:04:33Z by the release workflow; `v1.28.0`'s Release was then deleted, and its tag kept, under R53's six-newest rule. `python3 -B tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli`, through `run-heavy`: exit 0, "consumer: 17 packages linked", "consumer: every step passed" (the dependent's `go get`, `go mod tidy`, `go build`, `go vet` on darwin, linux and windows, its tests and its lint all rc 0). `python3 -B tools/offline.py v1.34.0`: exit 0, "caught: no document handed in", "caught: a listing asked for", "offline: every step passed". Nothing of this PLAN is open. The closure written at v1.34.0's preparation stands again; status `complete` (`tools/records.py status`). Records only; nothing staged.

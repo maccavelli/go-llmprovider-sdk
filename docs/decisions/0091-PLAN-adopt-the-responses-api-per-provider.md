@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-27
 associated-madr: "0091-MADR-adopt-the-responses-api-per-provider.md"
 decision-makers: repository owner
@@ -344,3 +344,7 @@ Run in the tree; nothing staged. Scripts and outputs: `<scratch>/v1340prep/`. Ea
   Passes of step 4a/4b: 2. Open records: 0086, 0087, 0088, 0091, 0092 and 0094 PLANs, `in-progress`.
 
   2026-11-27, release delta check: two Minors, both closed in a docs commit before the tag. (1) `CHANGELOG.md`, `## [v1.34.0]`: the clause on matching repeated announcements now says the position (`output_index` and type) counts only for an item with neither an id nor a call id, as the doc comment on `announce` and `announceKey` does. (2) 0090-PLAN's closing entry now points to 0089-PLAN's closing entry, v1.33.0's post-tag record (the tag's CI, `consumer.py`, `offline.py`).
+
+### 2026-11-27: v1.34.0's tag, CI and post-release checks recorded
+
+The withdrawn closure's own clause is met. Tag `v1.34.0` (annotated, the owner's) on `bc3a82f`. Tag CI run 46045519129: `validate` on ubuntu, macos and windows, and `release`, all succeeded. The GitHub Release `v1.34.0` was published 2026-11-27T18:04:33Z by the release workflow; `v1.28.0`'s Release was then deleted, and its tag kept, under R53's six-newest rule. `python3 -B tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli`, through `run-heavy`: exit 0, "consumer: 17 packages linked", "consumer: every step passed" (the dependent's `go get`, `go mod tidy`, `go build`, `go vet` on darwin, linux and windows, its tests and its lint all rc 0). `python3 -B tools/offline.py v1.34.0`: exit 0, "caught: no document handed in", "caught: a listing asked for", "offline: every step passed". Nothing of this PLAN is open. The closure written at v1.34.0's preparation stands again; status `complete` (`tools/records.py status`). Records only; nothing staged.

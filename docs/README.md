@@ -191,9 +191,9 @@ documents a reader follows to do something.
 | 0086 | MADR | [Pin golangci-lint v2.15.0, and Drop the Three nolint Directives It Makes Dead](decisions/0086-MADR-golangci-lint-v2-15-0.md) | accepted |
 | 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | in-progress |
 | 0087 | MADR | [Keep a Hidden Entry's Late Line Feed From Answering the Next Prompt: `TextPrompter` Settles Its Enter Before It Leaves Raw Mode](decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) | accepted |
-| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | in-progress |
+| 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | complete |
 | 0088 | MADR | [Send the Model's Own Output Limit When a Request Names None, So Reasoning Does Not Spend the Whole 8192-Token Default](decisions/0088-MADR-default-output-limit-from-model-facts.md) | accepted |
-| 0088 | PLAN | [Implement Sending the Model's Own Output Limit When a Request Names None](decisions/0088-PLAN-default-output-limit-from-model-facts.md) | in-progress |
+| 0088 | PLAN | [Implement Sending the Model's Own Output Limit When a Request Names None](decisions/0088-PLAN-default-output-limit-from-model-facts.md) | complete |
 | 0088 | REPORT | [Output Limits Across Agents and Vendors, Recorded for 0088](reports/0088-REPORT-output-limits-across-agents-and-vendors.md) | observation |
 | 0088 | REPORT | [qwen-code: Output Limits, the Responses API, Session Streaming and Caching, Recorded for 0088](reports/0088-REPORT-qwen-code-output-limits-responses-streaming-and-caching.md) | observation |
 | 0089 | MADR | [Discover Each Model's Output Limit, Window and Their Evidence, and Send a Limit Only Where It Is Needed](decisions/0089-MADR-model-output-limit-discovery.md) | accepted |
@@ -201,14 +201,14 @@ documents a reader follows to do something.
 | 0090 | MADR | [A Cancelled Run Does Not Ask About the Endpoint: `resolveBaseURL` Reads the Run's Context Before It Warns, and Two Test Gaps From 0081 Are Closed or Left](decisions/0090-MADR-a-cancelled-run-does-not-ask-about-the-endpoint.md) | accepted |
 | 0090 | PLAN | [Implement: A Cancelled Run Does Not Ask About the Endpoint](decisions/0090-PLAN-a-cancelled-run-does-not-ask-about-the-endpoint.md) | complete |
 | 0091 | MADR | [Adopt the Responses API Per Provider Where It Loses Nothing Chat Completions Gives, and Read a Cut a Service Reports as Complete](decisions/0091-MADR-adopt-the-responses-api-per-provider.md) | accepted |
-| 0091 | PLAN | [Implement: Adopt the Responses API Per Provider](decisions/0091-PLAN-adopt-the-responses-api-per-provider.md) | in-progress |
+| 0091 | PLAN | [Implement: Adopt the Responses API Per Provider](decisions/0091-PLAN-adopt-the-responses-api-per-provider.md) | complete |
 | 0091 | REPORT | [The Responses API Across the SDK's Providers, Recorded for 0091](reports/0091-REPORT-responses-api-across-providers.md) | observation |
 | 0092 | MADR | [Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md) | accepted |
-| 0092 | PLAN | [Implement: Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md) | in-progress |
+| 0092 | PLAN | [Implement: Fill a Completed Responses Stream From Its Terminal Output](decisions/0092-PLAN-fill-a-completed-responses-stream-from-its-terminal-output.md) | complete |
 | 0093 | MADR | [The SDK Takes a models.dev Document From Its Caller and Fetches None: `catalog.WithMetadata` In; the Download, Its Cache, Its Options and the Embedded Extract Out](decisions/0093-MADR-take-model-metadata-from-the-caller.md) | accepted |
 | 0093 | PLAN | [Implement: The SDK Takes a models.dev Document From Its Caller and Fetches None](decisions/0093-PLAN-take-model-metadata-from-the-caller.md) | complete |
 | 0094 | MADR | [Refuse an Edit to a Released CHANGELOG Section: `changelog-check` Compares Each Released Section With Its Text at Release](decisions/0094-MADR-refuse-an-edit-to-a-released-changelog-section.md) | accepted |
-| 0094 | PLAN | [Implement: Refuse an Edit to a Released CHANGELOG Section](decisions/0094-PLAN-refuse-an-edit-to-a-released-changelog-section.md) | in-progress |
+| 0094 | PLAN | [Implement: Refuse an Edit to a Released CHANGELOG Section](decisions/0094-PLAN-refuse-an-edit-to-a-released-changelog-section.md) | complete |
 
 ## I want to…
 
