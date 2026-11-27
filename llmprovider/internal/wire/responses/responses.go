@@ -380,8 +380,11 @@ type Decoder struct {
 	// any other but failed and incomplete (ST69), whose output_tokens
 	// reached Limit is read as one the limit cut, as a reply incomplete for
 	// max_output_tokens is. On a stream it is read before the held calls
-	// are released and before an announced item's check (ST34, ST65). Zero,
-	// as openai, grok and OpenCode leave it, reads no reply as cut (ST68).
+	// are released and before an announced item's check (ST34, ST65). A
+	// refusal is read first and finishes content_filter (ST70); a call
+	// announced and never delivered is then named in a WarningToolCallCut
+	// (ST74). Zero, as openai, grok and OpenCode leave it, reads no reply as
+	// cut (ST68).
 	Limit int
 }
 
@@ -827,10 +830,11 @@ type streamState struct {
 	open      []outputItem
 	done      []doneItem
 	announced []announcedItem
-	// announcedIDs are the announced items' ids, so a repeat is found
-	// without a scan (ST34).
-	announcedIDs map[string]bool
-	held         wire.HeldCalls
+	// announcedKeys are the announced items' keys, by id, call id and
+	// output_index with type, so a repeat is found without a scan (ST34,
+	// ST38).
+	announcedKeys map[string]bool
+	held          wire.HeldCalls
 }
 
 // ref is an item as pairing reads it: its id, "" for none; its place in the
@@ -871,10 +875,11 @@ func outputIndex(raw json.RawMessage) int {
 // deliver: a message, a call, or a client tool search when the request has
 // a Search tool, the types appendOutput keeps; not a reasoning item, a
 // hosted search or an unknown type (0092-MADR ST11). A repeated
-// announcement of an id already announced is the same item, recorded once
-// (ST34). Once the announced items pass wire.MaxStreamIndex, where ST11's
-// check is off (ST33), no more are recorded, so each announcement costs
-// constant work.
+// announcement is the same item, recorded once: the same id (ST34); else,
+// with no id, the same call id; else, with neither, the same output_index
+// and type (ST38). One with none of the three is recorded each time. Once
+// the announced items pass wire.MaxStreamIndex, where ST11's check is off
+// (ST33), no more are recorded, so each announcement costs constant work.
 func (s *streamState) announce(item outputItem, index int) {
 	switch item.Type {
 	case itemTypeMessage, itemTypeFunctionCall:
@@ -885,23 +890,57 @@ func (s *streamState) announce(item outputItem, index int) {
 	default:
 		return
 	}
-	if len(s.announced) > wire.MaxStreamIndex || item.ID != "" && s.announcedIDs[item.ID] {
+	if len(s.announced) > wire.MaxStreamIndex || s.announcedKeys[announceKey(item, index)] {
 		return
 	}
+	if s.announcedKeys == nil {
+		s.announcedKeys = map[string]bool{}
+	}
 	if item.ID != "" {
-		if s.announcedIDs == nil {
-			s.announcedIDs = map[string]bool{}
-		}
-		s.announcedIDs[item.ID] = true
+		s.announcedKeys["id:"+item.ID] = true
+	}
+	if item.CallID != "" {
+		s.announcedKeys["call:"+item.CallID] = true
+	}
+	if item.ID == "" && item.CallID == "" && index >= 0 {
+		s.announcedKeys["at:"+strconv.Itoa(index)+":"+item.Type] = true
 	}
 	s.announced = append(s.announced, announcedItem{ref: ref{id: item.ID, index: index, typ: item.Type},
 		callID: item.CallID})
 }
 
+// announceKey is the key a repeat of item, announced at index, is found by:
+// its id; else its call id; else its output_index and type; "" for none
+// (0092-MADR ST34, ST38).
+func announceKey(item outputItem, index int) string {
+	switch {
+	case item.ID != "":
+		return "id:" + item.ID
+	case item.CallID != "":
+		return "call:" + item.CallID
+	case index >= 0:
+		return "at:" + strconv.Itoa(index) + ":" + item.Type
+	}
+	return ""
+}
+
+// closes reports whether item, finished by an output_item.done or taken
+// from the terminal response, is the open call o: by call id when both
+// carry one; else by id, when item carries one (0088-MADR ST115, ST116). Two
+// different call ids never match through an id. A message's or a reasoning
+// item's .done, which carries no call id, closes no call announced without
+// one unless their ids match.
+func closes(o, item outputItem) bool {
+	if item.CallID != "" && o.CallID != "" {
+		return o.CallID == item.CallID
+	}
+	return item.ID != "" && o.ID == item.ID
+}
+
 // itemDone adds the item an output_item.done delivers, and yields it unless
 // it is held. It reports true when yield stopped the stream.
 func (s *streamState) itemDone(item outputItem, index int, yield func(llmprovider.Event) bool) bool {
-	s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return o.CallID == item.CallID })
+	s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return closes(o, item) })
 	done := doneItem{ref: ref{id: item.ID, index: index, typ: item.Type}}
 	if !s.held.Later(yield) {
 		s.done = append(s.done, done)
@@ -1032,7 +1071,7 @@ func (s *streamState) takeTerminal(output []outputItem) ([]llmprovider.Item, map
 		if !take[j] {
 			continue
 		}
-		s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return item.CallID != "" && o.CallID == item.CallID })
+		s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return closes(o, item) })
 		before := len(s.result.Output)
 		s.refused = appendOutput(s.result, item, s.d) || s.refused
 		if len(s.result.Output) > before {
@@ -1117,10 +1156,13 @@ func (s *streamState) unfinished(output []outputItem) error {
 // event's id, model and usage, and the terminal response's undelivered
 // items (0092-MADR D1), before any decision on how to finish (ST14). A cut
 // answer names each call added and never done as the call the limit cut,
-// and is finished by CutAnswer; a completed one fails when an announced item
-// was never delivered (ST11), and is otherwise finished by completed; then
-// the held calls and the taken items the response kept are yielded, and
-// EventDone (0088-MADR ST77, ST80). Its results are a stream dispatch's.
+// and is finished by CutAnswer, the reply's last item read in the server's
+// order (0092-MADR ST37); a refusal at the limit sent names them too, and
+// finishes content_filter (0091-MADR ST74); a completed one fails when an
+// announced item was never delivered (ST11), and is otherwise finished by
+// completed; then the held calls and the taken items the response kept are
+// yielded, and EventDone (0088-MADR ST77, ST80). Its results are a stream
+// dispatch's.
 func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Event) bool) (bool, error) {
 	result := s.result
 	if event.Response.ID != "" {
@@ -1135,15 +1177,20 @@ func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Ev
 	// A completed stream at the limit sent is a cut, decided before the
 	// announced items' check (0091-MADR ST55, ST65); a refusal is read
 	// first, and is not one (ST70).
-	cut = cut || !s.refused && s.d.atLimit(event.Response.Usage)
+	atLimit := s.d.atLimit(event.Response.Usage)
+	cut = cut || !s.refused && atLimit
 	var resp *llmprovider.Response
 	var err error
-	if cut {
-		for _, o := range s.open {
-			result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))
-		}
-		resp, err = wire.CutAnswer("responses", result, reasonOutputLimit, true)
-	} else {
+	switch {
+	case cut:
+		s.nameOpen(result)
+		resp, err = wire.CutAnswerLast("responses", result, reasonOutputLimit, true, s.lastIndex(event.Response.Output, taken))
+	case s.refused && atLimit:
+		// The refusal finishes the reply; a call announced and never
+		// delivered is the limit's, named (0091-MADR ST74).
+		s.nameOpen(result)
+		resp, err = completed(result, true)
+	default:
 		if err := s.unfinished(event.Response.Output); err != nil {
 			return false, err
 		}
@@ -1162,6 +1209,46 @@ func (s *streamState) end(event streamEvent, cut bool, yield func(llmprovider.Ev
 	}
 	yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
 	return true, nil
+}
+
+// nameOpen names each call added and never done in a WarningToolCallCut
+// on result (0088-MADR ST77, ST108).
+func (s *streamState) nameOpen(result *llmprovider.Response) {
+	for _, o := range s.open {
+		result.Warnings = append(result.Warnings, wire.ToolCallCut(result.Model, o.Name, o.CallID))
+	}
+}
+
+// lastIndex is the place in s.result.Output of the reply's last item, where
+// the limit fell, in the server's order (0092-MADR ST37): the terminal
+// output's last item. When it is a call, it is the response's call with its
+// call id; when it is not a call, no item is last, -1. With no terminal
+// output, past the bound (ST33), or a last call whose call id the response
+// does not hold, it is the response's own last item, as before. The cut
+// applies only to a call not yet yielded, one still held or one taken from
+// the terminal: a call a later .done released was yielded, so it is kept,
+// and no item is last, -1 (ST9; 0088-MADR ST109).
+func (s *streamState) lastIndex(output []outputItem, taken []llmprovider.Item) int {
+	fallback := len(s.result.Output) - 1
+	if len(output) == 0 || !s.bounded(output) {
+		return fallback
+	}
+	last := output[len(output)-1]
+	if last.Type != itemTypeFunctionCall && last.Type != itemTypeToolSearchCall {
+		return -1
+	}
+	if last.CallID == "" {
+		return fallback
+	}
+	for i, item := range s.result.Output {
+		if call, ok := item.(llmprovider.FunctionCallItem); ok && call.CallID == last.CallID {
+			if !s.held.Holds(item) && !slices.Contains(taken, item) {
+				return -1
+			}
+			return i
+		}
+	}
+	return fallback
 }
 
 // finished is a stream's outcome: the response once it completed, or the

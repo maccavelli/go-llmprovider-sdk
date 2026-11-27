@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-25
+date: 2026-11-27
 associated-madr: "0094-MADR-refuse-an-edit-to-a-released-changelog-section.md"
 decision-makers: repository owner
 ---
@@ -317,3 +317,4 @@ Exit criterion: no blocker; the MADR and this PLAN describe what was built; this
     * The tool on the tree: 0, `3 state(s), 0 failure(s)`, every required plant `ok`. The clones are removed and the outputs kept.
     * The CI make set through `run-heavy`: 0, `gate-selftest` 101 OK.
     * `tools/gate.py` through `run-heavy`: 0, 30 of 30.
+* **2026-11-27, closed for v1.34.0.** Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped in v1.34.0 (`68de900`; its `dc21fe2` note). v1.34.0's date step is this gate's first release window, and `make changelog-check` passes it, as RS5 and RS33 decide. Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27: withdrawn, by the deviation of 2026-11-27 in 0091-PLAN Phase 4: this PLAN's work ships in v1.34.0, so this PLAN is `in-progress` again; it closes on the v1.34.0 tag, that tag's CI passing, then `tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli` and `tools/offline.py v1.34.0` recorded. The text before this note is unchanged.)*

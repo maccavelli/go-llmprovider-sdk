@@ -29,9 +29,17 @@ import (
 // a call it knows the limit cut, such as a Messages block never closed,
 // before it calls CutAnswer.
 func CutAnswer(where string, r *llmprovider.Response, reason llmprovider.FinishReason, inPieces bool) (*llmprovider.Response, error) {
+	return CutAnswerLast(where, r, reason, inPieces, len(r.Output)-1)
+}
+
+// CutAnswerLast is CutAnswer with the reply's last item, where the limit
+// fell, at last in r.Output, or -1 when no item there is last: a Responses
+// stream that took items from its terminal response reads it in the server's
+// order, which r.Output's need not be (0092-MADR ST37).
+func CutAnswerLast(where string, r *llmprovider.Response, reason llmprovider.FinishReason, inPieces bool, last int) (*llmprovider.Response, error) {
 	kept := r.Output[:0:0]
 	for i, item := range r.Output {
-		if call, ok := item.(llmprovider.FunctionCallItem); ok && CutCall(call.Arguments, inPieces && i == len(r.Output)-1) {
+		if call, ok := item.(llmprovider.FunctionCallItem); ok && CutCall(call.Arguments, inPieces && i == last) {
 			r.Warnings = append(r.Warnings, ToolCallCut(r.Model, call.Name, call.CallID))
 			continue
 		}
@@ -82,6 +90,12 @@ func (h *HeldCalls) Hold(item llmprovider.Item) bool {
 	}
 	h.calls = append(h.calls, call)
 	return true
+}
+
+// Holds reports whether item is a call held now, not yet yielded.
+func (h *HeldCalls) Holds(item llmprovider.Item) bool {
+	call, ok := item.(llmprovider.FunctionCallItem)
+	return ok && slices.Contains(h.calls, call)
 }
 
 // Later yields, for a later item, each held call whose arguments are whole:

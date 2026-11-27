@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-26
+date: 2026-11-27
 decision-makers: repository owner
 consulted: "the owner's answers of 2026-11-23 to OQ1 to OQ8, relayed by the coordinator, their labels quoted in the amendment; the owner's question of 2026-11-23 and the option the owner chose, 'Research and adopt in v1.33.0', relayed by the coordinator; the coordinator's desk research of 2026-11-23 (vendor pages read that day, no live calls); the probe agent's seven rounds of live probes of 2026-11-23 (about 133 requests, store false, allowlisted facts only; rounds 3 to 6 on a local Ollama 0.40.17, round 7 on OpenAI and xAI); an independent review of the first draft (2026-11-23, NOT READY, findings F1 to F13), relayed by the coordinator; this repository at 247b745, read only, with the uncommitted 0088-PLAN Phase 1b work in the tree read where named; the read-only upstream checkouts codex at 57e64682f8 and kilocode at 58072bd696"
 informed: every caller of the kilo, together, huggingface, ollama and chatcompat providers; the callers of openai, grok and OpenCode's responses route, whose decoder this record touches; gobble-cli first, which runs agent turns on Kilo
@@ -1022,7 +1022,7 @@ Building ST71 broke `TestGenerateOverStream_ReplyLimit_0088` (0088-MADR ST88b), 
 
 | Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| ST71 (restated) | The bound on an answer read over the stream, every provider's `Generate` that names no limit | decided | one bound, 32 MiB (`wire.StreamAnswerLimit`), for every streamed `Generate` on every wire, reasoning counted; a plain reply's body keeps `ReplyLimit`, 16 MiB, so the two are separate constants. 0088-MADR ST88b gets a dated note: its parity with a plain reply ends | the owner, "Every provider, one bound (Recommended)"; the value, the coordinator's call | ST71's `TestCollect_StreamAnswerLimit_0091`; `TestGenerateOverStream_ReplyLimit_0088`, changed: 33 MiB over Claude's stream is still `ErrIncomplete`, and 17 MiB now returns; plant: the old value, 16 MiB, caught by both |
+| ST71 (restated) | The bound on an answer read over the stream, every provider's `Generate` that names no limit | decided | one bound, 32 MiB (`wire.StreamAnswerLimit`), for every streamed `Generate` on every wire, reasoning counted; a plain reply's body keeps `ReplyLimit`, 16 MiB, so the two are separate constants. 0088-MADR ST88b gets a dated note: its parity with a plain reply ends *(2026-11-27: the joint review found that a Responses reply cannot reach 32 MiB: its terminal `response.completed` repeats the whole `output` and is one event, capped by `EventLimit`, 16 MiB. Responses replies stay capped at about 16 MiB by the terminal event; the other wires get 32 MiB. See the eleventh amendment, ST72. The text before this note is unchanged.)* | the owner, "Every provider, one bound (Recommended)"; the value, the coordinator's call | ST71's `TestCollect_StreamAnswerLimit_0091`; `TestGenerateOverStream_ReplyLimit_0088`, changed: 33 MiB over Claude's stream is still `ErrIncomplete`, and 17 MiB now returns; plant: the old value, 16 MiB, caught by both |
 
 ### Claims rows of PLAN Phase 2's doc lines, pass 2 (2026-11-26)
 
@@ -1189,3 +1189,202 @@ One row per new doc line of Phase 2 after its second pass, the same files as pas
 | J153now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:262` | `` ST63 and ST67, it is mapped to `EventReasoningDelta` on every Responses `` |
 | J154now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:263` | `provider, after probes of 2026-11-23 saw Kilo, Together and Hugging Face` |
 | J155now | new doc line | `docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md:264` | `send it. The text above is unchanged.)*` |
+
+## Amendment (2026-11-27, eleventh): the joint pre-release review of v1.34.0
+
+Additions only. PLAN Phase 4's joint review (its step 1) read the v1.34.0 work of this record, 0088, 0092, 0093 and 0094 at `223bb8d`. The coordinator relayed its findings and the owner's rulings; each label is quoted exactly. This amendment records the rulings that reach this record (step 2). The rulings that reach other records are in [0088-MADR-default-output-limit-from-model-facts.md](0088-MADR-default-output-limit-from-model-facts.md)'s twentieth amendment, [0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md](0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md)'s tenth amendment and [0093-MADR-take-model-metadata-from-the-caller.md](0093-MADR-take-model-metadata-from-the-caller.md)'s amendment of 2026-11-27. The PLAN's amendment of 2026-11-27 builds every row of all four in its Phase 4.
+
+### Re-ground at `223bb8d` (2026-11-27)
+
+* `wire.EventLimit` is 16 MiB at `llmprovider/internal/wire/sse.go:19`. `ReadEvents` returns `ErrIncomplete` "stream event over 16 MiB" for a longer line (`:58` to `:61`) or event (`:73` to `:74`).
+* `wire.StreamAnswerLimit` is `2 * ReplyLimit`, 32 MiB, at `llmprovider/internal/wire/overstream.go:32`. Its doc says "on every wire" (`:24`).
+* `CHANGELOG.md:45` to `:51` is the **Changed** bullet that names 32 MiB "on every wire". `:52` is a blank line inside the same **Changed** list.
+* `streamState.end` is at `llmprovider/internal/wire/responses/responses.go:1124`. It reads the refusal first (`:1138`, ST70). It names each open call on a cut (`:1141` to `:1145`), and runs 0092's announced-item check on the completed path (`:1147` to `:1149`).
+
+### Owner rulings (2026-11-27, eleventh)
+
+| Finding | The owner's answer | Rows it decides |
+| :--- | :--- | :--- |
+| The 32 MiB `StreamAnswerLimit` cannot be reached on the Responses wire: the terminal `response.completed` repeats the whole `output` and is capped by `EventLimit`, 16 MiB (`sse.go:19`, `overstream.go:32`) | "Correct the record and changelog (Recommended)" | ST71 (annotated in place), ST72 |
+| The review's follow-ups and its three edge cases | "Everything before release" | ST73; JR1 is put to the owner as ST74 |
+
+### What the terminal event does to the bound (measured 2026-11-27, scratch clone at `223bb8d`)
+
+`<scratch>/v1340prep/repro_v1340_test.go`, `TestRepro_R1`, sends two messages of 9 MiB each, read through `wire.Collect`. Each message arrives by text deltas and an `output_item.done` under 16 MiB. The stream ends in a `response.completed` whose `output` holds both, about 18 MiB. Observed: `0 bytes, err=llmprovider: incomplete response: p: stream event over 16 MiB`. An item whose own `output_item.done` is over 16 MiB fails earlier, at that event. So a Responses reply over about 16 MiB fails, whatever `Collect`'s bound. A server whose terminal `output` is empty, as the ChatGPT backend's is (0092-MADR ST5), reaches `Collect`'s 32 MiB only when every item's `.done` is under 16 MiB.
+
+### Rows (2026-11-27, eleventh)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST72 | An answer read over a Responses stream (`openai`, `grok`, OpenCode's responses route, `chatcompat` with `WithResponses`) over `EventLimit`, 16 MiB, whose terminal event repeats it in `output` | decided | `ErrIncomplete` "stream event over 16 MiB" at the terminal event, and no response, as 0092-MADR ST29 states for one event; `Collect`'s 32 MiB is not reached. Responses replies stay capped at about 16 MiB by the terminal event; the other wires get 32 MiB (ST71). No code changes. Docs: the bullet at `CHANGELOG.md:45` restated under `[Unreleased]`; `overstream.go:24`'s "on every wire"; `docs/architecture.md:174`'s `wire` row | "Correct the record and changelog (Recommended)" | `TestCollect_ResponsesTerminalOverEventLimit_0091` (new, `llmprovider/internal/wire/responses/`), `TestRepro_R1`'s stream: `ErrIncomplete` naming "stream event over 16 MiB", no response. A green pin at `223bb8d`; its red is its plant: `EventLimit` raised to 32 MiB (`sse.go:19`), so the 18 MiB answer is returned |
+| ST73 | `CHANGELOG.md:52`: a blank line inside `[Unreleased]`'s **Changed** list, which splits it in two | decided | removed before the date step. 0094-MADR freezes a released section, so after the tag it could not be removed | "Everything before release" | a one-off check, `<scratch>/v1340prep/changelog_lists.py`: no blank line between two items of one list under `[Unreleased]`. Red at `223bb8d` (`CHANGELOG.md:52`); plant: the blank line put back, on a copy, caught; `make changelog-check markdownlint` after |
+| ST74 | JR1 (the review's E1): on `chatcompat`'s Responses stream, a reply finished as completed at the limit sent (ST55), holding a refusal (ST70), that announced a call delivered neither by `output_item.done` nor by the terminal response | open *(2026-11-27: decided by JR1's answer, option (1); restated in the twelfth amendment)* | JR1 below; recommended (1) | JR1; ST65; ST70; 0092-MADR ST11 | under (1): `TestChatcompat_ResponsesRefusalAtLimit_0091`, stream, gains the case: `content_filter`, one `WarningToolCallCut` naming the call, no error. Red at `223bb8d`. Plant: the completed path's check run before the refusal's branch (`item_not_finished` again) |
+
+### Put to the owner: JR1 (the review's E1)
+
+**JR1. A refusal at the output limit, with a call announced and never delivered: which rule decides?** ST70 says the refusal wins over the cut, so `end` does not read the reply as cut (`responses.go:1138`). ST65 says the cut wins over 0092's check. Nothing decides the case where all three occur. Today the completed path runs 0092's check (`:1147` to `:1149`), and the reply fails as `ErrProviderUnavailable` after the reply, naming `item_not_finished`. The refusal's text was already yielded as an `EventItem`.
+
+Reproduction, `TestRepro_E1` (scratch clone at `223bb8d`, `Decoder{Limit: 5}`, usage 5 out): `err=llmprovider: provider unavailable: p: item_not_finished: function_call fc_1`, with one `MessageItem` yielded first. The controls: the same stream with text in place of the refusal finishes `length` with one `WarningToolCallCut` naming `lookup` and `call_1` (ST65); the refusal with no call finishes `content_filter` (ST70); the refusal and lost call under the limit fail `item_not_finished` (0092 ST11).
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **The refusal finishes the reply; the lost call is named (recommended).** The reply finishes `content_filter`. Each call announced and never delivered is dropped and named in a `WarningToolCallCut`, as on a cut. There is no error. This keeps ST70 (the refusal decides the finish) and ST65 (at the limit, a lost call is the limit's). | `end` gains one branch: refused and at the limit. A message announced and lost there is not reported, as on a cut today. |
+| (2) **The limit wins when a call is lost.** The reply is read as cut: `length`, with the warning, as ST65. ST70 gives way in this one case. | A refusal is reported as a cut. A caller may send the refused request again with a higher limit. |
+| (3) **Keep it as built, and document it.** The reply fails `item_not_finished`, retryable at most once, after the refusal was shown. | `WithRetry` sends the request again, and a refusal is likely again. The caller sees an outage where the server refused. |
+
+Doing nothing ships (3) without a ruling.
+
+Counts after this amendment: 74 rows: 55 decided, 18 out of scope, 1 open (ST74). The record is `proposed` until JR1 is answered. PLAN Phase 4 builds ST72 and ST73 now. It builds ST74 once JR1 is answered.
+
+## Amendment (2026-11-27, twelfth): JR1 answered
+
+Additions only. The coordinator relayed the owner's answer, quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| JR1 | "Refusal, plus a 'call cut' warning (Recommended)" | (1) | ST74 |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST74 (decided 2026-11-27) | On `chatcompat`'s Responses stream, a reply finished as completed at the limit sent (ST55), holding a refusal (ST70), that announced a call delivered neither by `output_item.done` nor by the terminal response | decided | the reply finishes `content_filter`; each call announced and never delivered is dropped and named in a `WarningToolCallCut`; there is no error. Under the limit, 0092's `item_not_finished` stands (ST65) | JR1 "Refusal, plus a 'call cut' warning (Recommended)" | `TestChatcompat_ResponsesRefusalAtLimit_0091`, stream, gains the case: `content_filter`, one `WarningToolCallCut` naming the call, no error. Red at `223bb8d` (`item_not_finished`). Plant: the refused branch removed, so the completed path's check runs |
+
+**ST72, a recorded unknown.** Whether Gemini's Interactions stream repeats its steps in `interaction.completed`, and so whether one event caps its answer below 32 MiB, is not measured. The SDK's reader takes no steps from that event (`llmprovider/providers/gemini/interactions.go:318`), and its test fixtures carry none. It is not measured now, at the coordinator's word; ST72's "the other wires get 32 MiB" is read for Interactions with this unknown.
+
+Counts after this amendment: 74 rows: 56 decided, 18 out of scope, 0 open. The record is `accepted`.
+
+### Claims rows of PLAN Phase 4's doc-comment lines (2026-11-27)
+
+One row per new Go doc-comment line of PLAN Phase 4's step 4a, in `wire/overstream.go`, `wire/finish.go`, `wire/responses/responses.go`, `chatcompat/chatcompat.go`, `llmprovider/registry.go` and `wizard/configure.go` (ST72, ST74; 0088-MADR ST115, ST116; 0092-MADR ST37, ST38; 0093-MADR MH62). Ids end in "now"; the phase's commit re-pins them. Scripts: `<scratch>/v1340prep/claims_rows.py`.
+
+* **Red at the base.** At `223bb8d`, each row at line 1 of its file: all 52 fail on their assertion, and none finds its text on any line of its file.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 52 of 52 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 52 of 52 caught.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| K1now | new doc line | `llmprovider/internal/wire/overstream.go:31` | `that reasoning counted twice. A Responses answer stays at about 16 MiB:` |
+| K2now | new doc line | `llmprovider/internal/wire/overstream.go:32` | `its terminal event repeats the whole answer, and one event is bounded by` |
+| K3now | new doc line | `llmprovider/internal/wire/overstream.go:33` | `EventLimit, so a longer one is ErrIncomplete at that event (ST72).` |
+| K4now | new doc line | `llmprovider/internal/wire/finish.go:35` | `CutAnswerLast is CutAnswer with the reply's last item, where the limit` |
+| K5now | new doc line | `llmprovider/internal/wire/finish.go:36` | `fell, at last in r.Output, or -1 when no item there is last: a Responses` |
+| K6now | new doc line | `llmprovider/internal/wire/finish.go:37` | `stream that took items from its terminal response reads it in the server's` |
+| K7now | new doc line | `llmprovider/internal/wire/finish.go:38` | `order, which r.Output's need not be (0092-MADR ST37).` |
+| K8now | new doc line | `llmprovider/internal/wire/responses/responses.go:383` | `are released and before an announced item's check (ST34, ST65). A` |
+| K9now | new doc line | `llmprovider/internal/wire/responses/responses.go:384` | `refusal is read first and finishes content_filter (ST70); a call` |
+| K10now | new doc line | `llmprovider/internal/wire/responses/responses.go:385` | `announced and never delivered is then named in a WarningToolCallCut` |
+| K11now | new doc line | `llmprovider/internal/wire/responses/responses.go:386` | `(ST74). Zero, as openai, grok and OpenCode leave it, reads no reply as` |
+| K12now | new doc line | `llmprovider/internal/wire/responses/responses.go:833` | `announcedKeys are the announced items' keys, by id, call id and` |
+| K13now | new doc line | `llmprovider/internal/wire/responses/responses.go:834` | `output_index with type, so a repeat is found without a scan (ST34,` |
+| K14now | new doc line | `llmprovider/internal/wire/responses/responses.go:878` | `announcement is the same item, recorded once: the same id (ST34); else,` |
+| K15now | new doc line | `llmprovider/internal/wire/responses/responses.go:879` | `with no id, the same call id; else, with neither, the same output_index` |
+| K16now | new doc line | `llmprovider/internal/wire/responses/responses.go:880` | `and type (ST38). One with none of the three is recorded each time. Once` |
+| K17now | new doc line | `llmprovider/internal/wire/responses/responses.go:881` | `the announced items pass wire.MaxStreamIndex, where ST11's check is off` |
+| K18now | new doc line | `llmprovider/internal/wire/responses/responses.go:882` | `(ST33), no more are recorded, so each announcement costs constant work.` |
+| K19now | new doc line | `llmprovider/internal/wire/responses/responses.go:912` | `announceKey is the key a repeat of item, announced at index, is found by:` |
+| K20now | new doc line | `llmprovider/internal/wire/responses/responses.go:913` | `its id; else its call id; else its output_index and type; "" for none` |
+| K21now | new doc line | `llmprovider/internal/wire/responses/responses.go:914` | `(0092-MADR ST34, ST38).` |
+| K22now | new doc line | `llmprovider/internal/wire/responses/responses.go:927` | `closes reports whether item, finished by an output_item.done or taken` |
+| K23now | new doc line | `llmprovider/internal/wire/responses/responses.go:928` | `from the terminal response, is the open call o: the same call id, else` |
+| K24now | new doc line | `llmprovider/internal/wire/responses/responses.go:929` | `the same id, each compared only when item carries it (0088-MADR ST115,` |
+| K25now | new doc line | `llmprovider/internal/wire/responses/responses.go:930` | `ST116). A message's or a reasoning item's .done, which carries no call id,` |
+| K26now | new doc line | `llmprovider/internal/wire/responses/responses.go:931` | `closes no call announced without one.` |
+| K27now | new doc line | `llmprovider/internal/wire/responses/responses.go:1158` | `and is finished by CutAnswer, the reply's last item read in the server's` |
+| K28now | new doc line | `llmprovider/internal/wire/responses/responses.go:1159` | `order (0092-MADR ST37); a refusal at the limit sent names them too, and` |
+| K29now | new doc line | `llmprovider/internal/wire/responses/responses.go:1160` | `finishes content_filter (0091-MADR ST74); a completed one fails when an` |
+| K30now | new doc line | `llmprovider/internal/wire/responses/responses.go:1161` | `announced item was never delivered (ST11), and is otherwise finished by` |
+| K31now | new doc line | `llmprovider/internal/wire/responses/responses.go:1162` | `completed; then the held calls and the taken items the response kept are` |
+| K32now | new doc line | `llmprovider/internal/wire/responses/responses.go:1163` | `yielded, and EventDone (0088-MADR ST77, ST80). Its results are a stream` |
+| K33now | new doc line | `llmprovider/internal/wire/responses/responses.go:1188` | `The refusal finishes the reply; a call announced and never` |
+| K34now | new doc line | `llmprovider/internal/wire/responses/responses.go:1189` | `delivered is the limit's, named (0091-MADR ST74).` |
+| K35now | new doc line | `llmprovider/internal/wire/responses/responses.go:1213` | `nameOpen names each call added and never done in a WarningToolCallCut` |
+| K36now | new doc line | `llmprovider/internal/wire/responses/responses.go:1214` | `on result (0088-MADR ST77, ST108).` |
+| K37now | new doc line | `llmprovider/internal/wire/responses/responses.go:1221` | `lastIndex is the place in s.result.Output of the reply's last item, where` |
+| K38now | new doc line | `llmprovider/internal/wire/responses/responses.go:1222` | `the limit fell, in the server's order (0092-MADR ST37): the terminal` |
+| K39now | new doc line | `llmprovider/internal/wire/responses/responses.go:1223` | `output's last item. When it is a call, it is the response's call with its` |
+| K40now | new doc line | `llmprovider/internal/wire/responses/responses.go:1224` | `call id; when it is not a call, no item is last, -1. With no terminal` |
+| K41now | new doc line | `llmprovider/internal/wire/responses/responses.go:1225` | `output, past the bound (ST33), or a last call whose call id the response` |
+| K42now | new doc line | `llmprovider/internal/wire/responses/responses.go:1226` | `does not hold, it is the response's own last item, as before.` |
+| K43now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:65` | `A refusal finishes content_filter, at the limit or under it (ST70); at the` |
+| K44now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:66` | `limit, a call the stream announced and never delivered is named in a` |
+| K45now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:67` | `WarningToolCallCut (ST74).` |
+| K46now | new doc line | `llmprovider/registry.go:34` | `StaticModels is the curated fallback catalog, or empty: model ids` |
+| K47now | new doc line | `llmprovider/registry.go:35` | `only, the wizard's built-in catalog, which carries no model facts` |
+| K48now | new doc line | `llmprovider/registry.go:36` | `since 0093-MADR.` |
+| K49now | new doc line | `wizard/configure.go:109` | `path and the built-in catalog alike (the descriptor's curated model` |
+| K50now | new doc line | `wizard/configure.go:110` | `ids, which carry no facts since 0093-MADR). Zero recommends the whole curated` |
+| K51now | new doc line | `wizard/configure.go:1111` | `from the check that follows, so a warning about a built-in catalog (the` |
+| K52now | new doc line | `wizard/configure.go:1112` | `descriptor's curated model ids, with no facts since 0093-MADR) would` |
+
+### Note (2026-11-27): ST72 qualified
+
+Additions only, from the code review of [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4 (its pass 2). ST72's "Responses replies stay capped at about 16 MiB by the terminal event" holds when the terminal event repeats the answer, as OpenAI's does. A server whose terminal `output` is empty, as the ChatGPT backend's is (0092-MADR ST5), reaches `StreamAnswerLimit`, 32 MiB, when no single item's event passes 16 MiB. `CHANGELOG.md`, `overstream.go`'s doc and `docs/architecture.md`'s `wire` row say so. The changelog's `WithResponses` entry now cites ST50 to ST72 and ST74, with a clause for ST74.
+
+### Claims rows of PLAN Phase 4's doc-comment lines, pass 2 (2026-11-27)
+
+One row per new Go doc-comment line after step 4a's second pass, the same files as pass 1's rows. They supersede K1now to K52now, which pinned lines pass 2 moved or changed (left as written above; the ids do not clash). Ids end in "now"; the phase's commit re-pins them. Scripts: `<scratch>/v1340prep/claims_rows.py L`.
+
+* **Red at the base.** At `223bb8d`, each row at line 1 of its file: all 59 fail on their assertion, and none finds its text on any line of its file.
+* **Green after the change.** On a scratch clone holding the working tree, committed there: 59 of 59 pass, exit 0.
+* **Plants.** `tools/claims.py --plants`, each row's text made false: 59 of 59 caught.
+
+| Id | Claim | Where | Text |
+| :--- | :--- | :--- | :--- |
+| L1now | new doc line | `llmprovider/internal/wire/overstream.go:31` | `that reasoning counted twice. A Responses answer stays at about 16 MiB` |
+| L2now | new doc line | `llmprovider/internal/wire/overstream.go:32` | `when its terminal event repeats the whole answer, as OpenAI's does: one` |
+| L3now | new doc line | `llmprovider/internal/wire/overstream.go:33` | `event is bounded by EventLimit, so a longer one is ErrIncomplete at that` |
+| L4now | new doc line | `llmprovider/internal/wire/overstream.go:34` | `event (ST72). A terminal with an empty output, as the ChatGPT backend` |
+| L5now | new doc line | `llmprovider/internal/wire/overstream.go:35` | `sends, leaves this bound to decide.` |
+| L6now | new doc line | `llmprovider/internal/wire/finish.go:35` | `CutAnswerLast is CutAnswer with the reply's last item, where the limit` |
+| L7now | new doc line | `llmprovider/internal/wire/finish.go:36` | `fell, at last in r.Output, or -1 when no item there is last: a Responses` |
+| L8now | new doc line | `llmprovider/internal/wire/finish.go:37` | `stream that took items from its terminal response reads it in the server's` |
+| L9now | new doc line | `llmprovider/internal/wire/finish.go:38` | `order, which r.Output's need not be (0092-MADR ST37).` |
+| L10now | new doc line | `llmprovider/internal/wire/finish.go:95` | `Holds reports whether item is a call held now, not yet yielded.` |
+| L11now | new doc line | `llmprovider/internal/wire/responses/responses.go:383` | `are released and before an announced item's check (ST34, ST65). A` |
+| L12now | new doc line | `llmprovider/internal/wire/responses/responses.go:384` | `refusal is read first and finishes content_filter (ST70); a call` |
+| L13now | new doc line | `llmprovider/internal/wire/responses/responses.go:385` | `announced and never delivered is then named in a WarningToolCallCut` |
+| L14now | new doc line | `llmprovider/internal/wire/responses/responses.go:386` | `(ST74). Zero, as openai, grok and OpenCode leave it, reads no reply as` |
+| L15now | new doc line | `llmprovider/internal/wire/responses/responses.go:833` | `announcedKeys are the announced items' keys, by id, call id and` |
+| L16now | new doc line | `llmprovider/internal/wire/responses/responses.go:834` | `output_index with type, so a repeat is found without a scan (ST34,` |
+| L17now | new doc line | `llmprovider/internal/wire/responses/responses.go:878` | `announcement is the same item, recorded once: the same id (ST34); else,` |
+| L18now | new doc line | `llmprovider/internal/wire/responses/responses.go:879` | `with no id, the same call id; else, with neither, the same output_index` |
+| L19now | new doc line | `llmprovider/internal/wire/responses/responses.go:880` | `and type (ST38). One with none of the three is recorded each time. Once` |
+| L20now | new doc line | `llmprovider/internal/wire/responses/responses.go:881` | `the announced items pass wire.MaxStreamIndex, where ST11's check is off` |
+| L21now | new doc line | `llmprovider/internal/wire/responses/responses.go:882` | `(ST33), no more are recorded, so each announcement costs constant work.` |
+| L22now | new doc line | `llmprovider/internal/wire/responses/responses.go:912` | `announceKey is the key a repeat of item, announced at index, is found by:` |
+| L23now | new doc line | `llmprovider/internal/wire/responses/responses.go:913` | `its id; else its call id; else its output_index and type; "" for none` |
+| L24now | new doc line | `llmprovider/internal/wire/responses/responses.go:914` | `(0092-MADR ST34, ST38).` |
+| L25now | new doc line | `llmprovider/internal/wire/responses/responses.go:927` | `closes reports whether item, finished by an output_item.done or taken` |
+| L26now | new doc line | `llmprovider/internal/wire/responses/responses.go:928` | `from the terminal response, is the open call o: by call id when both` |
+| L27now | new doc line | `llmprovider/internal/wire/responses/responses.go:929` | `carry one; else by id, when item carries one (0088-MADR ST115, ST116). Two` |
+| L28now | new doc line | `llmprovider/internal/wire/responses/responses.go:930` | `different call ids never match through an id. A message's or a reasoning` |
+| L29now | new doc line | `llmprovider/internal/wire/responses/responses.go:931` | `item's .done, which carries no call id, closes no call announced without` |
+| L30now | new doc line | `llmprovider/internal/wire/responses/responses.go:932` | `one unless their ids match.` |
+| L31now | new doc line | `llmprovider/internal/wire/responses/responses.go:1159` | `and is finished by CutAnswer, the reply's last item read in the server's` |
+| L32now | new doc line | `llmprovider/internal/wire/responses/responses.go:1160` | `order (0092-MADR ST37); a refusal at the limit sent names them too, and` |
+| L33now | new doc line | `llmprovider/internal/wire/responses/responses.go:1161` | `finishes content_filter (0091-MADR ST74); a completed one fails when an` |
+| L34now | new doc line | `llmprovider/internal/wire/responses/responses.go:1162` | `announced item was never delivered (ST11), and is otherwise finished by` |
+| L35now | new doc line | `llmprovider/internal/wire/responses/responses.go:1163` | `completed; then the held calls and the taken items the response kept are` |
+| L36now | new doc line | `llmprovider/internal/wire/responses/responses.go:1164` | `yielded, and EventDone (0088-MADR ST77, ST80). Its results are a stream` |
+| L37now | new doc line | `llmprovider/internal/wire/responses/responses.go:1189` | `The refusal finishes the reply; a call announced and never` |
+| L38now | new doc line | `llmprovider/internal/wire/responses/responses.go:1190` | `delivered is the limit's, named (0091-MADR ST74).` |
+| L39now | new doc line | `llmprovider/internal/wire/responses/responses.go:1214` | `nameOpen names each call added and never done in a WarningToolCallCut` |
+| L40now | new doc line | `llmprovider/internal/wire/responses/responses.go:1215` | `on result (0088-MADR ST77, ST108).` |
+| L41now | new doc line | `llmprovider/internal/wire/responses/responses.go:1222` | `lastIndex is the place in s.result.Output of the reply's last item, where` |
+| L42now | new doc line | `llmprovider/internal/wire/responses/responses.go:1223` | `the limit fell, in the server's order (0092-MADR ST37): the terminal` |
+| L43now | new doc line | `llmprovider/internal/wire/responses/responses.go:1224` | `output's last item. When it is a call, it is the response's call with its` |
+| L44now | new doc line | `llmprovider/internal/wire/responses/responses.go:1225` | `call id; when it is not a call, no item is last, -1. With no terminal` |
+| L45now | new doc line | `llmprovider/internal/wire/responses/responses.go:1226` | `output, past the bound (ST33), or a last call whose call id the response` |
+| L46now | new doc line | `llmprovider/internal/wire/responses/responses.go:1227` | `does not hold, it is the response's own last item, as before. The cut` |
+| L47now | new doc line | `llmprovider/internal/wire/responses/responses.go:1228` | `applies only to a call not yet yielded, one still held or one taken from` |
+| L48now | new doc line | `llmprovider/internal/wire/responses/responses.go:1229` | `the terminal: a call a later .done released was yielded, so it is kept,` |
+| L49now | new doc line | `llmprovider/internal/wire/responses/responses.go:1230` | `and no item is last, -1 (ST9; 0088-MADR ST109).` |
+| L50now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:65` | `A refusal finishes content_filter, at the limit or under it (ST70); at the` |
+| L51now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:66` | `limit, a call the stream announced and never delivered is named in a` |
+| L52now | new doc line | `llmprovider/providers/chatcompat/chatcompat.go:67` | `WarningToolCallCut (ST74).` |
+| L53now | new doc line | `llmprovider/registry.go:34` | `StaticModels is the curated fallback catalog, or empty: model ids` |
+| L54now | new doc line | `llmprovider/registry.go:35` | `only, the wizard's built-in catalog, which carries no model facts` |
+| L55now | new doc line | `llmprovider/registry.go:36` | `since 0093-MADR.` |
+| L56now | new doc line | `wizard/configure.go:109` | `path and the built-in catalog alike (the descriptor's curated model` |
+| L57now | new doc line | `wizard/configure.go:110` | `ids, which carry no facts since 0093-MADR). Zero recommends the whole curated` |
+| L58now | new doc line | `wizard/configure.go:1111` | `from the check that follows, so a warning about a built-in catalog (the` |
+| L59now | new doc line | `wizard/configure.go:1112` | `descriptor's curated model ids, with no facts since 0093-MADR) would` |

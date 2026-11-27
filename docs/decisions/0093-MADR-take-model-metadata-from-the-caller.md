@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-24
+date: 2026-11-27
 decision-makers: repository owner
 consulted: "the owner's rulings of 2026-11-24, relayed by the coordinator and quoted below, among them the answers to Q1 to Q4; the coordinator's assessment, which the owner then acted on; the first draft's review (nine findings and three stale claims), relayed by the coordinator; this repository at b2917f0 (first draft at 9e86748 with 0089's DL65 change uncommitted), read only, and a scratch clone of it; gobble-cli at ba8f623, read only, and its 0072 record as drafted outside its tree, read only; magic-cli-remote and mcp-server-magictools, read only, for uses of the names this record removes"
 informed: "gobble-cli (0071's Phase 2 and its 0072 draft, D17: it hands the document to every listing, lookup and limits call and to provider.New, and drops its six uses of the removed names); magic-cli-remote and mcp-server-magictools (they call none of the names, read at their current trees)"
@@ -630,3 +630,62 @@ Each row's text is on its line at the named revision (`tools/claims.py`).
 | E83now | README: the model metadata section (D14, MH45) | `README.md:289` | `## Model metadata` |
 | E84now | README: the SDK fetches and ships none (D6, D7) | `README.md:291` | `The SDK fetches no model metadata and ships none` |
 | E85now | README: what happens without a document (MH4, MH18, MH51) | `README.md:312` | `models.dev facts. A Claude request, or one on OpenCode's messages route,` |
+
+## Amendment (2026-11-27): the wizard's "built-in catalog", from the joint pre-release review of v1.34.0
+
+Additions only. [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s
+Phase 4 review read the v1.34.0 work at `223bb8d`. It found that the wizard's wording "built-in catalog" no longer
+describes what callers hold since this record. The owner's ruling, relayed by the coordinator and quoted exactly, is
+"Everything before release". It takes in this follow-up. The row is built in that PLAN's Phase 4.
+
+### What is true at `223bb8d` (2026-11-27)
+
+* The fallback the wizard offers is the descriptor's `StaticModels` (`wizard/configure.go:1139`). Each built-in
+  provider sets it from `catalog.Static` (for example `llmprovider/providers/claude/descriptor.go:18`), a curated list
+  of model ids. Its doc says "the curated fallback catalog, or empty" (`llmprovider/registry.go:34`).
+* Since D6 and D7 the SDK fetches no model metadata and ships none (`README.md:291`). So that list holds ids alone: no
+  limits and no facts. A model's facts come only from a document the caller hands in (`catalog.WithMetadata`) or from
+  a `catalog.Lister` provider's listing.
+* The term appears in these places outside the records and the changelog:
+  * user-facing notices: `wizard/configure.go:1181`, `:1197`, `:1204`, `:1207`;
+  * doc comments: `wizard/configure.go:109`, `:1110`;
+  * docs: `README.md:672`, `:676`; `docs/architecture.md:1411`;
+  * tests that pin the notices' text or name the term: `wizard/model_select_edge_test.go:220`, `:252`, `:274`;
+    `wizard/notices_0066_test.go:131`, `:148`; `wizard/describe_0056_test.go:129`;
+    `wizard/model_select_test.go:284`; `wizard/auth_test.go:347` to `:348`;
+    `wizard/model_limit_0038_test.go:15`, `:109`, `:125`; `wizard/cancel_save_0081_test.go:1346`.
+* The review's text names the term, not the sentence it found false. The list still exists and is still built in. What
+  it lost in D6 and D7 is any facts beside the ids.
+
+### Row (2026-11-27)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| MH62 | JR5: the wizard's "built-in catalog" in its notices, its doc comments, `README.md` and `docs/architecture.md`, since D6 and D7 | open *(2026-11-27: decided, option (1), the coordinator's call; restated below)* | JR5 below; recommended (1) | JR5; D6; D7 | under (1): `make docs-check links-check markdownlint`, and the term's places searched again, each `fixed` or `open` with a reason. No plant: no code. Under (2): the seven assertions on a notice's text, in five test files, changed, red at `223bb8d`; plant: one notice's old text kept, caught by its test |
+
+### Put to the owner: JR5
+
+**JR5. What should the wizard and its docs say the fallback is?**
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **Keep the term and define it (recommended).** `README.md:672`, `docs/architecture.md:1411` and `Options.ModelLimit`'s doc (`configure.go:109`) say what it is: the SDK's curated model ids for the provider (`Descriptor.StaticModels`), with no facts since this record; facts come only from a document the caller hands in or a provider's listing. The four notices keep their text. | Docs and comments only; no test changes. A notice still says "built-in catalog", now defined where the wizard is documented. |
+| (2) **Rename it everywhere.** The notices say "the SDK's curated model list", and so do the docs and comments. | Four user-facing strings change, a visible change for callers who match them. Seven assertions in five test files change. A **Changed** entry is needed. |
+| (3) **Ask the reviewer for the false sentence first.** Fix only that sentence, as the review meant it. | The release waits on the review's detail. Until then the sentence is unknown. |
+
+Doing nothing leaves the finding unaddressed in v1.34.0, against the owner's "Everything before release".
+
+Counts after this amendment: 57 decided, 4 out of scope, 1 open (MH62); 62 rows. The record is `proposed` until JR5 is
+answered.
+
+### JR5 decided (2026-11-27)
+
+The coordinator decided JR5 as the coordinator's own call, not the owner's: option (1). Relayed: define "built-in
+catalog" in the docs and comments as the curated model-id list, which carries no facts since 0093; leave the notices and
+their assertions unchanged.
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| MH62 (decided 2026-11-27) | the wizard's "built-in catalog" in its notices, its doc comments, `README.md` and `docs/architecture.md` | decided | the term is kept. `README.md:672`, `docs/architecture.md:1411`, `Options.ModelLimit`'s doc (`wizard/configure.go:109`), `notifyListing`'s doc (`:1110`) and `Descriptor.StaticModels`' doc (`llmprovider/registry.go:34`) say what it is: the curated model-id list of the provider, which carries no facts since this record. The four notices and the tests that pin them are unchanged | JR5, option (1), the coordinator's call | `make docs-check links-check markdownlint`; the term's places searched again, each `fixed` or `open` with a reason. No plant: comments and docs only |
+
+Counts after this note: 58 decided, 4 out of scope, 0 open; 62 rows. The record is `accepted`.

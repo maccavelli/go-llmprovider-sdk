@@ -106,7 +106,8 @@ type Options struct {
 	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
 	Profile catalog.Profile
 	// ModelLimit is the most models the menu recommends, on every listing
-	// path and the built-in catalog alike. Zero recommends the whole curated
+	// path and the built-in catalog alike (the descriptor's curated model
+	// ids, which carry no facts since 0093-MADR). Zero recommends the whole curated
 	// list, with the best six first; catalog.MaxListed keeps the menu to
 	// those six. Search still covers the whole listing. The wizard passes it
 	// to catalog.List as catalog.WithLimit: pass it here, not in
@@ -1107,7 +1108,8 @@ func (o Options) listingOptions(res Result) []llmprovider.Option {
 
 // notifyListing tells the person a listing's warning, unless the run's context
 // has ended, by cancel or by deadline: the run is over, and returns ctx's error
-// from the check that follows, so a warning about a built-in catalog would
+// from the check that follows, so a warning about a built-in catalog (the
+// descriptor's curated model ids, with no facts since 0093-MADR) would
 // describe an outcome no one will use. It reads the run's ctx, never the
 // listing's own bound, so a listing that outlasted Options.DiscoverLimit with
 // the run alive is an outage and is told (0081-MADR D4; state-table rows S61,

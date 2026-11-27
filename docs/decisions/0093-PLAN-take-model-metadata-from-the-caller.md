@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-24
+status: complete
+date: 2026-11-27
 associated-madr: "0093-MADR-take-model-metadata-from-the-caller.md"
 ---
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
@@ -854,3 +854,11 @@ Proof, run 2026-11-25 on the tree with the fix. Red at `138d52f`, before any cha
 'accepted (0093-MADR D10): ./llmprovider/catalog.OptionsFromEnv: removed' not found in 'api-check: against v1.33.0, 0
 incompatible change(s) outside llmprovider/x/ and not accepted by a record\n'`. `make api-check`, with no argument, still
 compares with the latest tag (`against v1.33.0`, exit 0). **Not done:** the release itself, by hand, on the owner's word.
+
+### 2026-11-27: the wizard's wording goes to 0091-PLAN Phase 4
+
+Records only; nothing staged. The joint pre-release review of v1.34.0 found that the wizard's "built-in catalog" wording no longer describes what callers hold since this record. The owner ruled "Everything before release", quoted exactly. The MADR's amendment of 2026-11-27 records the term's places and what is true at `223bb8d`, as MH62, open under JR5. It is built in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4, step 4a, once JR5 is answered. That PLAN's step 4b writes this PLAN's closing entry and sets it `complete`.
+
+### 2026-11-27: closed for v1.34.0
+
+Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped in v1.33.0 (`be6828e`, `138d52f`); the `api-check` base fix (`4fc5211`) and MH62's wording ship in v1.34.0. Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27, pass 2: this PLAN's closing steps (`:297` to `:298`), the tag, its Release, `offline.py v1.33.0` and `consumer.py v1.33.0`, were not recorded when this entry was written; they are now, in 0089-PLAN's closing entry. The `consumer.py` run passes gobble-cli at v1.33.0, so the expected failure of gobble's build did not occur. The status stays `complete`.)*

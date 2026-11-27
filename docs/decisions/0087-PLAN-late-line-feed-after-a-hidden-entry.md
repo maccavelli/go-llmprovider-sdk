@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-25
+date: 2026-11-27
 associated-madr: "0087-MADR-late-line-feed-after-a-hidden-entry.md"
 decision-makers: repository owner
 ---
@@ -1271,3 +1271,7 @@ Phase 5 is done in one pass. Not done here: the commit (the owner's). Not
 decided: A-9's follow-up on K4, which is the owner's. *(Annotated
 2026-11-26: decided by OR20, "Leave it, recorded (Recommended)"; K4 stays as
 built, and nothing is built for it.)*
+
+### 2026-11-27: closed for v1.34.0
+
+Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped: the late line feed's fix and its Windows probe in v1.32.0 (`df2a7eb`, `751e970`); the `EINTR` retry in v1.33.0 (`c5b9912`); the `synctest` subtest of Phase 5 in v1.34.0 (`dc21fe2`). Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27: withdrawn, by the deviation of 2026-11-27 in 0091-PLAN Phase 4: this PLAN's closing clause (`:358`) waits for the tag that carries its work, and `dc21fe2` ships in v1.34.0; this PLAN is `in-progress` again; it closes on the v1.34.0 tag, that tag's CI passing, then `tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli` and `tools/offline.py v1.34.0` recorded. The text before this note is unchanged.)*

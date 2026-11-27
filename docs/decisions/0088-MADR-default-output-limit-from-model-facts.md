@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-25
+date: 2026-11-27
 decision-makers: repository owner
 consulted: "the owner's answers of 2026-11-21 to OQ1 to OQ8, relayed by the coordinator; the coordinator's brief of 2026-11-21, which relays a gobble-cli report and the owner's choice among three options (its label quoted below), with facts the coordinator verified; record review 1 of this pair (2026-11-21), each finding re-verified against the code before it was written in; this repository at 55a5dca, read only; gobble-cli at 4c3e397, read only; the read-only upstream checkouts kilocode at 58072bd696, opencode at 4ce137b39e, codex at 57e64682f8 and grok-build at 2bdd1d6a; Anthropic's API reference as bundled with the drafting agent's tools, read 2026-11-21"
 informed: every caller of Generate and Stream that sends a request with no MaxOutputTokens and no WithMaxTokens; gobble-cli first, whose agent turns name no limit; prepare-commit-msg and magic-cli-remote
@@ -1502,7 +1502,7 @@ Annotations only; no row's decision changes. Building PLAN Phase 1c, the suite f
 
 ### Open for PLAN Phase 3's review (2026-11-23, thirteenth)
 
-* **R5, the wire's minimum of 16.** `ResponsesLimits.Minimum` is 16 (`llmprovider/internal/wire/limit_refusal.go:63`), and `LimitRetry.Choose` holds an estimate's room no lower than it; but no route on the Responses wire sends a limit the SDK chose, so only `TestFit_0088` (`llmprovider/internal/wire/estimate_0088_test.go`) reaches a minimum above 1, by a value it passes itself. Recorded by the builder; the reviewer rules with the owner.
+* **R5, the wire's minimum of 16.** `ResponsesLimits.Minimum` is 16 (`llmprovider/internal/wire/limit_refusal.go:63`), and `LimitRetry.Choose` holds an estimate's room no lower than it; but no route on the Responses wire sends a limit the SDK chose, so only `TestFit_0088` (`llmprovider/internal/wire/estimate_0088_test.go`) reaches a minimum above 1, by a value it passes itself. Recorded by the builder; the reviewer rules with the owner. *(2026-11-27: ruled. Since ST113 (the nineteenth amendment, R5 "Drop the minimum for now"), `ResponsesLimits.Minimum` is 1, at `limit_refusal.go:74`. The text before this note is unchanged.)*
 
 Counts after this amendment: unchanged, 102 decided, 9 out of scope, 0 open, 111 rows.
 
@@ -1763,3 +1763,70 @@ Relayed by the coordinator; the labels quoted exactly.
 * **0089-MADR W8, V4 and its numbers table** carry dated notes: the floor is documented by OpenAI and not applied until the record ST113 names.
 
 Counts after this amendment: 110 decided, 9 out of scope, 0 open, 119 rows (ST112 to ST114 added). The record stays `accepted`.
+
+## Amendment (2026-11-27, twentieth): the joint pre-release review of v1.34.0
+
+Additions only. [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4 review read the v1.34.0 work at `223bb8d`. The coordinator relayed the owner's rulings, their labels quoted exactly. The rows below are built in that PLAN's Phase 4, as its amendment of 2026-11-27 states.
+
+### Re-ground at `223bb8d` (2026-11-27)
+
+The review cited `responses.go:845` and `:1032`. At `223bb8d`, both are elsewhere in `llmprovider/internal/wire/responses/responses.go`:
+
+* `streamState.itemDone` is at `:903`. Its first line, `:904`, is `s.open = slices.DeleteFunc(s.open, func(o outputItem) bool { return o.CallID == item.CallID })`.
+* `takeTerminal`'s removal is at `:1035`, with the guard `item.CallID != ""`.
+* `s.open` gets every call that an `output_item.added` announces (`:791` to `:794`). At a cut, `end` names each open call in a `WarningToolCallCut` (`:1141` to `:1144`, ST77, ST108).
+
+### Owner rulings (2026-11-27, twentieth)
+
+| Finding | The owner's answer | Rows it decides |
+| :--- | :--- | :--- |
+| `itemDone` (`responses.go:904`) removes every open call announced without a `call_id` whenever any `.done` arrives without one, such as a message's. At a cut, such a call is then dropped with no `WarningToolCallCut`. Guard it as `takeTerminal` does (`:1035`, `item.CallID != ""`) | "Fix before v1.34.0 (Recommended)" | ST115; building it raises JR4 (ST116) |
+| The review's follow-ups | "Everything before release" | ST117 |
+
+### Measured (2026-11-27, scratch clones at `223bb8d`)
+
+The reproductions are in `<scratch>/v1340prep/repro_v1340_test.go`, run by `repro.py`. The clone `clone-guard` carries the ruled guard at `:904` and nothing else.
+
+* **The defect, at `223bb8d`.** A call is announced with no `call_id` and never done. A message's `.done` follows, then a cut. Observed: `output=["message:Hi"] finish="length" warnings=[]`. The same stream with a `call_id` names the call: `warnings=["tool_call_cut: the output limit cut the call to \"lookup\" (id \"call_1\") ..."]`.
+* **With the guard.** The defect's stream names the call: `warnings=["tool_call_cut: the output limit cut the call to \"lookup\" before its arguments were whole; it was dropped"]`.
+* **JR4, with the guard.** A call is announced with no `call_id`, then delivered by its own `.done` with `{"x":1}`. A message follows, then a cut. Observed: `output=["call:lookup {\"x\":1}" "message:Hi"] finish="length"`, together with a `WarningToolCallCut` naming `lookup`. The response keeps the call and also reports it dropped. At `223bb8d`, the same stream has no warning. The same happens when such a call is taken from the cut's terminal `output` and not delivered by `.done`: `takeTerminal`'s guard leaves it open. At `223bb8d`, the message's `.done` removed it first, which hid the double report.
+
+### Rows (2026-11-27, twentieth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST115 (new, 2026-11-27) | On the Responses stream, an `output_item.done` with no `call_id` (a message, a reasoning item, a call that has none), while a call announced with no `call_id` is open | decided | the open call stays open: `itemDone` removes an open call only when the delivered item carries a `call_id` and it matches, as `takeTerminal` does (`item.CallID != ""`). At a cut the call is dropped and named in a `WarningToolCallCut` (ST108) | "Fix before v1.34.0 (Recommended)" | `TestCutAnswer_OpenCallNoCallID_0088` (new, `llmprovider/internal/wire/responses/`): the defect's stream, both readers: `message:Hi`, `length`, one `WarningToolCallCut` naming `lookup`. Red at `223bb8d` (`warnings=[]`); plant: the guard removed from `:904`, caught |
+| ST116 (new, 2026-11-27) | JR4: a call announced with no `call_id` and then delivered, by its `.done` or from the terminal `output`, on a cut stream, once ST115 is built | open *(2026-11-27: decided by JR4's answer, option (1); restated in the twenty-first amendment)* | JR4 below; recommended (1) | JR4; ST108; ST115; 0092-MADR D2 | under (1): `TestCutAnswer_OpenCallNoCallID_0088` gains the case, by `.done` and by the terminal: the call kept and no warning. Red on ST115's tree. Plant: the match by id removed, caught |
+| ST117 (new, 2026-11-27) | The thirteenth amendment's R5 line, "`ResponsesLimits.Minimum` is 16", now superseded by ST113 | decided | a dated pointer at that line, to ST113; the text before it is unchanged. Written with this amendment | "Everything before release" | `make records-check`; `tools/recordlint.py`; no plant (a record's text) |
+
+### Put to the owner: JR4
+
+**JR4. Once ST115 guards `itemDone`, how does the stream match a delivered call that has no `call_id` to its open entry?** ST115 as ruled stops one false silence, but it starts a false report. A call that has no `call_id` and is delivered whole stays open. At a cut it is kept in the response and also named as dropped, as measured above. Today `takeTerminal` already has this guard, so the same double report occurs for a taken call.
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **Match by `call_id`, else by the item's `id` (recommended).** An open call leaves `s.open` when the delivered item has the same `call_id`, or, when either has none, the same `id`. The rule is the same in `itemDone` and `takeTerminal`. A call with neither stays open, as with ST115 alone. | `s.open` keeps each entry's `id`, already in `outputItem`; two lines change. Under a cut, a call with no `id` and no `call_id` is still named twice. No server has been seen to send one. |
+| (2) **Name only what the response lost.** At the cut, `end` names an open call only when no call in the response has its `id`, else its name. | The check moves to `end`, and every cut pays it. A response with two calls to one tool and no ids cannot be told apart. |
+| (3) **ST115 as ruled; document the double report.** | A caller that reads `WarningToolCallCut` drops or retries a call it was given and may already have run. |
+
+Doing nothing ships (3).
+
+Counts after this amendment: 112 decided, 9 out of scope, 1 open (ST116), 122 rows (ST115 to ST117 added). The record is `proposed` until JR4 is answered.
+
+## Amendment (2026-11-27, twenty-first): JR4 answered
+
+Additions only. The coordinator relayed the owner's answer, quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| JR4 | "Match by call ID, else item ID (Recommended)" | (1) | ST116 |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST116 (decided 2026-11-27) | A call announced with no `call_id` and then delivered, by its `.done` or from the terminal `output`, on a cut stream; and ST115's case | decided | an open call is closed when a finished item matches its `call_id`, else its `id`, each compared only when the finished item carries it; the same rule in `itemDone` and `takeTerminal`. A delivered call is kept with no `WarningToolCallCut`; a call never delivered is still named at the cut (ST115). A call with neither `id` nor `call_id` stays open | JR4 "Match by call ID, else item ID (Recommended)" | `TestCutAnswer_OpenCallNoCallID_0088` gains two cases, by `.done` and from the terminal: the call kept, no warning. Red on ST115's tree (both reported dropped). Plant: the match by `id` removed, caught by those cases |
+
+Counts after this amendment: 113 decided, 9 out of scope, 0 open, 122 rows. The record is `accepted`.
+
+### Note (2026-11-27): ST116 narrowed to the owner's words
+
+Additions only; the code review of [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4 found pass 1's match wider than JR4's answer, "Match by call ID, else item ID (Recommended)", and the coordinator's call was to narrow the code to the ruling. ST116 now reads: an open call is closed by a finished item with the same `call_id` when both carry one; only when either lacks a `call_id` are their `id`s compared. Two different `call_id`s never match through an `id`. Test: `TestCutAnswer_OpenCallNoCallID_0088` gains the case "two call_ids, one id": an open `call_1` and a finished `call_2` sharing `id` `fc_1`; `call_1` is named at the cut. Plant: pass 1's wider match (`item.CallID != "" && o.CallID == item.CallID`, else by `id`), caught: `open_call_0088_test.go:68: two call_ids, one id: warnings []; want one WarningToolCallCut naming call_1`. The row's outcome otherwise stands.

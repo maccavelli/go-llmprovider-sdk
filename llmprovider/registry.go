@@ -31,7 +31,9 @@ type Descriptor struct {
 	RequiresAPIKey bool
 	// AuthMethods lists the authentication paths in menu order.
 	AuthMethods []AuthMethod
-	// StaticModels is the curated fallback catalog, or empty.
+	// StaticModels is the curated fallback catalog, or empty: model ids
+	// only, the wizard's built-in catalog, which carries no model facts
+	// since 0093-MADR.
 	StaticModels []string
 	// Notes is a short qualifier for a menu, or empty.
 	Notes string

@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-24
+date: 2026-11-27
 associated-madr: "0088-MADR-default-output-limit-from-model-facts.md"
 decision-makers: repository owner
 ---
@@ -1262,3 +1262,11 @@ Base `251c4e9`; unstaged; no live call, every reply the tests' own. The rulings 
 | `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; `github-disclosure.py redact` (dry run) | this Mac | 0, 3 records, no rule rose; 0, 0 hits in 5 files; 0, would edit 0 files (run after this entry, with `make markdownlint records-check docs-check tables-check links-check`: 0) |
 
 **Not done:** "now" claims rows on the changed comment (Phase 7 names none); staging (the coordinator's).
+
+### Execution record entry (2026-11-27, twenty-seventh): the joint review's rows go to 0091-PLAN Phase 4
+
+Records only; nothing staged. The joint pre-release review of v1.34.0 found the `itemDone` defect. The owner ruled "Fix before v1.34.0 (Recommended)", quoted exactly. The MADR's twentieth amendment records it as ST115, with ST116 (JR4, open) and ST117 (the R5 line's pointer, written with the amendment). ST115 and ST116 are built in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4, step 4a, with the other v1.34.0 rows, under one set of gates. That PLAN's step 4b writes this PLAN's closing entry and sets it `complete`. The MADR is `proposed` until JR4 is answered.
+
+### Execution record entry (2026-11-27, twenty-eighth): closed for v1.34.0
+
+Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped in v1.33.0: the output limit from model facts and its discovery work through `be6828e`. Shipped in v1.34.0: Phase 6's whole `{}` call where calls arrive whole (`5f57f02`), Phase 7's R5 (`223bb8d`), and the joint review's ST115 and ST116, built in that PLAN's step 4a. ST117 is written. Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27: withdrawn, by the deviation of 2026-11-27 in 0091-PLAN Phase 4: Phase 4's step 6 (`:358` to `:359`) closes this PLAN once the tag's CI and step 5's `consumer.py` and `offline.py` are recorded; Phases 6 and 7 and ST115 to ST117 ship in v1.34.0, so this PLAN is `in-progress` again; it closes on the v1.34.0 tag, that tag's CI passing, then `tools/consumer.py v1.34.0 --dependent <gitrepos>/gobble-cli` and `tools/offline.py v1.34.0` recorded. The text before this note is unchanged.)*

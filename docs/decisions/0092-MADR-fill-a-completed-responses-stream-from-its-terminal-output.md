@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-25
+date: 2026-11-27
 decision-makers: repository owner
 consulted: "the owner's request of 2026-11-24, relayed by the coordinator, 'get agents working on 2 madrs, one that includes SDK H1'; the owner's answers of 2026-11-24 to OQ1 to OQ6, relayed by the coordinator, their labels quoted in the amendment; the upstream synthesis appended to 0091-REPORT (2026-11-24), idea H1, with the coordinator's check of `responses.go:833-834`; an independent review of the first draft (2026-11-24, not ready, relayed by the coordinator); this repository at 2f3c3a9, read only, and a scratch clone of it at the same commit for the measurements below (no file of the tree changed); gobble-cli at 97fa1f6, read only; the read-only upstream checkouts opencode at 4ce137b39e, goose at 36b29113a, pi at 1402973a9 and codex at 57e64682f8"
 informed: the callers of `openai`, `grok` and OpenCode's responses route, whose decoder this record changes; `chatcompat` callers who opt in with `WithResponses()` (0091-MADR ST50), the path that reaches servers no record measured; gobble-cli, whose turn ends when a reply fails after it showed text
@@ -153,7 +153,7 @@ Each stands alone, three options, the recommended one first.
 | ST6 | Pairing: (a) a `.done` with no id and the terminal's item with one (M5); (b) a `.done` skipped for item 0 and given, with no id, for item 1; (c) as (b) with no `output_index`, item 0 a reasoning item, item 1 a message; (d) terminal `[message A with no id, message B with id b]`, a `.done` for B by id, no `output_index`; (e) a `.done` message with no id whose `output_index` is 0, where the terminal's item 0 is a reasoning item and item 1 the message; (f) the ambiguous case OQ5 names | decided, except (f) *(2026-11-24: (f) decided by OQ5's answer; restated in the amendment)* | (a) one message, completed and cut; (b) item 0 taken, item 1 not; (c) the message paired, the reasoning item taken; (d) B paired by id, A taken; (e) the index pass does not pair across types, the message pairs in order, the reasoning item is taken; (f) OQ5 | D2; opencode (E37); OQ5 | `TestTerminalFill_Match_0092`, cases (a) to (e), completed and cut; plants: today's rule ((a) duplicates); id-only pairing ((b) duplicates item 1); order pairing across types ((c) drops the reasoning item); order pairing over every `.done`, not only the unpaired ones ((d) pairs the B `.done` with A, so A is lost); index pairing across types ((e) drops the reasoning item) |
 | ST7 | The terminal's item differs from the `.done` item of the same id (M8) | open *(2026-11-24: decided by OQ6's answer; restated in the amendment)* | recommended: OQ6 (1), the `.done` item stands | OQ6 | |
 | ST8 | The deltas yielded differ from the terminal's item, for an item no `.done` delivered | decided | the terminal's item is the response's; deltas are not kept or compared, as for a `.done` today | D3; E64 | `TestTerminalFill_Deltas_0092`, deltas `Hel`, terminal `Hello`, response `Hello`; plant: the text rebuilt from the deltas |
-| ST9 | Items arrive partly by `.done`, partly from the terminal | decided | `Response.Output` is the delivered items in arrival order followed by the taken items in the terminal's order; the `EventItem`s come in that order | D1; E51 | `TestTerminalFill_Order_0092`: `Response.Output` equals delivered ++ taken, and the `EventItem`s equal `Response.Output`; plant: taken items inserted at their terminal index in `Response.Output` |
+| ST9 | Items arrive partly by `.done`, partly from the terminal | decided | `Response.Output` is the delivered items in arrival order followed by the taken items in the terminal's order; the `EventItem`s come in that order *(2026-11-27: on a cut, this order can put a delivered last call before a taken item, so 0088-MADR ST107 (a) does not reach it: JR2, open, the tenth amendment's ST37. The text before this note is unchanged.)* | D1; E51 | `TestTerminalFill_Order_0092`: `Response.Output` equals delivered ++ taken, and the `EventItem`s equal `Response.Output`; plant: taken items inserted at their terminal index in `Response.Output` |
 | ST10 | Held calls on a completed stream that also takes items | decided, conditional on 0088 R3 *(2026-11-25: rests on 0088-MADR ST109, R3 as built, decided)* | assumes R3 as built: a call whose arguments are `{}` or not a whole object is held until a later item or the end (E83), and released by `HeldCalls.Done` (E10, E13). Held calls are released first, then taken items (E11); a taken call is not held, being yielded at the end; a taken `{}` or non-object call on a completed reply is kept, as a delivered one is. If R3 is withdrawn, the held call is yielded at its `.done` and only the release step changes | D1; 0088 R3 | `TestTerminalFill_Held_0092`: a held `{}` call, then a taken call; it and 0088's `TestCutAnswer_HeldCalls_0088` (E86) flip if R3 changes; plant: taken items yielded before held calls |
 | ST11 | An announced item delivered neither by `.done` nor by the terminal, on a completed stream (M3) | open, conditional on 0088 R2 *(2026-11-24: decided by OQ1's answer; restated in the amendment)* | recommended: OQ1 (1). Assumes R2 as built, which names such a call as the cut call on a cut (E81); OQ1 decides the completed path only. If R2 changes, the cut path's counterpart changes, and `TestCutAnswer_ResponsesCutItem_0088`'s stream case (E85) flips | OQ1; 0088 R2 | |
 | ST12 | A `.done` that delivered less than its terminal partner (an empty message; reasoning without its encrypted part, M7) | open *(2026-11-24: decided by OQ2's answer; restated in the amendment)* | recommended: OQ2 (1) | OQ2 | |
@@ -647,7 +647,7 @@ Additions only. `code-reviewer` passed PLAN Phase 1 with notes. Relayed by the c
 | Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | ST33 | A terminal `output`, or the `.done` items or announced items the pairing reads, past `wire.MaxStreamIndex` (4096) items | decided | nothing is taken from the terminal, and ST11's check, which reads the same pairing, is not run: the stream finishes with what the `.done` events gave, as before this record (completed by `completed`, cut by `CutAnswer`). At 4096 items the take runs as D1 says | "Bound it like other wires (Recommended)" | `TestTerminalFill_Bound_0092`: a terminal of 4096 messages, one by `.done`, gives 4096; of 4097, gives the one `.done` message. Plants: the bound removed (4097 fills); the bound one lower (4096 does not fill) |
-| ST34 | A repeated `output_item.added` for an id already announced | decided | the same item, recorded once; ST11's check does not fail when that item is delivered once | "Ignore a repeated announcement (Recommended)" | `TestTerminalFill_Reannounced_0092`: a message announced twice by id, delivered by one `.done`, completes with it. Plant: the repeat recorded again (the stream fails as `item_not_finished`) |
+| ST34 | A repeated `output_item.added` for an id already announced | decided | the same item, recorded once; ST11's check does not fail when that item is delivered once *(2026-11-27: a repeat with no `id` is recorded again, which can raise a false `item_not_finished`: JR3, open, the tenth amendment's ST38. The text before this note is unchanged.)* | "Ignore a repeated announcement (Recommended)" | `TestTerminalFill_Reannounced_0092`: a message announced twice by id, delivered by one `.done`, completes with it. Plant: the repeat recorded again (the stream fails as `item_not_finished`) |
 | ST35 | An `output_index` that is not an integer JSON number (`1.0`, `"1"`) | decided | read as none (−1), as an absent one is; the stream is not failed for it. Today it fails the event's decode (the review's note) | the review's note, relayed by the coordinator; D2 | `TestTerminalFill_IndexForm_0092`: a `.done` with `output_index` `1.0`, and one with `"1"`, each with no id, against a terminal of two messages with no ids, reads as OQ5's case (nothing taken), not as an error and not as index 1. Plant: a quoted index read as its number (the `"1"` case pairs by index and duplicates) |
 
 ### The review's other notes
@@ -742,3 +742,85 @@ Additions only. Written in [0094-PLAN-refuse-an-edit-to-a-released-changelog-sec
 * **E130now to E132now.** They stay as evidence of where the entries stood at the fifth amendment. They are no longer ST27's check, and they are not moved when later entries shift their lines.
 
 Counts after this amendment: unchanged, 32 rows: 28 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+## Amendment (2026-11-27, tenth): the joint pre-release review of v1.34.0
+
+Additions only. [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4 review read the v1.34.0 work at `223bb8d`. The coordinator relayed the owner's ruling, quoted exactly: "Everything before release", which takes in the review's follow-ups and its three edge cases. Two of the edge cases are this record's, JR2 and JR3 below; JR1 is 0091-MADR's ST74. The rows are built in that PLAN's Phase 4, as its amendment of 2026-11-27 states.
+
+**A count corrected.** The ninth amendment's count, "32 rows: 28 decided", repeats the fourth amendment's count. The sixth amendment had already added ST33 to ST35, so the count after the ninth is 35 rows: 31 decided, 4 out of scope, 0 open. The ninth's text is unchanged.
+
+### Re-ground at `223bb8d` (2026-11-27)
+
+In `llmprovider/internal/wire/responses/`:
+
+* `TestTerminalFill_Collect_0092`'s failure message, at `terminal_0092_test.go:467`, still says "10 MiB of deltas". Since 0091's ST71 the test also sends 15 MiB of reasoning deltas (the note at ST30).
+* `takeTerminal` is at `responses.go:1015`. It appends each taken item after the delivered ones (`:1037`), as ST9 decides.
+* `wire.CutAnswer` reads a reply's last call by its place in `Response.Output` (`llmprovider/internal/wire/finish.go:34`, `i == len(r.Output)-1`).
+* `announce` skips a repeat only by `id` (`responses.go:888`). `announcedItem` keeps the `call_id` (`:854` to `:857`), and the dedupe does not read it.
+
+### Measured (2026-11-27, scratch clone at `223bb8d`)
+
+The reproductions are `<scratch>/v1340prep/repro_v1340_test.go`'s `TestRepro_E2` and `TestRepro_E3`, run by `repro.py`, both readers.
+
+* **JR2.** The stream announces message `msg_1`, which gets no `.done`, then call `now`. The call's `.done` carries `{}`. The stream is cut, with terminal `output` `[msg_1, now]`. Observed: `output=["call:now {}" "message:Hello"] finish="length" warnings=[]`. The call is yielded as an `EventItem`. Control, the same stream with `msg_1`'s `.done` delivered: `output=["message:Hello"]`, with one `WarningToolCallCut` naming `now` and `call_z`.
+* **JR3.** A message is announced twice at `output_index` 0 with no `id`, delivered by one `.done` and completed. Observed: `err=llmprovider: provider unavailable: p: item_not_finished: message`. A call announced twice with no `id`, the same `call_id` `call_1` both times, fails the same way: `item_not_finished: function_call call_1`. Control, the message with `id` `msg_1` (ST34): `output=["message:Hello"] finish="stop"`.
+
+### Rows (2026-11-27, tenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST36 | `TestTerminalFill_Collect_0092` (ST30), if `wire.StreamAnswerLimit` moves | decided | the test first asserts `25<<20 <= wire.StreamAnswerLimit && wire.StreamAnswerLimit < 35<<20`, failing with a message that names the bound. So a moved bound fails the test, and cannot silently leave its plant uncaught. Its failure message names "15 MiB of reasoning and 10 MiB of text deltas" | "Everything before release" | the test, changed. Green at `223bb8d`'s 32 MiB. Plants: `StreamAnswerLimit = 4 * ReplyLimit`, caught at the guard; without the guard it passes, and ST30's plant would no longer be caught. ST30's plant re-run, `Collect` counting a message item's text, caught |
+| ST37 | JR2 (the review's E2): a cut stream whose last item, by the server's order, is a call with `{}` that got its `.done`, while an earlier item got none and is taken from the terminal | open *(2026-11-27: decided by JR2's answer, option (1); restated in the eleventh amendment)* | JR2 below; recommended (1) | JR2; ST9; 0088-MADR ST107 (a), ST109 | under (1): `TestTerminalFill_Order_0092` gains the case: `message:Hello` alone, one `WarningToolCallCut` naming `now`, and `now` never yielded. Red at `223bb8d`. Plant: the cut read on `Response.Output`'s order again |
+| ST38 | JR3 (the review's E3): a repeated `output_item.added` with no `id` | open *(2026-11-27: decided by JR3's answer, option (1); restated in the eleventh amendment)* | JR3 below; recommended (1) | JR3; ST34; ST11 | under (1): `TestTerminalFill_Reannounced_0092` gains the two cases of JR3, each completing with its item, and a third, two different messages with no `id`, no `output_index` and one `.done`, still failing `item_not_finished`. Red at `223bb8d`. Plants: the `call_id` key removed; the index key removed. Each is caught by its own case |
+
+### Put to the owner: JR2 (the review's E2)
+
+**JR2. On a cut stream that took items, which order decides the "last item" of 0088-MADR ST107 (a)?** ST9 appends taken items after the delivered ones. ST107 (a) speaks of the reply's last item, where the limit fell, and `CutAnswer` reads that from `Response.Output`. In the measured stream, the server's last item is the `{}` call. The SDK's order puts the taken message after it, so the call reads as an earlier whole call. It is kept and yielded, with no warning.
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **The server's order decides the cut (recommended).** On a stream that took items, the cut check takes the last item from the terminal `output`. A delivered `{}` call that is last there is the cut call: dropped, named, and never yielded (it is held, ST109). ST9's `Response.Output` order is unchanged. | `end` tells `CutAnswer` which call is last, through a new internal parameter or a check before it; `CutAnswer`'s other callers keep theirs. A server whose terminal `output` is empty or out of order falls back to today's reading. |
+| (2) **`Response.Output` follows the server's order.** When items are taken, delivered and taken items are merged by their place in the terminal. ST107 (a) then holds as written. | ST9 is restated and its test and plant change. Taken items are yielded at the end, so `EventItem` order would no longer equal `Response.Output`'s, unless delivered items are held back as well. |
+| (3) **Keep it as built, and document it.** ST107 (a) reads the SDK's order: a delivered `{}` call followed by a taken item is a whole call. | A call the server cut, last in its output, is returned and yielded with `{}`, and a caller may run it. |
+
+Doing nothing ships (3).
+
+### Put to the owner: JR3 (the review's E3)
+
+**JR3. When is a repeated `output_item.added` with no `id` the same item?** ST34 dedupes by `id` alone. Measured above, a repeat with no `id` is recorded twice and fails a healthy stream as `item_not_finished`. That error is `ErrProviderUnavailable` after the reply, so it is retried at most once.
+
+| Option | Cost |
+| :--- | :--- |
+| (1) **Also match by `call_id`, then by `output_index` and type (recommended).** A repeat with no `id` is the same item when it carries the same `call_id` as an announced call, or, failing that, the same `output_index` and type as an announced item with no `id`. One with none of the three is recorded each time, as today. | Two more keys in `announce`. A server that reused one `output_index` for two different items with no `id` would lose ST11's check for the second: a missed failure, not a false one. |
+| (2) **Match by `call_id` only.** Calls are deduped; a message with no `id` is still recorded twice. | The measured message case still fails falsely. |
+| (3) **Keep it as built, and document it.** | A server that repeats announcements with no `id` fails healthy replies, retryable once. No such server has been measured. |
+
+Doing nothing ships (3).
+
+Counts after this amendment: 38 rows: 32 decided, 4 out of scope (ST21 to ST24), 2 open (ST37, ST38). The record is `proposed` until JR2 and JR3 are answered. ST36 is built now; ST37 and ST38 are built once answered.
+
+## Amendment (2026-11-27, eleventh): JR2 and JR3 answered
+
+Additions only. The coordinator relayed the owner's answers, quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| JR2 | "Server's order decides the cut (Recommended)" | (1) | ST37 |
+| JR3 | "Match by call ID, then position (Recommended)" | (1) | ST38 |
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST37 (decided 2026-11-27) | A cut stream: which item is the last one for 0088-MADR ST107 (a), when items were delivered and taken | decided | the server's order decides: the last item of the terminal `output`. When it is a call, the response's call with its `call_id` is the last one for the cut rule; when it is not a call, no call is last. When the terminal `output` is empty, past the bound (ST33), or its last call carries no `call_id` found in the response, the response's own last item is read, as before. `Response.Output`'s order is unchanged (ST9) | JR2 "Server's order decides the cut (Recommended)" | `TestTerminalFill_Order_0092` gains two cases: JR2's measured stream, `message:Hello` alone with one `WarningToolCallCut` naming `now`, and `now` never yielded; and a taken `{}` call that is not the server's last item, kept as a whole call. Red at `223bb8d` (both cases). Plant: the last item read from `Response.Output` again |
+| ST38 (decided 2026-11-27) | A repeated `output_item.added` | decided | a repeat is the same item when it carries the same `id` as an announced item; else, with no `id`, the same `call_id`; else, with neither, the same `output_index` and type. It is recorded once. An announcement with none of the three is recorded each time | JR3 "Match by call ID, then position (Recommended)" | `TestTerminalFill_Reannounced_0092` gains three cases: a message with no `id` announced twice at index 0, and a call with no `id` and one `call_id` announced twice, each completing with its item; two messages with no `id` and no `output_index` and one `.done`, still `item_not_finished`. Red at `223bb8d` (the first two). Plants: the `call_id` key removed; the index key removed; each caught by its own case |
+
+Counts after this amendment: 38 rows: 34 decided, 4 out of scope (ST21 to ST24), 0 open. The record is `accepted`.
+
+### Note (2026-11-27): ST38 narrowed, ST37 limited to a call not yet yielded
+
+Additions only, from the code review of [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s Phase 4 (its pass 2).
+
+* **ST38, narrowed to the owner's words.** JR3's answer is "Match by call ID, then position (Recommended)"; pass 1 recorded the position key for every announced item, so a later item with neither `id` nor `call_id` could match one that had an `id`. The coordinator's call was to narrow the code: the `output_index` and type key is recorded for, and matched against, only an item with neither `id` nor `call_id`. Test: `TestTerminalFill_Reannounced_0092` gains the case "an id and an anonymous item at one index, one delivered", which fails `item_not_finished`. Plant: the position key recorded for every item, caught: `terminal_0092_test.go:653: ... err <nil>; want item_not_finished`.
+* **ST37, the cut applies only to a call not yet yielded.** Reproduced: with `.done` events out of order (the server's last `{}` call delivered first, released by the next `.done` through `HeldCalls.Later`), pass 1 then dropped that call at the cut after it had been yielded: `EventItems [last, first]`, `Response.Output [first]`. ST9 requires the `EventItem`s to equal `Response.Output`, and 0088-MADR ST109 that a cut call is never yielded; so the fix is made under those rows. The server's last call is the cut one only while it is still held or was taken from the terminal; a call already yielded is kept, and no item is last. Test: `TestTerminalFill_Order_0092` gains the case "a cut, .done out of order": `call:last {}` and `call:first {}` kept, no warning. Red at `223bb8d` (`call:first {}` dropped there) and on pass 1's tree. Plant: the restriction removed, caught: `terminal_0092_test.go:394: ... output ["call:first {}"] ...`.
+* **Follow-up, not built (pre-existing).** When the server's last call is dropped as `incomplete` and so is absent from the response, `lastIndex` falls back to the response's own last item, which may be an earlier `{}` call that the server did not send last. A record of its own decides it.
+
+Counts: unchanged, 38 rows: 34 decided, 4 out of scope, 0 open. The record stays `accepted`.

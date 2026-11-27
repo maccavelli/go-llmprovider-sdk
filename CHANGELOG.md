@@ -19,6 +19,8 @@ listed under **Removed** below.)*
 
 ## [Unreleased]
 
+## [v1.34.0] - 2026-11-27
+
 ### Added
 
 - `llmtest.Harness.TruncatedCallWhole`: for a provider whose wire delivers
@@ -29,9 +31,12 @@ listed under **Removed** below.)*
   conformance harnesses set it (0088-MADR ST111).
 - `chatcompat.WithResponses()`: `Generate` and `Stream` go to the server's
   `POST {base}/responses`, for a server the caller knows speaks OpenAI's
-  Responses API. What it sends, reads and gives up is in the package doc
+  Responses API. What it sends, reads and gives up is in the package doc.
+  A refusal at the output limit sent finishes `content_filter`, and a
+  call the stream announced and never delivered is named in a
+  `WarningToolCallCut`, with no error
   ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
-  ST50 to ST71).
+  ST50 to ST72, ST74).
 
 ### Changed
 
@@ -42,14 +47,20 @@ listed under **Removed** below.)*
   content, and is never sent back
   ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
   ST10, ST67).
-- Every provider, on every wire: an answer `Generate` reads over the
-  stream, when it names no output limit, is now bounded at 32 MiB of
-  text, reasoning and call arguments, up from 16 MiB, since reasoning may
-  now be counted twice; past it, `ErrIncomplete` as before. A plain
+- An answer `Generate` reads over the stream, when it names no output
+  limit, is now bounded at 32 MiB of text, reasoning and call arguments,
+  up from 16 MiB, since reasoning may now be counted twice; past it,
+  `ErrIncomplete` as before. On Chat Completions, Messages,
+  generateContent and Interactions the answer can reach 32 MiB. On the
+  Responses wire (`openai`, `grok`, OpenCode's responses route,
+  `chatcompat.WithResponses`) it stays at about 16 MiB when the terminal
+  event repeats the whole answer, as OpenAI's does: one event is bounded
+  at 16 MiB, so a longer answer is `ErrIncomplete` at that event. A
+  server whose terminal `output` is empty, such as the ChatGPT backend,
+  reaches 32 MiB when no single item's event passes 16 MiB. A plain
   reply's body keeps 16 MiB
   ([0091-MADR](docs/decisions/0091-MADR-adopt-the-responses-api-per-provider.md)
-  ST71).
-
+  ST71, ST72).
 - An answer the output limit cut: on generateContent and an Interaction's
   plain reply, a last tool call that takes no arguments, `{}`, is now
   returned as a whole call, and on generateContent's stream yielded, with
@@ -80,16 +91,29 @@ listed under **Removed** below.)*
   A cut stream no longer duplicates an item whose ids disagree: the two
   sides pair by id, then by `output_index` within one type, then in order
   within one type, and take nothing of a type they cannot pair, nor
-  anything past 4096 items
+  anything past 4096 items. On a cut stream that took items, the item the
+  limit fell on is the server's last, in its terminal `output`, so a last
+  call with `{}` is dropped and named there though a taken item follows it
+  in the response
   ([0092-MADR](docs/decisions/0092-MADR-fill-a-completed-responses-stream-from-its-terminal-output.md)
-  D1, D2, ST6, ST12, ST20).
+  D1, D2, ST6, ST12, ST20, ST37).
 - A completed Responses stream that announced a message, a call or a
   client tool search and delivered it neither by `output_item.done` nor in
   its terminal response, where it succeeded with the item dropped, is now
   `ErrProviderUnavailable`, marked after the reply as an early end is, its
   text naming `item_not_finished` with the item's type and id: retried at
   most once, and never after an event (0092-MADR ST11). Past 4096 items
-  the check is not run (ST33).
+  the check is not run (ST33). An item announced twice is counted once:
+  the same id, else the same call id, else the same `output_index` and
+  type (ST34, ST38).
+- A Responses stream (`openai`, `grok`, OpenCode's responses route) cut at
+  the output limit now names, in a `WarningToolCallCut`, a call announced
+  with no `call_id` and never finished; any later `output_item.done` with
+  no `call_id`, such as a message's, used to drop it silently. A call is
+  matched to its finished item by `call_id`, else by its `id`, so one
+  delivered whole is kept and not named
+  ([0088-MADR](docs/decisions/0088-MADR-default-output-limit-from-model-facts.md)
+  ST115, ST116).
 
 ## [v1.33.0] - 2026-11-24
 
@@ -1931,7 +1955,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.33.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.34.0...HEAD
+[v1.34.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.33.0...v1.34.0
 [v1.33.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.32.0...v1.33.0
 [v1.32.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.31.0...v1.32.0
 [v1.31.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...v1.31.0

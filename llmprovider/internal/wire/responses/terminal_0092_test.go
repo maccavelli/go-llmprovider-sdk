@@ -345,7 +345,12 @@ func TestTerminalFill_Deltas_0092(t *testing.T) {
 // TestTerminalFill_Order_0092 (ST9, ST14): the response's output is the
 // delivered items in arrival order, then the taken ones in the terminal's
 // order, and the EventItems come in that order; on a cut the take runs
-// before the cut rules, so a taken last {} call is the cut call.
+// before the cut rules, so a taken last {} call is the cut call. Which item
+// is last for the cut is the server's order, the terminal output's, not the
+// response's (ST37, "Server's order decides the cut (Recommended)"): a
+// delivered {} call the server sent last is the cut call, though a taken
+// message follows it in the response, and is never yielded; a taken {} call
+// the server did not send last is a whole call.
 func TestTerminalFill_Order_0092(t *testing.T) {
 	stream := tfCreated + tfAdded(1, tfMsg("msg_1", "")) + tfDelta("A") + tfDone(1, tfMsg("msg_1", "A")) +
 		tfCompleted(tfReasoning("rs_1", "", "ENC"), tfMsg("msg_1", "A"), tfCall("fc_1", "call_1", "lookup", `{"x":1}`))
@@ -359,6 +364,37 @@ func TestTerminalFill_Order_0092(t *testing.T) {
 	if r.done != nil && (len(r.done.Warnings) != 1 || r.done.Warnings[0].Kind != llmprovider.WarningToolCallCut ||
 		!strings.Contains(r.done.Warnings[0].Detail, "call_z")) {
 		t.Errorf("a cut, the last taken call {}: warnings %+v; want one naming call_z", r.done.Warnings)
+	}
+
+	now := tfCall("fc_2", "call_z", "now", "{}")
+	serverLast := tfCreated + tfAdded(0, tfMsg("msg_1", "")) + tfAdded(1, tfCall("fc_2", "call_z", "now", "")) +
+		tfDone(1, now) + tfCut(tfMsg("msg_1", "Hello"), now)
+	r = tfRead(Decoder{}, serverLast)
+	r.check(t, "a cut, the server's last item a delivered {} call", llmprovider.FinishLength, []string{"message:Hello"})
+	if r.done != nil && (len(r.done.Warnings) != 1 || r.done.Warnings[0].Kind != llmprovider.WarningToolCallCut ||
+		!strings.Contains(r.done.Warnings[0].Detail, "call_z")) {
+		t.Errorf("a cut, the server's last item a delivered {} call: warnings %+v; want one naming call_z", r.done.Warnings)
+	}
+
+	notLast := tfCreated + tfAdded(1, tfMsg("msg_1", "")) + tfDone(1, tfMsg("msg_1", "Hello")) +
+		tfCut(now, tfMsg("msg_1", "Hello"))
+	r = tfRead(Decoder{}, notLast)
+	r.check(t, "a cut, a taken {} call not the server's last", llmprovider.FinishLength, []string{"message:Hello", "call:now {}"})
+	if r.done != nil && len(r.done.Warnings) != 0 {
+		t.Errorf("a cut, a taken {} call not the server's last: warnings %+v; want none, a whole call", r.done.Warnings)
+	}
+
+	// The cut applies only to a call not yet yielded (ST9, 0088-MADR ST109):
+	// .done events out of order, the server's last {} call delivered first
+	// and released by the next .done, is a whole call, kept as yielded.
+	first, last := tfCall("fc_a", "call_a", "first", "{}"), tfCall("fc_b", "call_b", "last", "{}")
+	outOfOrder := tfCreated + tfAdded(0, tfCall("fc_a", "call_a", "first", "")) + tfAdded(1, tfCall("fc_b", "call_b", "last", "")) +
+		tfDone(1, last) + tfDone(0, first) + tfCut(first, last)
+	r = tfRead(Decoder{}, outOfOrder)
+	r.check(t, "a cut, .done out of order, the server's last call yielded", llmprovider.FinishLength,
+		[]string{"call:last {}", "call:first {}"})
+	if r.done != nil && len(r.done.Warnings) != 0 {
+		t.Errorf("a cut, .done out of order, the server's last call yielded: warnings %+v; want none", r.done.Warnings)
 	}
 }
 
@@ -431,8 +467,16 @@ func TestTerminalFill_Dropped_0092(t *testing.T) {
 // taken message's text again: 15 MiB of reasoning deltas, 10 MiB of text
 // deltas and a terminal message of the same 10 MiB, under EventLimit, return
 // the answer, about 25 MiB counted; counting the message too, about 35 MiB,
-// would be over the bound.
+// would be over the bound. The bound is checked first (0092-MADR ST36): moved
+// out of [25 MiB, 35 MiB), the counts above would no longer straddle it, and
+// the plant would pass unseen.
 func TestTerminalFill_Collect_0092(t *testing.T) {
+	// Wanted: 25<<20 <= wire.StreamAnswerLimit && wire.StreamAnswerLimit < 35<<20.
+	bound := wire.StreamAnswerLimit
+	if bound < 25<<20 || bound >= 35<<20 {
+		t.Fatalf("StreamAnswerLimit is %d MiB; this test's counts, about 25 MiB and 35 MiB, need it in [25 MiB, 35 MiB)",
+			bound>>20)
+	}
 	chunk := strings.Repeat("x", 64<<10)
 	var b strings.Builder
 	b.WriteString(tfCreated + tfAdded(0, tfMsg("msg_1", "")))
@@ -464,7 +508,7 @@ func TestTerminalFill_Collect_0092(t *testing.T) {
 		if resp != nil {
 			n = len(resp.OutputText())
 		}
-		t.Errorf("10 MiB of deltas, then the terminal's message: %d bytes of text (%v); want the answer, %d bytes", n, err, len(text))
+		t.Errorf("15 MiB of reasoning and 10 MiB of text deltas, then the terminal's message: %d bytes of text (%v); want the answer, %d bytes", n, err, len(text))
 	}
 }
 
@@ -579,6 +623,35 @@ func TestTerminalFill_Reannounced_0092(t *testing.T) {
 	stream := tfCreated + tfAdded(0, tfMsg("msg_1", "")) + tfAdded(0, tfMsg("msg_1", "")) + tfDelta("Hello") +
 		tfDone(0, tfMsg("msg_1", "Hello")) + tfCompleted(tfMsg("msg_1", "Hello"))
 	tfRead(Decoder{}, stream).check(t, "a repeated announcement", llmprovider.FinishStop, []string{"message:Hello"})
+
+	// ST38, "Match by call ID, then position (Recommended)": with no id, a
+	// repeat is matched by its call_id, else by its output_index and type.
+	byIndex := tfCreated + tfAdded(0, tfMsg("", "")) + tfAdded(0, tfMsg("", "")) + tfDone(0, tfMsg("", "Hello")) +
+		tfCompleted(tfMsg("", "Hello"))
+	tfRead(Decoder{}, byIndex).check(t, "a repeat with no id, at one index", llmprovider.FinishStop, []string{"message:Hello"})
+
+	call := tfCall("", "call_1", "lookup", `{"x":1}`)
+	byCallID := tfCreated + tfAdded(0, tfCall("", "call_1", "lookup", "")) + tfAdded(1, tfCall("", "call_1", "lookup", "")) +
+		tfDone(0, call) + tfCompleted(call)
+	tfRead(Decoder{}, byCallID).check(t, "a repeat with no id, one call_id", llmprovider.FinishToolCalls,
+		[]string{`call:lookup {"x":1}`})
+
+	added := tfEvent("response.output_item.added", `,"item":`+tfMsg("", ""))
+	two := tfCreated + added + added + tfDone(-1, tfMsg("", "Hello")) + tfCompleted(tfMsg("", "Hello"))
+	r := tfRead(Decoder{}, two)
+	if r.err == nil || !strings.Contains(r.err.Error(), "item_not_finished") {
+		t.Errorf("two announcements with no id, call_id or index, one delivered: err %v; want item_not_finished", r.err)
+	}
+
+	// ST38 as narrowed (2026-11-27): position matches only an item with
+	// neither id nor call_id, so one with an id and one with neither, at one
+	// index, are two items; with only the first delivered, the second fails.
+	mixed := tfCreated + tfAdded(0, tfMsg("msg_1", "")) + tfAdded(0, tfMsg("", "")) + tfDone(0, tfMsg("msg_1", "Hello")) +
+		tfCompleted(tfMsg("msg_1", "Hello"))
+	r = tfRead(Decoder{}, mixed)
+	if r.err == nil || !strings.Contains(r.err.Error(), "item_not_finished") {
+		t.Errorf("an id and an anonymous item at one index, one delivered: err %v; want item_not_finished", r.err)
+	}
 }
 
 // TestTerminalFill_IndexForm_0092 (ST35): an output_index that is not an

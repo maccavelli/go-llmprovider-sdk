@@ -454,6 +454,21 @@ func TestChatcompat_ResponsesRefusalAtLimit_0091(t *testing.T) {
 			})
 		}
 	}
+	// ST74, "Refusal, plus a 'call cut' warning (Recommended)": with a call
+	// announced and never delivered, the refusal at the limit still finishes
+	// content_filter, the call named in a WarningToolCallCut, with no error.
+	t.Run("at the limit, a call lost/stream", func(t *testing.T) {
+		srv := respServer(t, always(http.StatusOK, sseOf(
+			`{"type":"response.created","response":{"id":"resp_1","model":"m"}}`,
+			`{"type":"response.output_item.added","item":{"type":"function_call","id":"fc_2","call_id":"call_lost","name":"get_weather"}}`,
+			`{"type":"response.output_item.done","item":`+refusal+`}`,
+			`{"type":"response.completed","response":{"id":"resp_1","model":"m","output":[`+refusal+`],"usage":{"output_tokens":16}}}`)))
+		resp, _, err := streamed(buildResponses(t, srv.URL), limited(16))
+		if err != nil || resp.FinishReason != llmprovider.FinishContentFilter || cutWarnings(resp) != 1 ||
+			!strings.Contains(resp.Warnings[0].Detail, "call_lost") {
+			t.Errorf("%+v, %v; want content_filter and one WarningToolCallCut naming call_lost", resp, err)
+		}
+	})
 }
 
 // TestChatcompat_ResponsesReasoningText_0091 (ST63): reasoning a server sends

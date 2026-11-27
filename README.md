@@ -133,7 +133,9 @@ functions over any provider, and `Stream` streams from every one.
   `Generate` and `Stream` to the server's `/responses`, a reply the server
   finishes as completed is reported cut too when its `output_tokens`
   reached the limit sent, as Ollama's `/v1/responses` hides a cut
-  (0091-MADR ST55). An empty answer is `ErrEmptyAnswer` too, with
+  (0091-MADR ST55); a refusal there still finishes `content_filter`, any
+  call announced and never delivered named in a `WarningToolCallCut`
+  (ST70, ST74). An empty answer is `ErrEmptyAnswer` too, with
   the service's reason, such as a refusal's `content_filter`. A Responses
   answer incomplete for another reason, such as a content filter, is
   `ErrIncomplete` with that reason.
@@ -670,7 +672,9 @@ key.
   `Prompter` returns empty, or of only spaces, is asked for again and, after
   three, is an error, for every provider, so it never reaches this check
   (see the bullet above). Without `Discover` nothing is checked and the built-in catalog
-  is offered. A provider that implements
+  is offered: the provider's curated model ids, which carry no model facts
+  since 0093-MADR; facts come only from a document handed in with
+  `catalog.WithMetadata` or from a provider's listing. A provider that implements
   `catalog.Lister`, `chatcompat`'s among them, gives the menu its models'
   facts. `ResolveCredential`'s catalog tells whether the provider answered:
   `Live` false is the built-in catalog, and its `Err` holds why a listing
@@ -712,7 +716,7 @@ evolution rules, and how to pin it and read its schema and vectors.
 
 ## Status
 
-The current release is `v1.33.0`. The module requires Go 1.27.4.
+The current release is `v1.34.0`. The module requires Go 1.27.4.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); the six newest tags' GitHub Releases carry

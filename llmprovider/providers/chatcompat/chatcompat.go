@@ -62,7 +62,9 @@
 // reached the limit sent is read as cut, finishing length, as Ollama's
 // /v1/responses hides a cut that way; one that ends on exactly the limit's
 // last token is reported cut too (ST55, ST69).
-// A refusal finishes content_filter, at the limit or under it (ST70).
+// A refusal finishes content_filter, at the limit or under it (ST70); at the
+// limit, a call the stream announced and never delivered is named in a
+// WarningToolCallCut (ST74).
 //
 // Capabilities: tools are Supported, sent with function.strict as the caller
 // sets it (0032-MADR D2). Forced tool choice is BestEffort: the server decides.

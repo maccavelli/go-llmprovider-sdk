@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-24
+status: complete
+date: 2026-11-27
 associated-madr: "0090-MADR-a-cancelled-run-does-not-ask-about-the-endpoint.md"
 decision-makers: repository owner
 ---
@@ -464,3 +464,7 @@ Linux machine, exit 0; `make records-check markdownlint` exit 0;
 
 Status stays `in-progress`: the joint checks, the review and the release
 run once over 0088, 0089 and this record afterwards.
+
+### 2026-11-27: closed
+
+Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped in v1.33.0 (`46f43d7`). The follow-ups above stay follow-ups, not built; they are not this PLAN's scope. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`.

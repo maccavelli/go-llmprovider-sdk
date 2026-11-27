@@ -28,7 +28,11 @@ func OverStream(req *llmprovider.Request, given bool) bool {
 // (Recommended)"): ReplyLimit's 16 MiB allowed 32 bytes for each of the
 // 524,288 output tokens the largest recorded output limit states, and a
 // server that streams both a summary and the raw text of its reasoning has
-// that reasoning counted twice.
+// that reasoning counted twice. A Responses answer stays at about 16 MiB
+// when its terminal event repeats the whole answer, as OpenAI's does: one
+// event is bounded by EventLimit, so a longer one is ErrIncomplete at that
+// event (ST72). A terminal with an empty output, as the ChatGPT backend
+// sends, leaves this bound to decide.
 const StreamAnswerLimit = 2 * ReplyLimit
 
 // Collect is Generate's response read from stream, a provider's own Stream of
