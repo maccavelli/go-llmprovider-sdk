@@ -104,8 +104,9 @@ listed under **Removed** below.)*
   text naming `item_not_finished` with the item's type and id: retried at
   most once, and never after an event (0092-MADR ST11). Past 4096 items
   the check is not run (ST33). An item announced twice is counted once:
-  the same id, else the same call id, else the same `output_index` and
-  type (ST34, ST38).
+  the same id, else the same call id; the position (`output_index` and
+  type) counts only for an item with neither an id nor a call id (ST34,
+  ST38).
 - A Responses stream (`openai`, `grok`, OpenCode's responses route) cut at
   the output limit now names, in a `WarningToolCallCut`, a call announced
   with no `call_id` and never finished; any later `output_item.done` with

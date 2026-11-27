@@ -342,3 +342,5 @@ Run in the tree; nothing staged. Scripts and outputs: `<scratch>/v1340prep/`. Ea
   | `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; `github-disclosure.py redact` (dry run) | this Mac | 0; 0 hits; would edit 0 files |
 
   Passes of step 4a/4b: 2. Open records: 0086, 0087, 0088, 0091, 0092 and 0094 PLANs, `in-progress`.
+
+  2026-11-27, release delta check: two Minors, both closed in a docs commit before the tag. (1) `CHANGELOG.md`, `## [v1.34.0]`: the clause on matching repeated announcements now says the position (`output_index` and type) counts only for an item with neither an id nor a call id, as the doc comment on `announce` and `announceKey` does. (2) 0090-PLAN's closing entry now points to 0089-PLAN's closing entry, v1.33.0's post-tag record (the tag's CI, `consumer.py`, `offline.py`).
