@@ -330,7 +330,7 @@ neither `WarningOutputLimitUnknown` nor `Request.OutputCeiling` is added.
   named model must be the request's model, the id the listing or one-model
   read resolved it to, or share its canonical tokens with the provider prefix
   dropped; otherwise the value serves this request's resend only and is not
-  kept. *(2026-11-23, from 0089-PLAN's Phase 2 analysis: the resolved id reaches a provider through the internal `cacheref` value `catalog.WithCache` carries; no new export.)* A rejected refusal is returned as today.
+  kept. *(2026-11-23, from 0089-PLAN's Phase 2 analysis: the resolved id reaches a provider through the internal `cacheref` value `catalog.WithCache` carries; no new export.)* A rejected refusal is returned as today. *(2026-11-26, from 0088-MADR ST113, the owner's "Drop the minimum for now": V4's 16 on Responses is not applied; `ResponsesLimits.Minimum` is 1, and the record that first makes a Responses route send a limit the SDK chose re-adds it. The Responses wire reads no refusal form, so V4 is not reached there either way.)*
 * **D5. What is kept, and for how long.** A validated output cap is kept in a
   memo per `catalog.Cache` (the process's without one), keyed by provider,
   base URL, Kilo organization or Claude workspace, model and whether the
@@ -658,7 +658,7 @@ route) requires one.
 | 24 h | a passed-back cap's expiry | the SDK's window for a service's stale statement (C19) |
 | 1 minute | OQ2 (2)'s failure interval | the models.dev document's retry (C55) |
 | 256 | the memo | 0062-MADR's memory bound (C35) |
-| 16 | V4 on Responses | OpenAI's spec minimum (W8) |
+| 16 | V4 on Responses | OpenAI's spec minimum (W8) *(2026-11-26: not applied; 1 until a record re-adds it, 0088-MADR ST113)* |
 | 1,024 | OQ4 (2)'s floor | 0088 OQ12's answer |
 | 64,000 | OQ2 (1)'s fallback on Claude today | the smallest current `max_tokens` in Claude's listing; a rule, not a constant |
 | 4,096 and 3.5 characters a token | 0088 OQ14 (3)'s margin and estimate | pi's, unmeasured (0088's numbers table) |
@@ -745,7 +745,7 @@ route) requires one.
 | W5 | Gemini thinking page (Interactions): the output limit includes thought tokens | 2026-11-22 | relayed (round 3) |
 | W6 | Ollama `api/types.go` (main): `ProcessModelResponse.ContextLength` (`/api/ps`); `/api/show`'s `<arch>.context_length`, the trained maximum | 2026-11-22 | verbatim copy read by the drafting step |
 | W7 | refusal texts stating a cap: Anthropic (forum copy), OpenAI ("supports at most N completion tokens", forum, a Chat Completions model), Gemini ("supported range is from 1 (inclusive) to 65537 (exclusive)", forum, generateContent) | 2026-11-22 | secondary; the SDK's C31 is a test string, not a recorded reply |
-| W8 | OpenAI OpenAPI spec: Responses `max_output_tokens` `minimum: 16` | 2026-11-22 | 0088 report WS11 |
+| W8 | OpenAI OpenAPI spec: Responses `max_output_tokens` `minimum: 16` *(2026-11-26: the SDK does not apply it; `ResponsesLimits.Minimum` is 1 until a record makes a Responses route send a limit the SDK chose and re-adds this floor, 0088-MADR ST113)* | 2026-11-22 | 0088 report WS11 |
 | W9 | llm-anthropic `llm_anthropic.py` at 30d4d939c4: `UNKNOWN_MODEL_MAX_TOKENS` 64000, "the lowest output limit of any current model, so requests are never rejected" | 2026-11-22 | verbatim copy read (round 3) |
 | W10 | Vercel AI SDK at 64a2866982: `knownModel: false` and a warning when the fallback is used | 2026-11-22 | verbatim copy read (round 3) |
 | W11 | Pydantic AI at 463a6d519b: `anthropic_max_output_tokens: int \| None`, "Default: `None` (unknown)", and 16,384 sent when it is unknown | 2026-11-22 | verbatim copy read (round 3) |

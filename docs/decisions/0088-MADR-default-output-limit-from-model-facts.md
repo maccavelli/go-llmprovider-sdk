@@ -1735,3 +1735,31 @@ Read in the tree after this amendment's change, checked with plain ids against a
 | C201now | `Harness.Truncated`'s doc names the whole `{}` call | new | `llmprovider/llmtest/llmtest.go:84` | `// set, a whole call with the arguments {}, which Generate keeps.` |
 
 Counts after this amendment: unchanged, 107 decided, 9 out of scope, 0 open, 116 rows. The record stays `accepted`.
+
+## Amendment (2026-11-26, nineteenth): R4 and R5 ruled
+
+Additions only; the twelfth amendment's R4 and the thirteenth's R5 keep their text. Taken up for v1.34.0 at `251c4e9`, the PLAN's twenty-fifth execution entry stopped before any code because neither had a ruling. Re-read there: R4's `limit_rule.go:66` to `:68` (at `f4efc5e`) is now `:74` to `:76`, where `fit` (`llmprovider/internal/wire/estimate.go:67` to `:72`, ST105) holds the fallback to the room a stated window leaves, and every route that sends the fallback (Claude, OpenCode's messages route) passes the window, else the input limit. R5's `limit_refusal.go:63` is now `:72`. Every Responses route (OpenAI, Grok, chatcompat with `WithResponses`, OpenCode's responses route) still sends only a caller's limit through `LimitRetry.Optional`, and `ResponsesLimits` reads no refusal form, so its minimum of 16 changes no request and no refusal's reading.
+
+### Owner rulings (2026-11-26, nineteenth)
+
+Relayed by the coordinator; the labels quoted exactly.
+
+| Question | The owner's answer | Option taken | Rows it decides |
+| :--- | :--- | :--- | :--- |
+| R4. The route's fallback against ST91's window cap | "Close: already met (Recommended)" | (1): R4 is met by ST105's hold; records only, no code | ST112 |
+| R5. The Responses wire's minimum of 16 | "Drop the minimum for now" | `ResponsesLimits.Minimum` is 1 until a record makes a Responses route send a limit the SDK chose; that record re-adds W8's 16 | ST113, ST114 |
+
+### Rows (2026-11-26, nineteenth)
+
+| Row | Input or state | Status | Outcome | Decided by | Test, and its plant |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ST112 (new, 2026-11-26) | R4: no source states the output, a window (else an input limit) is stated below the route's fallback, on a wire that requires a limit | decided | met by ST105: the fallback is held to the window less the estimate less 4,096 (`fit`, at `llmprovider/internal/wire/limit_rule.go:74` to `:76` at `251c4e9`, R4's `:66` to `:68` at `f4efc5e`), never above the window; no code changes | R4 "Close: already met (Recommended)"; ST105 | `TestDefaultLimit_EstimatedFit_0088`'s fallback case (W 50,000, a fallback of 64,000 or more: 35,904, basis fallback); plant: the fallback not held (`Tokens: fit(in.Fallback, in)` read as `Tokens: in.Fallback`), caught by that case |
+| ST113 (new, 2026-11-26) | R5: a limit the SDK chose, held by `fit` on the Responses wire with no room left (`LimitRetry.Choose` with `ResponsesLimits`) | decided | `ResponsesLimits.Minimum` is 1 (`llmprovider/internal/wire/limit_refusal.go:74`; `:72` at `251c4e9`), as on every other wire, so the hold reaches 1, not 16. No request changes today: no Responses route sends a limit the SDK chose, and the wire reads no refusal form. The record that first makes a Responses route send a limit the SDK chose must re-add W8's floor of 16 (0089-MADR W8, V4) with its own test | R5 "Drop the minimum for now" | `TestResponsesLimits_Minimum_0088` (new, `llmprovider/internal/wire/limit_minimum_0088_test.go`): `Choose` on `ResponsesLimits`, output 60,000, W 100,000, an estimate of 100,000: 1 sent. Red at `251c4e9` (16). Plant: the minimum back at 16, caught by this test alone |
+| ST114 (new, 2026-11-26) | R5: `TestFit_0088`'s case "no room: the minimum", which passes a minimum of 16 itself | decided | the test stands unchanged: its 16 is `fit`'s own input, not a wire's value, and it pins the floor the record re-adding W8 relies on. Its doc comment names no wire | R5 "Drop the minimum for now"; ST87 | `TestFit_0088`, unchanged; its plant of 2026-11-23, the wire's minimum ignored (`max(in.Window-in.Estimate-fitMargin, 1)`), re-run and caught |
+
+### Annotations (2026-11-26, nineteenth)
+
+* **R4** (twelfth amendment) is closed by ST112, **R5** (thirteenth) by ST113 and ST114; the fourteenth amendment's "R4 and R5 stay open for v1.34.0's review" is met.
+* **0089-MADR W8, V4 and its numbers table** carry dated notes: the floor is documented by OpenAI and not applied until the record ST113 names.
+
+Counts after this amendment: 110 decided, 9 out of scope, 0 open, 119 rows (ST112 to ST114 added). The record stays `accepted`.

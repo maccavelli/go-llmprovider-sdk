@@ -63,13 +63,15 @@ type LimitWire struct {
 // generateContent (OpenCode's google route), not on Interactions; Kilo's
 // two window forms on Kilo (0088-MADR ST51, C39), and its range form
 // (DL95); the split on the Chat Completions wires (C38). Responses' field
-// takes at least 16 (W8).
+// takes at least 16 (W8), but no Responses route sends a limit the SDK chose,
+// so its minimum is 1 here; the record that first makes one send it re-adds
+// the 16 (0088-MADR ST113).
 var (
 	MessagesLimits = LimitWire{Forms: FormAnthropicCap, Minimum: 1}
 	KiloLimits     = LimitWire{Forms: FormAnthropicCap | FormOpenAICap | FormKiloRange | FormOpenRouterWindow |
 		FormKiloWindow, Minimum: 1}
 	ChatCompletionsLimits = LimitWire{Forms: FormOpenAICap | FormSplitWindow, Minimum: 1}
-	ResponsesLimits       = LimitWire{Minimum: 16}
+	ResponsesLimits       = LimitWire{Minimum: 1}
 	GenerateContentLimits = LimitWire{Forms: FormGeminiRange, Minimum: 1}
 	InteractionsLimits    = LimitWire{Minimum: 1}
 )

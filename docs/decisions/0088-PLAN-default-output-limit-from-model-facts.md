@@ -1187,3 +1187,78 @@ The owner halted all work while the twenty-third entry's heavy runs were waiting
 
 * **Plants**, every Phase 6 spec re-run by `tools/plant.py` on scratch clones of the final tree, each caught on an assertion, none by a build failure: Phase 6's own, 10 of 10 (ST107 2, ST110 1, ST110/OQ21 1, ST111 6); Phase 1b's re-run, 17 of 17. 27 of 27 in all.
 * **Not done:** the ST110 live probe (a follow-up, on the owner's word); staging (the coordinator's).
+
+### Execution record entry (2026-11-26, twenty-fifth): R4 and R5 taken up, stopped before any test or code
+
+* **Start.** The coordinator's brief: build R4 and R5 for v1.34.0. Base `251c4e9` (0091-PLAN Phase 2 on top of this PLAN's Phase 6 and 0092-PLAN Phase 1); `git status --porcelain` empty at the start. No live call. Pass 0: nothing built.
+* **Re-ground.** `tools/claims.py` on the MADR at its pins: exit 0, 140 of 140; at `self=251c4e9`: exit 1, 62 of 140, the count Phase 6 recorded at `f645c9c`. R4 and R5 are not claims rows; their lines read at `251c4e9`:
+  * R4's `limit_rule.go:66` to `:68` (at `f4efc5e`) is now `:74` to `:76`, and the fallback is held there by `fit` (`llmprovider/internal/wire/estimate.go:67` to `:72`), Phase 1c's ST105. The three routes that choose a limit pass the window, else the input limit: Claude (`providers/claude/limit.go:62` to `:64`), Kilo (`kilo.go:552` to `:554`, which requires none, so never sends the fallback) and OpenCode's messages route (`opencode.go:1043` to `:1045`). `fit` returns at most the window wherever one is stated and the wire's minimum (1 on Messages) is not above it. The case R4 names, a stated window below the fallback, is ST105's test case (W 50,000, fallback 64,000 or more: 35,904), whose plant ("the fallback not held") is caught.
+  * R5's `limit_refusal.go:63` is now `:72` (`ResponsesLimits = LimitWire{Minimum: 16}`, W8). Every Responses route still sends only a caller's limit, through `LimitRetry.Optional`: OpenAI and Grok (`limit.go:54`), chatcompat with `WithResponses` (`chatcompat/limit.go:57` to `:60`, `:81`, added by 0091-PLAN Phase 2) and OpenCode's responses route (`opencode.go:599` to `:603`). `ResponsesLimits` reads no refusal form, so `Check` validates nothing there. The minimum of 16 is still reached only by `TestFit_0088`.
+* **Stopped,** before any test or code: R4 and R5 have no owner ruling and no row. The MADR's fifteenth and sixteenth amendments say "R4 and R5 are not rows; they stay open for v1.34.0's review", and this PLAN names no phase that builds them (eighth amendment: "v1.34.0's review rules R4 and R5 only"). The search of `docs/decisions` at `251c4e9` finds no later ruling. Put to the owner, three options each; nothing written but this entry.
+
+## Amendment (2026-11-26, ninth): R4 and R5 ruled; Phase 7 builds R5 for v1.34.0
+
+Additions only; every step above stands. The owner's rulings, relayed by the coordinator, quoted exactly: R4 "Close: already met (Recommended)"; R5 "Drop the minimum for now". The MADR's nineteenth amendment holds them as ST112 (R4), ST113 and ST114 (R5), and annotates 0089-MADR's W8, V4 and numbers table. With them, v1.34.0's review of R4 and R5 (the eighth amendment) is met.
+
+### Phase 7 (v1.34.0): R4 closed, R5's minimum dropped (ST112 to ST114)
+
+**Base:** `251c4e9`. Approved by the coordinator's relay of the rulings above, with "Then build. This is pass 1."
+
+1. **Re-ground** at the base: the twenty-fifth entry above (claims 140 of 140 at the pins; R4's and R5's lines read).
+2. **ST112 (R4), records only.** No code. Re-run, on a scratch clone of the final tree, Phase 1c's plant "ST105 the fallback not held" (`Tokens: fit(in.Fallback, in)` read as `Tokens: in.Fallback`), with `-run '^TestDefaultLimit_EstimatedFit_0088$'`; caught on its fallback case.
+3. **ST113 (R5), red first.** `TestResponsesLimits_Minimum_0088` (new, `llmprovider/internal/wire/limit_minimum_0088_test.go`): `tools/redgreen.py --expect fail --rev 251c4e9`, red on its assertion (16 sent).
+4. **The change.** `ResponsesLimits = LimitWire{Minimum: 1}` (`llmprovider/internal/wire/limit_refusal.go:72`), and the comment above it (`:59` to `:66`) says the 16 is W8's, not applied until the record ST113 names.
+5. **ST114.** `TestFit_0088` stands unchanged; its plant "ST87 the wire's minimum ignored" re-run and caught.
+6. **Plants**, by `tools/plant.py` on scratch clones, each caught on an assertion and quoted: ST113's (the minimum back at 16), run against `./llmprovider/internal/wire/` whole, so that it is seen to fail `TestResponsesLimits_Minimum_0088` alone; ST112's and ST114's re-runs.
+7. **Docs.** Whether the change is visible to a caller, with the evidence: no `[Unreleased]` entry unless it is. Every doc, changelog line and record that states the 16 as applied: fixed, or annotated if a record.
+8. **Gates**, as Phase 6's table, with `tools/apidiff.py v1.33.0` expecting exactly `Harness.TruncatedCallWhole` and `chatcompat.WithResponses`; `tools/goldendiff.py --rev 251c4e9`; `tools/claims.py` on 0088-MADR and 0089-MADR, with `--repo pi=<gitrepos>/pi --repo goose=<gitrepos>/goose`; `recordlint`, `denyscan` and the redact dry run.
+
+**Stop conditions:** Phase 6's, with "ST107 or ST110" read as ST112 to ST114.
+
+**Exit criterion:** no blocker, ST112 to ST114 tested, every plant caught.
+
+### Execution record entry (2026-11-26, twenty-sixth): Phase 7 built, pass 1
+
+Base `251c4e9`; unstaged; no live call, every reply the tests' own. The rulings and Phase 7 were recorded before any test or code (the ninth amendment above; the MADR's nineteenth). Scripts and outputs: `<scratch>/b0088r45/`.
+
+**Rows to tests:**
+
+| Row | Test | At `251c4e9` | On the tree |
+| :--- | :--- | :--- | :--- |
+| ST112 (R4) | `TestDefaultLimit_EstimatedFit_0088`, its fallback case | green (ST105, built in Phase 1c) | green; no code changed |
+| ST113 (R5) | `TestResponsesLimits_Minimum_0088` (new) | red on its assertion (`tools/redgreen.py --expect fail --rev 251c4e9`, 1 of 1): `limit_minimum_0088_test.go:13: Responses, output 60,000, W 100,000, an estimate of 100,000: sent 16 (true), err <nil>; want 1` | green |
+| ST114 (R5) | `TestFit_0088`, unchanged | green | green |
+
+`tools/redgreen.py --expect pass` on the tree (the three tests above and `TestLimitRefusal_FormsByWire_0089`, which reads `ResponsesLimits`): exit 0, 4 of 4.
+
+**The change.** `ResponsesLimits = LimitWire{Minimum: 1}` (`llmprovider/internal/wire/limit_refusal.go:74`), and the comment above it (`:65` to `:68`) says that Responses' field takes at least 16 (W8), that no Responses route sends a limit the SDK chose, and that the record that first makes one send it re-adds the 16 (ST113).
+
+**Plants**, by `tools/plant.py` on scratch clones, each caught on an assertion, none by a build failure, 3 of 3:
+
+| Plant | Caught by | Its failing line |
+| :--- | :--- | :--- |
+| ST113 the Responses minimum back at 16 | `TestResponsesLimits_Minimum_0088` alone, across `./llmprovider/...` (through `run-heavy`) and across `./llmprovider/internal/wire/` | `limit_minimum_0088_test.go:13: Responses, output 60,000, W 100,000, an estimate of 100,000: sent 16 (true), err <nil>; want 1` |
+| ST112 (ST105's, re-run) the fallback not held | `TestDefaultLimit_EstimatedFit_0088` | `default_limit_0088_test.go:762: claude, the fallback (ST105): sent [64000], budget_tokens 0, reported {Tokens:64000 Sent:true Basis:fallback Source:models.dev}; want one send at 35904, budget_tokens 0, basis fallback` |
+| ST114 (ST87's, re-run) the wire's minimum ignored | `TestFit_0088` | `estimate_0088_test.go:65: no room: the minimum: fit = 1; want 16` |
+
+**Visible to a caller? No.** Every Responses route sends only a caller's limit, through `LimitRetry.Optional` (OpenAI and Grok `limit.go:54`; chatcompat with `WithResponses`, `chatcompat/limit.go:57` to `:60`, `:81`; OpenCode's responses route, `opencode.go:599` to `:603`), where `ChooseLimit` returns before `fit` reads a minimum (`limit_rule.go:60` to `:68`). `ResponsesLimits` reads no refusal form, so `ReadLimitRefusal` returns before V4 (`limit_refusal.go`, `readCap`) and `LimitRetry.Check` before its floor (`limit_rule.go:211` to `:213`, `:233`). The suite and the goldens are unchanged. So `CHANGELOG.md` `[Unreleased]` gains no entry.
+
+**Docs.** The comment above `ResponsesLimits` (fixed). Records that state the 16 as applied, annotated by dated note: 0089-MADR's V4, its numbers table's 16 row and W8. No guide, `README.md`, `docs/architecture.md` line or changelog entry states it (searched). Not annotated, dated history accurate when written: 0091-MADR's note on R5, 0091-PLAN's Phase 2 step 1, `docs/reports/0091-REPORT-responses-api-across-providers.md`'s R5 sentence, and 0088-REPORT's WS11 (OpenAI's documented minimum, still true).
+
+**`apidiff`** (`python3 -B tools/apidiff.py v1.33.0`), exit 0: `Compatible changes:`, `- ./llmprovider/providers/chatcompat.WithResponses: added`, `- ./llmprovider/llmtest.Harness.TruncatedCallWhole: added`; nothing else.
+
+**Checks**, each exit taken before any filter:
+
+| Command | Host | Exit |
+| :--- | :--- | :--- |
+| `run-heavy -- make pre-add-check FILES="<the 2 Go files>"` | this Mac | 0, 2 clean |
+| `run-heavy -- go test -count=1 ./...` | this Mac | 0, 46 packages ok, 0 FAIL |
+| `run-on-host --need linux --race -- go test -race -count=1 ./llmprovider/...` | the Linux machine (linux/amd64), not WSL | 0, 37 ok, 2 with no tests |
+| `run-heavy -- python3 -B tools/gate.py --timeout 5400` | this Mac | 0, 30 of 30 passed |
+| `run-heavy -- make -k lint vuln parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest tools-test` | this Mac | 0; `internal/wire` coverage 83.4 % against 80 % |
+| `tools/apidiff.py v1.33.0` | this Mac | 0, the two lines above |
+| `tools/goldendiff.py --rev 251c4e9` | this Mac | 0, 0 findings, 315 unchanged |
+| `tools/claims.py` on 0088-MADR and 0089-MADR, `--repo pi=<gitrepos>/pi --repo goose=<gitrepos>/goose` | this Mac | 0, 140 of 140; 49 of 49 |
+| `tools/recordlint.py --changed`; `tools/denyscan.py --changed`; `github-disclosure.py redact` (dry run) | this Mac | 0, 3 records, no rule rose; 0, 0 hits in 5 files; 0, would edit 0 files (run after this entry, with `make markdownlint records-check docs-check tables-check links-check`: 0) |
+
+**Not done:** "now" claims rows on the changed comment (Phase 7 names none); staging (the coordinator's).
