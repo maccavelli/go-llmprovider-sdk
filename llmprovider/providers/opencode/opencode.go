@@ -125,8 +125,13 @@
 //     the limit. The fact or that smallest limit is held to the room the
 //     stated window, else the stated input limit, leaves the request's
 //     input, estimated from its content as pi does (0088-MADR ST87, ST105).
-//     A refusal of a limit the SDK chose, in Anthropic's form and
-//     validated as 0089-MADR D4 says, is sent once more at the stated cap,
+//     The chat route, which requires no limit, sends the model's chosen
+//     output fact likewise, held to its window and the room, as 0096-MADR
+//     decided (measured 2026-11-27: glm-5.3 on Zen accepted 131,072 on a
+//     stream); with no fact it sends none, and no fallback.
+//     A refusal of a limit the SDK chose, in Anthropic's form on the
+//     messages route or OpenAI's on the chat route, validated as 0089-MADR
+//     D4 says, is sent once more at the stated cap,
 //     which is kept for the process unless llmprovider.WithoutLimitLearning
 //     is given, and reported in a WarningLimitLearned, or, on a call that
 //     fails, as its error's APIError.Observed (DL78). A caller's own limit
@@ -134,7 +139,7 @@
 //     the chat route or Gemini's range on the google route, is returned, not
 //     resent, and its cap kept alike; a call that fails after a cap was kept
 //     carries it as its error's APIError.Observed (DL78, DL86). The
-//     responses, chat and google routes send none unless the caller gives one
+//     responses and google routes send none unless the caller gives one
 //     (DL47). The Response, and a stream's done event, carry the limit sent
 //     in OutputLimit.
 //
@@ -528,10 +533,10 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	// are never waited for (0041-MADR D1).
 	c.facts, _ = catalog.CachedFacts(ctx, p.gateway, c.model, p.listing...)
 	c.route = p.requestRoute(ctx, c.model)
-	if c.route == RouteMessages || (p.maxGiven && req.MaxOutputTokens <= 0) {
-		// The model's limits: the messages route's output limit, and on
-		// another route the stated limit a given option is cut to
-		// (0089-MADR D6).
+	if c.route == RouteMessages || c.route == RouteChatCompletions || (p.maxGiven && req.MaxOutputTokens <= 0) {
+		// The model's limits: the messages and chat routes' output limit
+		// (0096-MADR OC1), and on another route the stated limit a given
+		// option is cut to (0089-MADR D6).
 		c.limits = catalog.CachedLimits(ctx, p.gateway, c.model, p.listing...)
 	}
 	if c.route == RouteGoogle {
@@ -593,13 +598,23 @@ func (p *provider) decode(c call) func(io.Reader) (*llmprovider.Response, error)
 func (p *provider) routeCall(ctx context.Context, c call, stream bool, effort *wire.Learner) wire.Call {
 	var body map[string]any
 	var warnings []llmprovider.Warning
-	// The output limit on an optional route: none unless the caller gives one
-	// (0089-MADR D6, DL47); the messages route chooses its own below.
+	// The output limit on an optional route: on the chat route the caller's,
+	// else the chosen fact, else none, as Kilo's (0096-MADR OC1, OC2); on the
+	// responses and google routes none unless the caller gives one (0089-MADR
+	// D6, DL47); the messages route chooses its own below. The chat route
+	// requires no limit, so no choice refuses it; a refusal would go before
+	// the network, as Kilo's does.
 	var optional llmprovider.SentLimit
-	if c.route != RouteMessages {
+	var chatRefused error
+	switch c.route {
+	case RouteMessages:
+	case RouteResponses, RouteGoogle:
 		optional = c.limit.Optional(c.req.MaxOutputTokens, p.maxTokens, p.maxGiven, func() (int, string) {
 			return statedOutput(c.limits, stream)
 		})
+		c.maxTokens = optional.Tokens
+	default:
+		optional, chatRefused = c.limit.Choose(p.limitInput(c, stream))
 		c.maxTokens = optional.Tokens
 	}
 	switch c.route {
@@ -638,6 +653,7 @@ func (p *provider) routeCall(ctx context.Context, c call, stream bool, effort *w
 		body["stream"] = true
 	}
 	call := p.wireCall(c, body, stream, warnings)
+	call.Refusal = cmp.Or(chatRefused, call.Refusal)
 	if stream && c.route == RouteGoogle {
 		call.URL = p.baseURL + fmt.Sprintf("/models/%s:streamGenerateContent?alt=sse", c.model)
 	}
@@ -1035,13 +1051,14 @@ func (p *provider) observe(c call, stream bool) func(int) {
 }
 
 // limitInput is what c's output limit is chosen from on the messages route,
-// which requires one: the request's own value, the option, the model's
-// chosen output fact, and the route's fallback (0089-MADR D6, DL51), held to
-// the room the window, else the input limit, leaves the request's estimated
-// input (0088-MADR ST87, ST105).
+// which requires one, and on the chat route, which does not (0096-MADR OC1,
+// OC2): the request's own value, the option, the model's chosen output fact,
+// and, on the messages route only, the route's fallback (0089-MADR D6,
+// DL51), held to the room the window, else the input limit, leaves the
+// request's estimated input (0088-MADR ST87, ST105).
 func (p *provider) limitInput(c call, stream bool) wire.LimitInput {
 	in := wire.LimitInput{Request: c.req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
-		Required: true, Provider: string(p.gateway), Model: c.model,
+		Required: c.route == RouteMessages, Provider: string(p.gateway), Model: c.model,
 		Window: cmp.Or(c.limits.Window.Tokens, c.limits.Input.Tokens), Estimate: wire.EstimateInput(c.req)}
 	in.Output, in.Source = statedOutput(c.limits, stream)
 	// The route's fallback is this request's own read's (0093-MADR D7).

@@ -12,15 +12,18 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
-// The request's output limit (0089-MADR D6, D7): the field is optional on
-// Chat Completions, so a request carries one only as its caller gives it: its own
-// MaxOutputTokens, sent as given, or WithMaxTokens' value, cut to the
-// model's stated limit and never raised. Otherwise none is sent, and the
-// service's own default applies (DL47, DL48). A refused caller's
-// value is not resent; a cap a refusal states, validated, is kept for the
-// process (DL37), and a response showing more output than a kept cap drops
-// it (DL39). The Response, and a stream's done event, carry the limit sent in
-// OutputLimit.
+// The request's output limit (0089-MADR D6, D7; 0096-MADR): the field is
+// optional on Chat Completions. A request's own MaxOutputTokens is sent as
+// given, and WithMaxTokens' value cut to the model's stated limit and never
+// raised. Otherwise the model's chosen output fact is sent, held to its
+// window and to a kept cap, and to the room the window leaves the request's
+// estimated input (0096-MADR TG1, TG2, TG5); with no fact, none is sent, and
+// the service's own default applies (TG3). A refusal of the chosen value in
+// a recorded form is sent once more at the stated cap (TG6); a refused
+// caller's value is not resent. A cap a refusal states, validated, is kept
+// for the process (DL37, TG7), and a response showing more output than a
+// kept cap drops it (DL39). The Response, and a stream's done event, carry
+// the limit sent in OutputLimit.
 
 // limitState is what a request's output limit reads of the provider's
 // options.
@@ -66,21 +69,26 @@ func (p *provider) observe(req *llmprovider.Request, stream bool) func(int) {
 	return func(output int) { memo.Observe(key, output) }
 }
 
-// chooseLimit is the limit req's next send carries, chosen by r. The stated
-// output, which only cuts a given option, is read from the caches with the
-// request's token, as its facts are (0041-MADR D1).
-func (p *provider) chooseLimit(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
-	r *wire.LimitRetry) llmprovider.SentLimit {
-	return r.Optional(req.MaxOutputTokens, p.maxTokens, p.maxGiven, func() (int, string) {
-		limits := catalog.CachedLimits(ctx, llmprovider.ProviderTogether, cmp.Or(req.Model, p.model),
-			slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
-		out := limits.Output
-		if stream {
-			out = limits.StreamedOutput
-		}
-		if !out.Known {
-			return 0, ""
-		}
-		return out.Tokens, out.Evidence[0].Source
-	})
+// limitInput is what req's output limit is chosen from: its own value, the
+// option, and what the caches state of its model, read with the request's
+// token, as its facts are (0041-MADR D1), and the window, else the input
+// limit, with req's estimated input, which hold the fact (0088-MADR ST87).
+// Together sends the chosen fact, as 0096-MADR TG1 and TG2 decided, and
+// requires none.
+func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, token llmprovider.Token,
+	stream bool) wire.LimitInput {
+	model := cmp.Or(req.Model, p.model)
+	limits := catalog.CachedLimits(ctx, llmprovider.ProviderTogether, model,
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	out := limits.Output
+	if stream {
+		out = limits.StreamedOutput
+	}
+	in := wire.LimitInput{Request: req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: true,
+		Provider: string(llmprovider.ProviderTogether), Model: model,
+		Window: cmp.Or(limits.Window.Tokens, limits.Input.Tokens), Estimate: wire.EstimateInput(req)}
+	if out.Known {
+		in.Output, in.Source = out.Tokens, out.Evidence[0].Source
+	}
+	return in
 }

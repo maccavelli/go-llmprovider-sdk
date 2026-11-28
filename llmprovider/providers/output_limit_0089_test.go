@@ -110,9 +110,11 @@ const omitModel = "claude-omit-0089"
 // names no limit carries the model's stated limit on a Messages route
 // (Claude, read from its listing; OpenCode's messages route, from a
 // registry) with no fixed ceiling, and Kilo its discovered limit, as
-// DL65 decided; every optional wire carries none, whatever a registry or a
-// caller's layer states; a caller's own WithMaxTokens is sent on an optional
-// wire. It reads only the wire, so it runs at a base that sends 8192.
+// DL65 decided, as do Together and OpenCode's chat route (0096-MADR TG11,
+// OC8); every other optional wire carries none, Hugging Face with no listing
+// cached included (0096-MADR HF10, HF8a),
+// whatever a registry or a caller's layer states; a caller's own
+// WithMaxTokens is sent on an optional wire. It reads only the wire, so it runs at a base that sends 8192.
 func TestOutputLimit_Omitted_0089(t *testing.T) {
 	ctx := context.Background()
 	off := []llmprovider.Option{llmprovider.WithAPIKey("k"),
@@ -163,25 +165,29 @@ func TestOutputLimit_Omitted_0089(t *testing.T) {
 		t.Errorf("kilo, a layer stating 128,000: sent %v (found %t); want 128000 (DL65's verdict)", got, ok)
 	}
 
-	// Every optional wire: none, a caller's layer stating 128,000 included.
+	// Every optional wire: none, a caller's layer stating 128,000 included;
+	// but Together and OpenCode's chat route send it (0096-MADR TG11, OC8).
+	// Hugging Face, with no listing cached, knows no live window to hold it
+	// to, so sends none (HF10, HF8a).
 	for _, tc := range []struct {
 		name  string
 		reply string
 		build func(base string, opts ...llmprovider.Option) (llmprovider.Provider, error)
 		model string
+		sends bool
 	}{
-		{"gemini", wirecase.InteractionsReply, byID(llmprovider.ProviderGemini), "gemini-3.8-flash"},
-		{"grok", wirecase.ResponsesReply, byID(llmprovider.ProviderGrok), "grok-4.6"},
-		{"openai", wirecase.ResponsesReply, byID(llmprovider.ProviderOpenAI), "gpt-6-luna"},
-		{"together", wirecase.ChatReply, byID(llmprovider.ProviderTogether), "openai/gpt-oss-120b"},
-		{"huggingface", wirecase.ChatReply, byID(llmprovider.ProviderHuggingFace), "deepseek-ai/DeepSeek-V4.1-Flash"},
-		{"ollama", wirecase.ChatReply, byID(llmprovider.ProviderOllama), "llama3.3:latest"},
+		{"gemini", wirecase.InteractionsReply, byID(llmprovider.ProviderGemini), "gemini-3.8-flash", false},
+		{"grok", wirecase.ResponsesReply, byID(llmprovider.ProviderGrok), "grok-4.6", false},
+		{"openai", wirecase.ResponsesReply, byID(llmprovider.ProviderOpenAI), "gpt-6-luna", false},
+		{"together", wirecase.ChatReply, byID(llmprovider.ProviderTogether), "openai/gpt-oss-120b", true},
+		{"huggingface", wirecase.ChatReply, byID(llmprovider.ProviderHuggingFace), "deepseek-ai/DeepSeek-V4.1-Flash", false},
+		{"ollama", wirecase.ChatReply, byID(llmprovider.ProviderOllama), "llama3.3:latest", false},
 		{"chatcompat", wirecase.ChatReply, func(base string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return chatcompat.New(append(opts, llmprovider.WithBaseURL(base), chatcompat.WithID("compat-0089"))...)
-		}, "org/compat-model"},
-		{"opencode-zen chat", wirecase.ChatReply, zenOn(opencode.RouteChatCompletions), "glm-5.3"},
-		{"opencode-zen responses", wirecase.ResponsesReply, zenOn(opencode.RouteResponses), "gpt-5.5"},
-		{"opencode-zen google", wirecase.GoogleReply, zenOn(opencode.RouteGoogle), "gemini-3.8-flash"},
+		}, "org/compat-model", false},
+		{"opencode-zen chat", wirecase.ChatReply, zenOn(opencode.RouteChatCompletions), "glm-5.3", true},
+		{"opencode-zen responses", wirecase.ResponsesReply, zenOn(opencode.RouteResponses), "gpt-5.5", false},
+		{"opencode-zen google", wirecase.GoogleReply, zenOn(opencode.RouteGoogle), "gemini-3.8-flash", false},
 	} {
 		srv := newLimitServer(t, "", canned(tc.reply))
 		p, err := tc.build(srv.URL, append(off, llmprovider.WithModel(tc.model),
@@ -192,7 +198,11 @@ func TestOutputLimit_Omitted_0089(t *testing.T) {
 		if _, err := p.Generate(ctx, hiRequest()); err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}
-		if got, ok := sentLimit(lastPost(srv)); ok {
+		got, ok := sentLimit(lastPost(srv))
+		switch {
+		case tc.sends && (!ok || got != 128000):
+			t.Errorf("%s, a layer stating 128,000 and no caller value: sent %v (found %t); want 128000 (0096-MADR)", tc.name, got, ok)
+		case !tc.sends && ok:
 			t.Errorf("%s, a layer stating 128,000 and no caller value: sent %v; want none (DL47, DL48, DL69)", tc.name, got)
 		}
 	}

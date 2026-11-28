@@ -255,8 +255,11 @@ functions over any provider, and `Stream` streams from every one.
   Claude and OpenCode's messages route, whose wire requires a limit, send
   the model's stated output limit (else the smallest of the route's current
   models, else the request is refused with a message saying how to state
-  it), Kilo sends the model's stated output limit, and every other wire sends
-  none, so the service's default applies; the ChatGPT routes never send
+  it), Kilo, Together, Hugging Face and OpenCode's chat route send the
+  model's stated output limit when one is stated (Hugging Face only once
+  its cached listing states a live provider's window to hold it to), and
+  every other wire sends none, so the service's default applies; the
+  ChatGPT routes never send
   one. A limit the SDK chose is held to the room the model's stated window
   (else its stated input limit) leaves the request's input, estimated from
   its content (3.5 characters a token, an image 4,800 characters, 4,096

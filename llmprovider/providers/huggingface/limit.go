@@ -12,15 +12,19 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
-// The request's output limit (0089-MADR D6, D7): the field is optional on
-// Chat Completions, so a request carries one only as its caller gives it: its own
-// MaxOutputTokens, sent as given, or WithMaxTokens' value, cut to the
-// model's stated limit and never raised. Otherwise none is sent, and the
-// service's own default applies (DL47, DL48). A refused caller's
-// value is not resent; a cap a refusal states, validated, is kept for the
-// process (DL37), and a response showing more output than a kept cap drops
-// it (DL39). The Response, and a stream's done event, carry the limit sent in
-// OutputLimit.
+// The request's output limit (0089-MADR D6, D7; 0096-MADR): the field is
+// optional on Chat Completions. A request's own MaxOutputTokens is sent as
+// given, and WithMaxTokens' value cut to the model's stated limit and never
+// raised. Otherwise the model's chosen output fact is sent, held to its
+// window (the suffixed provider's, else the smallest live provider's,
+// 0089-MADR DL10) and to a kept cap, and to the room the window leaves the
+// request's estimated input (0096-MADR HF1, HF4); with no fact, or before the
+// cached listing states a live provider's window, none is sent, and the
+// service's own default applies (HF2, HF10). A refusal of the chosen value in
+// a recorded form is sent once more at the stated cap (HF5); a refused
+// caller's value is not resent. A cap a refusal states, validated, is kept for
+// the process (DL37, HF5), and a response showing more output than a kept cap
+// drops it (DL39). The Response's OutputLimit, and a done event's, is the limit sent.
 
 // limitState is what a request's output limit reads of the provider's
 // options.
@@ -66,21 +70,38 @@ func (p *provider) observe(req *llmprovider.Request, stream bool) func(int) {
 	return func(output int) { memo.Observe(key, output) }
 }
 
-// chooseLimit is the limit req's next send carries, chosen by r. The stated
-// output, which only cuts a given option, is read from the caches with the
-// request's token, as its facts are (0041-MADR D1).
-func (p *provider) chooseLimit(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
-	r *wire.LimitRetry) llmprovider.SentLimit {
-	return r.Optional(req.MaxOutputTokens, p.maxTokens, p.maxGiven, func() (int, string) {
-		limits := catalog.CachedLimits(ctx, llmprovider.ProviderHuggingFace, cmp.Or(req.Model, p.model),
-			slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
-		out := limits.Output
-		if stream {
-			out = limits.StreamedOutput
-		}
-		if !out.Known {
-			return 0, ""
-		}
-		return out.Tokens, out.Evidence[0].Source
-	})
+// limitInput is what req's output limit is chosen from: its own value, the
+// option, and what the caches state of its model, read with the request's
+// token, as its facts are (0041-MADR D1), and the window, else the input
+// limit, with req's estimated input, which hold the fact (0088-MADR ST87).
+// Hugging Face sends the chosen fact, as 0096-MADR HF1 decided, and
+// requires none; it sends it only once the cached listing states a live
+// provider's window, which holds it (HF4), and none before (HF10).
+func (p *provider) limitInput(ctx context.Context, req *llmprovider.Request, token llmprovider.Token,
+	stream bool) wire.LimitInput {
+	model := cmp.Or(req.Model, p.model)
+	limits := catalog.CachedLimits(ctx, llmprovider.ProviderHuggingFace, model,
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	out := limits.Output
+	if stream {
+		out = limits.StreamedOutput
+	}
+	in := wire.LimitInput{Request: req.MaxOutputTokens, Option: p.maxTokens, Given: p.maxGiven, Sends: liveWindow(limits.Window),
+		Provider: string(llmprovider.ProviderHuggingFace), Model: model,
+		Window: cmp.Or(limits.Window.Tokens, limits.Input.Tokens), Estimate: wire.EstimateInput(req)}
+	if out.Known {
+		in.Output, in.Source = out.Tokens, out.Evidence[0].Source
+	}
+	return in
+}
+
+// listingSource is the evidence name of what the cached listing states
+// (catalog.Evidence.Source).
+const listingSource = "listing:" + string(llmprovider.ProviderHuggingFace)
+
+// liveWindow reports whether the cached listing states window: a live
+// provider's, the hold 0096-MADR HF4 decides. A window only the document or a
+// caller's layer states is not one (HF10).
+func liveWindow(window catalog.Fact) bool {
+	return slices.ContainsFunc(window.Evidence, func(e catalog.Evidence) bool { return e.Source == listingSource })
 }

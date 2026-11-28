@@ -126,8 +126,11 @@ tool that holds a rule, where one does. For how the code is laid out, read
   stated, the smallest limit of the route's current models, and where none
   of those is either, `ErrInvalidRequest` before sending. Kilo sends its
   stated output limit (0089 DL65, measured 2026-11-24: with none sent, Kilo cut one model at 128,000 of 131,072 stated), and none when nothing
-  states one (0093 D8, Q2); every other
-  wire sends none, so the service's own default applies. A limit the SDK
+  states one (0093 D8, Q2); Together, Hugging Face and OpenCode's chat route
+  do the same (0096 TG1 to TG3, HF1, HF2, OC1, OC2, measured 2026-11-27);
+  Hugging Face sends it only once its cached listing states a live
+  provider's window to hold it to (0096 HF10);
+  every other wire sends none, so the service's own default applies. A limit the SDK
   chose, the stated limit or the route's smallest, is held to the room the
   stated window (else the stated input limit) leaves the request's input,
   estimated from its content as pi does, never below the wire's minimum,

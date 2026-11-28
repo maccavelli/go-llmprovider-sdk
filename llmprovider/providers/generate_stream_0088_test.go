@@ -270,8 +270,8 @@ func TestGenerateOverStream_NoUsage_0088(t *testing.T) {
 // DL35): a 200 whose first payload is an error is classified as Stream
 // classifies it. On Kilo, which sends its discovered 16,384, C39's window form
 // there is resent once over the stream at the room it states, 9,152, and the
-// whole response returned; on Together, which sends no limit, it is returned,
-// classified, after one send: never an empty answer.
+// whole response returned; on Together, with nothing stated and so nothing
+// sent, it is returned, classified, after one send: never an empty answer.
 func TestGenerateOverStream_ErrorIn200_0088(t *testing.T) {
 	ctx := context.Background()
 	const (

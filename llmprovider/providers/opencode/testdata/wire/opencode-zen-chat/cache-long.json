@@ -12,6 +12,7 @@
         "X-Opencode-Session": "wire-session"
       },
       "body": {
+        "max_tokens": 131072,
         "messages": [
           {
             "content": "Be brief.",

@@ -254,7 +254,8 @@ func TestDefaultLimit_WindowCap_0088(t *testing.T) {
 }
 
 // TestStreamEventsRetry_FirstPayloadError_0088 (ST55; 0088-MADR A5), on Kilo
-// only (Together sends no limit the SDK chose, 0089-MADR DL47): a Stream
+// only (built when Together sent no limit the SDK chose, 0089-MADR DL47;
+// it has since 0096-MADR, and Kilo's window form is Kilo's own): a Stream
 // whose limit is the discovered 16,384, answered by a 200 whose first payload
 // is C39's window form, is resent once at the room it states, 9,152, and the
 // answer streamed with no event before it; the same error after a text delta

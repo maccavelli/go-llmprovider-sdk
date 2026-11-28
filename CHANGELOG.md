@@ -32,6 +32,23 @@ listed under **Removed** below.)*
   naming the variable and never its value, when the value holds a control
   character, such as a line feed at its end: kept as it is, the provider
   refuses it. The value is still offered and used as it is (0095-MADR FU08).
+- `together`, `huggingface`, and OpenCode's chat route (Zen and Go) now send
+  the model's stated output limit when a request names none, as Kilo does:
+  the value `catalog.CachedLimits` chooses from the caller's layers,
+  Together's listing (`config.max_output_length`), and the models.dev
+  document given to `New`, held to the stated window and to the room it
+  leaves the request's input. Before, these wires sent none and the
+  service's own default applied, which can be below the model's limit. With
+  nothing stated, none is still sent. `huggingface` sends it only once its
+  cached listing states a live provider's window to hold it to; before
+  that, as in a new process that has not listed models, it sends none. A
+  refusal of that value in OpenAI's "supports at most" form is sent once
+  more at the stated cap, which is kept for the process. No request is
+  added, but replies may now be longer and bill more output
+  ([0096-MADR](docs/decisions/0096-MADR-send-the-stated-output-limit-on-together.md);
+  measured 2026-11-27 on a stream: Together, Hugging Face and OpenCode
+  Zen's chat route each accepted the model's stated limit; OpenCode Go's
+  chat route was not measured).
 
 ### Fixed
 

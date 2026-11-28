@@ -63,8 +63,11 @@ func sentLimit(v any) (float64, bool) {
 // TestOutputLimit_Facts_0041 (R7), as 0088-MADR ST32 planned its change,
 // with ST99's values (0089-MADR DL46 to DL48): with no MaxOutputTokens, a
 // route that sends a limit the SDK chooses (Claude, OpenCode's messages
-// route, and Kilo, as DL65 decided) asks for the model's stated limit,
-// 4096 or 128,000, with no fixed ceiling; every other route sends none.
+// route, and Kilo, as DL65 decided; and Together and OpenCode's chat
+// route, as 0096-MADR TG11 and OC8 decided) asks for the model's stated
+// limit, 4096 or 128,000, with no fixed ceiling; every other route sends
+// none, Hugging Face included, whose listing is not cached here, so no live
+// window holds the limit (0096-MADR HF10, HF8a).
 func TestOutputLimit_Facts_0041(t *testing.T) {
 	for _, tc := range []struct {
 		id    llmprovider.ProviderID
@@ -77,11 +80,11 @@ func TestOutputLimit_Facts_0041(t *testing.T) {
 		{llmprovider.ProviderGemini, "gemini-3.8-flash", false},
 		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", true},
 		{llmprovider.ProviderOpencodeZen, "gpt-5.5", false},
-		{llmprovider.ProviderOpencodeZen, "glm-5.3", false},
+		{llmprovider.ProviderOpencodeZen, "glm-5.3", true},
 		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", false},
 		{llmprovider.ProviderKilo, "openai/gpt-6-luna", true},
 		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash", false},
-		{llmprovider.ProviderTogether, "openai/gpt-oss-120b", false},
+		{llmprovider.ProviderTogether, "openai/gpt-oss-120b", true},
 		{llmprovider.ProviderOllama, "llama3.3:latest", false},
 	} {
 		for _, limits := range [][2]int{{4096, 4096}, {128000, 128000}} {

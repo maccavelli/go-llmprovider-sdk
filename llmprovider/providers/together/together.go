@@ -76,16 +76,22 @@
 // that ListModels or catalog.List read, and the models.dev document given
 // to New with catalog.WithMetadata (0093-MADR D2). A request never
 // fetches, and never waits.
-// The output limit is optional on this wire (0089-MADR D6, DL47, DL48): a
-// request's own MaxOutputTokens is sent as given, and WithMaxTokens' value
-// cut to the model's stated limit, never raised; otherwise none is sent,
-// and the service's own default applies. The Response, and a stream's done
-// event, carry the limit sent in OutputLimit.
-// A refusal of a given limit in OpenAI's "supports at most M" form,
-// validated as 0089-MADR D4 says, is returned, not resent; M is kept for
-// the rest of the process, in memory only, and reported as the error's
-// APIError.Observed, unless llmprovider.WithoutLimitLearning is given
-// (DL78).
+// The output limit is optional on this wire (0089-MADR D6): a request's own
+// MaxOutputTokens is sent as given, and WithMaxTokens' value cut to the
+// model's stated limit, never raised. Otherwise the model's chosen output
+// fact (catalog.CachedLimits: a caller's layer, the listing's
+// config.max_output_length, the models.dev document given to New) is sent,
+// held to its window and to a cap the service stated, and to the room the
+// window leaves the request's input, as 0096-MADR decided (measured
+// 2026-11-27: Qwen/Qwen4-Max accepted 262,144 on a stream); with no fact,
+// none is sent, and the service's own default applies. The Response, and a
+// stream's done event, carry the limit sent in OutputLimit.
+// A refusal in OpenAI's "supports at most M" form, validated as 0089-MADR
+// D4 says, of the chosen fact is sent once more at M; of a given limit, it
+// is returned, not resent. Either way M is kept for the rest of the
+// process, in memory only, and reported (a WarningLimitLearned, or the
+// error's APIError.Observed), unless llmprovider.WithoutLimitLearning is
+// given (DL78).
 // Prior reasoning is replayed under the field the model's interleaved.field
 // names, and under none when no source names one.
 package together
@@ -289,8 +295,11 @@ func isAssistantTurn(item llmprovider.Item) bool {
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	effort *wire.Learner, limit *wire.LimitRetry) wire.Call {
 	facts := p.facts(ctx, req, token)
-	// The output limit, none unless the caller gives one (0089-MADR D6).
-	outLimit := p.chooseLimit(ctx, req, token, stream, limit)
+	// The output limit: the caller's, else the chosen fact, else none
+	// (0089-MADR D6; 0096-MADR TG1 to TG3). Together requires no limit, so no
+	// choice refuses the request; a refusal would go before the network, as
+	// Kilo's does.
+	outLimit, refused := limit.Choose(p.limitInput(ctx, req, token, stream))
 	body, warnings := p.body(req, facts, effort, outLimit)
 	wire.DropLimit(body, outLimit, "max_tokens")
 	if stream {
@@ -308,8 +317,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		// A model whose facts take no image is refused before the network
 		// (0061-MADR D5).
-		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
-			slices.Contains(facts.Input, catalog.ModalityImage)),
+		Refusal: cmp.Or(refused, wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage))),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

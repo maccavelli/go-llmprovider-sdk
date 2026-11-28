@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-201 records. Cite them by full filename.
+203 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -211,6 +211,8 @@ documents a reader follows to do something.
 | 0094 | PLAN | [Implement: Refuse an Edit to a Released CHANGELOG Section](decisions/0094-PLAN-refuse-an-edit-to-a-released-changelog-section.md) | complete |
 | 0095 | MADR | [Clear the SDK Follow-ups: Sort Every Unbuilt One, Build the Records-and-Tests Ones, Put the Behaviour and Live Ones to the Owner](decisions/0095-MADR-clear-the-sdk-follow-ups.md) | accepted |
 | 0095 | PLAN | [Implement: Clear the SDK Follow-ups](decisions/0095-PLAN-clear-the-sdk-follow-ups.md) | in-progress |
+| 0096 | MADR | [Send the Model's Stated Output Limit on Together When the Caller Names None](decisions/0096-MADR-send-the-stated-output-limit-on-together.md) | accepted |
+| 0096 | PLAN | [Implement: Send the Model's Stated Output Limit on Together](decisions/0096-PLAN-send-the-stated-output-limit-on-together.md) | in-progress |
 
 ## I want to…
 
