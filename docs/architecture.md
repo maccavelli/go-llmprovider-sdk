@@ -179,7 +179,7 @@ standard library is left out.
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Listed`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
 | `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `SortByRank` (0070-MADR D1), `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `LabelName` and `LabelNote` (0070-MADR D2), `Profile`, `Metadata` and `WithMetadata`, the models.dev document a caller hands in (0093-MADR D1), `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood`, `WithKiloOrganization` and `WithClaudeWorkspace`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache`, its `Close` (0071-MADR D1, D2) and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a model's limits with every source's evidence (0089-MADR D1 to D3): `Limits`, `Fact`, `Evidence`, `LookupLimits` and `CachedLimits`, read from the caller's layers, the listing, Claude's one-model read, Ollama's `/api/ps`, the ChatGPT backend's listing, the models.dev document the call hands in (0093-MADR D2, D7), `Limits.Required` from OpenCode's route table in `internal/opencoderoute`, and a cap passed back with `llmprovider.WithLimitObservations` as the evidence "remembered" (0089-MADR D5), a cap the memo keeps as "observed", bounding `Limits.Output` and, for a streamed call, `Limits.StreamedOutput` (DL76), and the Messages route's fallback, carried in the call's own `Limits.RouteFallback` (0093-MADR D7), the smallest limit a current model on the route is stated to take, the retired list excluded (DL51, DL77); a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `auth`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect`, `internal/opencoderoute`, `internal/limitmemo`, `internal/retired` |
 | `internal/kiloendpoint` | `Resolve`, `Route`, `Organization` and Kilo's base URL, for `catalog`, `providers/kilo`, the Kilo device login and `internal/signinflow`; it is in the module's own `internal` directory, not `llmprovider`'s, so that `internal/signinflow`, and through it `wizard` and `llmprovider/x/signin`, decide whether a credential has an organization by the rule the listing's URL is built by (0080-MADR D4) | the standard library |
-| `llmprovider/internal/toolschema` | `Form` (`None`, `Grok`, `OpenAI`, `Anthropic`, `Google`), `Read`, `References` and its result `Refs`: whether a reply is a service's refusal of a tool's schema in one of the four forms recorded (Grok's tag, OpenAI's code, Anthropic's `tools.N.` path, the Google route's phrase), and the names and positions its message gives, for `llmprovider`'s classification and `internal/wire`'s `NameRefusedTool` (0084-MADR D3) | the standard library |
+| `llmprovider/internal/toolschema` | `Form` (`None`, `Grok`, `OpenAI`, `Anthropic`, `Google`, `Gemini`), `Read`, `References` and its result `Refs`: whether a reply is a service's refusal of a tool's schema in one of the five forms recorded (Grok's tag, OpenAI's code, Anthropic's `tools.N.` path, the Google route's phrase, Gemini's `function tool '<name>'`), and the names and positions its message gives, for `llmprovider`'s classification and `internal/wire`'s `NameRefusedTool` (0084-MADR D3; 0095-MADR FU11) | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
 | `llmprovider/internal/compatdialect` | `Entry`, `Dialect`, `Table`, `Threshold`, `Score` and `Of`: which server a `GET {base}/models` reply is from, by its entries' marks, for `catalog`'s details readers and `chatcompat.Discover`'s labels (0061-MADR E2, E5) | the standard library |
@@ -614,9 +614,11 @@ for a session, from the store.
   Anthropic's `invalid_request_error` whose message begins `tools.N.` and
   holds `input_schema`, for Claude alone, since OpenCode's Messages route was
   recorded with no refusal; and OpenCode Zen's Google route's
-  `INVALID_ARGUMENT` naming a `functionDeclaration parameters schema`. The
-  other recorded refusals, Gemini's, which names the tool in single quotes,
-  and OpenCode Zen's Google route's of `additionalProperties`, are not read.
+  `INVALID_ARGUMENT` naming a `functionDeclaration parameters schema`; and,
+  on Gemini, the Interactions API's `invalid_request` whose message holds
+  `Invalid schema in function tool '<name>'` (0095-MADR FU11). The other
+  recorded refusal, OpenCode Zen's Google route's of `additionalProperties`,
+  which names no tool, is not read (0095-MADR FU12).
   A refusal a service has reworded, or one in another route's form, stays
   `ErrInvalidRequest`; a failure inside a 200 or a stream keeps today's kind; a reply marked
   `x-should-retry: true` is `ErrProviderUnavailable`, and one that says the
@@ -911,7 +913,11 @@ for a session, from the store.
   reports it with an error of the type `internal/recorderr.Oversize`, which
   `signinflow.Undecodable` also matches with `errors.As`, so it is replaced with
   the same one notice; a session file over the bound is still refused as a read
-  error (0082-MADR fifth amendment, R-14). The marker is a type of an internal
+  error (0082-MADR fifth amendment, R-14). So is a record that decodes but names
+  a client id that is not printable text, such as bytes that were not UTF-8,
+  which JSON decoding turns into replacement characters: `FileTokenStore` marks
+  it `internal/recorderr.Implausible`, which `signinflow.Undecodable` matches
+  too (0095-MADR FU10). The marker is a type of an internal
   package, so no store of another module can return it, and an error type of its
   own with a method of any name is not a second route: a custom `ClientStore`
   has the one, encoding/json's error (sixth amendment, F-1). A record that
@@ -1007,7 +1013,8 @@ for a session, from the store.
   - it writes through a temp file, with `fsync`, rename and a directory
     `fsync`;
   - it refuses a session file over 64 KiB, and replaces a client record file
-    over it as corrupt (0082-MADR fifth amendment, R-14);
+    over it as corrupt (0082-MADR fifth amendment, R-14), as it does one
+    naming a client id that is not printable text (0095-MADR FU10);
   - its `Save` reads the session under the session's lock, so it can save a
     session that a refresh on another goroutine is adopting into. A store
     outside `auth` cannot take that lock, so `TokenStore`'s doc says it must

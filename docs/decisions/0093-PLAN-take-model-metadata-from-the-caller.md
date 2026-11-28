@@ -862,3 +862,7 @@ Records only; nothing staged. The joint pre-release review of v1.34.0 found that
 ### 2026-11-27: closed for v1.34.0
 
 Written at v1.34.0's preparation ([0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md), Phase 4, step 4b.2). Shipped in v1.33.0 (`be6828e`, `138d52f`); the `api-check` base fix (`4fc5211`) and MH62's wording ship in v1.34.0. Nothing of this PLAN is open. The gates over v1.34.0's tree are in [0091-PLAN-adopt-the-responses-api-per-provider.md](0091-PLAN-adopt-the-responses-api-per-provider.md)'s execution record, Phase 4 (2026-11-27), run on the tree that carries this entry. Status `complete`. *(2026-11-27, pass 2: this PLAN's closing steps (`:297` to `:298`), the tag, its Release, `offline.py v1.33.0` and `consumer.py v1.33.0`, were not recorded when this entry was written; they are now, in 0089-PLAN's closing entry. The `consumer.py` run passes gobble-cli at v1.33.0, so the expected failure of gobble's build did not occur. The status stays `complete`.)*
+
+*(2026-11-27: the `tools/claims.py` follow-up on `0013-MADR` is [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md)'s FU20, stopped in pass 1 for the owner.)*
+
+*(2026-11-27, later: FU20 is built, on the owner's "Only for --changed runs (Recommended)": `tools/claims.py --changed` passes over a changed record with no claims marker, such as `0013-MADR`.)*

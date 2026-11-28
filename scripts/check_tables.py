@@ -19,7 +19,10 @@ in 0046-PLAN Phase 1. It fails when:
     a child, that AGENTS.md does not name as a whole word, unless its name
     carries a record's number (_NNNN_ or a final _NNNN) and a record numbered
     NNNN names it as a whole word (0090-MADR T13). The literal, not
-    os.Getenv, is read, since the tests read these through constants.
+    os.Getenv, is read, since the tests read these through constants; an
+    interpreted ("...") or a raw (`...`) literal (0095-MADR FU19);
+  * AGENTS.md names a *_TEST_* variable that no test file holds as such a
+    literal, as after its test is gone (0095-MADR FU18).
 
 The imports are `go list`'s, for the host and for GOOS=windows, merged; only
 the module's own packages and golang.org/x/ are compared. The packages of a
@@ -57,7 +60,9 @@ AGENTS = "AGENTS.md"
 TICK = re.compile(r"`([^`]+)`")
 LIVE_VAR = re.compile(r"LLMPROVIDER_LIVE_[A-Z0-9_]*[A-Z0-9]")
 SWITCH = re.compile(r"^LLMPROVIDER_LIVE_(\d{4})")
-TEST_VAR = re.compile(r'"([A-Z0-9_]*_TEST_[A-Z0-9_]*[A-Z0-9])"')
+TEST_VAR = re.compile(r'(["`])([A-Z0-9_]*_TEST_[A-Z0-9_]*[A-Z0-9])\1')
+# A *_TEST_* name as AGENTS.md writes it in prose: a whole word.
+NAMED_TEST_VAR = re.compile(r"(?<![A-Za-z0-9_])([A-Z0-9_]*_TEST_[A-Z0-9_]*[A-Z0-9])(?![A-Za-z0-9_])")
 TEST_VAR_NUMBER = re.compile(r"(?:^|_)(\d{4})(?:_|$)")
 PATTERNS = {
     "llmprovider/providers/<id>": re.compile(r"^llmprovider/providers/[^/]+$"),
@@ -233,11 +238,12 @@ def go_test_files() -> list[Path]:
 
 def check_test_variables() -> list[str]:
     """Each *_TEST_* string literal in a test file is named by AGENTS.md, or
-    by a record of the number its name carries (0090-MADR T13)."""
+    by a record of the number its name carries (0090-MADR T13); and each
+    *_TEST_* name AGENTS.md gives is held by a test file (0095-MADR FU18)."""
     held: dict[str, set[str]] = {}
     for path in go_test_files():
-        for var in TEST_VAR.findall(path.read_text(encoding="utf-8")):
-            held.setdefault(var, set()).add(path.relative_to(ROOT).as_posix())
+        for m in TEST_VAR.finditer(path.read_text(encoding="utf-8")):
+            held.setdefault(m.group(2), set()).add(path.relative_to(ROOT).as_posix())
     agents = (ROOT / AGENTS).read_text(encoding="utf-8")
     records = sorted((ROOT / "docs/decisions").glob("*.md")) + sorted((ROOT / "docs/reports").glob("*.md"))
     problems = []
@@ -250,6 +256,8 @@ def check_test_variables() -> list[str]:
             continue
         problems.append(f"{AGENTS}: {var}: {', '.join(sorted(held[var]))} holds it, and neither {AGENTS} nor a "
                         "record of its number names it")
+    named = set(NAMED_TEST_VAR.findall(agents))
+    problems += [f"{AGENTS}: {var}: named, and no test file holds it" for var in sorted(named - set(held))]
     return problems
 
 

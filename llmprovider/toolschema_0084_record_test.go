@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"testing"
 	"time"
 	"unicode/utf8"
 
@@ -471,6 +472,16 @@ func recordToolCase(c toolCase, dir string, base http.RoundTripper, retry bool, 
 // send, reruns alone; the offline proofs pass a buffer. The allowlist lets a
 // call through it take a toolCase variable and a function literal alone.
 type caseRunner func(c toolCase, run func(emit emitFunc))
+
+// liveCaseRunner is the live test's runner: each case its own subtest of t,
+// named by its id, whose sends log through t.Logf. It is here, untagged, so
+// that an offline test builds and runs it: a runner that forgot to call run
+// would send nothing and fail nothing (0095-MADR FU21).
+func liveCaseRunner(t *testing.T) caseRunner {
+	return func(c toolCase, run func(emitFunc)) {
+		t.Run(c.id, func(t *testing.T) { run(t.Logf) })
+	}
+}
 
 // recordToolCases runs every case through each, then sends each case that was
 // other once more, also through each, so that one command records

@@ -80,7 +80,10 @@ type Options struct {
 	// defaulting the model selection.
 	Existing Result
 	// AllowEnv offers a credential found in the provider's environment
-	// variable.
+	// variable. A value that is not blank is offered and, kept, used as it is
+	// (0085-MADR ST39); one that holds a control character, such as a line
+	// feed at its end, is offered after a notice naming the variable, since
+	// the provider refuses it (0095-MADR FU08).
 	AllowEnv bool
 	// Discover queries the provider's live model listing. When false, or when
 	// the listing fails or is empty, the static catalog is used. A ChatGPT
@@ -251,7 +254,10 @@ type Options struct {
 	// used without a question, since the caller holds it, with a warning
 	// notice (0059-MADR W9). A provider with no default endpoint, such as a
 	// Chat Completions server, needs Existing's: without it the run is an
-	// error, "needs an endpoint", and nothing is asked (0066-MADR V3).
+	// error, "needs an endpoint", and nothing is asked (0066-MADR V3). A run
+	// whose context ends during a local endpoint's check returns "wizard:
+	// endpoint check ended: " and the context's error, never "cannot reach"
+	// (0090-MADR S78; 0095-MADR FU17).
 	NoEndpointPrompt bool
 	// NoPastePrompt starts no paste prompt in a browser sign-in, for a caller
 	// with no terminal: no paste instruction is shown and the Prompter is not
@@ -986,6 +992,13 @@ func resolveAPIKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o 
 
 	if o.AllowEnv && d.EnvVar != "" {
 		if envVal := o.lookupEnv()(d.EnvVar); strings.TrimSpace(envVal) != "" {
+			// The value is offered and, kept, used as it is (0085-MADR ST39);
+			// one that holds a control character, such as a line feed at its
+			// end, is refused by the provider, so the person is told first,
+			// by the variable's name only (0095-MADR FU08).
+			if strings.ContainsFunc(envVal, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+				p.Notify(LevelWarn, "%s holds a control character, such as a line feed at its end; kept as it is, the provider refuses it", d.EnvVar)
+			}
 			use, err := p.Confirm(
 				fmt.Sprintf("Use %s from the environment (%s)?", d.EnvVar, redact.MaskSecret(envVal)), true)
 			if err != nil {

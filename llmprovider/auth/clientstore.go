@@ -8,6 +8,9 @@ import (
 	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/recorderr"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -37,13 +40,15 @@ type ClientStore interface {
 	// through any wrapping; no text is compared). A sign-in replaces such a
 	// record with the client it registers, saying so once in the wizard and
 	// not at all through x/signin. That is the one route: FileTokenStore also
-	// reports a record file over 64 KiB, which is corruption, as undecodable,
-	// by a marker only this module can name, which no store of your own can
+	// reports a record file over 64 KiB, and one that decodes but names a
+	// client id that is not printable text, each corruption, as undecodable,
+	// by markers only this module can name, which no store of your own can
 	// return and no method of your own error type can stand in for; a store of
 	// your own wraps encoding/json's. Any other error, a permission refused or
 	// an input or output error, is a read error: the sign-in fails with it,
 	// before a client is registered, and the record is not replaced (0082-MADR,
-	// fourth amendment of 2026-11-18, R-12; fifth, R-14; sixth, F-1). Naming
+	// fourth amendment of 2026-11-18, R-12; fifth, R-14; sixth, F-1; 0095-MADR
+	// FU10). Naming
 	// the file in a read error helps the person; showing its content does not.
 	LoadClient(ctx context.Context, provider llmprovider.ProviderID) (ClientRecord, error)
 	// SaveClient keeps the provider's record; saving the zero record removes
@@ -68,10 +73,12 @@ func (fs *FileTokenStore) clientPath(provider llmprovider.ProviderID) string {
 // file name gives an error matching llmprovider.ErrInvalidProvider. A file that
 // is not a record gives an error that wraps encoding/json's, and a file larger
 // than 64 KiB, which a real record, about a hundred bytes, never is, one that is
-// marked undecodable and names the file and the bound: a sign-in replaces both.
-// One that cannot be read gives a plain error that names the file, which fails
-// the sign-in and leaves the file as it is (0082-MADR, fourth amendment, R-12;
-// fifth, R-14). It is safe for concurrent use.
+// marked undecodable and names the file and the bound; so is one that decodes
+// but names a client id that is not printable text, such as bytes that were
+// not UTF-8: a sign-in replaces each. One that cannot be read gives a plain
+// error that names the file, which fails the sign-in and leaves the file as
+// it is (0082-MADR, fourth amendment, R-12; fifth, R-14; 0095-MADR FU10). It
+// is safe for concurrent use.
 func (fs *FileTokenStore) LoadClient(_ context.Context, provider llmprovider.ProviderID) (ClientRecord, error) {
 	if err := validateProviderID(provider); err != nil {
 		return ClientRecord{}, err
@@ -94,7 +101,20 @@ func (fs *FileTokenStore) LoadClient(_ context.Context, provider llmprovider.Pro
 	if err := json.Unmarshal(data, &rec); err != nil {
 		return ClientRecord{}, fmt.Errorf("FileTokenStore client decode: %w", err)
 	}
+	if !plausibleClientID(rec.ClientID) {
+		// Decoded, but naming a client no issuer gave: corruption, replaced by
+		// a sign-in as an undecodable record is (0095-MADR FU10).
+		return ClientRecord{}, &recorderr.Implausible{Err: fmt.Errorf("FileTokenStore client decode: %s names a client id that is not printable text",
+			fs.clientPath(provider))}
+	}
 	return ClientRecord(rec), nil
+}
+
+// plausibleClientID reports whether id could be a client id an issuer gave:
+// empty, or printable text with no replacement character, which JSON
+// decoding puts where the file's bytes were not UTF-8 (0095-MADR FU10).
+func plausibleClientID(id string) bool {
+	return !strings.ContainsFunc(id, func(r rune) bool { return r == utf8.RuneError || !unicode.IsPrint(r) })
 }
 
 // SaveClient durably writes the provider's client record to <provider>.client

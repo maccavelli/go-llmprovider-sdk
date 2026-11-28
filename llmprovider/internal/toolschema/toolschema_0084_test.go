@@ -43,9 +43,10 @@ func TestRead_0084(t *testing.T) {
 		{"refusals-0062/messages/claude-string-schema-tool.json", Anthropic},
 		{"toolschema-0084/messages/claude-O1-root-union.json", Anthropic},
 		{"refusals-0062/generatecontent/opencode-zen-google-string-schema-tool.json", Google},
-		// Not read: Gemini's single-quoted name, and OpenCode Zen's Google
-		// route's refusal of additionalProperties.
-		{"toolschema-0084/interactions/gemini-O1-root-union.json", None},
+		// Gemini's single-quoted name, read since 0095-MADR FU11.
+		{"toolschema-0084/interactions/gemini-O1-root-union.json", Gemini},
+		// Not read: OpenCode Zen's Google route's refusal of
+		// additionalProperties (0095-MADR FU12).
 		{"toolschema-0084/generatecontent/zen-google-O1-root-union.json", None},
 		// Effort refusals of the same services.
 		{"refusals-0062/responses/grok-4.5-max.json", None},

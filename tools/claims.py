@@ -30,7 +30,10 @@ Usage:
                   [--search DIR]...
 
 --changed checks the records under docs/ that `git status` lists as added,
-changed or untracked. --json prints one JSON object instead of text. --fixes
+changed or untracked; one of them with no claims marker keeps no evidence
+index, whatever its tables look like, and is passed over, not a finding,
+unless it is also named or --rev is given (0095-MADR FU20). A record named
+on the command line is always checked. --json prints one JSON object instead of text. --fixes
 writes a tools/edit.py spec that moves each failing row to the one line where
 its text was found, for a person or an agent to review and apply.
 
@@ -294,8 +297,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return run_plants(args.plants, repos, revs, search)
     records = [r if r.is_absolute() else Path.cwd() / r for r in args.records]
+    named = set(records)
     if args.changed:
-        records += changed_records()
+        records += [r for r in changed_records() if r not in named]
     if not records:
         print("claims: no record given", file=sys.stderr)
         return 2
@@ -305,13 +309,20 @@ def main(argv: list[str] | None = None) -> int:
         if not record.is_file():
             print(f"claims: {record}: not a file", file=sys.stderr)
             return 2
+        if record not in named and not revs and not MARKER.search(record.read_text(encoding="utf-8")):
+            # A changed record with no claims marker keeps no evidence index,
+            # whatever its tables look like: --changed passes over it. A record
+            # named on the command line is still checked, so a forgotten
+            # marker is found (0095-MADR FU20).
+            report.append({"record": shown(record), "error": "", "index": False, "passed": 0, "total": 0, "rows": []})
+            continue
         results, raw, err = check_record(record, repos, revs, search, files)
         passed = sum(r.status == "pass" for r in results)
         if err or not results or passed != len(results):
             finding = True
         fixes += fixes_for(record, results, raw)
         report.append({"record": shown(record), "error": err or ("no evidence rows" if not results else ""),
-                       "passed": passed, "total": len(results), "rows": [asdict(r) for r in results]})
+                       "index": True, "passed": passed, "total": len(results), "rows": [asdict(r) for r in results]})
 
     if args.fixes:
         args.fixes.write_text(json.dumps(fixes, indent=2) + "\n", encoding="utf-8")
@@ -319,6 +330,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": not finding, "fixes": len(fixes), "records": report}, indent=2))
     else:
         for rec in report:
+            if not rec["index"]:
+                print(f"claims: {rec['record']}: no evidence index (no claims marker), passed over")
+                continue
             for row in rec["rows"]:
                 if row["status"] != "pass":
                     hint = f"; text found at {row['found']}" if row["found"] else ""

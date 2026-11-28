@@ -333,12 +333,13 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A refusal of the output limit that states a cap resends once at it,
 	// outside that bound (0089-MADR D4 to D6).
 	limit := p.limitRetry(req, false)
-	// The tools the body holds, once, for the encoder and for resolving the
-	// index of a refused one (0084-MADR D4).
+	// The tools the body holds, and their form, once, for the encoder, the
+	// warnings and resolving the index of a refused one (0084-MADR D4;
+	// 0095-MADR FU15).
 	form, tools := p.tools(req)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
 		func(token llmprovider.Token) wire.Call {
-			return p.call(req, p.facts(ctx, req, token), false, effort, tools, limit, p.limitInput(ctx, req, token, false, limit))
+			return p.call(req, p.facts(ctx, req, token), false, effort, form, tools, limit, p.limitInput(ctx, req, token, false, limit))
 		},
 		messages.Decode, wire.Retries(limit.Check, retry.Check, effort.Check))
 	// A refusal of a tool's schema names the tool it refused, by the index it
@@ -392,7 +393,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		form, tools := p.tools(req)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
 			func(token llmprovider.Token) wire.Call {
-				return p.call(req, p.facts(ctx, req, token), true, effort, tools, limit, p.limitInput(ctx, req, token, true, limit))
+				return p.call(req, p.facts(ctx, req, token), true, effort, form, tools, limit, p.limitInput(ctx, req, token, true, limit))
 			},
 			messages.Events, wire.Retries(limit.Check, retry.Check, effort.Check))
 		stream = wire.NameRefusedStream(stream, wire.Held{Listed: deferral.Listed(tools, form)})
@@ -430,11 +431,12 @@ func (p *provider) tools(req *llmprovider.Request) (deferral.Form, []llmprovider
 }
 
 // call is the Messages request for req, asking for an event stream when
-// stream is set, at the effort effort chooses, sending tools, with the
-// output limit limit chooses from in. A request no limit can be chosen for
-// is refused before the network (0089-MADR DL51).
+// stream is set, at the effort effort chooses, sending tools in form, as
+// tools computed them, with the output limit limit chooses from in. A
+// request no limit can be chosen for is refused before the network
+// (0089-MADR DL51).
 func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner,
-	tools []llmprovider.Tool, limit *wire.LimitRetry, in wire.LimitInput) wire.Call {
+	form deferral.Form, tools []llmprovider.Tool, limit *wire.LimitRetry, in wire.LimitInput) wire.Call {
 	chosen, refused := limit.Choose(in)
 	body, warnings := p.body(req, facts, effort, tools, chosen.Tokens)
 	if sent, ok := body["max_tokens"].(int); ok {
@@ -454,7 +456,7 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		// A model before Claude 4.5 has its deferred tools appended (0040-MADR
 		// D7); an effort may be sent lower, and a refusal learned (0062-MADR
 		// D3, D6).
-		Warnings: append(deferral.Warnings(deferral.Of(deferral.Messages, model), req, model), warnings...),
+		Warnings: append(deferral.Warnings(form, req, model), warnings...),
 		// A model whose facts take no image is refused before the network
 		// (0061-MADR D5).
 		Refusal: cmp.Or(refused, wire.RefuseImages(model, req.Input, facts.Has(catalog.FieldInput),

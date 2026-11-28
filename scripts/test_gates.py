@@ -424,6 +424,21 @@ class GateSelfTest(unittest.TestCase):
         proc = run_gate(self.tree, "tables-check")
         self.assertEqual(proc.returncode, 0, f"tables-check exit {proc.returncode}, want 0:\n{proc.stdout}{proc.stderr}")
 
+    def test_tables_check_test_variable_named_unheld(self) -> None:
+        """A *_TEST_* variable AGENTS.md names that no test file holds, as
+        after its test is gone (0095-MADR FU18)."""
+        with (self.tree / "AGENTS.md").open("a", encoding="utf-8") as fh:
+            fh.write("\nPlanted: ZZ_TEST_PLANTED_GONE is read by a test that is gone.\n")
+        self.assertFails("tables-check", "AGENTS.md: ZZ_TEST_PLANTED_GONE: named, and no test file holds it")
+
+    def test_tables_check_test_variable_raw_literal(self) -> None:
+        """A test-only variable held as a raw (backquoted) string literal is
+        read as an interpreted one is (0095-MADR FU19)."""
+        (self.tree / "llmprovider/zz_planted_0095_test.go").write_text(
+            "package llmprovider\n\n// zzPlanted0095 is planted.\nconst zzPlanted0095 = `FOO_TEST_RAW_X`\n",
+            encoding="utf-8")
+        self.assertFails("tables-check", "FOO_TEST_RAW_X")
+
     # 0047-PLAN Phase 1 step 6: each value below is made up; none may be printed.
     PLANT_FIXTURE = "llmprovider/catalog/testdata/zz_0047_plant.json"
 

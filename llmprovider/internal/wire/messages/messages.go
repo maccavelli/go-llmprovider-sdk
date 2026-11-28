@@ -446,7 +446,8 @@ type blockText struct {
 
 // Events reads a Messages API event stream and yields its events as they
 // arrive (0031-MADR E3): a text_delta as EventTextDelta, a thinking_delta as
-// EventReasoningDelta, each content block as EventItem when it stops, and
+// EventReasoningDelta, each content block as EventItem when it stops (a block
+// never stopped, when the answer kept it, at message_stop: 0095-MADR FU01), and
 // message_stop as EventDone, carrying the Response Decode returns for the
 // same answer. Signatures, a call's input_json_delta and a redacted block are
 // assembled into their items, not yielded. A tool_use block's item is held
@@ -541,7 +542,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			if err != nil {
 				return false, err
 			}
-			if hold.done(resp, yield) {
+			if hold.done(resp, yield) && m.unstopped(resp, yield) {
 				yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
 			}
 			return true, nil
@@ -563,6 +564,27 @@ func (m *message) finish(texts []*blockText) (*llmprovider.Response, error) {
 		}
 	}
 	return m.response()
+}
+
+// unstopped yields, before resp's EventDone, the item of each block the
+// stream never stopped that resp kept, in block order: it is in the answer,
+// so it is passed on as an item, as a stopped block's is (0095-MADR FU01). A
+// call the limit cut, which resp dropped, is not yielded. It reports false
+// when yield stopped the stream.
+func (m *message) unstopped(resp *llmprovider.Response, yield func(llmprovider.Event) bool) bool {
+	for _, b := range m.Content {
+		if !b.open {
+			continue
+		}
+		item, ok, err := b.item()
+		if err != nil || !ok || !slices.Contains(resp.Output, item) {
+			continue
+		}
+		if !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}) {
+			return false
+		}
+	}
+	return true
 }
 
 // callHold is what a Messages stream holds back of its calls (0088-MADR

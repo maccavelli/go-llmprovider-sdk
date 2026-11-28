@@ -19,6 +19,38 @@ listed under **Removed** below.)*
 
 ## [Unreleased]
 
+### Changed
+
+- A Gemini refusal of a tool's schema, in the form the Interactions API
+  sends (`Invalid schema in function tool '<name>'`, code
+  `invalid_request`), is now `ErrToolSchemaRefused`, and the `gemini`
+  provider sets `APIError.Tool` to the one tool it names that the request
+  sent, through `Generate` and `Stream`; before, it was a plain
+  `ErrInvalidRequest`
+  ([0095-MADR](docs/decisions/0095-MADR-clear-the-sdk-follow-ups.md) FU11).
+- The wizard's offer of an API key from the environment first notifies,
+  naming the variable and never its value, when the value holds a control
+  character, such as a line feed at its end: kept as it is, the provider
+  refuses it. The value is still offered and used as it is (0095-MADR FU08).
+
+### Fixed
+
+- A Messages stream (`claude`, OpenCode's messages route) whose block the
+  stream never stopped, which the answer keeps, now yields that block as an
+  `EventItem` before `EventDone`, as it does a stopped block (0095-MADR
+  FU01).
+- A Responses stream the output limit cut, whose last call the server
+  marked `incomplete`, no longer also drops an earlier whole call that takes
+  no arguments: the incomplete call was the one cut (0095-MADR FU02).
+- A Gemini 429 whose quota details list a per-day violation after the 32nd
+  is now `ErrQuotaExhausted`; `Limit.Quotas` still keeps at most 32
+  (0095-MADR FU13).
+- `auth.FileTokenStore.LoadClient` reports a client record that decodes but
+  names a client id that is not printable text, such as bytes that were not
+  UTF-8, as undecodable, so the plan sign-in replaces it with the client it
+  registers, as it does a record that cannot be decoded; before, the bad id
+  was used and saved again (0095-MADR FU10).
+
 ## [v1.34.0] - 2026-11-27
 
 ### Added

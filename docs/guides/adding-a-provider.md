@@ -348,7 +348,10 @@ func TestConformance(t *testing.T) {
     check then requires that flag to change the request, and the same
     request sent twice to send the same body (0032-MADR D4);
   - `Garbled` writes a 200 that cannot be decoded, which must be
-    `ErrIncomplete` and is not retried;
+    `ErrIncomplete` and is not retried; the check assumes a plain reply, so
+    a provider whose `Generate` reads over the stream is built with a limit
+    given (`WithMaxTokens`) for it, or leaves `Garbled` unset (0095-MADR
+    FU06);
   - `Truncated` writes an answer cut at the output limit with a partial
     call and nothing else, which must be `ErrIncomplete` with `Reason`
     `length`, or `TruncatedReason` when your wire reports its own reason:

@@ -236,7 +236,16 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// The limit sent, and a cap learned, are reported: on the response, or on
 	// the error that ends the call (0089-MADR D5, D7, DL78).
 	err = limit.Finish(resp, err, p.observe(req, false))
-	return resp, err
+	// A refusal of a tool's schema names the tool it refused, when the body
+	// held it (0084-MADR D2, D4; 0095-MADR FU11).
+	return resp, wire.NameRefusedTool(err, p.held(req))
+}
+
+// held is what the body holds of req's tools, in the order sent, for naming
+// a refused one (0084-MADR D4; 0095-MADR FU11).
+func (p *provider) held(req *llmprovider.Request) wire.Held {
+	form := deferral.ForRequest(deferral.Other, cmp.Or(req.Model, p.model), req)
+	return wire.Held{Listed: deferral.Listed(deferral.Tools(req, form), form)}
 }
 
 // learner is req's level, learned from the model's refusals of it
@@ -259,7 +268,8 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGemini), p.src,
 			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort, limit) },
 			interactionEvents, wire.Retries(limit.Check, effort.Check))
-		for ev, err := range limit.FinishStream(stream, p.observe(req, true)) {
+		stream = limit.FinishStream(stream, p.observe(req, true))
+		for ev, err := range wire.NameRefusedStream(stream, p.held(req)) {
 			if !yield(ev, err) {
 				return
 			}

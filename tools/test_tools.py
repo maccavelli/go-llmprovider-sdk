@@ -1247,6 +1247,20 @@ class TestClaims(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("--rev self=REV", out)
 
+    def test_changed_record_with_no_marker_is_passed_over(self) -> None:
+        """0095-MADR FU20: under --changed, a changed record with no claims
+        marker keeps no evidence index, whatever its tables look like, and is
+        not a finding; the same record named on the command line is still
+        checked, so a forgotten marker is found."""
+        rec = self.record(["| E1 | a findings table | `demo.go:3` | `not code` |"], marker="")
+        with mock.patch.object(claims, "changed_records", return_value=[rec]):
+            rc, out = self.claims("--changed")
+            self.assertEqual(rc, 0, out)
+            self.assertIn("no evidence index", out)
+            rc, out = self.claims(str(rec), "--changed")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("--rev self=REV", out)
+
     def plants(self, plants: list[dict]) -> tuple[int, str]:
         self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |",
                      "| E2 | beta | `demo.go:5` | `func Beta() string` |"])

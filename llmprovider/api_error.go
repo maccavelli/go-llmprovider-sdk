@@ -690,7 +690,8 @@ func classifyInvalid(service string, status int, env apiErrorEnvelope, reply boo
 // OpenAI, whose API key, ChatGPT session and plan session all send under its
 // label, and on OpenCode, whose Responses route sent it; Anthropic's on
 // Claude only, since OpenCode's Messages route was recorded with no refusal;
-// and the Google route's form on OpenCode.
+// the Google route's form on OpenCode; and Gemini's Interactions form on
+// Gemini (0095-MADR FU11).
 func toolSchemaRefusal(service string, env apiErrorEnvelope) bool {
 	switch toolschema.Read(env.types, env.message()) {
 	case toolschema.Grok:
@@ -701,6 +702,8 @@ func toolSchemaRefusal(service string, env apiErrorEnvelope) bool {
 		return service == string(ProviderClaude)
 	case toolschema.Google:
 		return service == serviceOpencode
+	case toolschema.Gemini:
+		return service == string(ProviderGemini)
 	}
 	return false
 }
@@ -866,9 +869,13 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			if strings.HasSuffix(d.Type, "google.rpc.ErrorInfo") {
 				metadata = append(metadata, d.Metadata)
 			}
-			for _, v := range d.Violations[:min(len(d.Violations), max(0, apiErrorQuotaLimit-len(env.quotas)))] {
+			// Every violation of a kept detail is read for a per-day quota;
+			// only the list kept is capped (0095-MADR FU13).
+			for _, v := range d.Violations {
 				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
-				env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: scalarText(v.QuotaValue)})
+				if len(env.quotas) < apiErrorQuotaLimit {
+					env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: scalarText(v.QuotaValue)})
+				}
 			}
 		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)

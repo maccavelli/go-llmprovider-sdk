@@ -76,25 +76,28 @@ var recognised0084 = []struct {
 	{"toolschema-0084/messages/claude-O1-root-union.json", labelsClaude},
 	{"toolschema-0084/messages/claude-O2-two-bad.json", labelsClaude},
 	{"refusals-0062/generatecontent/opencode-zen-google-string-schema-tool.json", labelsZenGoo},
+	// Gemini's, which names the tool in single quotes, read since 0095-MADR
+	// FU11.
+	{"toolschema-0084/interactions/gemini-O1-root-union.json", []string{"gemini"}},
+	{"toolschema-0084/interactions/gemini-O2-two-bad.json", []string{"gemini"}},
 }
 
 // unrecognised0084 are the refusals of Phase 1 that no matcher reads (the
-// plan's Phase 1c: ST54 (3), ST55 (4)): Gemini's, which names the tool in
-// single quotes, and OpenCode Zen's Google route's, which refuses
-// additionalProperties.
+// plan's Phase 1c: ST54 (3), ST55 (4)): OpenCode Zen's Google route's, which
+// refuses additionalProperties and names no tool (0095-MADR FU12, left as
+// it is). Gemini's moved to recognised0084 (0095-MADR FU11).
 var unrecognised0084 = []struct {
 	file   string
 	labels []string
 }{
-	{"toolschema-0084/interactions/gemini-O1-root-union.json", []string{"gemini"}},
-	{"toolschema-0084/interactions/gemini-O2-two-bad.json", []string{"gemini"}},
 	{"toolschema-0084/generatecontent/zen-google-O1-root-union.json", labelsZenGoo},
 	{"toolschema-0084/generatecontent/zen-google-O2-two-bad.json", labelsZenGoo},
 }
 
 // evidenceOnly0084 are the refusals of Phase 1 that feed no test (ST56, the
-// typed branches): Anthropic's is in a recognised form, and the other two are
-// not. They are listed so that a new refused record cannot be forgotten.
+// typed branches): Anthropic's and Gemini's (since 0095-MADR FU11) are in a
+// recognised form, and OpenCode Zen Google's is not. They are listed so that
+// a new refused record cannot be forgotten.
 var evidenceOnly0084 = []string{
 	"toolschema-0084/messages/claude-O3-typed-branches.json",
 	"toolschema-0084/interactions/gemini-O3-typed-branches.json",

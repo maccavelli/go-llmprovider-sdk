@@ -44,11 +44,9 @@ func TestLive_ToolSchema_0084(t *testing.T) {
 	// One call runs every case, each as a subtest named by its id, and the
 	// second send of each that was other as a second subtest of the same name,
 	// which Go names <case>#01; a case whose record could not be written fails
-	// with a fixed text, and the others still run.
-	each := func(c toolCase, run func(emitFunc)) {
-		t.Run(c.id, func(t *testing.T) { run(t.Logf) })
-	}
-	for _, c := range recordToolCases(toolCases(), out, http.DefaultTransport, each) {
+	// with a fixed text, and the others still run. The runner is untagged, so
+	// that an offline test runs it (0095-MADR FU21).
+	for _, c := range recordToolCases(toolCases(), out, http.DefaultTransport, liveCaseRunner(t)) {
 		t.Errorf(toolTextNotWritten, c.id)
 	}
 }

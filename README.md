@@ -111,8 +111,8 @@ functions over any provider, and `Stream` streams from every one.
   host can send the same conversation without that tool; `APIError.Tool`
   names it when the service named exactly one tool the request sent, and is
   empty otherwise. It is read by service and marker, from an HTTP error
-  reply, on Grok, OpenAI (its API key and its sessions), Claude, and
-  OpenCode (Zen's Responses and Google routes were recorded). A refusal in
+  reply, on Grok, OpenAI (its API key and its sessions), Claude, Gemini,
+  and OpenCode (Zen's Responses and Google routes were recorded). A refusal in
   any other form stays `ErrInvalidRequest`, and the SDK never rewrites,
   drops or resends a tool.
 
@@ -416,7 +416,8 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   asks in neutral words, showing the error, whether to try again. A client
   record that exists but cannot be decoded is treated as none, with a
   notice: the wizard then registers a new client instead of signing in to a
-  stored plan session again; a record file over 64 KiB counts as corrupt too.
+  stored plan session again; a record file over 64 KiB, or one naming a
+  client id that is not printable text, counts as corrupt too.
   Any other error reading the record fails the
   sign-in, naming the file, and leaves the record as it was; through
   `x/signin` an undecodable record is replaced silently and another read

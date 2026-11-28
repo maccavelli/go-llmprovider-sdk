@@ -169,8 +169,10 @@ type ClientRead struct {
 // FileTokenStore's does, found through any wrapping and never by the error's
 // text. So does the module's own marker, `*recorderr.Oversize`, found the
 // same way: FileTokenStore's error for a client record file over 64 KiB, which
-// is corruption (0082-MADR, fifth amendment of 2026-11-18, R-14). The marker is
-// a type in an internal package, which no store of another module can name, so
+// is corruption (0082-MADR, fifth amendment of 2026-11-18, R-14), and
+// `*recorderr.Implausible`, its error for a record that decodes but names a
+// client id that is not printable text (0095-MADR FU10). The markers are
+// types in an internal package, which no store of another module can name, so
 // a custom store has the one route, encoding/json's error; an error type of its
 // own with a method of any name is not a second (sixth amendment, F-1). Every
 // other error of a read, a permission refused, an input or output error, a
@@ -180,7 +182,8 @@ func Undecodable(err error) bool {
 	var syntax *json.SyntaxError
 	var typed *json.UnmarshalTypeError
 	var oversize *recorderr.Oversize
-	return errors.As(err, &syntax) || errors.As(err, &typed) || errors.As(err, &oversize)
+	var implausible *recorderr.Implausible
+	return errors.As(err, &syntax) || errors.As(err, &typed) || errors.As(err, &oversize) || errors.As(err, &implausible)
 }
 
 // Result is what a finished sign-in produced: Session for a browser, plan

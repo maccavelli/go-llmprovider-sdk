@@ -1434,3 +1434,5 @@ changes.
 * C67now (`llmprovider/providers/claude/claude.go:213`): `llmprovider/providers/claude/claude.go:255`; already failing at `cfc911d`
 * C68now (`llmprovider/providers/kilo/kilo.go:205`): `llmprovider/providers/kilo/kilo.go:236`; already failing at `cfc911d`
 * C69now (`llmprovider/providers/opencode/opencode.go:240`): `llmprovider/providers/opencode/opencode.go:293`; already failing at `cfc911d`
+
+*(2026-11-27: ST39's follow-up is [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md)'s FU08, built: the offer notifies first when the environment value holds a control character; ST39 stands.)*

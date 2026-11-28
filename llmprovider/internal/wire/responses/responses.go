@@ -1223,11 +1223,13 @@ func (s *streamState) nameOpen(result *llmprovider.Response) {
 // the limit fell, in the server's order (0092-MADR ST37): the terminal
 // output's last item. When it is a call, it is the response's call with its
 // call id; when it is not a call, no item is last, -1. With no terminal
-// output, past the bound (ST33), or a last call whose call id the response
-// does not hold, it is the response's own last item, as before. The cut
-// applies only to a call not yet yielded, one still held or one taken from
-// the terminal: a call a later .done released was yielded, so it is kept,
-// and no item is last, -1 (ST9; 0088-MADR ST109).
+// output, past the bound (ST33), or a last call with no call id, it is the
+// response's own last item, as before. A last call whose call id the
+// response does not hold, as one dropped as incomplete, was the one cut: no
+// item of the response is last, -1, and an earlier whole call is kept
+// (0095-MADR FU02). The cut applies only to a call not yet yielded, one
+// still held or one taken from the terminal: a call a later .done released
+// was yielded, so it is kept, and no item is last, -1 (ST9; 0088-MADR ST109).
 func (s *streamState) lastIndex(output []outputItem, taken []llmprovider.Item) int {
 	fallback := len(s.result.Output) - 1
 	if len(output) == 0 || !s.bounded(output) {
@@ -1248,7 +1250,7 @@ func (s *streamState) lastIndex(output []outputItem, taken []llmprovider.Item) i
 			return i
 		}
 	}
-	return fallback
+	return -1
 }
 
 // finished is a stream's outcome: the response once it completed, or the

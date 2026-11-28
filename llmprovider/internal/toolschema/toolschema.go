@@ -1,5 +1,5 @@
 // Package toolschema reads a service's refusal of a tool's schema from the
-// error it replied with (0084-MADR D3). It is the one place the four recorded
+// error it replied with (0084-MADR D3). It is the one place the five recorded
 // forms' markers are written: llmprovider's classification asks it whether a
 // reply is a refusal, and the wire's naming helper asks it which tools the
 // reply names, so both read the same markers. They do not read the same
@@ -45,11 +45,17 @@ const (
 	// message holds the tool's name in backticks before the phrase
 	// functionDeclaration parameters schema.
 	Google
+	// Gemini is Google's Interactions API's: code invalid_request, and the
+	// message holds Invalid schema in function tool '<name>' (0095-MADR FU11,
+	// from 0084-PLAN Phase 1's records).
+	Gemini
 )
 
 // The markers each form is read by, as recorded in 0062-PLAN Phase 1 and
 // 0084-PLAN Phase 1.
 const (
+	geminiCode    = "invalid_request"
+	geminiFunc    = "Invalid schema in function tool '"
 	grokCode      = "invalid-argument"
 	grokTag       = "[invalid_client_tool_schema]"
 	openAICode    = "invalid_function_parameters"
@@ -81,6 +87,8 @@ func Read(types []string, message string) Form {
 		return Google
 	case has(anthropicType) && anthropicStart.MatchString(message) && strings.Contains(message, anthropicKey):
 		return Anthropic
+	case has(geminiCode) && strings.Contains(message, geminiFunc):
+		return Gemini
 	}
 	return None
 }
@@ -114,9 +122,13 @@ func References(form Form, message string) Refs {
 			refs.Names = append(refs.Names, strings.TrimSpace(name))
 			rest = after
 		}
-	case OpenAI:
+	case OpenAI, Gemini:
+		marker := openAIFunc
+		if form == Gemini {
+			marker = geminiFunc
+		}
 		for rest := message; ; {
-			_, after, found := strings.Cut(rest, openAIFunc)
+			_, after, found := strings.Cut(rest, marker)
 			if !found {
 				break
 			}

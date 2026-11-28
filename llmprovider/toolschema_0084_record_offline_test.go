@@ -1301,7 +1301,8 @@ var toolPlants = []toolPlant{
 	{"a caseRunner call given a function value, not a literal", []toolEdit{{toolRecordFile, "\tvar failed, again []toolCase\n",
 		"\tvar failed, again []toolCase\n\tvar f func(emitFunc)\n\tfor _, c := range cases {\n\t\teach(c, f)\n\t}\n"}},
 		"caseRunner: the arguments"},
-	{"a run given something but t.Logf", []toolEdit{{"live_0084_toolschema_measure_test.go", "run(t.Logf)",
+	// The live runner is in the record file since 0095-MADR FU21.
+	{"a run given something but t.Logf", []toolEdit{{toolRecordFile, "run(t.Logf)",
 		"run(func(string, ...any) {})"}},
 		"run: the argument is not t.Logf"},
 	{"a case line that prints Message", []toolEdit{{toolRecordFile,

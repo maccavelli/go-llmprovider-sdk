@@ -3224,3 +3224,7 @@ Gemini's and OpenCode's, each have a shape row.
 ### The release completed (2026-11-23)
 
 Tag `v1.32.0` (annotated, the owner's) on `f86933c`, pushed 2026-11-23. Tag CI run 45195957872: completed, success. `python3 -B tools/consumer.py v1.32.0`: exit 0, "consumer: 17 packages linked", "consumer: every step passed". `python3 -B tools/offline.py v1.32.0`: exit 0, "caught: no caller layer", "offline: every step passed". The GitHub Release `v1.32.0` was published 2026-11-23T14:46:16Z by the release workflow, not a draft, not a prerelease, its body the `v1.32.0` changelog section (verified by the coordinator, 2026-11-23). Release phase complete. This PLAN's status is set to `complete` (`tools/records.py status`, 2026-11-23). 0088 and 0089 are not in this release.
+
+*(2026-11-27: taken up by [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md): Gemini's single-quoted name is its FU11, read; Zen Google's `additionalProperties` refusal is FU12, left; the per-day quota past the 32nd is FU13, read; the read buffer is FU14, left; Claude's deferral form is FU15, computed once, the positional `reply bool` left; the recorder's left-overs are FU21, four closed as records only and two stopped in pass 1 for the owner.)*
+
+*(2026-11-27, later: of FU21's two stopped items, the live runner's move is built, on the owner's "Build both"; keeping a provider-build failure's text needs an outcome ST67 does not have, so it is stopped again, for the owner; 0095-MADR's third amendment.)*

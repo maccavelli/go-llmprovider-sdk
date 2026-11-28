@@ -76,7 +76,12 @@ type Harness struct {
 	SendsIsError bool
 	// Garbled, when set, writes a 200 reply that cannot be decoded. Generate
 	// must fail with ErrIncomplete, and, through WithRetry, send the request
-	// once: the service answered.
+	// once: the service answered. The check assumes Generate reads a plain
+	// reply: a provider whose Generate reads over the stream sees such a 200
+	// as a stream ended before its last event, which WithRetry resends once
+	// (0021-MADR D1), so it fails W12. Build such a provider with a limit
+	// given, llmprovider.WithMaxTokens, so that its replies stay plain, as this
+	// module's harnesses do, or leave Garbled unset (0095-MADR FU06).
 	Garbled func(w http.ResponseWriter, r *http.Request)
 	// Truncated, when set, writes a reply the service cut at its output
 	// limit, holding one call: a partial call, and Generate must fail with

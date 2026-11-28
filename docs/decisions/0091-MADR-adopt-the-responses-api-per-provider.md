@@ -1388,3 +1388,5 @@ One row per new Go doc-comment line after step 4a's second pass, the same files 
 | L57now | new doc line | `wizard/configure.go:110` | `ids, which carry no facts since 0093-MADR). Zero recommends the whole curated` |
 | L58now | new doc line | `wizard/configure.go:1111` | `from the check that follows, so a warning about a built-in catalog (the` |
 | L59now | new doc line | `wizard/configure.go:1112` | `descriptor's curated model ids, with no facts since 0093-MADR) would` |
+
+*(2026-11-27: taken up by [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md). The follow-up on summary and raw reasoning deltas for one item is its FU03, left as it is by the owner's ruling. ST72's recorded unknown is measured in FU23: `interaction.completed` carries no steps, so `StreamAnswerLimit` bounds an Interactions answer, as ST72 read it.)*

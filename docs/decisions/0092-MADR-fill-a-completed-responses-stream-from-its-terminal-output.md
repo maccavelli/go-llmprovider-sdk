@@ -824,3 +824,5 @@ Additions only, from the code review of [0091-PLAN-adopt-the-responses-api-per-p
 * **Follow-up, not built (pre-existing).** When the server's last call is dropped as `incomplete` and so is absent from the response, `lastIndex` falls back to the response's own last item, which may be an earlier `{}` call that the server did not send last. A record of its own decides it.
 
 Counts: unchanged, 38 rows: 34 decided, 4 out of scope, 0 open. The record stays `accepted`.
+
+*(2026-11-27: taken up by [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md). FU1 is its FU01, built: a block the stream never stopped is yielded as `EventItem`. The `lastIndex` follow-up of the note of 2026-11-27 is FU02, built: when the server's last call is not in the response, nothing else is cut. FU2 is FU23, measured live: Google's terminal interaction carries no `steps`, and no text delta came before its `step.start`; ST24 stays out of scope. The re-ground's "10 MiB of deltas" message is FU25: changed in v1.34.0.)*

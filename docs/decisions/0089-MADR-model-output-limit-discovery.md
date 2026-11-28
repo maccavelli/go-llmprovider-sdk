@@ -1068,3 +1068,5 @@ Additions only; no row's decision changes. The coordinator's word of 2026-11-24,
 * C208now (`llmprovider/providers/kilo/kilo.go:540`): `llmprovider/providers/kilo/kilo.go:541`; moved by 0093's build
 * C209now (`llmprovider/providers/kilo/kilo.go:541`): `llmprovider/providers/kilo/kilo.go:542`; moved by 0093's build
 * C211now (`CHANGELOG.md:70`): `CHANGELOG.md:88`; moved by 0093's build
+
+*(2026-11-27: the control run of the review note on DL65's cause ran as [0095-MADR-clear-the-sdk-follow-ups.md](0095-MADR-clear-the-sdk-follow-ups.md)'s FU24: `z-ai/glm-5.3-flashx` with `max_tokens` 131,072 sent ended `length` at 131,072 output tokens, so the cut at 128,000 with none sent is what Kilo fills when no limit is sent, not the model. DL65 stands.)*

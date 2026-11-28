@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-199 records. Cite them by full filename.
+201 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -189,7 +189,7 @@ documents a reader follows to do something.
 | 0085 | MADR | [Refuse a Typed API Key That Is Empty After Trimming: the Wizard Asks Again, up to Three Times, and Then Ends the Run](decisions/0085-MADR-refuse-an-empty-typed-key.md) | accepted |
 | 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | complete |
 | 0086 | MADR | [Pin golangci-lint v2.15.0, and Drop the Three nolint Directives It Makes Dead](decisions/0086-MADR-golangci-lint-v2-15-0.md) | accepted |
-| 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | in-progress |
+| 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | complete |
 | 0087 | MADR | [Keep a Hidden Entry's Late Line Feed From Answering the Next Prompt: `TextPrompter` Settles Its Enter Before It Leaves Raw Mode](decisions/0087-MADR-late-line-feed-after-a-hidden-entry.md) | accepted |
 | 0087 | PLAN | [Implement Settling a Hidden Entry's Enter, So Its Late Line Feed Does Not Answer the Next Prompt](decisions/0087-PLAN-late-line-feed-after-a-hidden-entry.md) | complete |
 | 0088 | MADR | [Send the Model's Own Output Limit When a Request Names None, So Reasoning Does Not Spend the Whole 8192-Token Default](decisions/0088-MADR-default-output-limit-from-model-facts.md) | accepted |
@@ -209,6 +209,8 @@ documents a reader follows to do something.
 | 0093 | PLAN | [Implement: The SDK Takes a models.dev Document From Its Caller and Fetches None](decisions/0093-PLAN-take-model-metadata-from-the-caller.md) | complete |
 | 0094 | MADR | [Refuse an Edit to a Released CHANGELOG Section: `changelog-check` Compares Each Released Section With Its Text at Release](decisions/0094-MADR-refuse-an-edit-to-a-released-changelog-section.md) | accepted |
 | 0094 | PLAN | [Implement: Refuse an Edit to a Released CHANGELOG Section](decisions/0094-PLAN-refuse-an-edit-to-a-released-changelog-section.md) | complete |
+| 0095 | MADR | [Clear the SDK Follow-ups: Sort Every Unbuilt One, Build the Records-and-Tests Ones, Put the Behaviour and Live Ones to the Owner](decisions/0095-MADR-clear-the-sdk-follow-ups.md) | accepted |
+| 0095 | PLAN | [Implement: Clear the SDK Follow-ups](decisions/0095-PLAN-clear-the-sdk-follow-ups.md) | in-progress |
 
 ## I want to…
 
